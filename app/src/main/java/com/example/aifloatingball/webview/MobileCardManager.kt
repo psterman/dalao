@@ -32,7 +32,7 @@ class MobileCardManager(
     private var viewPager: ViewPager2? = null
     private var adapter: GestureCardAdapter? = null
     private var gestureManager: MobileGestureManager? = null
-    private var contextMenuManager: WebViewContextMenuManager? = null
+    private var enhancedMenuManager: EnhancedMenuManager? = null
 
 
     // 卡片数据 - 使用现有的数据类型
@@ -58,7 +58,7 @@ class MobileCardManager(
     init {
         setupViewPager()
         setupGestureManager()
-        setupContextMenuManager()
+        // setupEnhancedMenuManager 需要在有WindowManager时调用
     }
     
     /**
@@ -142,18 +142,18 @@ class MobileCardManager(
     }
 
     /**
-     * 设置上下文菜单管理器
+     * 设置增强版菜单管理器（公共方法）
      */
-    private fun setupContextMenuManager() {
-        contextMenuManager = WebViewContextMenuManager(context)
+    fun setupEnhancedMenuManager(windowManager: android.view.WindowManager) {
+        enhancedMenuManager = EnhancedMenuManager(context, windowManager)
 
         // 设置新标签页监听器
-        contextMenuManager?.setOnNewTabListener { url, inBackground ->
+        enhancedMenuManager?.setOnNewTabListener { url, inBackground ->
             addNewCard(url)
-            Log.d(TAG, "通过上下文菜单创建新卡片: $url, 后台模式: $inBackground")
+            Log.d(TAG, "通过增强版菜单创建新卡片: $url, 后台模式: $inBackground")
         }
 
-        Log.d(TAG, "上下文菜单管理器设置完成")
+        Log.d(TAG, "增强版菜单管理器设置完成")
     }
 
     /**
@@ -561,29 +561,29 @@ class MobileCardManager(
 
         when (hitTestResult.type) {
             WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
-                // 链接
+                // 链接 - 使用增强版菜单
                 url?.let {
-                    contextMenuManager?.showLinkContextMenu(it, webView.title ?: "", webView)
+                    enhancedMenuManager?.showEnhancedLinkMenu(webView, it, webView.title ?: "", 0, 0)
                 }
                 return true
             }
             WebView.HitTestResult.IMAGE_TYPE -> {
-                // 图片
+                // 图片 - 使用增强版菜单
                 url?.let {
-                    contextMenuManager?.showImageContextMenu(it, webView)
+                    enhancedMenuManager?.showEnhancedImageMenu(webView, it, 0, 0)
                 }
                 return true
             }
             WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
-                // 图片链接
+                // 图片链接 - 使用增强版菜单
                 url?.let {
-                    contextMenuManager?.showImageLinkContextMenu(it, webView.title ?: "", webView)
+                    enhancedMenuManager?.showEnhancedImageMenu(webView, it, 0, 0)
                 }
                 return true
             }
             else -> {
-                // 其他类型，显示通用菜单
-                contextMenuManager?.showGeneralContextMenu(webView, webView)
+                // 其他类型，显示增强版刷新菜单
+                enhancedMenuManager?.showEnhancedRefreshMenu(webView, 0, 0)
                 return true
             }
         }
@@ -595,7 +595,7 @@ class MobileCardManager(
      */
     fun cleanup() {
         gestureManager?.cleanup()
-        contextMenuManager?.cleanup()
+        // enhancedMenuManager会在需要时自动清理
 
 
 

@@ -148,7 +148,34 @@ class WebViewContextMenuManager(
             dismissPopup()
             Toast.makeText(context, "已在后台打开", Toast.LENGTH_SHORT).show()
         }
-        
+
+        // 下载链接
+        menuView.findViewById<MaterialButton>(R.id.menu_download_link).setOnClickListener {
+            try {
+                Log.d(TAG, "🔽 用户点击下载链接: $url")
+                // 使用智能下载功能，自动根据文件类型选择合适的目录
+                val downloadId = enhancedDownloadManager.downloadSmart(url, object : EnhancedDownloadManager.DownloadCallback {
+                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                        Log.d(TAG, "✅ 文件下载成功: $fileName")
+                        Toast.makeText(context, "文件下载完成", Toast.LENGTH_SHORT).show()
+                    }
+
+                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                        Log.e(TAG, "❌ 文件下载失败: $reason")
+                        Toast.makeText(context, "文件下载失败", Toast.LENGTH_SHORT).show()
+                    }
+                })
+
+                if (downloadId != -1L) {
+                    Toast.makeText(context, "开始下载文件", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 下载链接失败", e)
+                Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            dismissPopup()
+        }
+
         // 复制链接
         menuView.findViewById<MaterialButton>(R.id.menu_copy_link).setOnClickListener {
             copyToClipboard("链接", url)

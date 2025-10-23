@@ -18,7 +18,11 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.adapter.GestureCardAdapter
 import com.example.aifloatingball.webview.EnhancedWebViewTouchHandler
 import com.example.aifloatingball.webview.WebViewContextMenuManager
+import com.example.aifloatingball.webview.EnhancedMenuManager
 import com.example.aifloatingball.ui.text.TextSelectionManager
+import com.example.aifloatingball.download.EnhancedDownloadManager
+import android.webkit.URLUtil
+import android.widget.Toast
 
 
 /**
@@ -64,6 +68,17 @@ class GestureCardWebViewManager(
     private val textSelectionManager: TextSelectionManager by lazy {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         TextSelectionManager(context, windowManager)
+    }
+    
+    // 增强版菜单管理器
+    private val enhancedMenuManager: EnhancedMenuManager by lazy {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        EnhancedMenuManager(context, windowManager)
+    }
+
+    // 增强下载管理器
+    private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
+        EnhancedDownloadManager(context)
     }
 
     // 页面变化监听器
@@ -127,6 +142,15 @@ class GestureCardWebViewManager(
         contextMenuManager.setOnNewTabListener { url, inBackground ->
             addNewCard(url)
         }
+    }
+
+    /**
+     * 设置新标签页监听器（对外接口）
+     */
+    fun setOnNewTabListener(listener: (String, Boolean) -> Unit) {
+        contextMenuManager.setOnNewTabListener(listener)
+        textSelectionManager.setOnNewTabListener(listener)
+        enhancedMenuManager.setOnNewTabListener(listener)
     }
 
     /**
@@ -374,23 +398,48 @@ class GestureCardWebViewManager(
             // 启用硬件加速，提升滚动性能
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
+            // 禁用系统默认的上下文菜单，使用我们自定义的菜单
+            setLongClickable(true)
+            // 显式设置空的上下文菜单监听器来禁用系统默认菜单
+            setOnCreateContextMenuListener(null)
+
+            // 额外的WebView设置来确保长按事件正确处理
+            settings.apply {
+                // 禁用WebView的默认上下文菜单
+                setNeedInitialFocus(false)
+                // 确保可以接收长按事件
+                setSupportZoom(true) // 这个设置有助于长按事件的正确处理
+                builtInZoomControls = false // 禁用内置缩放控件，避免干扰长按
+                displayZoomControls = false // 禁用缩放控件显示
+            }
+
+            // 确保WebView可以获得焦点和接收触摸事件
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true
+
+            // 重要：确保长按功能启用
+            isLongClickable = true
+
+            Log.d(TAG, "🔧 WebView长按设置完成: isLongClickable=${isLongClickable}, isFocusable=${isFocusable}")
+
         // 设置高级触摸处理
         setupAdvancedTouchHandling(this)
         
-        // 设置触摸监听器跟踪坐标和处理事件
-        setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    lastTouchX = event.x
-                    lastTouchY = event.y
-                }
-            }
-            false // 不拦截事件，让WebView正常处理
-        }
-        
         // 设置长按监听器处理上下文菜单
         setOnLongClickListener { view ->
-            handleWebViewLongClick(view as WebView)
+            Log.d(TAG, "🔥 WebView长按监听器被触发！")
+            Log.d(TAG, "🔥 WebView类型: ${view.javaClass.simpleName}")
+            Log.d(TAG, "🔥 当前线程: ${Thread.currentThread().name}")
+            val result = handleWebViewLongClick(view as WebView)
+            Log.d(TAG, "🔥 长按处理结果: $result")
+            result
+        }
+
+        // 设置下载监听器
+        setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+            Log.d(TAG, "🔽 WebView下载请求: url=$url, mimeType=$mimeType, contentLength=$contentLength")
+            handleDownloadRequest(url, userAgent, contentDisposition, mimeType, contentLength)
         }
 
             // 通知WebView创建监听器
@@ -402,9 +451,26 @@ class GestureCardWebViewManager(
      * 设置WebView回调
      */
     private fun setupWebViewCallbacks(webView: WebView, cardData: WebViewCardData) {
-        // 创建增强的触摸处理器
-        touchHandler = EnhancedWebViewTouchHandler(context, webView, viewPager)
-        touchHandler?.setupWebViewTouchHandling()
+        // 临时禁用 EnhancedWebViewTouchHandler 来测试长按功能
+        // 创建增强的触摸处理器，传入触摸坐标更新回调
+        // touchHandler = EnhancedWebViewTouchHandler(context, webView, viewPager) { x, y ->
+        //     lastTouchX = x
+        //     lastTouchY = y
+        //     Log.d(TAG, "📍 触摸坐标更新: ($x, $y)")
+        // }
+        // touchHandler?.setupWebViewTouchHandling()
+
+        // 临时使用简单的触摸监听器来跟踪坐标
+        webView.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                    Log.d(TAG, "📍 简单触摸坐标更新: (${event.x}, ${event.y})")
+                }
+            }
+            false // 不拦截事件，让WebView正常处理
+        }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
@@ -430,22 +496,27 @@ class GestureCardWebViewManager(
                         // 优化滚动性能
                         document.body.style.webkitOverflowScrolling = 'touch';
                         document.body.style.overflow = 'auto';
-                        
-                        // 优化触摸事件
+
+                        // 优化触摸事件 - 但不阻止长按事件
+                        // 注意：不使用 stopPropagation()，这会阻止长按菜单
                         document.addEventListener('touchstart', function(e) {
-                            e.stopPropagation();
+                            // 只在需要时阻止事件传播，保留长按功能
+                            // e.stopPropagation(); // 移除这行，避免阻止长按事件
                         }, { passive: true });
-                        
+
                         document.addEventListener('touchmove', function(e) {
+                            // 只阻止移动事件的传播，不影响长按
                             e.stopPropagation();
                         }, { passive: true });
-                        
+
                         // 优化滚动容器
                         var scrollContainer = document.body;
                         if (scrollContainer) {
                             scrollContainer.style.webkitTransform = 'translateZ(0)';
                             scrollContainer.style.transform = 'translateZ(0)';
                         }
+
+                        console.log('WebView 触摸优化已应用，保留长按功能');
                     })();
                 """.trimIndent(), null)
             }
@@ -1073,54 +1144,71 @@ class GestureCardWebViewManager(
      */
     private fun handleWebViewLongClick(webView: WebView): Boolean {
         val result = webView.hitTestResult
+        val isSimple = isSimpleMode()
+
+        Log.d(TAG, "🔍 WebView长按检测开始")
+        Log.d(TAG, "   - HitTestResult类型: ${result.type}")
+        Log.d(TAG, "   - HitTestResult内容: ${result.extra}")
+        Log.d(TAG, "   - 简易模式: $isSimple")
+        Log.d(TAG, "   - 触摸坐标: ($lastTouchX, $lastTouchY)")
+        Log.d(TAG, "   - WebView: ${webView.javaClass.simpleName}")
+
         return when (result.type) {
             WebView.HitTestResult.ANCHOR_TYPE,
             WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
-                // 链接长按
+                // 链接长按 - 使用增强版菜单
                 val url = result.extra
+                Log.d(TAG, "🔗 检测到链接长按: $url")
                 if (!url.isNullOrEmpty()) {
-                    // 检查是否为简易模式，使用相应的菜单
-                    if (isSimpleMode()) {
-                        // 使用简易模式的完整菜单，传递正确的坐标
-                        textSelectionManager.showSimpleModeLinkMenu(webView, url, lastTouchX.toInt(), lastTouchY.toInt())
-                        Log.d(TAG, "显示简易模式链接菜单: $url at ($lastTouchX, $lastTouchY)")
-                    } else {
-                        // 使用标准菜单
-                        contextMenuManager.showLinkContextMenu(url, "", webView)
-                        Log.d(TAG, "显示标准链接上下文菜单: $url")
-                    }
-                    true
+                    Log.d(TAG, "🎯 显示增强版链接菜单: $url")
+                    enhancedMenuManager.showEnhancedLinkMenu(webView, url, "", lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 增强版链接菜单显示成功")
                 } else {
-                    false
+                    Log.w(TAG, "⚠️ 链接URL为空，显示增强版刷新菜单")
+                    enhancedMenuManager.showEnhancedRefreshMenu(webView, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 增强版刷新菜单显示成功")
                 }
+                true
             }
             WebView.HitTestResult.IMAGE_TYPE,
             WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
-                // 图片长按
+                // 图片长按 - 使用增强版菜单
                 val imageUrl = result.extra
+                Log.d(TAG, "🖼️ 检测到图片长按: $imageUrl")
                 if (!imageUrl.isNullOrEmpty()) {
-                    if (isSimpleMode()) {
-                        // 使用简易模式的完整图片菜单，传递正确的坐标
-                        textSelectionManager.showSimpleModeImageMenu(webView, imageUrl, lastTouchX.toInt(), lastTouchY.toInt())
-                        Log.d(TAG, "显示简易模式图片菜单: $imageUrl at ($lastTouchX, $lastTouchY)")
-                    } else {
-                        contextMenuManager.showImageContextMenu(imageUrl, webView)
-                        Log.d(TAG, "显示标准图片上下文菜单: $imageUrl")
-                    }
-                    true
+                    Log.d(TAG, "🎯 显示增强版图片菜单: $imageUrl")
+                    enhancedMenuManager.showEnhancedImageMenu(webView, imageUrl, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 增强版图片菜单显示成功")
                 } else {
-                    false
+                    Log.w(TAG, "⚠️ 图片URL为空，显示增强版刷新菜单")
+                    enhancedMenuManager.showEnhancedRefreshMenu(webView, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 增强版刷新菜单显示成功")
                 }
+                true
+            }
+            WebView.HitTestResult.EDIT_TEXT_TYPE -> {
+                // 编辑文本长按
+                Log.d(TAG, "📝 检测到编辑文本长按")
+                if (isSimple) {
+                    // 简易模式显示文本选择菜单
+                    textSelectionManager.showTextSelectionMenu(webView, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 显示简易模式文本选择菜单")
+                } else {
+                    enhancedMenuManager.showEnhancedRefreshMenu(webView, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 显示增强版刷新菜单")
+                }
+                true
             }
             else -> {
-                // 其他情况显示通用菜单
-                if (isSimpleMode()) {
-                    // 简易模式暂时使用标准通用菜单，后续可以扩展
-                    contextMenuManager.showGeneralContextMenu(webView, webView)
-                    Log.d(TAG, "显示简易模式通用菜单")
+                // 其他情况（包括普通文本）启用文本选择或显示增强版刷新菜单
+                Log.d(TAG, "📄 检测到其他类型长按，类型: ${result.type}")
+                if (isSimple) {
+                    // 简易模式启用文本选择功能
+                    enableTextSelection(webView)
+                    Log.d(TAG, "✅ 启用简易模式文本选择")
                 } else {
-                    contextMenuManager.showGeneralContextMenu(webView, webView)
-                    Log.d(TAG, "显示标准通用上下文菜单")
+                    enhancedMenuManager.showEnhancedRefreshMenu(webView, lastTouchX.toInt(), lastTouchY.toInt())
+                    Log.d(TAG, "✅ 显示增强版刷新菜单")
                 }
                 true
             }
@@ -1128,20 +1216,113 @@ class GestureCardWebViewManager(
     }
     
     /**
+     * 启用文本选择功能
+     */
+    private fun enableTextSelection(webView: WebView) {
+        try {
+            // 启用文本选择
+            webView.evaluateJavascript(
+                """
+                (function() {
+                    document.body.style.webkitUserSelect = 'text';
+                    document.body.style.userSelect = 'text';
+                    document.body.style.webkitTouchCallout = 'default';
+
+                    // 清除现有选择
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+
+                    return 'Text selection enabled';
+                })();
+                """.trimIndent()
+            ) { result ->
+                Log.d(TAG, "文本选择已启用: $result")
+                // 显示提示
+                android.widget.Toast.makeText(context, "已启用文本选择，请选择要复制的文本", android.widget.Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启用文本选择失败", e)
+        }
+    }
+
+    /**
      * 检查是否为简易模式
      */
     private fun isSimpleMode(): Boolean {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-        val runningTasks = activityManager.getRunningTasks(10)
-        
-        for (task in runningTasks) {
-            val className = task.topActivity?.className
-            if (className == "com.example.aifloatingball.SimpleModeActivity") {
+        try {
+            // 方法1：检查当前Activity的类名
+            if (context is com.example.aifloatingball.SimpleModeActivity) {
+                Log.d(TAG, "✅ 检测到SimpleModeActivity，启用简易模式")
                 return true
             }
+            
+            // 方法2：检查SharedPreferences中的模式设置
+            val sharedPreferences = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            val displayMode = sharedPreferences.getString("display_mode", "floating_ball")
+            if (displayMode == "simple_mode") {
+                Log.d(TAG, "✅ 检测到简易模式设置，启用简易模式")
+                return true
+            }
+            
+            // 方法3：检查包名（备用方法）
+            val packageName = context.packageName
+            if (packageName.contains("simple") || packageName.contains("SimpleMode")) {
+                Log.d(TAG, "✅ 检测到SimpleMode包名，启用简易模式")
+                return true
+            }
+            
+            Log.d(TAG, "❌ 简易模式检测：当前Activity=${context.javaClass.simpleName}, 显示模式=$displayMode")
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "检测简易模式失败", e)
+            // 默认返回true，确保菜单功能可用
+            Log.d(TAG, "⚠️ 异常情况下默认启用简易模式")
+            return true
         }
-        return false
     }
+
+    /**
+     * 处理下载请求
+     */
+    private fun handleDownloadRequest(
+        url: String,
+        userAgent: String,
+        contentDisposition: String,
+        mimeType: String,
+        contentLength: Long
+    ) {
+        Log.d(TAG, "🔽 处理下载请求: url=$url")
+        Log.d(TAG, "🔽 MIME类型: $mimeType")
+        Log.d(TAG, "🔽 文件大小: $contentLength bytes")
+
+        try {
+            // 检查URL是否有效
+            if (!URLUtil.isValidUrl(url)) {
+                Log.e(TAG, "❌ 无效的下载URL: $url")
+                Toast.makeText(context, "无效的下载链接", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // 使用智能下载功能，自动根据文件类型选择合适的目录
+            Log.d(TAG, "🔽 使用智能下载功能")
+            enhancedDownloadManager.downloadSmart(url, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d(TAG, "✅ 文件下载成功: $fileName")
+                    Toast.makeText(context, "文件下载完成", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    Log.e(TAG, "❌ 文件下载失败: $reason")
+                    Toast.makeText(context, "文件下载失败", Toast.LENGTH_SHORT).show()
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 下载处理失败", e)
+            Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
 
 
 }

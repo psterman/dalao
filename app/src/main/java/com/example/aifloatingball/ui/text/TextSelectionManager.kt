@@ -1,6 +1,7 @@
 package com.example.aifloatingball.ui.text
 
 import com.example.aifloatingball.download.EnhancedDownloadManager
+import com.example.aifloatingball.webview.EnhancedMenuManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -58,6 +59,22 @@ class TextSelectionManager(private val context: Context, private val windowManag
     // 增强下载管理器
     private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
         EnhancedDownloadManager(context)
+    }
+    
+    // 增强版菜单管理器
+    private val enhancedMenuManager: EnhancedMenuManager by lazy {
+        EnhancedMenuManager(context, windowManager)
+    }
+    
+    // 新标签页监听器
+    private var onNewTabListener: ((String, Boolean) -> Unit)? = null
+    
+    /**
+     * 设置新标签页监听器
+     */
+    fun setOnNewTabListener(listener: (String, Boolean) -> Unit) {
+        this.onNewTabListener = listener
+        enhancedMenuManager.setOnNewTabListener(listener)
     }
     
     // 为EditText保存选择状态
@@ -841,20 +858,13 @@ class TextSelectionManager(private val context: Context, private val windowManag
     }
 
     /**
-     * 显示简易模式专用的链接操作菜单
+     * 显示简易模式专用的链接操作菜单 - 使用增强版菜单
      */
     fun showSimpleModeLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
         Log.i(TAG, "[MENU_LIFECYCLE] showSimpleModeLinkMenu: URL=$url, x=$x, y=$y")
 
-        // 如果有其他菜单正在显示，先隐藏
-        if (isMenuShowing.get() || isMenuAnimating.get()) {
-            hideTextSelectionMenu(true)
-            handler.postDelayed({
-                doShowSimpleModeLinkMenu(webView, url, x, y)
-            }, 160)
-            return
-        }
-        doShowSimpleModeLinkMenu(webView, url, x, y)
+        // 使用增强版菜单管理器显示链接菜单
+        enhancedMenuManager.showEnhancedLinkMenu(webView, url, "", x, y)
     }
 
     private fun doShowSimpleModeLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
@@ -1132,6 +1142,21 @@ class TextSelectionManager(private val context: Context, private val windowManag
             hideTextSelectionMenu()
         }
 
+        // 在浏览器中打开
+        menuView.findViewById<View>(R.id.action_open_in_browser)?.setOnClickListener {
+            try {
+                val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(browserIntent)
+                Toast.makeText(context, "已在浏览器中打开", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "在浏览器中打开链接失败", e)
+                Toast.makeText(context, "在浏览器中打开失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
         // 拷贝链接文字
         menuView.findViewById<View>(R.id.action_copy_link_text)?.setOnClickListener {
             // 执行JavaScript获取链接的文本内容
@@ -1209,17 +1234,19 @@ class TextSelectionManager(private val context: Context, private val windowManag
         // 下载链接
         menuView.findViewById<View>(R.id.action_download_link)?.setOnClickListener {
             try {
-                // 使用增强下载管理器下载文件
-                val downloadId = enhancedDownloadManager.downloadFile(url, object : EnhancedDownloadManager.DownloadCallback {
+                // 使用智能下载功能，自动根据文件类型选择合适的目录
+                val downloadId = enhancedDownloadManager.downloadSmart(url, object : EnhancedDownloadManager.DownloadCallback {
                     override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
                         Log.d(TAG, "文件下载成功: $fileName")
+                        Toast.makeText(context, "文件下载完成", Toast.LENGTH_SHORT).show()
                     }
-                    
+
                     override fun onDownloadFailed(downloadId: Long, reason: Int) {
                         Log.e(TAG, "文件下载失败: $reason")
+                        Toast.makeText(context, "文件下载失败", Toast.LENGTH_SHORT).show()
                     }
                 })
-                
+
                 if (downloadId != -1L) {
                     Toast.makeText(context, "开始下载文件", Toast.LENGTH_SHORT).show()
                 }
@@ -1294,20 +1321,13 @@ class TextSelectionManager(private val context: Context, private val windowManag
     }
     
     /**
-     * 显示简易模式专用的图片操作菜单
+     * 显示增强版刷新菜单
      */
-    fun showSimpleModeImageMenu(webView: WebView, imageUrl: String, x: Int, y: Int) {
-        Log.i(TAG, "[MENU_LIFECYCLE] showSimpleModeImageMenu: URL=$imageUrl, x=$x, y=$y")
-
-        // 如果有其他菜单正在显示，先隐藏
-        if (isMenuShowing.get() || isMenuAnimating.get()) {
-            hideTextSelectionMenu(true)
-            handler.postDelayed({
-                doShowSimpleModeImageMenu(webView, imageUrl, x, y)
-            }, 160)
-            return
-        }
-        doShowSimpleModeImageMenu(webView, imageUrl, x, y)
+    fun showEnhancedRefreshMenu(webView: WebView, x: Int, y: Int) {
+        Log.i(TAG, "[MENU_LIFECYCLE] showEnhancedRefreshMenu: x=$x, y=$y")
+        
+        // 使用增强版菜单管理器显示刷新菜单
+        enhancedMenuManager.showEnhancedRefreshMenu(webView, x, y)
     }
 
     private fun doShowSimpleModeImageMenu(webView: WebView, imageUrl: String, x: Int, y: Int) {
@@ -1427,20 +1447,23 @@ class TextSelectionManager(private val context: Context, private val windowManag
                 // 使用增强下载管理器下载图片
                 val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
                     override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
-                        Log.d(TAG, "图片下载成功: $fileName")
+                        Log.d(TAG, "✅ 图片保存成功: $fileName")
+                        Toast.makeText(context, "图片已保存到相册", Toast.LENGTH_SHORT).show()
                     }
-                    
+
                     override fun onDownloadFailed(downloadId: Long, reason: Int) {
-                        Log.e(TAG, "图片下载失败: $reason")
+                        Log.e(TAG, "❌ 图片保存失败: $reason")
+                        Toast.makeText(context, "图片保存失败", Toast.LENGTH_SHORT).show()
                     }
                 })
-                
-                if (downloadId != -1L) {
-                    Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
+
+                if (downloadId == -1L) {
+                    // 权限不足或其他错误，已在 EnhancedDownloadManager 中处理
+                    Log.w(TAG, "⚠️ 图片保存请求失败，可能是权限不足")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "保存图片失败", e)
-                Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "保存图片异常", e)
+                Toast.makeText(context, "保存图片失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
             hideTextSelectionMenu()
         }

@@ -38,6 +38,14 @@
             android:drawableStart="@drawable/ic_open_in_new"
             android:drawablePadding="8dp" />
 
+        <!-- 在浏览器中打开 -->
+        <TextView
+            android:id="@+id/action_open_in_browser"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="在浏览器中打开"
+            android:drawableStart="@drawable/ic_web"
+            android:drawablePadding="8dp" />
+
         <!-- 拷贝链接文字 -->
         <TextView
             android:id="@+id/action_copy_link_text"

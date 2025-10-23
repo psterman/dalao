@@ -41,6 +41,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import kotlin.math.abs
 import android.webkit.WebView
@@ -5858,7 +5859,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置Safari风格功能
         setupSafariStyleFeatures()
-        
+
+        // 设置长按菜单的新标签页监听器
+        gestureCardWebViewManager?.let { manager ->
+            manager.setOnNewTabListener { url, inBackground ->
+                Log.d(TAG, "🔗 长按菜单请求打开新标签页: $url (后台: $inBackground)")
+                // 在新卡片中打开URL
+                manager.addNewCard(url)
+            }
+        }
+
         // 注册到统一WebView管理器
         gestureCardWebViewManager?.let { manager ->
             val adapter = WebViewManagerAdapter(manager, "GestureCardWebViewManager", unifiedWebViewManager)
@@ -7987,6 +7997,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val adapter = WebViewManagerAdapter(manager, "MobileCardManager", unifiedWebViewManager)
             unifiedWebViewManager.registerManager(adapter)
             Log.d(TAG, "MobileCardManager已注册到统一WebView管理器")
+            
+            // 设置增强版菜单管理器
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            manager.setupEnhancedMenuManager(windowManager)
+            Log.d(TAG, "MobileCardManager增强版菜单管理器设置完成")
         }
 
         Log.d(TAG, "手机卡片管理器设置完成")

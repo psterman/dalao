@@ -93,14 +93,116 @@ class EnhancedDownloadManager(private val context: Context) {
     private fun checkStoragePermission(): Boolean {
         return PermissionUtils.hasStoragePermission(context)
     }
+
+    /**
+     * 显示权限需要对话框
+     */
+    private fun showPermissionRequiredDialog(action: String) {
+        try {
+            val alertDialog = android.app.AlertDialog.Builder(context)
+                .setTitle("需要存储权限")
+                .setMessage("${action}需要存储权限，请在设置中授权。")
+                .setPositiveButton("去设置") { _, _ ->
+                    try {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "打开设置失败", e)
+                        Toast.makeText(context, "请手动到设置中授权存储权限", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .create()
+
+            // 确保对话框可以在非Activity上下文中显示
+            alertDialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            alertDialog.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示权限对话框失败", e)
+            Toast.makeText(context, "需要存储权限才能${action}，请到设置中授权", Toast.LENGTH_LONG).show()
+        }
+    }
     
+    /**
+     * 智能下载 - 根据文件类型自动选择合适的目录和处理方式
+     */
+    fun downloadSmart(url: String, callback: DownloadCallback? = null): Long {
+        if (!checkStoragePermission()) {
+            Log.e(TAG, "没有存储权限，无法下载文件")
+            showPermissionRequiredDialog("下载文件")
+            return -1
+        }
+
+        // 根据URL和MIME类型判断文件类型
+        val fileName = generateFileName(url)
+        val mimeType = getMimeType(url)
+
+        Log.d(TAG, "🔽 智能下载: url=$url")
+        Log.d(TAG, "🔽 文件名: $fileName")
+        Log.d(TAG, "🔽 MIME类型: $mimeType")
+
+        return when {
+            // 图片文件 - 保存到相册
+            isImageFile(fileName, mimeType) -> {
+                Log.d(TAG, "📸 检测到图片文件，保存到相册")
+                downloadToDirectory(
+                    url = url,
+                    fileName = fileName,
+                    title = "保存图片",
+                    description = "正在下载图片",
+                    destinationDir = Environment.DIRECTORY_PICTURES,
+                    callback = callback
+                )
+            }
+            // 视频文件 - 保存到视频目录
+            isVideoFile(fileName, mimeType) -> {
+                Log.d(TAG, "🎬 检测到视频文件，保存到视频目录")
+                downloadToDirectory(
+                    url = url,
+                    fileName = fileName,
+                    title = "下载视频",
+                    description = "正在下载视频",
+                    destinationDir = Environment.DIRECTORY_MOVIES,
+                    callback = callback
+                )
+            }
+            // 音频文件 - 保存到音乐目录
+            isAudioFile(fileName, mimeType) -> {
+                Log.d(TAG, "🎵 检测到音频文件，保存到音乐目录")
+                downloadToDirectory(
+                    url = url,
+                    fileName = fileName,
+                    title = "下载音频",
+                    description = "正在下载音频",
+                    destinationDir = Environment.DIRECTORY_MUSIC,
+                    callback = callback
+                )
+            }
+            // 其他文件 - 保存到下载目录
+            else -> {
+                Log.d(TAG, "📁 其他文件，保存到下载目录")
+                downloadToDirectory(
+                    url = url,
+                    fileName = fileName,
+                    title = "下载文件",
+                    description = "正在下载文件",
+                    destinationDir = Environment.DIRECTORY_DOWNLOADS,
+                    callback = callback
+                )
+            }
+        }
+    }
+
     /**
      * 下载图片
      */
     fun downloadImage(imageUrl: String, callback: DownloadCallback? = null): Long {
         if (!checkStoragePermission()) {
             Log.e(TAG, "没有存储权限，无法保存图片")
-            Toast.makeText(context, "需要存储权限才能保存图片", Toast.LENGTH_LONG).show()
+            showPermissionRequiredDialog("保存图片")
             return -1
         }
         
@@ -130,7 +232,7 @@ class EnhancedDownloadManager(private val context: Context) {
     fun downloadFile(fileUrl: String, callback: DownloadCallback? = null): Long {
         if (!checkStoragePermission()) {
             Log.e(TAG, "没有存储权限，无法下载文件")
-            Toast.makeText(context, "需要存储权限才能下载文件", Toast.LENGTH_LONG).show()
+            showPermissionRequiredDialog("下载文件")
             return -1
         }
         
@@ -614,6 +716,94 @@ class EnhancedDownloadManager(private val context: Context) {
         }
     }
     
+    /**
+     * 下载到指定目录
+     */
+    private fun downloadToDirectory(
+        url: String,
+        fileName: String,
+        title: String,
+        description: String,
+        destinationDir: String,
+        callback: DownloadCallback?
+    ): Long {
+        val downloadId = downloadFile(
+            url = url,
+            fileName = fileName,
+            title = title,
+            description = description,
+            destinationDir = destinationDir,
+            callback = callback
+        )
+
+        // 显示下载进度弹窗
+        if (downloadId != -1L) {
+            showDownloadProgressDialog(downloadId, fileName)
+        }
+
+        Log.d(TAG, "开始下载: $url -> $fileName (目录: $destinationDir)")
+        Toast.makeText(context, "开始下载$title", Toast.LENGTH_SHORT).show()
+        return downloadId
+    }
+
+    /**
+     * 文件类型检测方法
+     */
+    private fun isImageFile(fileName: String, mimeType: String): Boolean {
+        val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg")
+        val imageMimeTypes = listOf("image/")
+
+        return imageExtensions.any { fileName.lowercase().endsWith(it) } ||
+               imageMimeTypes.any { mimeType.startsWith(it) }
+    }
+
+    private fun isVideoFile(fileName: String, mimeType: String): Boolean {
+        val videoExtensions = listOf(".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m4v")
+        val videoMimeTypes = listOf("video/")
+
+        return videoExtensions.any { fileName.lowercase().endsWith(it) } ||
+               videoMimeTypes.any { mimeType.startsWith(it) }
+    }
+
+    private fun isAudioFile(fileName: String, mimeType: String): Boolean {
+        val audioExtensions = listOf(".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma")
+        val audioMimeTypes = listOf("audio/")
+
+        return audioExtensions.any { fileName.lowercase().endsWith(it) } ||
+               audioMimeTypes.any { mimeType.startsWith(it) }
+    }
+
+    private fun isDocumentFile(fileName: String, mimeType: String): Boolean {
+        val documentExtensions = listOf(".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt")
+        val documentMimeTypes = listOf(
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument",
+            "text/plain"
+        )
+
+        return documentExtensions.any { fileName.lowercase().endsWith(it) } ||
+               documentMimeTypes.any { mimeType.startsWith(it) }
+    }
+
+    private fun isArchiveFile(fileName: String, mimeType: String): Boolean {
+        val archiveExtensions = listOf(".zip", ".rar", ".7z", ".tar", ".gz", ".bz2")
+        val archiveMimeTypes = listOf(
+            "application/zip",
+            "application/x-rar-compressed",
+            "application/x-7z-compressed",
+            "application/gzip"
+        )
+
+        return archiveExtensions.any { fileName.lowercase().endsWith(it) } ||
+               archiveMimeTypes.any { mimeType.startsWith(it) }
+    }
+
+    private fun isApkFile(fileName: String, mimeType: String): Boolean {
+        return fileName.lowercase().endsWith(".apk") ||
+               mimeType == "application/vnd.android.package-archive"
+    }
+
     /**
      * 清理资源
      */

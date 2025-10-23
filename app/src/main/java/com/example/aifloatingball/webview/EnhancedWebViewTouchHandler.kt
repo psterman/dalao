@@ -16,7 +16,8 @@ import kotlin.math.sqrt
 class EnhancedWebViewTouchHandler(
     private val context: Context,
     private val webView: WebView,
-    private val viewPager: ViewPager2? = null
+    private val viewPager: ViewPager2? = null,
+    private val onTouchCoordinatesUpdated: ((Float, Float) -> Unit)? = null
 ) {
     
     companion object {
@@ -73,25 +74,24 @@ class EnhancedWebViewTouchHandler(
         pointerCount = 1
         isZooming = false
         lastTouchTime = currentTime
-        
+
+        // 通知触摸坐标更新
+        onTouchCoordinatesUpdated?.invoke(event.x, event.y)
+
         // 重置冲突解决器
         touchConflictResolver.reset()
-        
+
         Log.d(TAG, "单指按下: x=${event.x}, y=${event.y}")
-        
+
         // 分析触摸事件
         val result = touchConflictResolver.analyzeTouchEvent(event)
-        
-        // 根据分析结果决定是否拦截
-        return if (result.shouldIntercept) {
-            // 拦截事件，不让WebView处理
-            view.parent?.requestDisallowInterceptTouchEvent(true)
-            true
-        } else {
-            // 不拦截，让WebView正常处理
-            view.parent?.requestDisallowInterceptTouchEvent(false)
-            false
-        }
+
+        // 对于单指按下，我们不拦截事件，让WebView正常处理
+        // 这样可以确保长按事件能够正常触发
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+
+        // 单指按下时不消费事件，让WebView处理长按等事件
+        return false
     }
     
     private fun handlePointerDown(view: android.view.View, event: MotionEvent): Boolean {
