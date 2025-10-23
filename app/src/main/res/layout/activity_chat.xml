@@ -189,6 +189,17 @@
                 android:tint="#4CAF50"
                 android:contentDescription="朗读开关" />
 
+            <!-- 麦克风TTS朗读按钮 -->
+            <ImageButton
+                android:id="@+id/mic_tts_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="6dp"
+                android:src="@drawable/ic_mic"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="#4CAF50"
+                android:contentDescription="麦克风朗读" />
+
             <!-- 设置按钮（移到最右边） -->
             <ImageButton
                 android:id="@+id/settings_button"

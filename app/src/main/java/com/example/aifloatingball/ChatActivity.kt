@@ -87,6 +87,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private lateinit var loadProfileButtonToolbar: ImageButton
     private lateinit var chatHistoryButton: ImageButton
     private lateinit var ttsToggleButton: ImageButton
+    private lateinit var micTTSButton: ImageButton
 
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
@@ -238,7 +239,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         clearChatButtonToolbar = findViewById(R.id.clear_chat_button_toolbar)
         loadProfileButtonToolbar = findViewById(R.id.load_profile_button_toolbar)
         chatHistoryButton = findViewById(R.id.chat_history_button)
-        // ttsToggleButton = findViewById(R.id.tts_toggle_button)
+        ttsToggleButton = findViewById(R.id.tts_toggle_button)
+        micTTSButton = findViewById(R.id.mic_tts_button)
 
         // 设置RecyclerView - 使用正向布局，最新消息在底部
         val layoutManager = LinearLayoutManager(this)
@@ -481,6 +483,19 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             // TTS按钮长按事件 - 打开TTS设置
             ttsToggleButton.setOnLongClickListener {
                 showTTSSettingsDialog()
+                true
+            }
+        }
+        
+        // 麦克风TTS朗读按钮事件
+        if (::micTTSButton.isInitialized) {
+            micTTSButton.setOnClickListener {
+                performMicTTSReading()
+            }
+            
+            // 麦克风按钮长按事件 - 显示TTS状态信息
+            micTTSButton.setOnLongClickListener {
+                showTTSStatusInfo()
                 true
             }
         }
@@ -4018,19 +4033,31 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             ttsToggleButton.alpha = 0.5f
             ttsToggleButton.contentDescription = ttsManager.getTTSStatusDescription()
             ttsToggleButton.visibility = View.VISIBLE
-            return
+        } else {
+            ttsToggleButton.isEnabled = true
+            ttsToggleButton.alpha = 1.0f
+            ttsToggleButton.visibility = View.VISIBLE
+            
+            if (isTTSEnabled && isAvailable) {
+                ttsToggleButton.setImageResource(android.R.drawable.ic_btn_speak_now)
+                ttsToggleButton.contentDescription = "关闭朗读"
+            } else {
+                ttsToggleButton.setImageResource(android.R.drawable.ic_media_play)
+                ttsToggleButton.contentDescription = "开启朗读"
+            }
         }
         
-        ttsToggleButton.isEnabled = true
-        ttsToggleButton.alpha = 1.0f
-        ttsToggleButton.visibility = View.VISIBLE
-        
-        if (isTTSEnabled && isAvailable) {
-            ttsToggleButton.setImageResource(android.R.drawable.ic_btn_speak_now)
-            ttsToggleButton.contentDescription = "关闭朗读"
-        } else {
-            ttsToggleButton.setImageResource(android.R.drawable.ic_media_play)
-            ttsToggleButton.contentDescription = "开启朗读"
+        // 更新麦克风TTS按钮状态
+        if (::micTTSButton.isInitialized) {
+            if (!isSupported || !isTTSEnabled) {
+                micTTSButton.isEnabled = false
+                micTTSButton.alpha = 0.5f
+                micTTSButton.contentDescription = if (!isSupported) "TTS不支持" else "请先启用TTS"
+            } else {
+                micTTSButton.isEnabled = true
+                micTTSButton.alpha = 1.0f
+                micTTSButton.contentDescription = "麦克风朗读"
+            }
         }
     }
     
@@ -4241,6 +4268,112 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             .setView(scrollView)
             .setPositiveButton("确定", null)
             .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 执行麦克风TTS朗读功能
+     * 朗读最后一条AI回复消息
+     */
+    private fun performMicTTSReading() {
+        Log.d(TAG, "麦克风TTS朗读按钮被点击")
+        
+        // 检查TTS是否启用
+        if (!isTTSEnabled) {
+            Toast.makeText(this, "请先启用TTS功能", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 检查TTS是否可用
+        if (!ttsManager.isAvailable()) {
+            Log.w(TAG, "TTS不可用，尝试强制初始化")
+            ttsManager.forceInitializeTTS()
+            
+            // 延迟检查TTS状态
+            messageInput.postDelayed({
+                if (ttsManager.isAvailable()) {
+                    performActualTTSReading()
+                } else {
+                    Toast.makeText(this, "TTS功能不可用，请检查系统设置", Toast.LENGTH_SHORT).show()
+                    showTTSErrorDialog("TTS引擎初始化失败，请检查系统设置")
+                }
+            }, 1000)
+            return
+        }
+        
+        performActualTTSReading()
+    }
+    
+    /**
+     * 执行实际的TTS朗读
+     */
+    private fun performActualTTSReading() {
+        try {
+            // 查找最后一条AI回复消息
+            val lastAIMessage = messages.lastOrNull { !it.isFromUser }
+            
+            if (lastAIMessage != null) {
+                Log.d(TAG, "开始朗读最后一条AI消息: ${lastAIMessage.content.take(50)}...")
+                val utteranceId = "mic_tts_${System.currentTimeMillis()}"
+                ttsManager.speak(lastAIMessage.content, utteranceId)
+                Toast.makeText(this, "开始朗读AI回复", Toast.LENGTH_SHORT).show()
+            } else {
+                // 如果没有AI消息，朗读测试文本
+                val testText = "当前没有AI回复消息可以朗读。这是一个测试语音，说明TTS功能正常工作。"
+                Log.d(TAG, "没有AI消息，朗读测试文本")
+                val utteranceId = "mic_tts_test_${System.currentTimeMillis()}"
+                ttsManager.speak(testText, utteranceId)
+                Toast.makeText(this, "朗读测试文本", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "麦克风TTS朗读失败", e)
+            Toast.makeText(this, "朗读失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示TTS状态信息
+     */
+    private fun showTTSStatusInfo() {
+        val supportLevel = ttsManager.getTTSSupportLevel()
+        val isSupported = ttsManager.isTTSSupported()
+        val isAvailable = ttsManager.isAvailable()
+        val engineInfo = ttsManager.getTTSEngineInfo()
+        
+        val statusInfo = """
+            TTS状态信息:
+            
+            支持级别: ${supportLevel.name}
+            是否支持: ${if (isSupported) "是" else "否"}
+            是否可用: ${if (isAvailable) "是" else "否"}
+            是否启用: ${if (isTTSEnabled) "是" else "否"}
+            
+            引擎信息:
+            ${engineInfo?.let { 
+                "引擎名称: ${it.engineName}\n" +
+                "引擎包名: ${it.enginePackage}\n" +
+                "是否默认: ${if (it.isDefault) "是" else "否"}\n" +
+                "支持中文: ${if (it.hasChineseSupport) "是" else "否"}\n" +
+                "支持英文: ${if (it.hasEnglishSupport) "是" else "否"}"
+            } ?: "无引擎信息"}
+            
+            语音参数:
+            语速: ${String.format("%.1f", ttsManager.getSpeechRate())}
+            音调: ${String.format("%.1f", ttsManager.getPitch())}
+            音量: ${String.format("%.0f", ttsManager.getVolume() * 100)}%
+        """.trimIndent()
+        
+        AlertDialog.Builder(this)
+            .setTitle("TTS状态信息")
+            .setMessage(statusInfo)
+            .setPositiveButton("确定", null)
+            .setNeutralButton("打开设置") { _, _ ->
+                ttsManager.openTTSSettings()
+            }
+            .setNegativeButton("重新检测") { _, _ ->
+                ttsManager.reinitializeTTS()
+                Toast.makeText(this, "正在重新检测TTS支持", Toast.LENGTH_SHORT).show()
+            }
             .show()
     }
 }
