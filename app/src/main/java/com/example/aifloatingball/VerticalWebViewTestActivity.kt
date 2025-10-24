@@ -91,3 +91,5 @@ class VerticalWebViewTestActivity : AppCompatActivity() {
         verticalWebViewManager.cleanup()
     }
 }
+
+

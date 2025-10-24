@@ -17,7 +17,6 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.webkit.WebView
@@ -47,13 +46,13 @@ class PaperStackWebViewManager(
     private val context: Context,
     private val container: ViewGroup
 ) {
-    
     companion object {
         private const val TAG = "PaperStackWebViewManager"
         private const val MAX_TABS = 8 // 最大标签页数量
         private const val TAB_OFFSET_X = 15f // 每个标签页的X轴偏移
         private const val TAB_OFFSET_Y = 10f // 每个标签页的Y轴偏移
-        private const val SWIPE_THRESHOLD = 120f // 滑动阈值
+        private const val SWIPE_THRESHOLD = 50f // 滑动阈值 - 进一步降低阈值提高响应性
+        private const val SWIPE_VELOCITY_THRESHOLD = 500f // 滑动速度阈值
         private const val ANIMATION_DURATION = 350L // 动画持续时间
         private const val TAB_SHADOW_RADIUS = 15f // 标签页阴影半径
         private const val TAB_CORNER_RADIUS = 10f // 标签页圆角半径
@@ -82,6 +81,8 @@ class PaperStackWebViewManager(
     private var isSwipeStarted = false
     private var swipeDirection = SwipeDirection.NONE
     private var isTextSelectionActive = false
+    private var lastTouchTime = 0L
+    private var touchDownTime = 0L
 
     init {
         setupGestureDetector()
@@ -209,7 +210,16 @@ class PaperStackWebViewManager(
      * 切换到指定标签页
      */
     fun switchToTab(targetIndex: Int) {
-        if (isAnimating || targetIndex < 0 || targetIndex >= tabs.size) return
+        if (isAnimating || targetIndex < 0 || targetIndex >= tabs.size || tabs.isEmpty()) {
+            Log.w(TAG, "switchToTab: 无效参数或条件不满足。isAnimating=$isAnimating, targetIndex=$targetIndex, tabs.size=${tabs.size}")
+            return
+        }
+        
+        // 如果目标索引就是当前索引，不需要切换
+        if (targetIndex == currentTabIndex) {
+            Log.d(TAG, "目标标签页就是当前标签页，跳过切换")
+            return
+        }
         
         isAnimating = true
         val currentTab = tabs[currentTabIndex]
@@ -236,8 +246,13 @@ class PaperStackWebViewManager(
         // 执行动画
         animatorSet.playTogether(animators)
         animatorSet.duration = ANIMATION_DURATION
-        animatorSet.interpolator = DecelerateInterpolator()
+        // 使用更平滑的插值器，让动画更自然
+        animatorSet.interpolator = DecelerateInterpolator(1.5f)
         animatorSet.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationStart(animation: Animator) {
+                Log.d(TAG, "标签页切换动画开始")
+            }
+            
             override fun onAnimationEnd(animation: Animator) {
                 isAnimating = false
                 
@@ -252,6 +267,11 @@ class PaperStackWebViewManager(
                 
                 Log.d(TAG, "标签页切换完成，当前标签页: ${targetTab.title}")
             }
+            
+            override fun onAnimationCancel(animation: Animator) {
+                isAnimating = false
+                Log.d(TAG, "标签页切换动画被取消")
+            }
         })
         
         animatorSet.start()
@@ -264,8 +284,9 @@ class PaperStackWebViewManager(
         val targetOffsetX = targetStackIndex * TAB_OFFSET_X
         val targetOffsetY = targetStackIndex * TAB_OFFSET_Y
         val targetScale = TAB_SCALE_FACTOR.pow(targetStackIndex)
-        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.3f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
-        val targetElevation = (tabs.size - targetStackIndex).toFloat()
+        // 修复透明度计算：第一个页面完全不透明，其他页面保持适当透明度
+        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.4f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
+        val targetElevation = (tabs.size - targetStackIndex + 10).toFloat() // 增加基础elevation避免重叠
         
         val animatorX = ObjectAnimator.ofFloat(tab.webView, "translationX", tab.webView.translationX, targetOffsetX)
         val animatorY = ObjectAnimator.ofFloat(tab.webView, "translationY", tab.webView.translationY, targetOffsetY)
@@ -273,6 +294,24 @@ class PaperStackWebViewManager(
         val animatorScaleY = ObjectAnimator.ofFloat(tab.webView, "scaleY", tab.webView.scaleY, targetScale)
         val animatorAlpha = ObjectAnimator.ofFloat(tab.webView, "alpha", tab.webView.alpha, targetAlpha)
         val animatorElevation = ObjectAnimator.ofFloat(tab.webView, "elevation", tab.webView.elevation, targetElevation)
+        
+        // 设置动画持续时间
+        val duration = ANIMATION_DURATION
+        animatorX.duration = duration
+        animatorY.duration = duration
+        animatorScaleX.duration = duration
+        animatorScaleY.duration = duration
+        animatorAlpha.duration = duration
+        animatorElevation.duration = duration
+        
+        // 设置插值器
+        val interpolator = DecelerateInterpolator(1.2f)
+        animatorX.interpolator = interpolator
+        animatorY.interpolator = interpolator
+        animatorScaleX.interpolator = interpolator
+        animatorScaleY.interpolator = interpolator
+        animatorAlpha.interpolator = interpolator
+        animatorElevation.interpolator = interpolator
         
         val animatorSet = AnimatorSet()
         animatorSet.playTogether(animatorX, animatorY, animatorScaleX, animatorScaleY, animatorAlpha, animatorElevation)
@@ -287,8 +326,9 @@ class PaperStackWebViewManager(
         val targetOffsetX = targetStackIndex * TAB_OFFSET_X
         val targetOffsetY = targetStackIndex * TAB_OFFSET_Y
         val targetScale = TAB_SCALE_FACTOR.pow(targetStackIndex)
-        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.3f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
-        val targetElevation = (tabs.size - targetStackIndex).toFloat()
+        // 修复透明度计算：第一个页面完全不透明，其他页面保持适当透明度
+        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.4f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
+        val targetElevation = (tabs.size - targetStackIndex + 10).toFloat() // 增加基础elevation避免重叠
         
         val animatorX = ObjectAnimator.ofFloat(tab.webView, "translationX", tab.webView.translationX, targetOffsetX)
         val animatorY = ObjectAnimator.ofFloat(tab.webView, "translationY", tab.webView.translationY, targetOffsetY)
@@ -296,6 +336,24 @@ class PaperStackWebViewManager(
         val animatorScaleY = ObjectAnimator.ofFloat(tab.webView, "scaleY", tab.webView.scaleY, targetScale)
         val animatorAlpha = ObjectAnimator.ofFloat(tab.webView, "alpha", tab.webView.alpha, targetAlpha)
         val animatorElevation = ObjectAnimator.ofFloat(tab.webView, "elevation", tab.webView.elevation, targetElevation)
+        
+        // 设置动画持续时间
+        val duration = ANIMATION_DURATION
+        animatorX.duration = duration
+        animatorY.duration = duration
+        animatorScaleX.duration = duration
+        animatorScaleY.duration = duration
+        animatorAlpha.duration = duration
+        animatorElevation.duration = duration
+        
+        // 设置插值器
+        val interpolator = DecelerateInterpolator(1.2f)
+        animatorX.interpolator = interpolator
+        animatorY.interpolator = interpolator
+        animatorScaleX.interpolator = interpolator
+        animatorScaleY.interpolator = interpolator
+        animatorAlpha.interpolator = interpolator
+        animatorElevation.interpolator = interpolator
         
         val animatorSet = AnimatorSet()
         animatorSet.playTogether(animatorX, animatorY, animatorScaleX, animatorScaleY, animatorAlpha, animatorElevation)
@@ -346,15 +404,32 @@ class PaperStackWebViewManager(
      * 重新排序标签页数组
      */
     private fun reorderTabs(currentIndex: Int, targetIndex: Int) {
+        // 检查数组边界，避免越界异常
+        if (tabs.isEmpty() || currentIndex < 0 || currentIndex >= tabs.size || 
+            targetIndex < 0 || targetIndex >= tabs.size) {
+            Log.w(TAG, "reorderTabs: 索引超出边界，跳过重新排序。tabs.size=${tabs.size}, currentIndex=$currentIndex, targetIndex=$targetIndex")
+            return
+        }
+        
+        // 如果只有一个标签页，不需要重新排序
+        if (tabs.size == 1) {
+            Log.d(TAG, "只有一个标签页，跳过重新排序")
+            return
+        }
+        
         // 将目标标签页移到最前面（数组的第一个位置）
         val targetTab = tabs[targetIndex]
         tabs.removeAt(targetIndex)
         tabs.add(0, targetTab)
         
         // 将当前标签页移到最后面（数组的最后一个位置）
-        val currentTab = tabs[currentIndex + 1] // 因为targetTab已经移到了前面
-        tabs.removeAt(currentIndex + 1)
-        tabs.add(currentTab)
+        // 注意：由于targetTab已经移到了前面，需要调整索引
+        val adjustedCurrentIndex = if (targetIndex < currentIndex) currentIndex - 1 else currentIndex
+        if (adjustedCurrentIndex >= 0 && adjustedCurrentIndex < tabs.size) {
+            val currentTab = tabs[adjustedCurrentIndex]
+            tabs.removeAt(adjustedCurrentIndex)
+            tabs.add(currentTab)
+        }
         
         Log.d(TAG, "重新排序完成：目标标签页移到最前，当前标签页移到最后")
     }
@@ -369,8 +444,9 @@ class PaperStackWebViewManager(
             val offsetX = stackIndex * TAB_OFFSET_X
             val offsetY = stackIndex * TAB_OFFSET_Y
             val scale = TAB_SCALE_FACTOR.pow(stackIndex)
-            // 第一个页面（stackIndex = 0）不设置透明度，保持完全不透明
-            val alpha = if (stackIndex == 0) 1.0f else max(0.3f, 1f - (stackIndex * TAB_ALPHA_FACTOR))
+            
+            // 修复透明度问题：第一个页面（stackIndex = 0）完全不透明，其他页面保持适当透明度
+            val alpha = if (stackIndex == 0) 1.0f else max(0.4f, 1f - (stackIndex * TAB_ALPHA_FACTOR))
             
             // 设置变换属性
             tab.webView.translationX = offsetX
@@ -379,8 +455,8 @@ class PaperStackWebViewManager(
             tab.webView.scaleY = scale
             tab.webView.alpha = alpha
             
-            // 设置层级：第一个标签页在最上面
-            tab.webView.elevation = (tabs.size - index).toFloat()
+            // 设置层级：第一个标签页在最上面，确保不重叠
+            tab.webView.elevation = (tabs.size - index + 10).toFloat() // 增加基础elevation避免重叠
             
             // 更新标签页状态
             tab.isActive = (index == currentTabIndex)
@@ -439,32 +515,37 @@ class PaperStackWebViewManager(
      * 处理触摸事件
      */
     fun onTouchEvent(event: MotionEvent): Boolean {
+        // 如果没有标签页，不处理触摸事件
+        if (tabs.isEmpty()) return false
+        
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 swipeStartX = event.x
                 swipeStartY = event.y
                 isSwipeStarted = false
                 swipeDirection = SwipeDirection.NONE
+                touchDownTime = System.currentTimeMillis()
+                Log.d(TAG, "触摸开始: x=${event.x}, y=${event.y}")
             }
+            
             MotionEvent.ACTION_MOVE -> {
                 if (!isSwipeStarted) {
                     val deltaX = abs(event.x - swipeStartX)
                     val deltaY = abs(event.y - swipeStartY)
                     
-                    // 检查是否在文本选择区域
-                    if (isInTextSelectionArea(event)) {
-                        // 如果在文本选择区域，不处理滑动
-                        return false
-                    }
-                    
-                    if (deltaX > 50f || deltaY > 50f) {
+                    // 进一步降低滑动检测阈值，提高响应性
+                    if (deltaX > 15f || deltaY > 15f) {
                         isSwipeStarted = true
-                        // 确定滑动方向
-                        swipeDirection = if (deltaX > deltaY) {
+                        // 确定滑动方向 - 优化方向判断逻辑
+                        swipeDirection = if (deltaX > deltaY * 1.3f) {
                             SwipeDirection.HORIZONTAL
-                        } else {
+                        } else if (deltaY > deltaX * 1.1f) {
                             SwipeDirection.VERTICAL
+                        } else {
+                            SwipeDirection.NONE
                         }
+                        
+                        Log.d(TAG, "滑动开始: 方向=${swipeDirection}, deltaX=$deltaX, deltaY=$deltaY")
                         
                         // 如果是横向滑动，阻止WebView的滚动
                         if (swipeDirection == SwipeDirection.HORIZONTAL) {
@@ -476,28 +557,50 @@ class PaperStackWebViewManager(
                     return true
                 }
             }
+            
             MotionEvent.ACTION_UP -> {
+                val currentTime = System.currentTimeMillis()
+                val touchDuration = currentTime - touchDownTime
+                
                 if (isSwipeStarted && swipeDirection == SwipeDirection.HORIZONTAL) {
                     val deltaX = event.x - swipeStartX
+                    val deltaY = event.y - swipeStartY
                     
-                    if (abs(deltaX) > SWIPE_THRESHOLD) {
+                    Log.d(TAG, "滑动结束: deltaX=$deltaX, deltaY=$deltaY, 阈值=$SWIPE_THRESHOLD, 持续时间=${touchDuration}ms")
+                    
+                    // 检查是否满足滑动条件 - 进一步降低阈值提高响应性
+                    val effectiveThreshold = if (touchDuration < 300) SWIPE_THRESHOLD * 0.5f else SWIPE_THRESHOLD * 0.7f
+                    if (abs(deltaX) > effectiveThreshold && abs(deltaX) > abs(deltaY) * 1.1f) {
                         if (deltaX > 0) {
+                            // 右滑 - 切换到上一个标签页
+                            Log.d(TAG, "右滑检测到，切换到上一个标签页")
                             switchToPreviousTab()
                         } else {
+                            // 左滑 - 切换到下一个标签页
+                            Log.d(TAG, "左滑检测到，切换到下一个标签页")
                             switchToNextTab()
                         }
                         return true
                     }
                 }
+                
+                // 重置状态
+                isSwipeStarted = false
+                swipeDirection = SwipeDirection.NONE
+                lastTouchTime = currentTime
+            }
+            
+            MotionEvent.ACTION_CANCEL -> {
+                // 重置状态
+                isSwipeStarted = false
+                swipeDirection = SwipeDirection.NONE
             }
         }
         
         // 只有在非横向滑动时才传递给WebView
-        // 对于纵向滑动，直接传递给WebView，不经过gestureDetector
         return if (swipeDirection == SwipeDirection.HORIZONTAL) {
             true
         } else {
-            // 纵向滑动直接传递给WebView，避免刷新冲突
             false
         }
     }
@@ -568,14 +671,6 @@ class PaperStackWebViewManager(
             setBackgroundColor(Color.TRANSPARENT)
             setBackground(null)
             setLayerType(LAYER_TYPE_HARDWARE, null)
-            
-            // 设置长按菜单处理
-            setOnLongClickListener { view ->
-                Log.d(TAG, "🎯 PaperWebView长按事件触发")
-                android.widget.Toast.makeText(context, "长按检测到！", android.widget.Toast.LENGTH_SHORT).show()
-                handleWebViewLongClick(view as WebView)
-                true // 拦截长按事件，阻止系统默认菜单
-            }
             
             // 设置触摸监听器来检测文本选择
             setOnTouchListener { _, event ->
@@ -654,171 +749,5 @@ class PaperStackWebViewManager(
             super.onDraw(canvas)
             // 移除阴影和边框绘制，避免灰色蒙版效果
         }
-    }
-
-    /**
-     * 处理WebView长按事件
-     */
-    private fun handleWebViewLongClick(webView: WebView): Boolean {
-        val hitTestResult = webView.hitTestResult
-        val url = hitTestResult.extra
-
-        Log.d(TAG, "PaperStackWebView长按检测 - 类型: ${hitTestResult.type}, URL: $url")
-
-        when (hitTestResult.type) {
-            WebView.HitTestResult.SRC_ANCHOR_TYPE,
-            WebView.HitTestResult.ANCHOR_TYPE -> {
-                // 链接 - 显示简单菜单
-                url?.let {
-                    Log.d(TAG, "🔗 显示链接菜单: $it")
-                    showSimpleLinkMenu(webView, it)
-                } ?: run {
-                    Log.d(TAG, "🔗 链接URL为空，显示通用菜单")
-                    showSimpleGeneralMenu(webView)
-                }
-                return true
-            }
-            WebView.HitTestResult.IMAGE_TYPE,
-            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
-                // 图片 - 显示简单菜单
-                url?.let {
-                    Log.d(TAG, "🖼️ 显示图片菜单: $it")
-                    showSimpleImageMenu(webView, it)
-                } ?: run {
-                    Log.d(TAG, "🖼️ 图片URL为空，显示通用菜单")
-                    showSimpleGeneralMenu(webView)
-                }
-                return true
-            }
-            else -> {
-                // 其他类型，显示通用菜单
-                Log.d(TAG, "📄 显示通用菜单")
-                showSimpleGeneralMenu(webView)
-                return true
-            }
-        }
-    }
-
-    /**
-     * 显示简单的链接菜单
-     */
-    private fun showSimpleLinkMenu(webView: WebView, url: String) {
-        val items = arrayOf("在新标签页中打开", "复制链接", "分享链接", "刷新页面")
-        
-        android.app.AlertDialog.Builder(context)
-            .setTitle("链接操作")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        // 在新标签页中打开
-                        addTab(url, "新标签页")
-                        android.widget.Toast.makeText(context, "已在新标签页中打开", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    1 -> {
-                        // 复制链接
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val clip = android.content.ClipData.newPlainText("链接", url)
-                        clipboard.setPrimaryClip(clip)
-                        android.widget.Toast.makeText(context, "链接已复制", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        // 分享链接
-                        val shareIntent = android.content.Intent().apply {
-                            action = android.content.Intent.ACTION_SEND
-                            putExtra(android.content.Intent.EXTRA_TEXT, url)
-                            type = "text/plain"
-                        }
-                        context.startActivity(android.content.Intent.createChooser(shareIntent, "分享链接"))
-                    }
-                    3 -> {
-                        // 刷新页面
-                        webView.reload()
-                        android.widget.Toast.makeText(context, "页面已刷新", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    /**
-     * 显示简单的图片菜单
-     */
-    private fun showSimpleImageMenu(webView: WebView, imageUrl: String) {
-        val items = arrayOf("查看大图", "复制图片链接", "分享图片", "保存图片")
-        
-        android.app.AlertDialog.Builder(context)
-            .setTitle("图片操作")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        // 查看大图
-                        addTab(imageUrl, "图片查看")
-                        android.widget.Toast.makeText(context, "已在新标签页中打开图片", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    1 -> {
-                        // 复制图片链接
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        val clip = android.content.ClipData.newPlainText("图片链接", imageUrl)
-                        clipboard.setPrimaryClip(clip)
-                        android.widget.Toast.makeText(context, "图片链接已复制", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        // 分享图片
-                        val shareIntent = android.content.Intent().apply {
-                            action = android.content.Intent.ACTION_SEND
-                            putExtra(android.content.Intent.EXTRA_TEXT, imageUrl)
-                            type = "text/plain"
-                        }
-                        context.startActivity(android.content.Intent.createChooser(shareIntent, "分享图片"))
-                    }
-                    3 -> {
-                        // 保存图片
-                        android.widget.Toast.makeText(context, "保存图片功能开发中", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    /**
-     * 显示简单的通用菜单
-     */
-    private fun showSimpleGeneralMenu(webView: WebView) {
-        val items = arrayOf("刷新页面", "重新加载", "页面信息", "新建标签页")
-        
-        android.app.AlertDialog.Builder(context)
-            .setTitle("页面操作")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        // 刷新页面
-                        webView.reload()
-                        android.widget.Toast.makeText(context, "页面已刷新", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    1 -> {
-                        // 重新加载
-                        webView.loadUrl(webView.url ?: "about:blank")
-                        android.widget.Toast.makeText(context, "页面已重新加载", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        // 页面信息
-                        val info = "URL: ${webView.url}\n标题: ${webView.title}"
-                        android.app.AlertDialog.Builder(context)
-                            .setTitle("页面信息")
-                            .setMessage(info)
-                            .setPositiveButton("确定", null)
-                            .show()
-                    }
-                    3 -> {
-                        // 新建标签页
-                        addTab("https://www.baidu.com", "新标签页")
-                        android.widget.Toast.makeText(context, "已创建新标签页", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
     }
 }

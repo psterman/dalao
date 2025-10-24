@@ -100,3 +100,5 @@ class StackedWebViewTestActivity : AppCompatActivity() {
         stackedWebViewManager.cleanup()
     }
 }
+
+

@@ -25,6 +25,7 @@ import com.example.aifloatingball.voice.VoiceInputManager
 import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
 import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 import com.example.aifloatingball.service.MyAccessibilityService
+import com.example.aifloatingball.webview.PaperStackWebViewManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -453,6 +454,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
+    
+    // 纸堆WebView管理器
+    private var paperStackWebViewManager: PaperStackWebViewManager? = null
     
     // 统一WebView管理器
     private lateinit var unifiedWebViewManager: UnifiedWebViewManager
@@ -3981,19 +3985,95 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             settingsLayout.visibility = View.GONE
             browserLayout.visibility = View.VISIBLE
 
-            // 确保手势卡片式WebView管理器已正确初始化
-            if (gestureCardWebViewManager == null) {
+            // 确保纸堆WebView管理器已正确初始化
+            if (paperStackWebViewManager == null) {
                 setupBrowserWebView()
             }
 
-            // 检查是否有保存的卡片状态并弹出提示
-            checkAndPromptForSavedCards()
+            // 自动进入纸堆模式
+            enterPaperStackMode()
 
             updateTabColors()
 
             Log.d(TAG, "浏览器界面显示完成")
         } catch (e: Exception) {
             Log.e(TAG, "显示浏览器界面异常", e)
+        }
+    }
+
+    /**
+     * 进入纸堆模式
+     */
+    private fun enterPaperStackMode() {
+        try {
+            Log.d(TAG, "进入纸堆模式")
+            
+            // 隐藏主页内容
+            browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
+            
+            // 显示纸堆容器
+            val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+            paperStackLayout?.visibility = View.VISIBLE
+            
+            // 确保纸堆WebView管理器已初始化
+            if (paperStackWebViewManager == null) {
+                Log.d(TAG, "纸堆WebView管理器未初始化，重新初始化")
+                setupBrowserWebView()
+            }
+            
+            // 如果还没有标签页，添加一个默认标签页
+            val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+            if (tabCount == 0) {
+                Log.d(TAG, "没有标签页，添加默认标签页")
+                addDefaultTab()
+            } else {
+                Log.d(TAG, "已有 $tabCount 个标签页，无需添加默认标签页")
+                // 确保纸堆模式正确显示
+                val currentTab = paperStackWebViewManager?.getCurrentTab()
+                if (currentTab != null) {
+                    browserSearchInput.setText(currentTab.url)
+                    Log.d(TAG, "更新搜索框显示当前标签页URL: ${currentTab.url}")
+                }
+            }
+            
+            Log.d(TAG, "纸堆模式已激活")
+        } catch (e: Exception) {
+            Log.e(TAG, "进入纸堆模式失败", e)
+        }
+    }
+
+    /**
+     * 添加默认标签页
+     */
+    private fun addDefaultTab() {
+        try {
+            val defaultUrl = "https://www.baidu.com"
+            val defaultTitle = "百度"
+            
+            // 添加默认标签页到纸堆模式
+            val newTab = paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
+            
+            if (newTab != null) {
+                Log.d(TAG, "添加默认标签页成功: $defaultTitle")
+                
+                // 确保纸堆模式正确显示
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                paperStackLayout?.visibility = View.VISIBLE
+                
+                // 隐藏主页内容，确保纸堆模式独占显示
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                
+                // 更新搜索框显示当前标签页URL
+                browserSearchInput.setText(defaultUrl)
+                
+                Log.d(TAG, "默认标签页已归入纸堆模式")
+            } else {
+                Log.e(TAG, "添加默认标签页失败")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "添加默认标签页失败", e)
         }
     }
 
@@ -4125,12 +4205,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 设置长按监听器 - 长按激活/退出遮罩层
+            // 设置长按监听器 - 长按激活enhancedtabmanager菜单或遮罩层
             setOnLongClickListener {
-                Log.d(TAG, "搜索tab长按事件触发，当前遮罩层状态: $isSearchTabGestureOverlayActive")
+                Log.d(TAG, "搜索tab长按事件触发")
 
                 try {
-                    if (isSearchTabGestureOverlayActive) {
+                    // 检查是否在纸堆模式下
+                    val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                    if (paperStackLayout?.visibility == View.VISIBLE) {
+                        // 在纸堆模式下，长按激活enhancedtabmanager菜单
+                        Log.d(TAG, "长按搜索tab激活enhancedtabmanager菜单")
+                        showEnhancedTabManagerMenu()
+                    } else if (isSearchTabGestureOverlayActive) {
                         // 如果遮罩层已激活，长按退出遮罩层
                         Log.d(TAG, "长按搜索tab退出遮罩层")
                         deactivateSearchTabGestureOverlay()
@@ -5650,16 +5736,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 设置浏览器WebView - 手势卡片式版本
+     * 设置浏览器WebView - 纸张叠加版本
      */
     private fun setupBrowserWebView() {
-        // 初始化手势卡片式WebView管理器
-        gestureCardWebViewManager = GestureCardWebViewManager(
+        // 初始化纸张叠加WebView管理器
+        paperStackWebViewManager = PaperStackWebViewManager(
             context = this,
             container = browserWebViewContainer
         )
 
-        // 设置页面变化监听器
+        // 设置标签页监听器
+        paperStackWebViewManager?.setOnTabCreatedListener { tab ->
+            // 隐藏主页内容，显示纸堆界面
+            browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
+            
+            // 更新搜索tab徽标
+            updateSearchTabBadge()
+            
+            Log.d(TAG, "创建标签页: ${tab.title}")
+        }
+
+        paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
+            // 更新搜索框URL
+            browserSearchInput.setText(tab.url)
+            
+            // 同步更新StackedCardPreview数据
+            syncAllCardSystems()
+            
+            Log.d(TAG, "切换到标签页: ${tab.title}")
+        }
+        
+        paperStackWebViewManager?.setOnTabCreatedListener { tab ->
+            // 标签页创建时同步更新
+            syncAllCardSystems()
+            Log.d(TAG, "创建标签页: ${tab.title}")
+        }
+
+        // 设置页面变化监听器（保留原有的gestureCardWebViewManager监听器以兼容其他功能）
         gestureCardWebViewManager?.setOnPageChangeListener(object : GestureCardWebViewManager.OnPageChangeListener {
             override fun onCardAdded(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
                 // 隐藏主页内容，显示全屏卡片界面
@@ -5931,6 +6045,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 设置下拉刷新的条件 - 只有在页面顶部才能触发
             browserSwipeRefresh.setOnChildScrollUpCallback { parent, child ->
+                // 在纸堆模式下，禁用下拉刷新
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                if (paperStackLayout?.visibility == View.VISIBLE) {
+                    return@setOnChildScrollUpCallback false
+                }
+                
                 // 检查当前WebView是否可以向上滚动
                 getCurrentWebViewForScrollCheck()?.canScrollVertically(-1) ?: false
             }
@@ -6667,12 +6787,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 菜单按钮 - 打开搜索引擎侧边栏
         browserBtnMenu.setOnClickListener {
             Log.d(TAG, "菜单按钮被点击")
-            if (browserLayout.isDrawerOpen(GravityCompat.START)) {
-                Log.d(TAG, "关闭抽屉")
-                browserLayout.closeDrawer(GravityCompat.START)
+            
+            // 检查是否在纸堆模式下
+            val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+            if (paperStackLayout?.visibility == View.VISIBLE) {
+                // 在纸堆模式下，显示EnhancedTabManager菜单
+                showEnhancedTabManagerMenu()
             } else {
-                Log.d(TAG, "打开抽屉")
-                browserLayout.openDrawer(GravityCompat.START)
+                // 在普通模式下，打开抽屉
+                if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                    Log.d(TAG, "关闭抽屉")
+                    browserLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    Log.d(TAG, "打开抽屉")
+                    browserLayout.openDrawer(GravityCompat.START)
+                }
             }
         }
 
@@ -7364,13 +7493,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
             val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
             val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
 
             Log.d(TAG, "=== 统一卡片数据获取开始 ===")
             Log.d(TAG, "手势管理器状态: ${gestureCardWebViewManager != null}")
             Log.d(TAG, "手机管理器状态: ${mobileCardManager != null}")
+            Log.d(TAG, "纸堆管理器状态: ${paperStackWebViewManager != null}")
             Log.d(TAG, "手势卡片数量: ${gestureCards.size}")
             Log.d(TAG, "手机卡片数量: ${mobileCards.size}")
+            Log.d(TAG, "纸堆标签页数量: ${paperStackTabs.size}")
 
             // 先添加手势卡片
             allCards.addAll(gestureCards)
@@ -7393,13 +7525,245 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
+            // 添加纸堆标签页数据
+            paperStackTabs.forEach { tab ->
+                // 检查是否已存在相同的卡片
+                val isDuplicate = allCards.any { existingCard ->
+                    existingCard.url == tab.url && existingCard.url?.isNotEmpty() == true
+                }
+                if (!isDuplicate) {
+                    val paperStackCard = GestureCardWebViewManager.WebViewCardData(
+                        id = tab.id,
+                        title = tab.title,
+                        url = tab.url,
+                        webView = tab.webView
+                    )
+                    allCards.add(paperStackCard)
+                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}")
+                } else {
+                    duplicateCount++
+                    Log.d(TAG, "跳过重复纸堆标签页: ${tab.title} - ${tab.url}")
+                }
+            }
+
+            Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 纸堆标签页: ${paperStackTabs.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
             Log.d(TAG, "=== 统一卡片数据获取结束 ===")
 
             return allCards
         } catch (e: Exception) {
             Log.e(TAG, "获取统一卡片数据异常", e)
             return emptyList()
+        }
+    }
+
+    /**
+     * 显示EnhancedTabManager菜单
+     */
+    private fun showEnhancedTabManagerMenu() {
+        try {
+            Log.d(TAG, "显示EnhancedTabManager菜单")
+            
+            // 创建菜单选项
+            val menuItems = mutableListOf<String>()
+            val menuActions = mutableListOf<() -> Unit>()
+            
+            // 添加标签页管理选项
+            val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            
+            if (tabCount > 0) {
+                // 关闭当前标签页
+                menuItems.add("关闭当前标签页")
+                menuActions.add {
+                    currentTab?.let { tab ->
+                        paperStackWebViewManager?.removeTab(tab.id)
+                        Toast.makeText(this, "已关闭标签页: ${tab.title}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                
+                // 关闭所有标签页
+                menuItems.add("关闭所有标签页")
+                menuActions.add {
+                    paperStackWebViewManager?.cleanup()
+                    Toast.makeText(this, "已关闭所有标签页", Toast.LENGTH_SHORT).show()
+                }
+                
+                // 查看所有标签页预览
+                menuItems.add("查看所有标签页")
+                menuActions.add {
+                    activateStackedCardPreview()
+                }
+                
+                // 标签页管理
+                menuItems.add("标签页管理")
+                menuActions.add {
+                    showTabManagementDialog()
+                }
+            }
+            
+            // 添加新建标签页选项
+            menuItems.add("新建标签页")
+            menuActions.add {
+                val defaultUrl = "https://www.baidu.com"
+                val defaultTitle = "百度"
+                paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
+                Toast.makeText(this, "已创建新标签页", Toast.LENGTH_SHORT).show()
+            }
+            
+            // 添加搜索选项
+            menuItems.add("搜索")
+            menuActions.add {
+                browserSearchInput.requestFocus()
+                // 显示软键盘
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                imm.showSoftInput(browserSearchInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+            }
+            
+            // 添加设置选项
+            menuItems.add("设置")
+            menuActions.add {
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+            }
+            
+            // 添加帮助选项
+            menuItems.add("帮助")
+            menuActions.add {
+                showPaperStackHelpDialog()
+            }
+            
+            // 显示菜单
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("纸堆模式 - EnhancedTabManager")
+            builder.setItems(menuItems.toTypedArray()) { _, which ->
+                if (which < menuActions.size) {
+                    menuActions[which]()
+                }
+            }
+            builder.setNegativeButton("取消", null)
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示EnhancedTabManager菜单失败", e)
+            Toast.makeText(this, "菜单显示失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示标签页管理对话框
+     */
+    private fun showTabManagementDialog() {
+        try {
+            val tabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            if (tabs.isEmpty()) {
+                Toast.makeText(this, "没有标签页可以管理", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val tabTitles = tabs.mapIndexed { index, tab ->
+                "${index + 1}. ${tab.title}"
+            }.toTypedArray()
+            
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("标签页管理 (${tabs.size}个)")
+            builder.setItems(tabTitles) { _, which ->
+                if (which < tabs.size) {
+                    val selectedTab = tabs[which]
+                    showTabActionDialog(selectedTab)
+                }
+            }
+            builder.setNegativeButton("取消", null)
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示标签页管理对话框失败", e)
+            Toast.makeText(this, "标签页管理失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示标签页操作对话框
+     */
+    private fun showTabActionDialog(tab: com.example.aifloatingball.webview.PaperStackWebViewManager.WebViewTab) {
+        try {
+            val actions = arrayOf("切换到该标签页", "关闭该标签页", "复制链接", "分享页面")
+            
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("操作: ${tab.title}")
+            builder.setItems(actions) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 切换到该标签页
+                        val tabIndex = paperStackWebViewManager?.getAllTabs()?.indexOf(tab) ?: -1
+                        if (tabIndex >= 0) {
+                            paperStackWebViewManager?.switchToTab(tabIndex)
+                            Toast.makeText(this, "已切换到: ${tab.title}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    1 -> {
+                        // 关闭该标签页
+                        paperStackWebViewManager?.removeTab(tab.id)
+                        Toast.makeText(this, "已关闭: ${tab.title}", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        // 复制链接
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("链接", tab.url)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, "链接已复制", Toast.LENGTH_SHORT).show()
+                    }
+                    3 -> {
+                        // 分享页面
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, tab.title)
+                            putExtra(Intent.EXTRA_TEXT, "${tab.title}\n${tab.url}")
+                        }
+                        val chooser = Intent.createChooser(shareIntent, "分享页面")
+                        startActivity(chooser)
+                    }
+                }
+            }
+            builder.setNegativeButton("取消", null)
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示标签页操作对话框失败", e)
+            Toast.makeText(this, "操作失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示纸堆模式帮助对话框
+     */
+    private fun showPaperStackHelpDialog() {
+        try {
+            val helpText = """
+                纸堆模式使用说明：
+                
+                • 左右滑动：切换标签页
+                • 上下滑动：滚动页面内容
+                • 点击菜单：打开EnhancedTabManager
+                • 长按菜单：更多选项
+                
+                功能特点：
+                • 多标签页同时浏览
+                • 标签页预览和管理
+                • 快速搜索和导航
+                • 智能标签页切换
+                
+                提示：在纸堆模式下，您可以同时查看多个网页，就像翻书一样切换页面。
+            """.trimIndent()
+            
+            val builder = AlertDialog.Builder(this)
+            builder.setTitle("纸堆模式帮助")
+            builder.setMessage(helpText)
+            builder.setPositiveButton("知道了", null)
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示帮助对话框失败", e)
+            Toast.makeText(this, "帮助显示失败", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -8328,36 +8692,63 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 加载浏览器内容 - 多页面版本
+     * 加载浏览器内容 - 纸堆模式版本
      */
     private fun loadBrowserContent(url: String) {
         try {
             Log.d(TAG, "开始加载URL: $url")
 
-            // 修改逻辑：总是在新卡片中打开链接
-            loadUrlInNewCard(url)
-
-            // 隐藏主页内容，显示手势卡片式WebView界面
-            browserHomeContent.visibility = View.GONE
-            browserTabContainer.visibility = View.GONE
-
-            // 关键修复：确保ViewPager2可见
-            showViewPager2()
-
-            // 使用post确保UI状态在下一个循环中同步
-            browserLayout.post {
-                // 再次确保ViewPager2可见（防止时序问题）
+            // 在纸堆模式下添加新标签页
+            if (paperStackWebViewManager != null) {
+                val title = extractTitleFromUrl(url)
+                paperStackWebViewManager?.addTab(url, title)
+                
+                Log.d(TAG, "在纸堆模式中添加新标签页: $title")
+            } else {
+                // 兼容原有逻辑
+                loadUrlInNewCard(url)
+                
+                // 隐藏主页内容，显示手势卡片式WebView界面
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                
+                // 关键修复：确保ViewPager2可见
                 showViewPager2()
-                Log.d(TAG, "UI状态已同步，ViewPager2确保可见")
+                
+                // 使用post确保UI状态在下一个循环中同步
+                browserLayout.post {
+                    // 再次确保ViewPager2可见（防止时序问题）
+                    showViewPager2()
+                    Log.d(TAG, "UI状态已同步，ViewPager2确保可见")
+                }
+                
+                Log.d(TAG, "已切换到WebView模式，ViewPager2已显示")
+                Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
             }
-
-            Log.d(TAG, "已切换到WebView模式，ViewPager2已显示")
-
-            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)
             Toast.makeText(this, "无法加载页面: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 从URL提取标题
+     */
+    private fun extractTitleFromUrl(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: url
+            when {
+                host.contains("baidu.com") -> "百度"
+                host.contains("google.com") -> "谷歌"
+                host.contains("bing.com") -> "必应"
+                host.contains("sogou.com") -> "搜狗"
+                host.contains("360.cn") -> "360搜索"
+                else -> host.replace("www.", "").replace(".com", "").replace(".cn", "")
+            }
+        } catch (e: Exception) {
+            "网页"
         }
     }
 
@@ -8648,6 +9039,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END))) {
             Log.d(TAG, "抽屉已打开，传递触摸事件给抽屉处理")
             return super.dispatchTouchEvent(ev)
+        }
+
+        // 如果在纸堆模式下，优先处理纸堆的触摸事件
+        if (currentState == UIState.BROWSER && paperStackWebViewManager != null) {
+            val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+            if (paperStackLayout?.visibility == View.VISIBLE) {
+                val handled = paperStackWebViewManager?.onTouchEvent(ev) ?: false
+                if (handled) {
+                    Log.d(TAG, "纸堆模式触摸事件已处理")
+                    return true
+                }
+            }
         }
 
         return super.dispatchTouchEvent(ev)
@@ -17430,6 +17833,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置卡片选择监听器
                 setOnCardSelectedListener { cardIndex ->
                     // 切换到选中的卡片
+                    Log.d(TAG, "🎯 StackedCardPreview 选择卡片: $cardIndex")
                     switchToWebViewCard(cardIndex)
                 }
 
@@ -17634,20 +18038,75 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun switchToWebViewCard(cardIndex: Int) {
         try {
-            gestureCardWebViewManager?.let { manager ->
-                val allCards = manager.getAllCards()
-                if (cardIndex >= 0 && cardIndex < allCards.size) {
-                    manager.switchToCard(cardIndex)
-                    Log.d(TAG, "✅ 通过卡片预览切换到卡片: $cardIndex")
-
-                    // 更新卡片数据（可能有变化）
-                    updateWaveTrackerCards()
+            Log.d(TAG, "🎯 切换到卡片: $cardIndex")
+            
+            // 获取统一卡片数据
+            val allCards = getAllUnifiedCards()
+            if (cardIndex >= 0 && cardIndex < allCards.size) {
+                val selectedCard = allCards[cardIndex]
+                Log.d(TAG, "选中卡片: ${selectedCard.title} - ${selectedCard.url}")
+                
+                // 检查卡片来源，决定如何切换
+                val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+                val isPaperStackCard = paperStackTabs.any { it.url == selectedCard.url }
+                
+                if (isPaperStackCard) {
+                    // 如果是纸堆标签页，切换到纸堆模式
+                    Log.d(TAG, "切换到纸堆模式标签页")
+                    switchToPaperStackTab(selectedCard.url)
                 } else {
-                    Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
+                    // 如果是其他卡片，使用原有逻辑
+                    Log.d(TAG, "切换到手势卡片")
+                    gestureCardWebViewManager?.let { manager ->
+                        val gestureCards = manager.getAllCards()
+                        val gestureCardIndex = gestureCards.indexOfFirst { it.url == selectedCard.url }
+                        if (gestureCardIndex >= 0) {
+                            manager.switchToCard(gestureCardIndex)
+                            Log.d(TAG, "✅ 通过卡片预览切换到手势卡片: $gestureCardIndex")
+                        }
+                    }
                 }
+                
+                // 更新卡片数据（可能有变化）
+                updateWaveTrackerCards()
+            } else {
+                Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 切换到webview卡片失败", e)
+        }
+    }
+    
+    /**
+     * 切换到纸堆模式的指定标签页
+     */
+    private fun switchToPaperStackTab(url: String) {
+        try {
+            val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            val tabIndex = paperStackTabs.indexOfFirst { it.url == url }
+            
+            if (tabIndex >= 0) {
+                // 确保在纸堆模式下
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                paperStackLayout?.visibility = View.VISIBLE
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                
+                // 切换到指定标签页
+                paperStackWebViewManager?.switchToTab(tabIndex)
+                
+                // 更新搜索框显示当前URL
+                browserSearchInput.setText(url)
+                
+                // 关闭StackedCardPreview
+                deactivateStackedCardPreview()
+                
+                Log.d(TAG, "✅ 已切换到纸堆标签页: ${paperStackTabs[tabIndex].title}")
+            } else {
+                Log.w(TAG, "⚠️ 未找到URL对应的纸堆标签页: $url")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到纸堆标签页失败", e)
         }
     }
 
@@ -17730,6 +18189,56 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "✅ 从MobileCardManager移除卡片（如果存在）")
                 } catch (e: Exception) {
                     Log.w(TAG, "从MobileCardManager移除卡片时出错", e)
+                }
+            }
+            
+            // 3. 关键修复：同时从纸堆模式中删除相同URL的标签页
+            paperStackWebViewManager?.let { manager ->
+                try {
+                    Log.d(TAG, "🔍 检查纸堆模式中是否有相同URL的标签页")
+                    val paperStackTabs = manager.getAllTabs()
+                    val tabToRemove = paperStackTabs.find { it.url == url }
+                    
+                    if (tabToRemove != null) {
+                        Log.d(TAG, "📍 在纸堆模式中找到标签页: ${tabToRemove.title}")
+                        
+                        // 销毁WebView
+                        tabToRemove.webView?.let { webView ->
+                            try {
+                                Log.d(TAG, "开始销毁纸堆标签页WebView: ${tabToRemove.title}")
+                                webView.stopLoading()
+                                webView.loadUrl("about:blank")
+                                webView.clearHistory()
+                                webView.clearCache(true)
+                                webView.clearFormData()
+                                webView.onPause()
+                                (webView.parent as? ViewGroup)?.removeView(webView)
+                                webView.destroy()
+                                Log.d(TAG, "🔒 纸堆标签页WebView已销毁: ${tabToRemove.title}")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "销毁纸堆标签页WebView时发生异常", e)
+                            }
+                        }
+                        
+                        // 从纸堆管理器中移除标签页
+                        manager.removeTab(tabToRemove.id)
+                        Log.d(TAG, "✅ 从纸堆模式移除标签页: ${tabToRemove.title}")
+                        
+                        // 如果纸堆模式没有标签页了，返回主页
+                        if (manager.getTabCount() == 0) {
+                            Log.d(TAG, "纸堆模式没有标签页了，返回主页")
+                            browserHomeContent.visibility = View.VISIBLE
+                            browserTabContainer.visibility = View.VISIBLE
+                            val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                            paperStackLayout?.visibility = View.GONE
+                        }
+                        
+                        cardClosed = true
+                    } else {
+                        Log.d(TAG, "纸堆模式中未找到URL对应的标签页: $url")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "从纸堆模式移除标签页时出错", e)
                 }
             }
 

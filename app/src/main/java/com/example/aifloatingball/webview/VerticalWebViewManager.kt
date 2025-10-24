@@ -407,3 +407,5 @@ class VerticalWebViewManager(
         mainLayout?.removeAllViews()
     }
 }
+
+

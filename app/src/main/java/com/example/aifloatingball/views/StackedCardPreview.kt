@@ -180,12 +180,18 @@ class StackedCardPreview @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         // 平行模式下处理触摸事件
-        return handleStackedModeTouch(event)
+        val handled = handleStackedModeTouch(event)
+        
+        // 始终阻止事件穿透到下方，确保StackedCardPreview独占触摸
+        return true
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         // 平行模式下拦截事件，用于滑动交互
-        return super.dispatchTouchEvent(event)
+        val handled = super.dispatchTouchEvent(event)
+        
+        // 始终阻止事件穿透到下方，确保StackedCardPreview独占触摸
+        return true
     }
 
     /**
@@ -345,14 +351,14 @@ class StackedCardPreview @JvmOverloads constructor(
                     }
 
                     // 直接处理滑动
-                    // 检测是否开始滑动
-                    if (!isLongPressSliding && !isVerticalDragging && distance > 15f) {
-                        // 判断是水平还是垂直滑动
-                        if (abs(deltaX) > abs(deltaY) * 1.5f) {
+                    // 检测是否开始滑动 - 降低阈值提高响应性
+                    if (!isLongPressSliding && !isVerticalDragging && distance > 10f) {
+                        // 判断是水平还是垂直滑动 - 优化方向判断
+                        if (abs(deltaX) > abs(deltaY) * 1.3f) {
                             // 水平滑动需要更明显的水平移动
                             isLongPressSliding = true
                             Log.d("StackedCardPreview", "开始水平滑动")
-                        } else if (abs(deltaY) > abs(deltaX) * 1.2f) {
+                        } else if (abs(deltaY) > abs(deltaX) * 1.1f) {
                             // 垂直滑动更容易触发
                             isVerticalDragging = true
                             Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
@@ -365,9 +371,13 @@ class StackedCardPreview @JvmOverloads constructor(
                     if (isLongPressSliding) {
                         // 水平滑动控制卡片
                         handleLongPressSlide(deltaX)
+                        // 水平滑动时阻止事件穿透
+                        return true
                     } else if (isVerticalDragging) {
                         // 垂直滑动关闭中心卡片
                         handleVerticalDrag(deltaY)
+                        // 垂直滑动时也阻止事件穿透
+                        return true
                     }
 
                     return true
@@ -384,8 +394,8 @@ class StackedCardPreview @JvmOverloads constructor(
                         // 水平滑动结束，检查是否需要惯性滚动
                         Log.d("StackedCardPreview", "水平滑动结束，速度: ${slideVelocity.toInt()}px/s")
 
-                        if (abs(slideVelocity) > 1000f) {
-                            // 速度足够快，启动惯性滚动
+                        if (abs(slideVelocity) > 500f) {
+                            // 速度足够快，启动惯性滚动 - 降低阈值提高响应性
                             startInertiaScrollWithoutOpen()
                         } else {
                             // 速度较慢，直接对齐到最近的卡片
@@ -499,8 +509,13 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         lastSlideTime = currentTime
 
-        // 更新滚动偏移，增加灵敏度让滑动更流畅
-        val sensitivity = if (abs(slideVelocity) > 2000f) 1.2f else 0.8f // 快速滑动时增加灵敏度
+        // 更新滚动偏移，大幅增加灵敏度让滑动更流畅
+        val sensitivity = when {
+            abs(slideVelocity) > 3000f -> 1.8f // 极快滑动时大幅增加灵敏度
+            abs(slideVelocity) > 2000f -> 1.5f // 快速滑动时增加灵敏度
+            abs(slideVelocity) > 1000f -> 1.2f // 中等速度时适度增加灵敏度
+            else -> 1.0f // 慢速滑动时保持正常灵敏度
+        }
         scrollOffset -= deltaX * sensitivity
 
         // 限制滚动范围
@@ -511,7 +526,7 @@ class StackedCardPreview @JvmOverloads constructor(
         val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()
         if (newCardIndex != currentCardIndex && newCardIndex >= 0 && newCardIndex < webViewCards.size) {
             currentCardIndex = newCardIndex
-            Log.d("StackedCardPreview", "滑动切换到卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}) 速度: ${slideVelocity.toInt()}px/s")
+            Log.d("StackedCardPreview", "滑动切换到卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}) 速度: ${slideVelocity.toInt()}px/s, 灵敏度: $sensitivity")
 
             // 提供浏览操作的震动反馈
             vibrate(VibrationType.BROWSING)
@@ -521,7 +536,7 @@ class StackedCardPreview @JvmOverloads constructor(
         invalidate()
 
         // 更新滑动起点，使滑动更连续
-        slideStartX = slideStartX + deltaX * 0.3f // 部分更新起点，保持滑动连续性
+        slideStartX = slideStartX + deltaX * 0.2f // 减少起点更新幅度，保持滑动连续性
     }
 
     /**

@@ -30,3 +30,5 @@ object WebViewConstants {
         const val INITIAL_SCALE = 100
     }
 }
+
+
