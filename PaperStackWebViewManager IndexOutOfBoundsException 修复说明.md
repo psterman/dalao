@@ -173,3 +173,5 @@ switchToTab调用
 4. **回归测试**：确保修复不影响正常功能
 
 通过以上修复，PaperStackWebViewManager现在能够安全地处理各种边界情况，不再出现IndexOutOfBoundsException错误。
+
+

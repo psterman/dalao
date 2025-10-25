@@ -241,6 +241,16 @@
 
         </FrameLayout>
 
+        <!-- StackedCardPreview 层叠卡片预览 - 放在最顶层 -->
+        <com.example.aifloatingball.views.StackedCardPreview
+            android:id="@+id/stacked_card_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:elevation="9999dp"
+            android:clickable="true"
+            android:focusable="true" />
+
         <!-- 搜索内容区域 -->
         <LinearLayout
             android:id="@+id/search_content"

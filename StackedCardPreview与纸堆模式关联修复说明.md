@@ -278,3 +278,5 @@ StackedCardPreview关闭卡片
 4. **用户体验**：操作反馈及时，界面更新流畅
 
 通过以上修复，StackedCardPreview现在与纸堆模式完全关联，提供了统一的卡片管理体验。
+
+

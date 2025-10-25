@@ -19,13 +19,13 @@ class TouchConflictResolver(private val context: Context) {
     companion object {
         private const val TAG = "TouchConflictResolver"
         
-        // 滑动方向判断阈值 - 进一步优化参数，严格防止误触发
-        private const val MIN_DISTANCE = 80f // 进一步增加最小滑动距离
-        private const val ANGLE_THRESHOLD = 15f // 进一步降低角度阈值，让垂直滑动更容易被识别
-        private const val VELOCITY_THRESHOLD = 1000f // 进一步提高速度阈值
-        private const val HORIZONTAL_RATIO_THRESHOLD = 3.0f // 提高水平滑动比例阈值
-        private const val MIN_HORIZONTAL_DISTANCE = 120f // 水平滑动最小距离
-        private const val VERTICAL_BIAS = 1.2f // 垂直滑动偏向系数
+        // 滑动方向判断阈值 - 优化参数，让水平滑动更容易被识别
+        private const val MIN_DISTANCE = 60f // 降低最小滑动距离
+        private const val ANGLE_THRESHOLD = 20f // 增加角度阈值，让水平滑动更容易被识别
+        private const val VELOCITY_THRESHOLD = 800f // 降低速度阈值
+        private const val HORIZONTAL_RATIO_THRESHOLD = 2.0f // 降低水平滑动比例阈值
+        private const val MIN_HORIZONTAL_DISTANCE = 80f // 降低水平滑动最小距离
+        private const val VERTICAL_BIAS = 1.1f // 降低垂直滑动偏向系数
         
         // 两指横滑检测参数
         private const val TWO_FINGER_MIN_DISTANCE = 60f // 两指横滑最小距离
@@ -153,7 +153,7 @@ class TouchConflictResolver(private val context: Context) {
             return handleTwoFingerMove(event)
         }
         
-        // 单指模式，完全禁用横滑切换，只允许垂直滑动
+        // 单指模式，优化横滑检测，允许明显的水平滑动
         val deltaX = event.x - initialX
         val deltaY = event.y - initialY
         val distance = sqrt(deltaX * deltaX + deltaY * deltaY)
@@ -163,16 +163,16 @@ class TouchConflictResolver(private val context: Context) {
             return TouchResult(false, SwipeDirection.NONE, true)
         }
         
-        // 单指模式只允许垂直滑动，禁止水平滑动切换
+        // 单指模式优化：允许明显的水平滑动，但优先垂直滑动
         if (touchState == TOUCH_STATE_IDLE || touchState == TOUCH_STATE_UNDETERMINED) {
             val direction = determineSwipeDirection(deltaX, deltaY)
             
             when (direction) {
                 SwipeDirection.HORIZONTAL -> {
-                    // 单指水平滑动被禁用，按垂直滑动处理
-                    touchState = TOUCH_STATE_VERTICAL
-                    Log.d(TAG, "单指水平滑动被禁用，按垂直滑动处理")
-                    return TouchResult(false, SwipeDirection.VERTICAL, true)
+                    // 允许水平滑动，但需要更严格的条件
+                    touchState = TOUCH_STATE_HORIZONTAL
+                    Log.d(TAG, "检测到水平滑动，允许ViewPager2处理")
+                    return TouchResult(true, SwipeDirection.HORIZONTAL, false)
                 }
                 SwipeDirection.VERTICAL -> {
                     touchState = TOUCH_STATE_VERTICAL
@@ -195,6 +195,7 @@ class TouchConflictResolver(private val context: Context) {
         
         // 已经确定方向，保持当前状态
         return when (touchState) {
+            TOUCH_STATE_HORIZONTAL -> TouchResult(true, SwipeDirection.HORIZONTAL, false)
             TOUCH_STATE_VERTICAL -> TouchResult(false, SwipeDirection.VERTICAL, true)
             else -> TouchResult(false, SwipeDirection.NONE, true)
         }
@@ -291,17 +292,16 @@ class TouchConflictResolver(private val context: Context) {
         Log.d(TAG, "手势分析: angle=$angle, deltaX=$deltaX, deltaY=$deltaY, hRatio=$horizontalRatio, vRatio=$verticalRatio")
         
         return when {
-            // 极其严格的条件：必须是非常明显的水平滑动
-            // 1. 角度小于15度 且 2. 水平比例大于3倍 且 3. 水平距离大于120px 且 4. 水平距离明显大于垂直距离
+            // 优化条件：让水平滑动更容易被识别
+            // 1. 角度小于20度 且 2. 水平比例大于2倍 且 3. 水平距离大于80px
             angle < ANGLE_THRESHOLD && 
             horizontalRatio > HORIZONTAL_RATIO_THRESHOLD && 
-            absX > MIN_HORIZONTAL_DISTANCE && 
-            absX > absY * 3 -> {
+            absX > MIN_HORIZONTAL_DISTANCE -> {
                 Log.d(TAG, "确认为水平滑动: angle=$angle, hRatio=$horizontalRatio, absX=$absX")
                 SwipeDirection.HORIZONTAL
             }
             // 垂直滑动：更宽松的条件，优先识别垂直滑动
-            // 1. 角度大于75度 或 2. 垂直距离明显大于水平距离（应用偏向系数）
+            // 1. 角度大于70度 或 2. 垂直距离明显大于水平距离
             angle > (90 - ANGLE_THRESHOLD) || absY > absX * VERTICAL_BIAS -> {
                 Log.d(TAG, "确认为垂直滑动: angle=$angle, vRatio=$verticalRatio, absY=$absY")
                 SwipeDirection.VERTICAL

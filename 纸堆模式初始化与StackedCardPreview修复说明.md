@@ -227,3 +227,5 @@ if (isLongPressSliding) {
 4. **稳定性**：处理各种边界情况
 
 通过以上修复，搜索tab现在能正确归入纸堆模式，StackedCardPreview的横滑穿透问题也得到了解决。
+
+

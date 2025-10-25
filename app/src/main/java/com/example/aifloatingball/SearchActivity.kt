@@ -71,6 +71,9 @@ class SearchActivity : AppCompatActivity() {
     private var closeAllPapersButton: ImageButton? = null
     private var paperStackHint: TextView? = null
     private var isPaperStackMode = false
+    
+    // StackedCardPreview相关
+    private var stackedCardPreview: com.example.aifloatingball.views.StackedCardPreview? = null
     private lateinit var letterTitle: TextView
     private lateinit var previewEngineList: LinearLayout
     private lateinit var closeButton: ImageButton
@@ -325,6 +328,9 @@ class SearchActivity : AppCompatActivity() {
             // Check clipboard after initialization
             checkClipboard()
             
+            // 默认加载搜索引擎主页（保留横移系统的主页功能）
+            loadSearchEngineHomepage()
+            
             // 打印日志，记录启动状态
             val isAIMode = settingsManager.isDefaultAIMode()
             Log.d("SearchActivity", "SearchActivity启动完成，当前模式: ${if (isAIMode) "AI模式" else "普通模式"}")
@@ -367,6 +373,12 @@ class SearchActivity : AppCompatActivity() {
         addPaperButton = paperStackLayout.findViewById(R.id.btn_add_paper)
         closeAllPapersButton = paperStackLayout.findViewById(R.id.btn_close_all_papers)
         paperStackHint = paperStackLayout.findViewById(R.id.paper_stack_hint)
+
+        // Initialize StackedCardPreview
+        stackedCardPreview = findViewById(R.id.stacked_card_preview)
+        
+        // 确保StackedCardPreview正确初始化
+        initializeStackedCardPreview()
 
         // 初始化时隐藏进度条
         progressBar.visibility = View.GONE
@@ -493,39 +505,73 @@ class SearchActivity : AppCompatActivity() {
         })
     }
 
+    // 长按相关变量
+    private var longPressStartTime = 0L
+    private var isLongPressActivated = false
+    private val longPressThreshold = 500L // 500ms长按阈值
+    
+    /**
+     * 调试触摸事件流向
+     */
+    private fun debugTouchEventFlow(event: MotionEvent, source: String) {
+        Log.d("SearchActivity", "🔍 触摸事件调试 [$source]: action=${event.action}, x=${event.x}, y=${event.y}")
+        
+        // 检查StackedCardPreview状态
+        val previewVisible = stackedCardPreview?.visibility == View.VISIBLE
+        val previewElevation = stackedCardPreview?.elevation ?: 0f
+        val previewClickable = stackedCardPreview?.isClickable ?: false
+        
+        Log.d("SearchActivity", "🔍 StackedCardPreview状态: visible=$previewVisible, elevation=$previewElevation, clickable=$previewClickable")
+        
+        // 检查纸堆模式状态
+        val paperStackVisible = isPaperStackMode && paperStackManager != null
+        Log.d("SearchActivity", "🔍 纸堆模式状态: visible=$paperStackVisible")
+    }
+    
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev == null) return super.dispatchTouchEvent(ev)
+
+        // 调试触摸事件
+        debugTouchEventFlow(ev, "dispatchTouchEvent")
 
         // 如果抽屉已经打开，优先让抽屉处理触摸事件
         if (drawerLayout.isDrawerOpen(GravityCompat.START) || drawerLayout.isDrawerOpen(GravityCompat.END)) {
             return super.dispatchTouchEvent(ev)
         }
 
-        // 如果是纸堆模式，优先处理纸堆的触摸事件
-        if (isPaperStackMode && paperStackManager != null) {
-            val handled = paperStackManager?.onTouchEvent(ev) ?: false
-            if (handled) {
-                Log.d("SearchActivity", "纸堆触摸事件已处理: ${ev.action}")
-                return true
-            }
+        // 最强触摸隔膜：如果StackedCardPreview正在显示，完全拦截所有触摸事件
+        if (stackedCardPreview?.visibility == View.VISIBLE) {
+            Log.d("SearchActivity", "🔒 最强触摸隔膜激活，完全拦截触摸事件: ${ev.action}")
+            
+            // 完全拦截，不传递给任何其他组件
+            // 这确保触摸事件100%不会穿透到纸堆页面
+            Log.d("SearchActivity", "🔒 最强触摸隔膜：事件已完全拦截，100%阻止穿透")
+            return true
         }
 
-        // 处理缩放手势
-        scaleGestureDetector.onTouchEvent(ev)
-
+        // 处理长按激活StackedCardPreview
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                longPressStartTime = System.currentTimeMillis()
+                isLongPressActivated = false
                 lastTapCount = 1
                 lastTapTime = System.currentTimeMillis()
                 isTwoFingerTap = false
             }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                if (ev.pointerCount == 2) {
-                    lastTapCount = 2
-                    isTwoFingerTap = true
+            MotionEvent.ACTION_MOVE -> {
+                val currentTime = System.currentTimeMillis()
+                if (!isLongPressActivated && (currentTime - longPressStartTime) >= longPressThreshold) {
+                    isLongPressActivated = true
+                    activateStackedCardPreview()
+                    return true
                 }
             }
             MotionEvent.ACTION_UP -> {
+                if (isLongPressActivated) {
+                    isLongPressActivated = false
+                    return true
+                }
+                
                 if (isTwoFingerTap &&
                     System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
                     !isScaling) {
@@ -535,7 +581,25 @@ class SearchActivity : AppCompatActivity() {
                     return true
                 }
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (ev.pointerCount == 2) {
+                    lastTapCount = 2
+                    isTwoFingerTap = true
+                }
+            }
         }
+
+        // 如果是纸堆模式且StackedCardPreview不可见，处理纸堆的触摸事件
+        if (isPaperStackMode && paperStackManager != null && stackedCardPreview?.visibility != View.VISIBLE) {
+            val handled = paperStackManager?.onTouchEvent(ev) ?: false
+            if (handled) {
+                Log.d("SearchActivity", "纸堆触摸事件已处理: ${ev.action}")
+                return true
+            }
+        }
+
+        // 处理缩放手势
+        scaleGestureDetector.onTouchEvent(ev)
 
         // 如果是双指操作或正在缩放，不传递给 WebView
         if (ev.pointerCount > 1 || isScaling) {
@@ -578,9 +642,19 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupBasicClickListeners() {
-        // 设置菜单按钮点击事件：显示菜单选项
+        // 设置菜单按钮点击事件：优先激活StackedCardPreview，如果没有卡片则显示菜单
         menuButton.setOnClickListener {
-            showMenuOptions()
+            // 检查是否有纸堆标签页可以显示
+            val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+            if (paperStackTabs.isNotEmpty()) {
+                // 有标签页，激活StackedCardPreview
+                Log.d("SearchActivity", "点击菜单按钮激活StackedCardPreview")
+                activateStackedCardPreview()
+            } else {
+                // 没有标签页，显示菜单选项
+                Log.d("SearchActivity", "没有标签页，显示菜单选项")
+                showMenuOptions()
+            }
         }
 
         // 设置关闭按钮点击事件
@@ -595,13 +669,8 @@ class SearchActivity : AppCompatActivity() {
         
         // 设置纸堆相关按钮点击事件
         setupPaperStackClickListeners()
-        
-        // 移除原有的悬浮窗模式按钮绑定（如果存在则不再启用）
     }
 
-    private fun toggleFloatingMode() {
-        // 已弃用：由 activateMultiCardFloatingBackground 取代
-    }
     
     /**
      * 设置纸堆相关按钮的点击事件
@@ -627,15 +696,41 @@ class SearchActivity : AppCompatActivity() {
             // 设置监听器
             paperStackManager?.setOnTabCreatedListener { tab ->
                 Log.d("SearchActivity", "标签页创建完成: ${tab.title}, URL: ${tab.url}")
+                // 同步更新StackedCardPreview数据
+                syncAllCardSystems()
             }
             
             paperStackManager?.setOnTabSwitchedListener { tab, index ->
                 updatePaperCountText()
+                // 更新搜索框URL
+                searchInput.setText(tab.url)
+                // 同步更新StackedCardPreview数据
+                syncAllCardSystems()
                 Log.d("SearchActivity", "切换到标签页: $index, 标题: ${tab.title}, URL: ${tab.url}")
             }
             
-            // 添加第一个标签页
-            addNewTab()
+            // 添加默认标签页（百度首页）
+            addDefaultTab()
+        }
+    }
+    
+    /**
+     * 添加默认标签页（百度首页）
+     */
+    private fun addDefaultTab() {
+        val defaultUrl = "https://www.baidu.com"
+        val defaultTitle = "百度首页"
+        Log.d("SearchActivity", "添加默认标签页，URL: $defaultUrl, 标题: $defaultTitle")
+        
+        val newTab = paperStackManager?.addTab(defaultUrl, defaultTitle)
+        
+        if (newTab != null) {
+            updatePaperCountText()
+            showPaperStackControls()
+            hidePaperStackHint()
+            Log.d("SearchActivity", "添加默认标签页成功，当前数量: ${paperStackManager?.getTabCount()}")
+        } else {
+            Log.e("SearchActivity", "添加默认标签页失败")
         }
     }
     
@@ -707,10 +802,289 @@ class SearchActivity : AppCompatActivity() {
     }
     
     /**
+     * 初始化StackedCardPreview
+     */
+    private fun initializeStackedCardPreview() {
+        try {
+            stackedCardPreview?.let { preview ->
+                Log.d("SearchActivity", "🔧 初始化StackedCardPreview，建立结实隔膜")
+                
+                // 设置初始状态为隐藏
+                preview.visibility = View.GONE
+                
+                // 建立结实的触摸隔膜
+                preview.isClickable = true
+                preview.isFocusable = true
+                preview.isFocusableInTouchMode = true
+                preview.isEnabled = true
+                
+                // 设置触摸事件处理，确保完全拦截
+                preview.setOnTouchListener { _, event ->
+                    Log.d("SearchActivity", "🔒 StackedCardPreview触摸隔膜拦截: ${event.action}")
+                    val handled = preview.onTouchEvent(event)
+                    Log.d("SearchActivity", "🔒 StackedCardPreview触摸处理结果: $handled")
+                    true // 强制返回true，建立隔膜
+                }
+                
+                Log.d("SearchActivity", "🔧 StackedCardPreview初始化完成，隔膜已建立")
+            } ?: run {
+                Log.e("SearchActivity", "StackedCardPreview未找到")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "初始化StackedCardPreview失败", e)
+        }
+    }
+    
+    /**
+     * 同步所有卡片系统的数据
+     */
+    private fun syncAllCardSystems() {
+        try {
+            // 获取纸堆系统中的所有标签页
+            val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+            
+            Log.d("SearchActivity", "开始同步卡片系统数据，纸堆标签页数量: ${paperStackTabs.size}")
+            
+            // 转换为StackedCardPreview的卡片数据格式，确保数据精准
+            val cardData = paperStackTabs.mapIndexed { index, tab ->
+                val title = tab.title.ifEmpty { "标签页 ${index + 1}" }
+                val url = tab.url ?: "about:blank"
+                
+                Log.d("SearchActivity", "卡片 $index: 标题='$title', URL='$url'")
+                
+                com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                    title = title,
+                    url = url,
+                    favicon = null,
+                    screenshot = null
+                )
+            }
+            
+            Log.d("SearchActivity", "同步卡片系统数据完成: ${cardData.size} 张卡片")
+            
+            // 更新StackedCardPreview
+            stackedCardPreview?.setWebViewCards(cardData)
+            
+            // 如果StackedCardPreview正在显示，强制刷新
+            if (stackedCardPreview?.visibility == View.VISIBLE) {
+                stackedCardPreview?.invalidate()
+                Log.d("SearchActivity", "StackedCardPreview正在显示，强制刷新")
+            }
+            
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "同步卡片系统数据失败", e)
+        }
+    }
+    
+    /**
+     * 激活StackedCardPreview预览
+     */
+    private fun activateStackedCardPreview() {
+        try {
+            // 检查是否有纸堆标签页
+            val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+            if (paperStackTabs.isEmpty()) {
+                Log.d("SearchActivity", "没有纸堆标签页，无法激活StackedCardPreview")
+                Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d("SearchActivity", "激活StackedCardPreview，显示 ${paperStackTabs.size} 张卡片")
+            
+            // 确保StackedCardPreview已初始化
+            if (stackedCardPreview == null) {
+                Log.e("SearchActivity", "StackedCardPreview未初始化")
+                Toast.makeText(this, "卡片预览系统未初始化", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 动态加载页面内容，确保卡片不显示白屏
+            ensureCardContentLoaded()
+            
+            // 同步数据
+            syncAllCardSystems()
+            
+            // 显示StackedCardPreview
+            stackedCardPreview?.visibility = View.VISIBLE
+            
+            // 建立最强触摸隔膜
+            buildTouchBarrier()
+            
+            // 确保StackedCardPreview在最顶层
+            ensureStackedCardPreviewOnTop()
+            
+            // 强制刷新显示
+            stackedCardPreview?.invalidate()
+            
+            Log.d("SearchActivity", "StackedCardPreview已激活并显示，隔膜已建立")
+            
+            // 设置卡片选择监听器
+            stackedCardPreview?.setOnCardSelectedListener { cardIndex ->
+                Log.d("SearchActivity", "🎯 StackedCardPreview 选择卡片: $cardIndex")
+                
+                // 销毁触摸隔膜
+                destroyTouchBarrier()
+                
+                // 切换到选中的纸堆标签页
+                paperStackManager?.switchToTab(cardIndex)
+                
+                // 隐藏StackedCardPreview
+                stackedCardPreview?.visibility = View.GONE
+                
+                // 确保纸堆模式可见
+                if (!isPaperStackMode) {
+                    togglePaperStackMode()
+                }
+                
+                Log.d("SearchActivity", "已切换到纸堆标签页: $cardIndex，隔膜已销毁")
+            }
+            
+            // 设置卡片关闭监听器
+            stackedCardPreview?.setOnCardCloseListener { url ->
+                Log.d("SearchActivity", "🔗 StackedCardPreview 请求关闭卡片: $url")
+                
+                // 从纸堆中关闭对应的标签页
+                val closed = paperStackManager?.closeTabByUrl(url) ?: false
+                
+                if (closed) {
+                    // 同步更新数据
+                    syncAllCardSystems()
+                    Log.d("SearchActivity", "成功关闭纸堆标签页: $url")
+                } else {
+                    Log.w("SearchActivity", "关闭纸堆标签页失败: $url")
+                }
+            }
+            
+            Toast.makeText(this, "显示 ${paperStackTabs.size} 张卡片", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "激活StackedCardPreview失败", e)
+            Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 确保StackedCardPreview在最顶层
+     */
+    private fun ensureStackedCardPreviewOnTop() {
+        try {
+            stackedCardPreview?.let { preview ->
+                Log.d("SearchActivity", "🔝 确保StackedCardPreview在最顶层")
+                
+                // 设置最高层级
+                preview.elevation = 9999f
+                
+                // 置于最前
+                preview.bringToFront()
+                
+                // 确保父容器也将其置于最前
+                val parent = preview.parent as? ViewGroup
+                parent?.let {
+                    it.bringChildToFront(preview)
+                    it.invalidate()
+                }
+                
+                Log.d("SearchActivity", "🔝 StackedCardPreview已置于最顶层")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "确保StackedCardPreview在最顶层失败", e)
+        }
+    }
+    
+    /**
+     * 建立触摸隔膜
+     */
+    private fun buildTouchBarrier() {
+        try {
+            stackedCardPreview?.let { preview ->
+                Log.d("SearchActivity", "🔒 建立最强触摸隔膜")
+                
+                // 设置触摸属性
+                preview.isClickable = true
+                preview.isFocusable = true
+                preview.isFocusableInTouchMode = true
+                preview.isEnabled = true
+                
+                // 设置最高层级和优先级
+                preview.elevation = 9999f
+                preview.bringToFront()
+                
+                // 设置触摸拦截器 - 完全拦截，不传递给StackedCardPreview
+                preview.setOnTouchListener { _, event ->
+                    Log.d("SearchActivity", "🔒 隔膜完全拦截触摸: ${event.action}")
+                    // 不调用preview.onTouchEvent，完全拦截
+                    true // 强制拦截
+                }
+                
+                Log.d("SearchActivity", "🔒 最强触摸隔膜建立完成")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "建立触摸隔膜失败", e)
+        }
+    }
+    
+    /**
+     * 销毁触摸隔膜
+     */
+    private fun destroyTouchBarrier() {
+        try {
+            stackedCardPreview?.let { preview ->
+                Log.d("SearchActivity", "🔓 销毁触摸隔膜")
+                
+                // 重置触摸属性
+                preview.isClickable = false
+                preview.isFocusable = false
+                preview.isFocusableInTouchMode = false
+                preview.isEnabled = false
+                
+                // 重置层级
+                preview.elevation = 0f
+                
+                // 移除触摸拦截器
+                preview.setOnTouchListener(null)
+                
+                Log.d("SearchActivity", "🔓 触摸隔膜销毁完成")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "销毁触摸隔膜失败", e)
+        }
+    }
+    
+    /**
+     * 动态加载页面内容，确保卡片不显示白屏
+     */
+    private fun ensureCardContentLoaded() {
+        try {
+            paperStackManager?.getAllTabs()?.forEach { tab ->
+                val webView = tab.webView
+                if (webView != null) {
+                    // 检查WebView是否已加载内容
+                    val currentUrl = webView.url
+                    val currentTitle = webView.title
+                    
+                    Log.d("SearchActivity", "检查标签页内容: ${tab.title}, URL: $currentUrl")
+                    
+                    // 如果URL为空或标题为空，尝试重新加载
+                    if (currentUrl.isNullOrEmpty() || currentTitle.isNullOrEmpty()) {
+                        Log.d("SearchActivity", "标签页内容不完整，重新加载: ${tab.title}")
+                        
+                        // 使用保存的URL重新加载
+                        val savedUrl = tab.url ?: "https://www.baidu.com"
+                        webView.loadUrl(savedUrl)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "动态加载页面内容失败", e)
+        }
+    }
+    
+    /**
      * 显示菜单选项
      */
     private fun showMenuOptions() {
         val options = arrayOf(
+            "卡片预览",
             "搜索引擎列表",
             if (isPaperStackMode) "切换到普通模式" else "切换到纸堆模式",
             "悬浮窗模式",
@@ -722,6 +1096,10 @@ class SearchActivity : AppCompatActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
+                        // 卡片预览
+                        activateStackedCardPreview()
+                    }
+                    1 -> {
                         // 打开搜索引擎列表
                         val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
                         if (isLeftHanded) {
@@ -738,15 +1116,15 @@ class SearchActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    1 -> {
+                    2 -> {
                         // 切换纸堆模式
                         togglePaperStackMode()
                     }
-                    2 -> {
+                    3 -> {
                         // 悬浮窗模式
                         activateMultiCardFloatingBackground()
                     }
-                    3 -> {
+                    4 -> {
                         // 打开设置
                         val intent = Intent(this, SettingsActivity::class.java)
                         startActivity(intent)
@@ -1966,7 +2344,20 @@ class SearchActivity : AppCompatActivity() {
         val searchEngine = currentSearchEngine ?: return
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         val searchUrl = searchEngine.url.replace("{query}", encodedQuery)
-        webView.loadUrl(searchUrl)
+        
+        if (isPaperStackMode && paperStackManager != null) {
+            // 纸堆模式：添加新标签页
+            val newTab = paperStackManager?.addTab(searchUrl, "搜索结果: $query")
+            if (newTab != null) {
+                updatePaperCountText()
+                showPaperStackControls()
+                hidePaperStackHint()
+                Log.d("SearchActivity", "在纸堆模式中添加搜索结果标签页: $searchUrl")
+            }
+        } else {
+            // 普通模式：在当前WebView中加载
+            webView.loadUrl(searchUrl)
+        }
     }
 
     // 添加加载搜索引擎的方法

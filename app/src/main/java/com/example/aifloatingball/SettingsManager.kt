@@ -254,7 +254,7 @@ class SettingsManager private constructor(context: Context) {
 
     // 搜索引擎设置
     fun getDefaultSearchEngine(): String {
-        return prefs.getString("default_search_engine", "baidu") ?: "baidu"
+        return prefs.getString("default_search_engine", "google") ?: "google"
     }
     
     fun setDefaultSearchEngine(engine: String) {

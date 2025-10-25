@@ -57,7 +57,7 @@ class SearchEngineListPreference @JvmOverloads constructor(
         entries = context.resources.getStringArray(R.array.
          search_engine_entries)
         entryValues = context.resources.getStringArray(R.array.search_engine_values)
-        setDefaultValue("baidu")
+        setDefaultValue("google")
         
         // Set the summary to show the currently selected search engine
         summaryProvider = Preference.SummaryProvider<ListPreference> { preference ->

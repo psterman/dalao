@@ -176,3 +176,5 @@ override fun dispatchTouchEvent(event: MotionEvent): Boolean {
 4. **性能优化**：确保修复不影响应用性能
 
 通过以上修复，搜索tab的长按功能现在能根据当前模式智能激活对应的功能，StackedCardPreview也能完全屏蔽下方网页的触摸事件。
+
+

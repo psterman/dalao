@@ -222,3 +222,4 @@ private fun initializePaperStackManager() {
 4. 布局设置是否正确
 
 通过详细的调试日志和测试步骤，应该能够解决横向位移问题，实现真正的纸堆层叠效果！
+

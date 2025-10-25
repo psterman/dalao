@@ -181,6 +181,29 @@ class PaperStackWebViewManager(
         Log.d(TAG, "移除标签页: ${tab.title}, 当前数量: ${tabs.size}")
         return true
     }
+    
+    /**
+     * 通过URL关闭标签页
+     */
+    fun closeTabByUrl(url: String): Boolean {
+        val tabIndex = tabs.indexOfFirst { it.url == url }
+        if (tabIndex == -1) return false
+        
+        val tab = tabs[tabIndex]
+        container.removeView(tab.webView)
+        tabs.removeAt(tabIndex)
+        
+        // 调整当前标签页索引
+        if (currentTabIndex >= tabs.size) {
+            currentTabIndex = max(0, tabs.size - 1)
+        }
+        
+        // 更新标签页位置
+        updateTabPositions()
+        
+        Log.d(TAG, "通过URL关闭标签页: ${tab.title}, URL: $url, 当前数量: ${tabs.size}")
+        return true
+    }
 
     /**
      * 切换到下一个标签页

@@ -4044,12 +4044,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 添加默认标签页
+     * 添加默认标签页 - 优化版本，避免不必要的自动创建
      */
     private fun addDefaultTab() {
         try {
-            val defaultUrl = "https://www.baidu.com"
-            val defaultTitle = "百度"
+            // 检查是否已经有其他标签页，如果有则不创建默认标签页
+            val existingTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            val hasNonHomeTabs = existingTabs.any { tab -> 
+                tab.url != "about:blank" || tab.title != "主页"
+            }
+            
+            if (hasNonHomeTabs) {
+                Log.d(TAG, "已有其他标签页，跳过创建默认主页")
+                return
+            }
+            
+            val defaultUrl = "about:blank"
+            val defaultTitle = "主页"
             
             // 添加默认标签页到纸堆模式
             val newTab = paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
@@ -6491,56 +6502,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserWebViewContainer.setOnTouchListener { _, event ->
             // 如果抽屉已经打开，不处理手势，让抽屉优先处理触摸事件
             if (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END)) {
-                return@setOnTouchListener false
-            }
-
-            // 检查是否有层叠卡片预览正在显示
-            val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
-
-            if (isStackedPreviewVisible) {
-                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
-                Log.d(TAG, "悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
-
-                // 将触摸坐标转换为StackedCardPreview的坐标系
-                stackedCardPreview?.let { preview ->
-                    val location = IntArray(2)
-                    browserWebViewContainer.getLocationOnScreen(location)
-                    val previewLocation = IntArray(2)
-                    preview.getLocationOnScreen(previewLocation)
-
-                    val relativeX = location[0] - previewLocation[0] + event.x
-                    val relativeY = location[1] - previewLocation[1] + event.y
-
-                    // 创建相对坐标的触摸事件
-                    val relativeEvent = MotionEvent.obtain(
-                        event.downTime,
-                        event.eventTime,
-                        event.action,
-                        relativeX,
-                        relativeY,
-                        event.metaState
-                    )
-
-                    // 传递给StackedCardPreview处理长按滑动
-                    val handled = preview.dispatchTouchEvent(relativeEvent)
-                    relativeEvent.recycle()
-
-                    Log.d(TAG, "触摸事件传递结果: $handled, 动作: ${event.action}")
-                    handled
-                } ?: false
+                false
             } else {
-                // 正常模式下，处理边缘侧滑和原有手势
-                val edgeHandled = handleEdgeSwipeGesture(event)
-                if (edgeHandled) {
-                    // 边缘侧滑已处理，直接返回
-                    return@setOnTouchListener true
+                // 检查是否有层叠卡片预览正在显示
+                val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+
+                if (isStackedPreviewVisible) {
+                    // 层叠卡片预览模式下，不处理触摸事件，让StackedCardPreview自己处理
+                    Log.d(TAG, "层叠卡片预览可见，不拦截触摸事件，让StackedCardPreview处理")
+                    false
+                } else {
+                    // 正常模式下，处理边缘侧滑和原有手势
+                    val edgeHandled = handleEdgeSwipeGesture(event)
+                    if (edgeHandled) {
+                        // 边缘侧滑已处理，直接返回
+                        true
+                    } else {
+                        // 处理其他手势
+                        val gestureHandled = browserGestureDetector.onTouchEvent(event)
+                        
+                        // 如果边缘侧滑或手势检测处理了事件，就消费掉
+                        edgeHandled || gestureHandled
+                    }
                 }
-                
-                // 处理其他手势
-                val gestureHandled = browserGestureDetector.onTouchEvent(event)
-                
-                // 如果边缘侧滑或手势检测处理了事件，就消费掉
-                edgeHandled || gestureHandled
             }
         }
 
@@ -6660,43 +6644,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupGlobalTouchListener() {
         val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
         mainLayout?.setOnTouchListener { view, event ->
-            // 检查是否有悬浮卡片预览正在显示
+            // 检查是否有层叠卡片预览正在显示
             val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
 
             if (isStackedPreviewVisible) {
-                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
-                Log.d(TAG, "全局触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
-
-                // 将触摸坐标转换为StackedCardPreview的坐标系
-                stackedCardPreview?.let { preview ->
-                    val location = IntArray(2)
-                    view.getLocationOnScreen(location)
-                    val previewLocation = IntArray(2)
-                    preview.getLocationOnScreen(previewLocation)
-
-                    val relativeX = location[0] - previewLocation[0] + event.x
-                    val relativeY = location[1] - previewLocation[1] + event.y
-
-                    // 创建相对坐标的触摸事件
-                    val relativeEvent = MotionEvent.obtain(
-                        event.downTime,
-                        event.eventTime,
-                        event.action,
-                        relativeX,
-                        relativeY,
-                        event.metaState
-                    )
-
-                    // 传递给StackedCardPreview处理长按滑动
-                    val handled = preview.dispatchTouchEvent(relativeEvent)
-                    relativeEvent.recycle()
-
-                    Log.d(TAG, "全局触摸事件传递结果: $handled, 动作: ${event.action}")
-                    // 如果悬浮卡片处理了事件，就消费掉，否则让其他组件处理
-                    handled
-                } ?: false
+                // 层叠卡片预览模式下，不处理触摸事件，让StackedCardPreview自己处理
+                Log.d(TAG, "全局触摸，层叠卡片预览可见，不拦截触摸事件")
+                false
             } else {
-                // 没有悬浮卡片时，不消费事件，让其他组件正常处理
+                // 没有层叠卡片时，不消费事件，让其他组件正常处理
                 false
             }
         }
@@ -7488,6 +7444,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 获取所有统一的卡片数据
      * 确保两个卡片系统使用相同的数据源
+     * 智能处理baidu首页：只有在有其他真实内容时才排除baidu首页
      */
     private fun getAllUnifiedCards(): List<GestureCardWebViewManager.WebViewCardData> {
         try {
@@ -7525,13 +7482,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 添加纸堆标签页数据
+            // 智能处理纸堆标签页数据
+            val hasRealContent = gestureCards.isNotEmpty() || mobileCards.isNotEmpty() || 
+                                paperStackTabs.any { tab -> 
+                                    tab.url != "https://www.baidu.com" || tab.title != "百度"
+                                }
+            
             paperStackTabs.forEach { tab ->
+                // 检查是否是baidu首页
+                val isBaiduHome = tab.url == "https://www.baidu.com" && tab.title == "百度"
+                
                 // 检查是否已存在相同的卡片
                 val isDuplicate = allCards.any { existingCard ->
                     existingCard.url == tab.url && existingCard.url?.isNotEmpty() == true
                 }
-                if (!isDuplicate) {
+                
+                // 智能决策：如果有其他真实内容，则排除baidu首页；否则包含baidu首页
+                val shouldInclude = if (isBaiduHome) {
+                    !hasRealContent // 只有在没有其他内容时才包含baidu首页
+                } else {
+                    !isDuplicate // 非baidu首页按正常逻辑处理
+                }
+                
+                if (shouldInclude) {
                     val paperStackCard = GestureCardWebViewManager.WebViewCardData(
                         id = tab.id,
                         title = tab.title,
@@ -7542,7 +7515,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}")
                 } else {
                     duplicateCount++
-                    Log.d(TAG, "跳过重复纸堆标签页: ${tab.title} - ${tab.url}")
+                    if (isBaiduHome) {
+                        Log.d(TAG, "智能排除baidu首页（有其他内容）: ${tab.title} - ${tab.url}")
+                    } else {
+                        Log.d(TAG, "跳过重复纸堆标签页: ${tab.title} - ${tab.url}")
+                    }
                 }
             }
 
@@ -7552,6 +7529,92 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return allCards
         } catch (e: Exception) {
             Log.e(TAG, "获取统一卡片数据异常", e)
+            return emptyList()
+        }
+    }
+
+    /**
+     * 获取StackedCardPreview专用的卡片数据
+     * 智能处理baidu首页：优先显示用户主动创建的内容
+     */
+    private fun getStackedCardPreviewCards(): List<GestureCardWebViewManager.WebViewCardData> {
+        try {
+            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+
+            Log.d(TAG, "=== StackedCardPreview专用卡片数据获取开始 ===")
+
+            // 先添加手势卡片（用户主动创建的）
+            allCards.addAll(gestureCards)
+            Log.d(TAG, "添加手势卡片后总数: ${allCards.size}")
+
+            // 再添加手机卡片，避免重复
+            var duplicateCount = 0
+            mobileCards.forEach { mobileCard ->
+                val isDuplicate = allCards.any { existingCard ->
+                    existingCard.id == mobileCard.id ||
+                    (existingCard.url == mobileCard.url && existingCard.url?.isNotEmpty() == true)
+                }
+                if (!isDuplicate) {
+                    allCards.add(mobileCard)
+                    Log.d(TAG, "添加手机卡片: ${mobileCard.title} - ${mobileCard.url}")
+                } else {
+                    duplicateCount++
+                    Log.d(TAG, "跳过重复卡片: ${mobileCard.title} - ${mobileCard.url}")
+                }
+            }
+
+            // 智能处理纸堆标签页数据
+            val hasUserContent = gestureCards.isNotEmpty() || mobileCards.isNotEmpty()
+            val hasNonBaiduTabs = paperStackTabs.any { tab -> 
+                tab.url != "https://www.baidu.com" || tab.title != "百度"
+            }
+            
+            paperStackTabs.forEach { tab ->
+                // 检查是否是baidu首页
+                val isBaiduHome = tab.url == "https://www.baidu.com" && tab.title == "百度"
+                
+                // 检查是否已存在相同的卡片
+                val isDuplicate = allCards.any { existingCard ->
+                    existingCard.url == tab.url && existingCard.url?.isNotEmpty() == true
+                }
+                
+                // StackedCardPreview的智能决策：
+                // 1. 如果有用户主动创建的内容，优先显示用户内容
+                // 2. 如果有非baidu的标签页，优先显示非baidu内容
+                // 3. 只有在没有任何其他内容时才显示baidu首页
+                val shouldInclude = when {
+                    isBaiduHome -> !hasUserContent && !hasNonBaiduTabs
+                    else -> !isDuplicate
+                }
+                
+                if (shouldInclude) {
+                    val paperStackCard = GestureCardWebViewManager.WebViewCardData(
+                        id = tab.id,
+                        title = tab.title,
+                        url = tab.url,
+                        webView = tab.webView
+                    )
+                    allCards.add(paperStackCard)
+                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}")
+                } else {
+                    duplicateCount++
+                    if (isBaiduHome) {
+                        Log.d(TAG, "StackedCardPreview排除baidu首页（优先显示用户内容）: ${tab.title} - ${tab.url}")
+                    } else {
+                        Log.d(TAG, "跳过重复纸堆标签页: ${tab.title} - ${tab.url}")
+                    }
+                }
+            }
+
+            Log.d(TAG, "StackedCardPreview专用卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 纸堆标签页: ${paperStackTabs.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
+            Log.d(TAG, "=== StackedCardPreview专用卡片数据获取结束 ===")
+
+            return allCards
+        } catch (e: Exception) {
+            Log.e(TAG, "获取StackedCardPreview专用卡片数据异常", e)
             return emptyList()
         }
     }
@@ -7604,8 +7667,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 添加新建标签页选项
             menuItems.add("新建标签页")
             menuActions.add {
-                val defaultUrl = "https://www.baidu.com"
-                val defaultTitle = "百度"
+                val defaultUrl = "about:blank"
+                val defaultTitle = "主页"
                 paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
                 Toast.makeText(this, "已创建新标签页", Toast.LENGTH_SHORT).show()
             }
@@ -9041,7 +9104,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return super.dispatchTouchEvent(ev)
         }
 
-        // 如果在纸堆模式下，优先处理纸堆的触摸事件
+        // 最高优先级：如果StackedCardPreview正在显示，让StackedCardPreview处理触摸事件
+        if (stackedCardPreview?.visibility == View.VISIBLE) {
+            Log.d(TAG, "🔒 StackedCardPreview可见，让StackedCardPreview处理触摸事件")
+            return super.dispatchTouchEvent(ev)
+        }
+
+        // 如果在纸堆模式下，优先处理纸堆的触摸事件（但StackedCardPreview优先级更高）
         if (currentState == UIState.BROWSER && paperStackWebViewManager != null) {
             val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
             if (paperStackLayout?.visibility == View.VISIBLE) {
@@ -17965,8 +18034,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateWaveTrackerCards() {
         try {
-            // 使用统一的卡片数据获取方法
-            val allCards = getAllUnifiedCards()
+            // 使用StackedCardPreview专用的卡片数据获取方法，排除自动创建的baidu首页
+            val allCards = getStackedCardPreviewCards()
 
             Log.d(TAG, "更新卡片预览器 - 总计: ${allCards.size}")
 
@@ -18487,46 +18556,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
 
             if (isStackedPreviewVisible) {
-                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
-                Log.d(TAG, "tab区域触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
+                // 层叠卡片预览模式下，不处理触摸事件，让StackedCardPreview自己处理
+                Log.d(TAG, "tab区域触摸，层叠卡片预览可见，不拦截触摸事件")
+                false
+            } else {
+                // 已禁用搜索tab的层叠卡片预览效果
+                // 现在只有通过左上角按钮才能激活卡片预览
 
-                // 将触摸坐标转换为StackedCardPreview的坐标系
-                stackedCardPreview?.let { preview ->
-                    val location = IntArray(2)
-                    view.getLocationOnScreen(location)
-                    val previewLocation = IntArray(2)
-                    preview.getLocationOnScreen(previewLocation)
+                // 处理手势检测（横滑切换）
+                gestureDetector.onTouchEvent(event)
 
-                    val relativeX = location[0] - previewLocation[0] + event.x
-                    val relativeY = location[1] - previewLocation[1] + event.y
-
-                    // 创建相对坐标的触摸事件
-                    val relativeEvent = MotionEvent.obtain(
-                        event.downTime,
-                        event.eventTime,
-                        event.action,
-                        relativeX,
-                        relativeY,
-                        event.metaState
-                    )
-
-                    // 传递给StackedCardPreview处理长按滑动
-                    val handled = preview.dispatchTouchEvent(relativeEvent)
-                    relativeEvent.recycle()
-
-                    Log.d(TAG, "tab触摸事件传递结果: $handled, 动作: ${event.action}")
-                    return@setOnTouchListener handled
-                } ?: false
+                // 不消费事件，让点击事件继续传递
+                false
             }
-
-            // 已禁用搜索tab的层叠卡片预览效果
-            // 现在只有通过左上角按钮才能激活卡片预览
-
-            // 处理手势检测（横滑切换）
-            gestureDetector.onTouchEvent(event)
-
-            // 不消费事件，让点击事件继续传递
-            false
         }
     }
 
@@ -19061,39 +19103,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
 
             if (isStackedPreviewVisible) {
-                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
-                Log.d(TAG, "搜索tab区域触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
-
-                // 将触摸坐标转换为StackedCardPreview的坐标系
-                stackedCardPreview?.let { preview ->
-                    val location = IntArray(2)
-                    view.getLocationOnScreen(location)
-                    val previewLocation = IntArray(2)
-                    preview.getLocationOnScreen(previewLocation)
-
-                    val relativeX = location[0] - previewLocation[0] + event.x
-                    val relativeY = location[1] - previewLocation[1] + event.y
-
-                    // 创建相对坐标的触摸事件
-                    val relativeEvent = MotionEvent.obtain(
-                        event.downTime,
-                        event.eventTime,
-                        event.action,
-                        relativeX,
-                        relativeY,
-                        event.metaState
-                    )
-
-                    // 传递给StackedCardPreview处理长按滑动
-                    val handled = preview.dispatchTouchEvent(relativeEvent)
-                    relativeEvent.recycle()
-
-                    Log.d(TAG, "搜索tab触摸事件传递结果: $handled, 动作: ${event.action}")
-                    return@OnTouchListener handled
-                } ?: false
+                // 层叠卡片预览模式下，不处理触摸事件，让StackedCardPreview自己处理
+                Log.d(TAG, "搜索tab区域触摸，层叠卡片预览可见，不拦截触摸事件")
+                false
             } else {
                 // 正常模式下，处理页面切换手势
                 gestureDetector.onTouchEvent(event)
+                false
             }
         }
     }
@@ -19294,11 +19310,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 为底部导航栏设置手势监听
             val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
             bottomNav?.setOnTouchListener { _, event ->
-                // 只有在搜索tab时才处理网页切换手势
-                if (getCurrentTabIndex() == 1) {
-                    tabSwipeDetector.onTouchEvent(event)
-                } else {
+                // 如果StackedCardPreview正在显示，不处理触摸事件
+                if (stackedCardPreview?.visibility == View.VISIBLE) {
+                    Log.d(TAG, "底部导航栏触摸，StackedCardPreview可见，不处理触摸事件")
                     false
+                } else {
+                    // 只有在搜索tab时才处理网页切换手势
+                    if (getCurrentTabIndex() == 1) {
+                        tabSwipeDetector.onTouchEvent(event)
+                    } else {
+                        false
+                    }
                 }
             }
 
@@ -19985,8 +20007,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "🎯 搜索tab激活层叠卡片预览")
 
-            // 使用统一的卡片数据获取方法
-            val allCards = getAllUnifiedCards()
+            // 使用StackedCardPreview专用的卡片数据获取方法，排除自动创建的baidu首页
+            val allCards = getStackedCardPreviewCards()
 
             Log.d(TAG, "📊 搜索tab激活层叠卡片预览 - 总计: ${allCards.size}")
 

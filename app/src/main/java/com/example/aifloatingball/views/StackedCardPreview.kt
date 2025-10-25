@@ -155,14 +155,14 @@ class StackedCardPreview @JvmOverloads constructor(
     )
 
     init {
-        // 设置为完全不可交互，确保触摸事件穿透
+        // 初始状态设置为不可交互，激活时会重新设置
         isClickable = false
         isFocusable = false
         isFocusableInTouchMode = false
         isEnabled = false
 
-        // 设置触摸监听器，确保不消费任何触摸事件
-        setOnTouchListener { _, _ -> false }
+        // 不设置OnTouchListener，让StackedCardPreview自己处理触摸事件
+        // 移除阻止触摸的监听器，避免触摸穿透问题
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -182,16 +182,21 @@ class StackedCardPreview @JvmOverloads constructor(
         // 平行模式下处理触摸事件
         val handled = handleStackedModeTouch(event)
         
-        // 始终阻止事件穿透到下方，确保StackedCardPreview独占触摸
-        return true
+        // 如果处理了事件，阻止穿透；否则让事件继续传递
+        return handled
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        // 平行模式下拦截事件，用于滑动交互
-        val handled = super.dispatchTouchEvent(event)
+        // 直接处理触摸事件，不调用父类的dispatchTouchEvent
+        val handled = handleStackedModeTouch(event)
         
-        // 始终阻止事件穿透到下方，确保StackedCardPreview独占触摸
-        return true
+        if (handled) {
+            // 如果处理了事件，阻止穿透
+            return true
+        } else {
+            // 如果没有处理，让父类处理
+            return super.dispatchTouchEvent(event)
+        }
     }
 
     /**
@@ -351,15 +356,15 @@ class StackedCardPreview @JvmOverloads constructor(
                     }
 
                     // 直接处理滑动
-                    // 检测是否开始滑动 - 降低阈值提高响应性
-                    if (!isLongPressSliding && !isVerticalDragging && distance > 10f) {
-                        // 判断是水平还是垂直滑动 - 优化方向判断
-                        if (abs(deltaX) > abs(deltaY) * 1.3f) {
-                            // 水平滑动需要更明显的水平移动
+                    // 检测是否开始滑动 - 进一步降低阈值提高响应性
+                    if (!isLongPressSliding && !isVerticalDragging && distance > 5f) {
+                        // 判断是水平还是垂直滑动 - 优化方向判断，让水平滑动更容易触发
+                        if (abs(deltaX) > abs(deltaY) * 1.1f) {
+                            // 水平滑动更容易触发，降低比例要求
                             isLongPressSliding = true
                             Log.d("StackedCardPreview", "开始水平滑动")
-                        } else if (abs(deltaY) > abs(deltaX) * 1.1f) {
-                            // 垂直滑动更容易触发
+                        } else if (abs(deltaY) > abs(deltaX) * 1.2f) {
+                            // 垂直滑动需要更明显的垂直移动
                             isVerticalDragging = true
                             Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
                             
@@ -511,10 +516,10 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 更新滚动偏移，大幅增加灵敏度让滑动更流畅
         val sensitivity = when {
-            abs(slideVelocity) > 3000f -> 1.8f // 极快滑动时大幅增加灵敏度
-            abs(slideVelocity) > 2000f -> 1.5f // 快速滑动时增加灵敏度
-            abs(slideVelocity) > 1000f -> 1.2f // 中等速度时适度增加灵敏度
-            else -> 1.0f // 慢速滑动时保持正常灵敏度
+            abs(slideVelocity) > 3000f -> 2.2f // 极快滑动时大幅增加灵敏度
+            abs(slideVelocity) > 2000f -> 1.8f // 快速滑动时增加灵敏度
+            abs(slideVelocity) > 1000f -> 1.4f // 中等速度时适度增加灵敏度
+            else -> 1.2f // 慢速滑动时也增加灵敏度
         }
         scrollOffset -= deltaX * sensitivity
 
@@ -536,7 +541,7 @@ class StackedCardPreview @JvmOverloads constructor(
         invalidate()
 
         // 更新滑动起点，使滑动更连续
-        slideStartX = slideStartX + deltaX * 0.2f // 减少起点更新幅度，保持滑动连续性
+        slideStartX = slideStartX + deltaX * 0.1f // 进一步减少起点更新幅度，保持滑动连续性
     }
 
     /**
