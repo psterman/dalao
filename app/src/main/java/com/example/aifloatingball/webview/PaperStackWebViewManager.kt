@@ -279,16 +279,14 @@ class PaperStackWebViewManager(
             override fun onAnimationEnd(animation: Animator) {
                 isAnimating = false
                 
-                // 重新排序标签页数组
-                reorderTabs(currentTabIndex, targetIndex)
-                
                 // 更新当前标签页索引
-                currentTabIndex = 0  // 目标标签页现在在最前面
-                
-                // 通知监听器
+                currentTabIndex = targetIndex
+
+                updateTabPositions()
+
                 onTabSwitchedListener?.invoke(targetTab, currentTabIndex)
-                
-                Log.d(TAG, "标签页切换完成，当前标签页: ${targetTab.title}")
+
+                Log.d(TAG, "标签页切换完成，当前标签页: ${targetTab.title}, 索引: $currentTabIndex")
             }
             
             override fun onAnimationCancel(animation: Animator) {
