@@ -5913,7 +5913,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserBtnClear?.setOnClickListener {
             browserSearchInput.setText("")
             browserBtnClear.visibility = View.GONE
-            showMaterialToast("🗑️ 搜索框已清空")
+            showMaterialToast("搜索框已清空")
         }
 
         // 设置AI助手按钮点击监听
@@ -5943,7 +5943,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             switchToAppSearchWithQuery(null)
                             // 清空浏览器搜索框
                             browserSearchInput.setText("")
-                            showMaterialToast("📱 已切换到应用搜索")
+                            showMaterialToast("已切换到应用搜索")
                         }
                     }, 500) // 500ms延迟，给用户时间完成输入
                 }
@@ -6051,7 +6051,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     browserSwipeRefresh.isRefreshing = false
                 }, 1000)
 
-                showMaterialToast("🔄 页面已刷新")
+                showMaterialToast("页面已刷新")
             }
 
             // 设置下拉刷新的条件 - 只有在页面顶部才能触发
@@ -6059,11 +6059,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 在纸堆模式下，禁用下拉刷新
                 val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
                 if (paperStackLayout?.visibility == View.VISIBLE) {
-                    return@setOnChildScrollUpCallback false
+                    return@setOnChildScrollUpCallback true // 阻止下拉刷新
                 }
                 
                 // 检查当前WebView是否可以向上滚动
-                getCurrentWebViewForScrollCheck()?.canScrollVertically(-1) ?: false
+                val currentWebView = getCurrentWebViewForScrollCheck()
+                val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
+                
+                // 如果可以向上滚动，说明不在页面顶部，阻止下拉刷新
+                // 如果不能向上滚动，说明在页面顶部，允许下拉刷新
+                Log.d(TAG, "下拉刷新检查: canScrollUp=$canScrollUp, 允许下拉刷新=${!canScrollUp}")
+                canScrollUp
             }
 
             Log.d(TAG, "下拉刷新功能设置完成")
@@ -6798,7 +6804,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 检查组件是否已初始化
                 if (!::browserGestureOverlay.isInitialized) {
                     Log.e(TAG, "browserGestureOverlay未初始化，无法操作手势指南")
-                    showMaterialToast("❌ 手势指南功能暂时不可用")
+                    showMaterialToast("手势指南功能暂时不可用")
                     return@setOnClickListener
                 }
 
@@ -6827,10 +6833,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 startActivity(intent)
                 
                 Log.d(TAG, "成功打开下载管理界面")
-                showMaterialToast("📁 打开下载管理")
+                showMaterialToast("打开下载管理")
             } catch (e: Exception) {
                 Log.e(TAG, "下载管理按钮点击处理失败", e)
-                showMaterialToast("❌ 打开下载管理失败")
+                showMaterialToast("打开下载管理失败")
             }
         }
 
@@ -20487,7 +20493,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             performGestureVibration("heavy")
 
             // 显示激活提示
-            showMaterialToast("🎯 手势区已激活！可使用快捷手势操作")
+            showMaterialToast("手势区已激活")
 
             // 只在首次安装后第一次激活时显示详细操作说明
             val sharedPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
@@ -20578,7 +20584,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
                                 showChat()
-                                showMaterialToast("💬 已切换到对话页面")
                                 return true
                             }
                             1 -> {
@@ -20586,7 +20591,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 Log.d(TAG, "遮罩层中单击搜索tab，退出遮罩层")
                                 performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
-                                showMaterialToast("🔍 已退出遮罩层")
+                                showMaterialToast("已退出遮罩层")
                                 return true
                             }
                             2 -> {
@@ -20595,7 +20600,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
                                 showAIAssistantCenter()
-                                showMaterialToast("🤖 已切换到AI助手中心页面")
                                 return true
                             }
                             3 -> {
@@ -20605,7 +20609,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showVoice()
-                                    showMaterialToast("🎤 已切换到语音页面")
                                     return true
                                 } else {
                                     // 语音tab隐藏，这是软件tab
@@ -20613,7 +20616,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showAppSearch()
-                                    showMaterialToast("📱 已切换到软件页面")
                                     return true
                                 }
                             }
@@ -20624,7 +20626,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showAppSearch()
-                                    showMaterialToast("📱 已切换到软件页面")
                                     return true
                                 } else {
                                     // 语音tab隐藏，这是设置tab
@@ -20632,7 +20633,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showSettings()
-                                    showMaterialToast("⚙️ 已切换到设置页面")
                                     return true
                                 }
                             }
@@ -20643,7 +20643,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showSettings()
-                                    showMaterialToast("⚙️ 已切换到设置页面")
                                     return true
                                 }
                             }
@@ -20806,7 +20805,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             performGestureVibration("light")
 
             // 显示退出提示
-            showMaterialToast("👋 手势区已关闭")
+            showMaterialToast("手势区已关闭")
 
             // 移除遮罩层
             searchTabGestureOverlay?.let { overlay ->
@@ -21283,7 +21282,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 显示自定义样式的Toast提示 - 支持暗色/亮色模式，绿色边框，显示在页面正上方
+     * 显示统一样式的Toast提示 - 简洁文案，统一位置
      */
     private fun showMaterialToast(message: String, color: Int = android.graphics.Color.GREEN) {
         try {
@@ -21296,7 +21295,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 创建自定义Toast布局
                 val layout = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    setPadding(32, 20, 32, 20)
+                    setPadding(24, 16, 24, 16)
                     background = GradientDrawable().apply {
                         // 根据主题设置背景色
                         val backgroundColor = if (isDarkMode) {
@@ -21305,20 +21304,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             android.graphics.Color.parseColor("#FFFFFF") // 亮色模式：白色背景
                         }
                         setColor(backgroundColor)
-                        setStroke(6, android.graphics.Color.parseColor("#4CAF50")) // 绿色边框
-                        cornerRadius = 28f
+                        setStroke(4, android.graphics.Color.parseColor("#4CAF50")) // 绿色边框
+                        cornerRadius = 24f
                     }
-                    elevation = 12f
-                }
-
-                // 添加图标
-                val icon = ImageView(this).apply {
-                    setImageResource(android.R.drawable.ic_dialog_info)
-                    setColorFilter(android.graphics.Color.parseColor("#4CAF50")) // 绿色图标
-                    layoutParams = LinearLayout.LayoutParams(56, 56).apply {
-                        setMargins(0, 0, 20, 0)
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                    }
+                    elevation = 8f
                 }
 
                 // 添加文本
@@ -21331,8 +21320,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         android.graphics.Color.parseColor("#2E7D32") // 亮色模式：深绿色文字
                     }
                     setTextColor(textColor)
-                    textSize = 16f
-                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    textSize = 15f
+                    typeface = android.graphics.Typeface.DEFAULT
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
@@ -21341,26 +21330,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                 }
 
-                layout.addView(icon)
                 layout.addView(textView)
 
-                // 创建并显示Toast - 显示在页面正上方
+                // 创建并显示Toast - 统一位置：屏幕顶部中央
                 val toast = Toast(this).apply {
                     view = layout
                     duration = Toast.LENGTH_SHORT
-                    // 设置位置：页面正上方，距离顶部200px
-                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 200)
+                    // 统一位置：屏幕顶部中央，距离顶部150px
+                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 150)
                 }
 
                 toast.show()
-                Log.d(TAG, "显示自定义Toast: $message (${if (isDarkMode) "暗色" else "亮色"}模式)")
+                Log.d(TAG, "显示Toast: $message")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "显示自定义Toast失败", e)
+            Log.e(TAG, "显示Toast失败", e)
             // 回退到普通Toast
             runOnUiThread {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).apply {
-                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 200)
+                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 150)
                 }.show()
             }
         }
