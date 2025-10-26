@@ -2,6 +2,7 @@ package com.example.aifloatingball.tts
 
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -43,6 +44,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     
     companion object {
         private const val TAG = "TTSManager"
+        private const val PREFS_NAME = "tts_prefs"
+        private const val KEY_SPEECH_RATE = "speech_rate"
+        private const val KEY_PITCH = "pitch"
+        private const val KEY_VOLUME = "volume"
         
         @Volatile
         private var INSTANCE: TTSManager? = null
@@ -52,6 +57,10 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
                 INSTANCE ?: TTSManager(context.applicationContext).also { INSTANCE = it }
             }
         }
+    }
+    
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
     
     private var tts: TextToSpeech? = null
@@ -74,6 +83,11 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     private val maxInitializationAttempts = 3
     
     init {
+        // 从SharedPreferences加载保存的设置
+        speechRate = prefs.getFloat(KEY_SPEECH_RATE, 1.0f)
+        pitch = prefs.getFloat(KEY_PITCH, 1.0f)
+        volume = prefs.getFloat(KEY_VOLUME, 1.0f)
+        Log.d(TAG, "加载TTS设置: speechRate=$speechRate, pitch=$pitch, volume=$volume")
         initializeTTS()
     }
     
@@ -540,11 +554,12 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
             
             currentUtteranceId = utteranceId ?: "default_${System.currentTimeMillis()}"
             
+            // 确保在朗读前设置正确的参数
+            tts?.setSpeechRate(speechRate)
+            tts?.setPitch(pitch)
+            
             val params = Bundle()
             params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume)
-            // 使用字符串常量，因为某些Android版本可能没有这些常量
-            params.putFloat("rate", speechRate)
-            params.putFloat("pitch", pitch)
             
             Log.d(TAG, "开始朗读，文本长度: ${cleanText.length}")
             Log.d(TAG, "朗读参数: volume=$volume, rate=$speechRate, pitch=$pitch")
@@ -592,17 +607,20 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
     fun setSpeechRate(rate: Float) {
         speechRate = rate.coerceIn(0.1f, 3.0f)
         tts?.setSpeechRate(speechRate)
+        prefs.edit().putFloat(KEY_SPEECH_RATE, speechRate).apply()
         Log.d(TAG, "设置语音速度: $speechRate")
     }
     
     fun setPitch(pitch: Float) {
         this.pitch = pitch.coerceIn(0.1f, 2.0f)
         tts?.setPitch(this.pitch)
+        prefs.edit().putFloat(KEY_PITCH, this.pitch).apply()
         Log.d(TAG, "设置语音音调: $pitch")
     }
     
     fun setVolume(volume: Float) {
         this.volume = volume.coerceIn(0.0f, 1.0f)
+        prefs.edit().putFloat(KEY_VOLUME, this.volume).apply()
         Log.d(TAG, "设置语音音量: $volume")
     }
     

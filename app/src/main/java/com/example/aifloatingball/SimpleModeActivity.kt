@@ -730,8 +730,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 调试：检查所有AI的数据状态
         debugAllAIData()
         
-        // 添加测试按钮来手动刷新数据
-        addTestRefreshButton()
+        // 添加测试按钮来手动刷新数据（已禁用）
+        // addTestRefreshButton()
 
         // 检查是否需要恢复之前的状态
         val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
@@ -5001,40 +5001,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return
         }
 
-        // 如果当前是TTS朗读模式，执行朗读功能
+        // 如果当前是TTS朗读模式，弹出TTS设置对话框
         if (isMicInTTSMode) {
-            Log.d(TAG, "执行TTS朗读功能")
-            performTTSReading()
+            Log.d(TAG, "TTS朗读模式 - 弹出设置对话框")
+            showSimpleModeTTSSettingsDialog()
             return
-        }
-        
-        // 临时测试：如果TTS已启用，直接测试TTS功能
-        if (isTTSEnabled && ttsManager.isAvailable()) {
-            Log.d(TAG, "TTS功能可用，执行测试朗读")
-            val testText = "这是麦克风按钮TTS功能测试。如果您听到这段语音，说明TTS功能正常工作。"
-            voiceStatusText.text = "正在测试TTS功能..."
-            ttsManager.speak(testText, "mic_test_tts")
-            return
-        } else {
-            // TTS不可用，尝试强制初始化
-            Log.w(TAG, "TTS功能不可用，尝试强制初始化")
-            ttsManager.forceInitializeTTS()
-            
-            if (ttsManager.isAvailable()) {
-                Log.d(TAG, "TTS强制初始化成功，执行测试朗读")
-                val testText = "这是麦克风按钮TTS功能测试。如果您听到这段语音，说明TTS功能正常工作。"
-                voiceStatusText.text = "正在测试TTS功能..."
-                ttsManager.speak(testText, "mic_test_tts")
-                return
-            } else {
-                Log.w(TAG, "TTS强制初始化失败")
-                voiceStatusText.text = "TTS功能不可用，请检查系统设置"
-                Toast.makeText(this, "TTS功能不可用，请检查系统设置", Toast.LENGTH_SHORT).show()
-                return
-            }
         }
 
-        // 如果按钮可见，说明支持SpeechRecognizer，直接启动语音识别
+        // 语音输入模式 - 启动语音识别
         if (supportInfo.isSupported) {
             Log.d(TAG, "启动语音识别")
             startVoiceRecognition()
@@ -9146,6 +9120,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化对话相关的UI组件
             val chatSearchInput = findViewById<EditText>(R.id.chat_search_input)
             val chatAddContactButton = findViewById<ImageButton>(R.id.chat_add_contact_button)
+            val chatTTSButton = findViewById<ImageButton>(R.id.simple_mode_tts_toggle_button)
+            val chatAIAssistantButton = findViewById<ImageButton>(R.id.chat_ai_assistant_button)
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
             val chatContactsRecyclerView = findViewById<RecyclerView>(R.id.chat_contacts_recycler_view)
 
@@ -9251,6 +9227,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             chatAddContactButton?.setOnClickListener {
                 // 打开AI联系人列表界面
                 openAIContactListActivity()
+            }
+
+            // 设置TTS朗读开关按钮
+            chatTTSButton?.setOnClickListener {
+                // 显示TTS设置对话框
+                showSimpleModeTTSSettingsDialog()
+            }
+
+            // 设置AI助手按钮
+            chatAIAssistantButton?.setOnClickListener {
+                // 显示AI助手中心
+                showAIAssistantCenter()
             }
 
             // 先加载联系人数据
