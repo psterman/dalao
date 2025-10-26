@@ -279,13 +279,12 @@ class PaperStackWebViewManager(
             override fun onAnimationEnd(animation: Animator) {
                 isAnimating = false
                 
-                // 更新当前标签页索引
-                currentTabIndex = targetIndex
-
-                updateTabPositions()
-
+                // 重新排序标签页数组（只更新视觉位置，不改变数组顺序）
+                reorderTabs(currentTabIndex, targetIndex)
+                
+                // 通知监听器
                 onTabSwitchedListener?.invoke(targetTab, currentTabIndex)
-
+                
                 Log.d(TAG, "标签页切换完成，当前标签页: ${targetTab.title}, 索引: $currentTabIndex")
             }
             
@@ -305,9 +304,9 @@ class PaperStackWebViewManager(
         val targetOffsetX = targetStackIndex * TAB_OFFSET_X
         val targetOffsetY = targetStackIndex * TAB_OFFSET_Y
         val targetScale = TAB_SCALE_FACTOR.pow(targetStackIndex)
-        // 修复透明度计算：第一个页面完全不透明，其他页面保持适当透明度
-        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.4f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
-        val targetElevation = (tabs.size - targetStackIndex + 10).toFloat() // 增加基础elevation避免重叠
+        // 修复透明度计算：非激活页面保持适当透明度
+        val targetAlpha = max(0.4f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
+        val targetElevation = (tabs.size - targetStackIndex + 10).toFloat()
         
         val animatorX = ObjectAnimator.ofFloat(tab.webView, "translationX", tab.webView.translationX, targetOffsetX)
         val animatorY = ObjectAnimator.ofFloat(tab.webView, "translationY", tab.webView.translationY, targetOffsetY)
@@ -347,9 +346,9 @@ class PaperStackWebViewManager(
         val targetOffsetX = targetStackIndex * TAB_OFFSET_X
         val targetOffsetY = targetStackIndex * TAB_OFFSET_Y
         val targetScale = TAB_SCALE_FACTOR.pow(targetStackIndex)
-        // 修复透明度计算：第一个页面完全不透明，其他页面保持适当透明度
-        val targetAlpha = if (targetStackIndex == 0) 1.0f else max(0.4f, 1f - (targetStackIndex * TAB_ALPHA_FACTOR))
-        val targetElevation = (tabs.size - targetStackIndex + 10).toFloat() // 增加基础elevation避免重叠
+        // 修复透明度计算：激活页面完全不透明
+        val targetAlpha = 1.0f
+        val targetElevation = (tabs.size + 20).toFloat()
         
         val animatorX = ObjectAnimator.ofFloat(tab.webView, "translationX", tab.webView.translationX, targetOffsetX)
         val animatorY = ObjectAnimator.ofFloat(tab.webView, "translationY", tab.webView.translationY, targetOffsetY)
@@ -390,20 +389,15 @@ class PaperStackWebViewManager(
         
         tabs.forEachIndexed { index, tab ->
             if (index != currentIndex && index != targetIndex) {
-                // 计算新的层叠位置
-                val newStackIndex = if (index < targetIndex) {
-                    // 如果目标标签页移到前面，其他标签页位置不变
-                    tabs.size - 1 - index
-                } else {
-                    // 如果目标标签页移到前面，后面的标签页位置前移
-                    tabs.size - 1 - index + 1
-                }
+                // 计算新的层叠位置：基于与目标标签页的距离
+                val distanceFromTarget = abs(index - targetIndex)
+                val newStackIndex = distanceFromTarget
                 
                 val targetOffsetX = newStackIndex * TAB_OFFSET_X
                 val targetOffsetY = newStackIndex * TAB_OFFSET_Y
                 val targetScale = TAB_SCALE_FACTOR.pow(newStackIndex)
-                val targetAlpha = if (newStackIndex == 0) 1.0f else max(0.3f, 1f - (newStackIndex * TAB_ALPHA_FACTOR))
-                val targetElevation = (tabs.size - newStackIndex).toFloat()
+                val targetAlpha = max(0.4f, 1f - (newStackIndex * TAB_ALPHA_FACTOR))
+                val targetElevation = (tabs.size - newStackIndex + 10).toFloat()
                 
                 val animatorX = ObjectAnimator.ofFloat(tab.webView, "translationX", tab.webView.translationX, targetOffsetX)
                 val animatorY = ObjectAnimator.ofFloat(tab.webView, "translationY", tab.webView.translationY, targetOffsetY)
@@ -438,21 +432,17 @@ class PaperStackWebViewManager(
             return
         }
         
-        // 将目标标签页移到最前面（数组的第一个位置）
-        val targetTab = tabs[targetIndex]
-        tabs.removeAt(targetIndex)
-        tabs.add(0, targetTab)
+        // 关键修复：在纸堆模式中，不要重新排序数组，只更新当前索引和视觉位置
+        // 这样可以保持标签页的原始顺序，确保StackedCardPreview的索引对应正确
+        Log.d(TAG, "纸堆模式：保持标签页数组顺序不变，更新当前索引: $currentIndex -> $targetIndex")
         
-        // 将当前标签页移到最后面（数组的最后一个位置）
-        // 注意：由于targetTab已经移到了前面，需要调整索引
-        val adjustedCurrentIndex = if (targetIndex < currentIndex) currentIndex - 1 else currentIndex
-        if (adjustedCurrentIndex >= 0 && adjustedCurrentIndex < tabs.size) {
-            val currentTab = tabs[adjustedCurrentIndex]
-            tabs.removeAt(adjustedCurrentIndex)
-            tabs.add(currentTab)
-        }
+        // 更新当前标签页索引
+        currentTabIndex = targetIndex
         
-        Log.d(TAG, "重新排序完成：目标标签页移到最前，当前标签页移到最后")
+        // 更新所有标签页的位置
+        updateTabPositions()
+        
+        Log.d(TAG, "纸堆模式标签页切换完成，当前激活索引: $currentTabIndex")
     }
 
     /**
@@ -460,14 +450,16 @@ class PaperStackWebViewManager(
      */
     private fun updateTabPositions() {
         tabs.forEachIndexed { index, tab ->
-            // 计算层叠位置：越靠后的标签页偏移越大
-            val stackIndex = tabs.size - 1 - index  // 反转索引，让第一个标签页在最上面
+            // 计算层叠位置：当前激活的标签页在最上面，其他按距离排序
+            val distanceFromCurrent = abs(index - currentTabIndex)
+            val stackIndex = distanceFromCurrent
+            
             val offsetX = stackIndex * TAB_OFFSET_X
             val offsetY = stackIndex * TAB_OFFSET_Y
             val scale = TAB_SCALE_FACTOR.pow(stackIndex)
             
-            // 修复透明度问题：第一个页面（stackIndex = 0）完全不透明，其他页面保持适当透明度
-            val alpha = if (stackIndex == 0) 1.0f else max(0.4f, 1f - (stackIndex * TAB_ALPHA_FACTOR))
+            // 修复透明度问题：当前激活的页面完全不透明，其他页面按层级降低
+            val alpha = if (index == currentTabIndex) 1.0f else max(0.4f, 1f - (stackIndex * TAB_ALPHA_FACTOR))
             
             // 设置变换属性
             tab.webView.translationX = offsetX
@@ -476,14 +468,14 @@ class PaperStackWebViewManager(
             tab.webView.scaleY = scale
             tab.webView.alpha = alpha
             
-            // 设置层级：第一个标签页在最上面，确保不重叠
-            tab.webView.elevation = (tabs.size - index + 10).toFloat() // 增加基础elevation避免重叠
+            // 设置层级：当前激活的标签页在最上面，确保不重叠
+            tab.webView.elevation = if (index == currentTabIndex) (tabs.size + 20).toFloat() else (tabs.size - stackIndex + 10).toFloat()
             
             // 更新标签页状态
             tab.isActive = (index == currentTabIndex)
             tab.stackIndex = stackIndex
             
-            Log.d(TAG, "标签页 ${tab.title}: stackIndex=$stackIndex, offsetX=$offsetX, offsetY=$offsetY, scale=$scale, alpha=$alpha, elevation=${tab.webView.elevation}")
+            Log.d(TAG, "标签页 ${tab.title}: index=$index, currentTabIndex=$currentTabIndex, stackIndex=$stackIndex, offsetX=$offsetX, offsetY=$offsetY, scale=$scale, alpha=$alpha, elevation=${tab.webView.elevation}")
         }
     }
 

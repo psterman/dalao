@@ -4008,10 +4008,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "进入纸堆模式")
             
-            // 隐藏主页内容
-            browserHomeContent.visibility = View.GONE
-            browserTabContainer.visibility = View.GONE
-            
             // 显示纸堆容器
             val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
             paperStackLayout?.visibility = View.VISIBLE
@@ -4022,13 +4018,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupBrowserWebView()
             }
             
-            // 如果还没有标签页，添加一个默认标签页
+            // 如果还没有标签页，不创建空白标签页，而是显示功能页面
             val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
             if (tabCount == 0) {
-                Log.d(TAG, "没有标签页，添加默认标签页")
-                addDefaultTab()
+                Log.d(TAG, "没有标签页，显示功能页面作为主页")
+                // 显示浏览器主页内容，让用户可以看到功能页面
+                browserHomeContent.visibility = View.VISIBLE
+                browserTabContainer.visibility = View.GONE
+                browserSearchInput.setText("")
             } else {
-                Log.d(TAG, "已有 $tabCount 个标签页，无需添加默认标签页")
+                Log.d(TAG, "已有 $tabCount 个标签页，切换到纸堆模式")
+                // 隐藏主页内容，显示纸堆标签页
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                
                 // 确保纸堆模式正确显示
                 val currentTab = paperStackWebViewManager?.getCurrentTab()
                 if (currentTab != null) {
@@ -4047,45 +4050,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 添加默认标签页 - 优化版本，避免不必要的自动创建
      */
     private fun addDefaultTab() {
-        try {
-            // 检查是否已经有其他标签页，如果有则不创建默认标签页
-            val existingTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
-            val hasNonHomeTabs = existingTabs.any { tab -> 
-                tab.url != "about:blank" || tab.title != "主页"
-            }
-            
-            if (hasNonHomeTabs) {
-                Log.d(TAG, "已有其他标签页，跳过创建默认主页")
-                return
-            }
-            
-            val defaultUrl = "about:blank"
-            val defaultTitle = "主页"
-            
-            // 添加默认标签页到纸堆模式
-            val newTab = paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
-            
-            if (newTab != null) {
-                Log.d(TAG, "添加默认标签页成功: $defaultTitle")
-                
-                // 确保纸堆模式正确显示
-                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
-                paperStackLayout?.visibility = View.VISIBLE
-                
-                // 隐藏主页内容，确保纸堆模式独占显示
-                browserHomeContent.visibility = View.GONE
-                browserTabContainer.visibility = View.GONE
-                
-                // 更新搜索框显示当前标签页URL
-                browserSearchInput.setText(defaultUrl)
-                
-                Log.d(TAG, "默认标签页已归入纸堆模式")
-            } else {
-                Log.e(TAG, "添加默认标签页失败")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "添加默认标签页失败", e)
-        }
+        // 此方法已废弃，现在直接在enterPaperStackMode中处理
+        Log.d(TAG, "addDefaultTab方法已废弃，现在直接在enterPaperStackMode中处理")
     }
 
     /**
@@ -9124,6 +9090,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (handled) {
                     Log.d(TAG, "纸堆模式触摸事件已处理")
                     return true
+                }
+                
+                // 如果纸堆系统没有标签页，但触摸事件没有被处理，可能是滑动创建新标签页
+                val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+                if (tabCount == 0) {
+                    Log.d(TAG, "纸堆系统没有标签页，检查是否需要创建新标签页")
+                    // 这里可以添加创建新标签页的逻辑
                 }
             }
         }
@@ -20033,9 +20006,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 确保重置为层叠模式（不是悬浮模式）
                 resetToStackedMode()
 
-                // 更新卡片数据
-                Log.d(TAG, "🔄 调用updateWaveTrackerCards更新卡片数据")
-                updateWaveTrackerCards()
+                // 直接设置卡片数据，而不是调用updateWaveTrackerCards
+                val stackedCardDataList = allCards.map { cardData ->
+                    com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                        title = cardData.title ?: "无标题",
+                        url = cardData.url ?: "",
+                        favicon = null,
+                        screenshot = cardData.webView?.let { webView ->
+                            // 尝试获取WebView截图
+                            try {
+                                val bitmap = Bitmap.createBitmap(
+                                    webView.width,
+                                    webView.height,
+                                    Bitmap.Config.ARGB_8888
+                                )
+                                val canvas = Canvas(bitmap)
+                                webView.draw(canvas)
+                                bitmap
+                            } catch (e: Exception) {
+                                Log.w(TAG, "获取WebView截图失败", e)
+                                null
+                            }
+                        }
+                    )
+                }
+                
+                // 设置卡片数据
+                setWebViewCards(stackedCardDataList)
 
                 // 启用层叠预览模式的交互
                 enableStackedInteraction()

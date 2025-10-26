@@ -209,21 +209,44 @@ class StackedCardPreview @JvmOverloads constructor(
     /**
      * 设置webview卡片数据
      */
-    fun setWebViewCards(cards: List<WebViewCardData>) {
-        Log.d(TAG, "setWebViewCards: 设置 ${cards.size} 张卡片，当前模式: 平行")
+    fun setWebViewCards(cards: List<WebViewCardData>, selectedIndex: Int = 0) {
+        Log.d(
+            TAG,
+            "setWebViewCards: 设置 ${cards.size} 张卡片，当前模式: 平行 (请求索引=$selectedIndex)"
+        )
 
         cardAnimator?.cancel()
-
         webViewCards = cards
-        currentCardIndex = 0
 
-        // 重置激活状态
+        if (cards.isEmpty()) {
+            Log.d(TAG, "setWebViewCards: 空数据，重置预览状态")
+            currentCardIndex = 0
+            scrollOffset = 0f
+            resetActivationState()
+            initializeCardProperties()
+            invalidate()
+            return
+        }
+
+        val normalizedIndex = selectedIndex.coerceIn(0, cards.size - 1)
+        if (normalizedIndex != selectedIndex) {
+            Log.d(
+                TAG,
+                "setWebViewCards: 归一化索引 $selectedIndex -> $normalizedIndex，避免越界"
+            )
+        }
+        currentCardIndex = normalizedIndex
+
+        // 重置激活状态，避免遗留的触摸状态影响点击
         resetActivationState()
 
         initializeCardProperties()
         invalidate()
 
-        Log.d(TAG, "setWebViewCards: 完成，卡片数据已更新")
+        Log.d(
+            TAG,
+            "setWebViewCards: 完成，卡片数据已更新，当前卡片索引=$currentCardIndex，滚动偏移=$scrollOffset"
+        )
     }
 
     /**
@@ -276,9 +299,13 @@ class StackedCardPreview @JvmOverloads constructor(
             cardScales.add(1.0f)
         }
 
-        // 初始化滚动偏移，让第一张卡片居中
-        scrollOffset = 0f
-        currentCardIndex = 0
+        currentCardIndex = currentCardIndex.coerceIn(0, webViewCards.size - 1)
+        scrollOffset = currentCardIndex * cardSpacing
+
+        Log.d(
+            TAG,
+            "initializeParallelModeProperties: 对齐初始索引=$currentCardIndex, scrollOffset=$scrollOffset"
+        )
     }
 
 
@@ -376,15 +403,16 @@ class StackedCardPreview @JvmOverloads constructor(
                     if (isLongPressSliding) {
                         // 水平滑动控制卡片
                         handleLongPressSlide(deltaX)
-                        // 水平滑动时阻止事件穿透
+                        // 水平滑动时完全阻止事件穿透，防止文本选择
                         return true
                     } else if (isVerticalDragging) {
                         // 垂直滑动关闭中心卡片
                         handleVerticalDrag(deltaY)
-                        // 垂直滑动时也阻止事件穿透
+                        // 垂直滑动时也完全阻止事件穿透
                         return true
                     }
 
+                    // 即使没有开始滑动，也要阻止事件穿透，防止意外的文本选择
                     return true
                 }
             }
@@ -429,7 +457,16 @@ class StackedCardPreview @JvmOverloads constructor(
                                     vibrate(VibrationType.IMPORTANT) // 重要操作震动
                                 }
                                 else -> {
-                                    Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
+                                    Log.d("StackedCardPreview", "检测到点击操作，纠正索引后打开当前中心卡片")
+                                    // 点击时根据当前位置重新计算最近的中心索引，避免轻微偏移导致错选相邻卡片
+                                    if (cardSpacing > 0f && webViewCards.isNotEmpty()) {
+                                        val correctedIndex = ((scrollOffset / cardSpacing) + 0.5f).toInt()
+                                            .coerceIn(0, webViewCards.size - 1)
+                                        if (correctedIndex != currentCardIndex) {
+                                            Log.d("StackedCardPreview", "点击校正索引: $currentCardIndex -> $correctedIndex (scrollOffset=$scrollOffset, spacing=$cardSpacing)")
+                                            currentCardIndex = correctedIndex
+                                        }
+                                    }
                                     selectCurrentCardWithFadeIn()
                                     vibrate(VibrationType.BASIC) // 基本操作震动
                                 }
@@ -1361,6 +1398,9 @@ class StackedCardPreview @JvmOverloads constructor(
                 this.alpha = (255 * alpha).toInt()
             }
             canvas.drawBitmap(scaledBitmap, left + padding, top + padding, bitmapPaint)
+        } ?: run {
+            // 如果没有截图，绘制占位符内容
+            drawPlaceholderContent(canvas, cardData, left, top, width, height, scale, alpha)
         }
 
         // 绘制标题（在卡片底部）
@@ -1387,6 +1427,85 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 绘制左上角绿色新建按钮
         drawNewCardButtonOnCard(canvas, left, top, scale, alpha)
+    }
+
+    /**
+     * 绘制占位符内容（当没有截图时）
+     */
+    private fun drawPlaceholderContent(
+        canvas: Canvas,
+        cardData: WebViewCardData,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        scale: Float,
+        alpha: Float
+    ) {
+        val padding = 16f * scale
+        val contentLeft = left + padding
+        val contentTop = top + padding
+        val contentWidth = width - padding * 2
+        val contentHeight = height - padding * 3 - 40f * scale // 为标题留空间
+
+        // 绘制背景色
+        val placeholderPaint = Paint().apply {
+            color = Color.parseColor("#F5F5F5")
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawRoundRect(
+            contentLeft,
+            contentTop,
+            contentLeft + contentWidth,
+            contentTop + contentHeight,
+            8f * scale,
+            8f * scale,
+            placeholderPaint
+        )
+
+        // 绘制URL信息
+        val urlText = cardData.url.takeIf { it.isNotEmpty() } ?: "无URL"
+        val displayUrl = if (urlText.length > 30) {
+            urlText.substring(0, 30) + "..."
+        } else {
+            urlText
+        }
+
+        val urlPaint = Paint(textPaint).apply {
+            textSize = 24f * scale
+            color = Color.parseColor("#666666")
+            this.alpha = (255 * alpha).toInt()
+        }
+
+        // 计算文本位置（居中）
+        val textBounds = android.graphics.Rect()
+        urlPaint.getTextBounds(displayUrl, 0, displayUrl.length, textBounds)
+        val textX = contentLeft + (contentWidth - textBounds.width()) / 2f
+        val textY = contentTop + contentHeight / 2f + textBounds.height() / 2f
+
+        canvas.drawText(displayUrl, textX, textY, urlPaint)
+
+        // 绘制一个简单的网页图标
+        val iconSize = 32f * scale
+        val iconX = contentLeft + (contentWidth - iconSize) / 2f
+        val iconY = textY - textBounds.height() - 20f * scale
+
+        val iconPaint = Paint().apply {
+            color = Color.parseColor("#4CAF50")
+            this.alpha = (255 * alpha).toInt()
+            style = Paint.Style.FILL
+        }
+
+        // 绘制简单的网页图标（矩形）
+        canvas.drawRoundRect(
+            iconX,
+            iconY,
+            iconX + iconSize,
+            iconY + iconSize,
+            4f * scale,
+            4f * scale,
+            iconPaint
+        )
     }
 
     /**
@@ -1945,4 +2064,3 @@ class StackedCardPreview @JvmOverloads constructor(
         }
     }
 }
-

@@ -118,6 +118,9 @@ class SearchActivity : AppCompatActivity() {
     
     // 自维护的URL历史栈，保证在WebView历史缺失时仍可回退
     private val urlBackStack: ArrayDeque<String> = ArrayDeque()
+    
+    // 当通过 StackedCardPreview 选择卡片时，等待纸堆完成切换后再隐藏预览，避免先露出首个页面闪烁
+    private var pendingHideStackedPreview = false
     // 标识是否正在通过自维护历史恢复，避免在onPageFinished再次入栈
     private var isRestoringFromHistory = false
     
@@ -539,14 +542,10 @@ class SearchActivity : AppCompatActivity() {
             return super.dispatchTouchEvent(ev)
         }
 
-        // 最强触摸隔膜：如果StackedCardPreview正在显示，完全拦截所有触摸事件
+        // 如果StackedCardPreview正在显示，将事件交由其自身处理，避免被 Activity 吞掉
         if (stackedCardPreview?.visibility == View.VISIBLE) {
-            Log.d("SearchActivity", "🔒 最强触摸隔膜激活，完全拦截触摸事件: ${ev.action}")
-            
-            // 完全拦截，不传递给任何其他组件
-            // 这确保触摸事件100%不会穿透到纸堆页面
-            Log.d("SearchActivity", "🔒 最强触摸隔膜：事件已完全拦截，100%阻止穿透")
-            return true
+            Log.d("SearchActivity", "🔒 StackedCardPreview可见，转交触摸事件: ${ev.action}")
+            return stackedCardPreview?.dispatchTouchEvent(ev) ?: true
         }
 
         // 处理长按激活StackedCardPreview
@@ -845,12 +844,30 @@ class SearchActivity : AppCompatActivity() {
             
             Log.d("SearchActivity", "开始同步卡片系统数据，纸堆标签页数量: ${paperStackTabs.size}")
             
-            // 转换为StackedCardPreview的卡片数据格式，确保数据精准
+            if (paperStackTabs.isEmpty()) {
+                Log.d("SearchActivity", "没有标签页，清空StackedCardPreview")
+                stackedCardPreview?.setWebViewCards(emptyList(), 0)
+                return
+            }
+            
+            // 获取当前激活的标签页索引
+            val currentTabIndex = paperStackManager?.let { manager ->
+                val currentTab = manager.getCurrentTab()
+                currentTab?.let { tab ->
+                    paperStackTabs.indexOfFirst { it.id == tab.id }.takeIf { it >= 0 }
+                        ?: paperStackTabs.indexOfFirst { it.url == tab.url }.takeIf { it >= 0 }
+                } ?: 0
+            } ?: 0
+            
+            Log.d("SearchActivity", "当前激活标签页索引: $currentTabIndex")
+            
+            // 转换为StackedCardPreview的卡片数据格式
             val cardData = paperStackTabs.mapIndexed { index, tab ->
                 val title = tab.title.ifEmpty { "标签页 ${index + 1}" }
                 val url = tab.url ?: "about:blank"
+                val isActive = index == currentTabIndex
                 
-                Log.d("SearchActivity", "卡片 $index: 标题='$title', URL='$url'")
+                Log.d("SearchActivity", "卡片 $index: 标题='$title', URL='$url', 是否激活=$isActive")
                 
                 com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
                     title = title,
@@ -859,11 +876,14 @@ class SearchActivity : AppCompatActivity() {
                     screenshot = null
                 )
             }
+
+            Log.d(
+                "SearchActivity",
+                "同步卡片系统数据完成: ${cardData.size} 张卡片，当前激活索引=$currentTabIndex"
+            )
             
-            Log.d("SearchActivity", "同步卡片系统数据完成: ${cardData.size} 张卡片")
-            
-            // 更新StackedCardPreview
-            stackedCardPreview?.setWebViewCards(cardData)
+            // 更新StackedCardPreview，确保当前激活的卡片正确显示
+            stackedCardPreview?.setWebViewCards(cardData, currentTabIndex)
             
             // 如果StackedCardPreview正在显示，强制刷新
             if (stackedCardPreview?.visibility == View.VISIBLE) {
@@ -925,8 +945,27 @@ class SearchActivity : AppCompatActivity() {
                 // 销毁触摸隔膜
                 destroyTouchBarrier()
                 
-                // 切换到选中的纸堆标签页
-                paperStackManager?.switchToTab(cardIndex)
+                // 获取当前标签页列表
+                val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+                if (cardIndex >= 0 && cardIndex < paperStackTabs.size) {
+                    val selectedCard = paperStackTabs[cardIndex]
+                    Log.d("SearchActivity", "选中卡片: ${selectedCard.title}, URL: ${selectedCard.url}")
+                    
+                    // 在纸堆模式中，直接使用cardIndex作为标签页索引
+                    // 因为PaperStackWebViewManager的tabs数组顺序与StackedCardPreview的卡片顺序一致
+                    Log.d("SearchActivity", "切换到纸堆标签页索引: $cardIndex")
+                    paperStackManager?.switchToTab(cardIndex)
+                    
+                    // 切换完成后，延迟同步数据确保一致性
+                    runOnUiThread {
+                        // 延迟一点时间确保切换动画完成
+                        handler.postDelayed({
+                            syncAllCardSystems()
+                        }, 100)
+                    }
+                } else {
+                    Log.w("SearchActivity", "无效的卡片索引: $cardIndex，标签页总数: ${paperStackTabs.size}")
+                }
                 
                 // 隐藏StackedCardPreview
                 stackedCardPreview?.visibility = View.GONE
