@@ -10,6 +10,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -142,7 +143,7 @@ class AIContactListActivity : AppCompatActivity() {
             if (!showOnlyConfiguredAIs) "✓ 显示所有AI" else "显示所有AI"
         )
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("显示模式")
             .setItems(options) { _, which ->
                 when (which) {
@@ -280,7 +281,7 @@ class AIContactListActivity : AppCompatActivity() {
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("配置${aiName}")
             .setMessage("请填写${aiName}的API密钥以激活对话功能")
             .setView(dialogLayout)
@@ -328,7 +329,7 @@ class AIContactListActivity : AppCompatActivity() {
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("修改${aiName}配置")
             .setMessage("修改${aiName}的API配置")
             .setView(dialogLayout)
@@ -370,7 +371,7 @@ class AIContactListActivity : AppCompatActivity() {
         val apiUrlInput = dialogLayout.findViewById<TextInputEditText>(R.id.api_url_input)
         val modelInput = dialogLayout.findViewById<TextInputEditText>(R.id.model_input)
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("添加自定义AI")
             .setMessage("添加自定义AI助手")
             .setView(dialogLayout)
@@ -398,7 +399,7 @@ class AIContactListActivity : AppCompatActivity() {
     private fun showContactOptionsDialog(contact: ChatContact) {
         val options = arrayOf("测试API连接", "查看配置信息", "删除配置")
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("${contact.name}选项")
             .setItems(options) { _, which ->
                 when (which) {
@@ -468,7 +469,7 @@ class AIContactListActivity : AppCompatActivity() {
             "状态: 未配置\n请点击配置按钮添加API密钥"
         }
         
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("${contact.name}配置信息")
             .setMessage(message)
             .setPositiveButton("确定", null)
@@ -768,7 +769,7 @@ class AIContactListActivity : AppCompatActivity() {
         val aiNames = configuredAIs.map { it.name }.toTypedArray()
         val selectedAIs = BooleanArray(aiNames.size)
 
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("创建群聊")
             .setMultiChoiceItems(aiNames, selectedAIs) { _, which, isChecked ->
                 selectedAIs[which] = isChecked
