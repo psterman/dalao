@@ -449,6 +449,8 @@ class TaskFragment : AIAssistantCenterFragment() {
     // 搜索相关
     private lateinit var searchInput: android.widget.EditText
     private lateinit var searchButton: android.widget.ImageButton
+    private lateinit var searchSuggestionsRecyclerView: androidx.recyclerview.widget.RecyclerView
+    private lateinit var searchSuggestionAdapter: com.example.aifloatingball.adapter.PromptSearchSuggestionAdapter
     
     // 顶部快捷入口
     private lateinit var hotPromptCard: androidx.cardview.widget.CardView
@@ -473,6 +475,9 @@ class TaskFragment : AIAssistantCenterFragment() {
     private var currentFilter: com.example.aifloatingball.model.FilterType = com.example.aifloatingball.model.FilterType.HOT
     private var selectedCategory: com.example.aifloatingball.model.PromptCategory? = null
     
+    // 搜索历史
+    private val searchHistory = mutableListOf<String>()
+    
     override fun getLayoutResId(): Int = R.layout.ai_assistant_prompt_community_fragment
     
     override fun onViewCreated(view: android.view.View, savedInstanceState: android.os.Bundle?) {
@@ -481,6 +486,7 @@ class TaskFragment : AIAssistantCenterFragment() {
         setupViews(view)
         setupCategoryRecyclerView()
         setupPromptContentRecyclerView()
+        setupSearchSuggestions()
         setupSearch()
         setupQuickFilters()
         setupUploadButton()
@@ -493,6 +499,7 @@ class TaskFragment : AIAssistantCenterFragment() {
         // 搜索相关
         searchInput = view.findViewById(R.id.prompt_search_input)
         searchButton = view.findViewById(R.id.prompt_search_button)
+        searchSuggestionsRecyclerView = view.findViewById(R.id.search_suggestions_recycler_view)
         
         // 快捷入口卡片
         hotPromptCard = view.findViewById(R.id.hot_prompt_card)
@@ -513,10 +520,18 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun setupCategoryRecyclerView() {
-        val categories = com.example.aifloatingball.data.PromptCommunityData.getAllCategories()
-        categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(categories) { category ->
+        // 只显示主要分类：行业、场景、技巧、热门
+        val mainCategories = listOf(
+            com.example.aifloatingball.model.PromptCategory.PROFESSIONAL,
+            com.example.aifloatingball.model.PromptCategory.SCENARIO,
+            com.example.aifloatingball.model.PromptCategory.TECHNIQUE,
+            com.example.aifloatingball.model.PromptCategory.HOT
+        )
+        
+        categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(mainCategories) { category ->
             selectedCategory = category
-            loadPromptsByCategory(category)
+            // 显示分类筛选面板
+            showCategoryFilterPanel(category)
         }
         
         val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
@@ -526,6 +541,19 @@ class TaskFragment : AIAssistantCenterFragment() {
         )
         categoryRecyclerView.layoutManager = layoutManager
         categoryRecyclerView.adapter = categoryAdapter
+    }
+    
+    private fun showCategoryFilterPanel(category: com.example.aifloatingball.model.PromptCategory) {
+        val dialog = com.example.aifloatingball.dialog.CategoryFilterPanelDialog(
+            requireContext(),
+            category
+        ) { selectedSubCategory ->
+            // 用户选择了子分类
+            selectedCategory = selectedSubCategory
+            loadPromptsByCategory(selectedSubCategory)
+            android.util.Log.d("TaskFragment", "选择了子分类: ${selectedSubCategory.displayName}")
+        }
+        dialog.show()
     }
     
     private fun setupPromptContentRecyclerView() {
@@ -543,51 +571,108 @@ class TaskFragment : AIAssistantCenterFragment() {
         promptContentRecyclerView.adapter = promptAdapter
     }
     
+    private fun setupSearchSuggestions() {
+        searchSuggestionAdapter = com.example.aifloatingball.adapter.PromptSearchSuggestionAdapter(
+            com.example.aifloatingball.data.PromptCommunityData.getHotKeywords()
+        ) { suggestion ->
+            // 点击搜索建议
+            searchInput.setText(suggestion)
+            hideSearchSuggestions()
+            performSearch(suggestion)
+        }
+        
+        val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        searchSuggestionsRecyclerView.layoutManager = layoutManager
+        searchSuggestionsRecyclerView.adapter = searchSuggestionAdapter
+    }
+    
+    private fun showSearchSuggestions() {
+        searchSuggestionsRecyclerView.visibility = android.view.View.VISIBLE
+    }
+    
+    private fun hideSearchSuggestions() {
+        searchSuggestionsRecyclerView.visibility = android.view.View.GONE
+    }
+    
+    private fun updateSearchSuggestions(query: String) {
+        val suggestions = com.example.aifloatingball.data.PromptCommunityData.getSearchSuggestions(query)
+        searchSuggestionAdapter.updateData(suggestions)
+        
+        if (suggestions.isNotEmpty()) {
+            showSearchSuggestions()
+        } else {
+            hideSearchSuggestions()
+        }
+    }
+    
     private fun setupSearch() {
-        searchButton.setOnClickListener {
-            val query = searchInput.text.toString().trim()
-            if (query.isNotEmpty()) {
-                performSearch(query)
-            } else {
-                android.widget.Toast.makeText(requireContext(), "请输入搜索内容", android.widget.Toast.LENGTH_SHORT).show()
+        // 搜索框点击，显示搜索面板
+        searchInput.setOnClickListener {
+            showSearchPanel()
+        }
+        
+        searchInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                showSearchPanel()
             }
         }
         
-        searchInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                val query = searchInput.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                }
-                true
-            } else {
-                false
-            }
+        // 搜索按钮点击，显示搜索面板
+        searchButton.setOnClickListener {
+            showSearchPanel()
         }
+    }
+    
+    private fun showSearchPanel() {
+        val dialog = com.example.aifloatingball.dialog.PromptSearchPanelDialog(
+            requireContext()
+        ) { query ->
+            performSearch(query)
+        }
+        dialog.show()
     }
     
     private fun setupQuickFilters() {
         hotPromptCard.setOnClickListener {
-            currentFilter = com.example.aifloatingball.model.FilterType.HOT
-            selectedCategory = null
-            categoryAdapter.setSelectedCategory(null)
-            loadPrompts(com.example.aifloatingball.model.FilterType.HOT)
+            // 显示热门Prompt面板
+            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
+                requireContext(),
+                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.HOT
+            ) { prompt ->
+                // 点击Prompt时的处理
+                showPromptDetail(prompt)
+            }
+            dialog.show()
+            android.util.Log.d("TaskFragment", "打开热门Prompt面板")
         }
         
         latestPromptCard.setOnClickListener {
-            currentFilter = com.example.aifloatingball.model.FilterType.LATEST
-            selectedCategory = null
-            categoryAdapter.setSelectedCategory(null)
-            loadPrompts(com.example.aifloatingball.model.FilterType.LATEST)
+            // 显示新发布Prompt面板
+            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
+                requireContext(),
+                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.LATEST
+            ) { prompt ->
+                // 点击Prompt时的处理
+                showPromptDetail(prompt)
+            }
+            dialog.show()
+            android.util.Log.d("TaskFragment", "打开新发布Prompt面板")
         }
         
         myCollectionCard.setOnClickListener {
-            currentFilter = com.example.aifloatingball.model.FilterType.MY_COLLECTION
-            selectedCategory = null
-            categoryAdapter.setSelectedCategory(null)
-            loadPrompts(com.example.aifloatingball.model.FilterType.MY_COLLECTION)
+            // 显示我的收藏Prompt面板
+            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
+                requireContext(),
+                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.MY_COLLECTION
+            ) { prompt ->
+                // 点击Prompt时的处理
+                showPromptDetail(prompt)
+            }
+            dialog.show()
+            android.util.Log.d("TaskFragment", "打开我的收藏Prompt面板")
         }
     }
+    
     
     private fun setupUploadButton() {
         uploadPromptButton.setOnClickListener {
@@ -1026,12 +1111,37 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun performSearch(query: String) {
+        // 隐藏搜索建议
+        hideSearchSuggestions()
+        
+        // 隐藏键盘
+        val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
+        
+        // 添加到搜索历史
+        if (query !in searchHistory) {
+            searchHistory.add(0, query)
+            // 限制历史记录数量
+            if (searchHistory.size > 10) {
+                searchHistory.removeAt(searchHistory.size - 1)
+            }
+        }
+        
         // 执行搜索逻辑
         val results = com.example.aifloatingball.data.PromptCommunityData.searchPrompts(query)
+        
+        // 更新列表
+        updatePromptList(results)
+        
+        // 更新筛选状态，清空分类选择
+        selectedCategory = null
+        categoryAdapter.setSelectedCategory(null)
+        
         if (results.isEmpty()) {
-            android.widget.Toast.makeText(requireContext(), "未找到相关Prompt", android.widget.Toast.LENGTH_SHORT).show()
+            emptyPromptText.text = "未找到与「$query」相关的Prompt"
+            android.util.Log.d("TaskFragment", "搜索「$query」未找到结果")
         } else {
-            updatePromptList(results)
+            android.util.Log.d("TaskFragment", "搜索「$query」找到 ${results.size} 个结果")
         }
     }
 }

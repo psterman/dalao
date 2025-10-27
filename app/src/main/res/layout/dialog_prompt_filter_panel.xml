@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/ai_assistant_card_background_light">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/ai_assistant_primary">
+
+        <ImageButton
+            android:id="@+id/close_filter_panel"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@android:color/transparent"
+            android:src="@drawable/ic_arrow_back"
+            android:contentDescription="返回"
+            android:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/filter_panel_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="热门Prompt"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/white"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- 排序选项 -->
+    <LinearLayout
+        android:id="@+id/sort_options_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="@color/ai_assistant_background_light">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="排序方式："
+            android:textSize="14sp"
+            android:textColor="@color/ai_assistant_text_secondary"
+            android:layout_gravity="center_vertical" />
+
+        <HorizontalScrollView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/sort_chips_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+    </LinearLayout>
+
+    <!-- Prompt列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/filter_panel_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxHeight="500dp"
+        android:padding="8dp"
+        android:nestedScrollingEnabled="true" />
+
+    <!-- 空状态 -->
+    <TextView
+        android:id="@+id/filter_panel_empty_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="暂无内容"
+        android:textSize="14sp"
+        android:textColor="@color/ai_assistant_text_secondary"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone" />
+
+</LinearLayout>
+

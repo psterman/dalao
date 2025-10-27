@@ -17,7 +17,7 @@ import java.util.*
  * Prompt社区卡片适配器
  */
 class PromptCommunityAdapter(
-    private val prompts: List<PromptCommunityItem>,
+    private var prompts: List<PromptCommunityItem>,
     private val onItemClick: (PromptCommunityItem) -> Unit,
     private val onLikeClick: (PromptCommunityItem) -> Unit,
     private val onCollectClick: (PromptCommunityItem) -> Unit,
@@ -37,6 +37,11 @@ class PromptCommunityAdapter(
     }
 
     override fun getItemCount(): Int = prompts.size
+    
+    fun updateData(newPrompts: List<PromptCommunityItem>) {
+        prompts = newPrompts
+        notifyDataSetChanged()
+    }
 
     inner class PromptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleText: TextView = itemView.findViewById(R.id.prompt_title_text)

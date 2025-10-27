@@ -15,18 +15,11 @@
         android:padding="16dp"
         android:background="@color/ai_assistant_center_background_light">
 
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@drawable/ic_home"
-            android:tint="@color/ai_assistant_primary"
-            android:layout_marginEnd="12dp" />
-
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Prompt社区"
+            android:text=""
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/ai_assistant_text_primary" />
