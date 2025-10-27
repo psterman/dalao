@@ -27,25 +27,39 @@ data class PromptCommunityItem(
 )
 
 /**
- * Prompt分类枚举
+ * Prompt分类枚举 - 重构后的4大主分类
  */
 enum class PromptCategory(
     val displayName: String,
-    val icon: String
+    val icon: String,
+    val isMainCategory: Boolean = false  // 标记是否为主分类
 ) {
-    PROFESSIONAL("行业", "💼"),
-    SCENARIO("场景", "🎭"),
-    TECHNIQUE("技巧", "⚙️"),
-    HOT("热门", "🔥"),
-    MASTER("达人专栏", "⭐"),
-    LIFE("生活", "🏠"),
-    ENTERTAINMENT("娱乐", "🎮"),
-    EDUCATION("教育", "📚"),
-    BUSINESS("商业", "💼"),
-    CREATIVE("创作", "✏️"),
-    ANALYSIS("分析", "📊"),
-    TRANSLATION("翻译", "🌐"),
-    UNKNOWN("其他", "📌")
+    // 主分类
+    FUNCTIONAL("功能分类", "⚙️", true),
+    HIGH_FREQUENCY("高频场景", "📍", true),
+    POPULAR("热门推荐", "🔥", true),
+    MY_CONTENT("我的内容", "👤", true),
+    
+    // 功能分类子分类
+    CREATIVE_WRITING("文案创作", "✏️", false),
+    DATA_ANALYSIS("数据分析", "📊", false),
+    TRANSLATION_CONVERSION("翻译转换", "🌐", false),
+    
+    // 高频场景子分类
+    WORKPLACE_OFFICE("职场办公", "💼", false),
+    EDUCATION_STUDY("教育学习", "📚", false),
+    LIFE_SERVICE("生活服务", "🏠", false),
+    
+    // 热门推荐子分类
+    TOP10_WEEK("本周TOP10", "🏆", false),
+    EXPERT_PICKS("达人精选", "⭐", false),
+    
+    // 我的内容子分类
+    MY_COLLECTIONS("我的收藏", "❤️", false),
+    MY_UPLOADS("我的上传", "📤", false),
+    
+    // 兼容旧分类
+    UNKNOWN("其他", "📌", false)
 }
 
 /**

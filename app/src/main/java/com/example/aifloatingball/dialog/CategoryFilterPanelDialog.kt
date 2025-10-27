@@ -75,27 +75,27 @@ class CategoryFilterPanelDialog(
     
     private fun getSubcategoriesForMainCategory(category: PromptCategory): List<PromptCategory> {
         return when (category) {
-            PromptCategory.PROFESSIONAL -> listOf(
-                PromptCategory.BUSINESS,
-                PromptCategory.CREATIVE,
-                PromptCategory.ANALYSIS,
-                PromptCategory.TRANSLATION
+            // 功能分类 -> 文案创作、数据分析、翻译转换
+            PromptCategory.FUNCTIONAL -> listOf(
+                PromptCategory.CREATIVE_WRITING,
+                PromptCategory.DATA_ANALYSIS,
+                PromptCategory.TRANSLATION_CONVERSION
             )
-            PromptCategory.SCENARIO -> listOf(
-                PromptCategory.LIFE,
-                PromptCategory.ENTERTAINMENT,
-                PromptCategory.EDUCATION
+            // 高频场景 -> 职场办公、教育学习、生活服务
+            PromptCategory.HIGH_FREQUENCY -> listOf(
+                PromptCategory.WORKPLACE_OFFICE,
+                PromptCategory.EDUCATION_STUDY,
+                PromptCategory.LIFE_SERVICE
             )
-            PromptCategory.TECHNIQUE -> listOf(
-                PromptCategory.CREATIVE,
-                PromptCategory.ANALYSIS,
-                PromptCategory.TRANSLATION
+            // 热门推荐 -> 本周TOP10、达人精选
+            PromptCategory.POPULAR -> listOf(
+                PromptCategory.TOP10_WEEK,
+                PromptCategory.EXPERT_PICKS
             )
-            PromptCategory.HOT -> listOf(
-                PromptCategory.MASTER,
-                PromptCategory.BUSINESS,
-                PromptCategory.CREATIVE,
-                PromptCategory.ANALYSIS
+            // 我的内容 -> 我的收藏、我的上传
+            PromptCategory.MY_CONTENT -> listOf(
+                PromptCategory.MY_COLLECTIONS,
+                PromptCategory.MY_UPLOADS
             )
             else -> emptyList()
         }

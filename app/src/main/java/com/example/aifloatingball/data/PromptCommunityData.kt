@@ -22,7 +22,7 @@ object PromptCommunityData {
                 author = "文案大师",
                 authorId = "user1",
                 tags = listOf("写作", "文案", "创意"),
-                category = PromptCategory.CREATIVE,
+                category = PromptCategory.CREATIVE_WRITING,
                 scene = "文案创作",
                 description = "帮助用户创作各类文案内容，包括广告语、宣传文案、微信公众号文章等。",
                 likeCount = 1024,
@@ -42,7 +42,7 @@ object PromptCommunityData {
                 author = "代码专家",
                 authorId = "user2",
                 tags = listOf("编程", "代码", "技术"),
-                category = PromptCategory.TECHNIQUE,
+                category = PromptCategory.DATA_ANALYSIS,
                 scene = "代码开发",
                 description = "提供专业的代码审查服务，发现潜在问题和改进建议。",
                 likeCount = 892,
@@ -62,7 +62,7 @@ object PromptCommunityData {
                 author = "商业顾问",
                 authorId = "user3",
                 tags = listOf("商业", "分析", "战略"),
-                category = PromptCategory.BUSINESS,
+                category = PromptCategory.DATA_ANALYSIS,
                 scene = "商业决策",
                 description = "提供专业的商业分析和战略建议，帮助做出明智的商业决策。",
                 likeCount = 745,
@@ -82,7 +82,7 @@ object PromptCommunityData {
                 author = "教育专家",
                 authorId = "user4",
                 tags = listOf("教育", "内容", "学习"),
-                category = PromptCategory.EDUCATION,
+                category = PromptCategory.EDUCATION_STUDY,
                 scene = "教育内容",
                 description = "帮助创建各类教育内容和学习资料，提高教育质量。",
                 likeCount = 634,
@@ -102,7 +102,7 @@ object PromptCommunityData {
                 author = "翻译达人",
                 authorId = "user5",
                 tags = listOf("翻译", "润色", "语言"),
-                category = PromptCategory.TRANSLATION,
+                category = PromptCategory.TRANSLATION_CONVERSION,
                 scene = "文本翻译",
                 description = "提供专业的翻译和文本润色服务，确保语言的准确性和流畅性。",
                 likeCount = 523,
@@ -122,7 +122,7 @@ object PromptCommunityData {
                 author = "数据专家",
                 authorId = "user6",
                 tags = listOf("数据", "分析", "洞察"),
-                category = PromptCategory.ANALYSIS,
+                category = PromptCategory.DATA_ANALYSIS,
                 scene = "数据分析",
                 description = "提供专业的数据分析服务，挖掘数据背后的价值和洞察。",
                 likeCount = 489,
@@ -137,14 +137,14 @@ object PromptCommunityData {
             
             PromptCommunityItem(
                 id = UUID.randomUUID().toString(),
-                title = "医生问诊助手",
-                content = "你是一位经验丰富的医生，擅长诊断和治疗建议...",
-                author = "医疗顾问",
+                title = "职场简历优化",
+                content = "你是一位资深的HR，擅长简历优化和面试指导...",
+                author = "职场达人",
                 authorId = "user7",
-                tags = listOf("医疗", "问诊", "健康"),
-                category = PromptCategory.LIFE,
-                scene = "医疗咨询",
-                description = "提供专业的医疗咨询和健康建议，帮助用户了解健康问题。",
+                tags = listOf("职场", "简历", "面试"),
+                category = PromptCategory.WORKPLACE_OFFICE,
+                scene = "职场办公",
+                description = "提供专业的简历优化和求职指导服务，提升面试成功率。",
                 likeCount = 1256,
                 collectCount = 998,
                 commentCount = 312,
@@ -157,14 +157,14 @@ object PromptCommunityData {
             
             PromptCommunityItem(
                 id = UUID.randomUUID().toString(),
-                title = "娱乐内容创作",
-                content = "你是一位富有创意的娱乐内容创作者，擅长制作有趣的娱乐内容...",
-                author = "娱乐达人",
+                title = "生活旅游规划",
+                content = "你是一位专业的旅游规划师，擅长制定个性化的旅行方案...",
+                author = "旅行达人",
                 authorId = "user8",
-                tags = listOf("娱乐", "创作", "有趣"),
-                category = PromptCategory.ENTERTAINMENT,
-                scene = "娱乐内容",
-                description = "帮助创作各类娱乐内容，包括段子、笑话、故事等。",
+                tags = listOf("旅游", "规划", "生活"),
+                category = PromptCategory.LIFE_SERVICE,
+                scene = "生活服务",
+                description = "帮助规划旅行路线、美食探店、生活技巧等各类生活服务。",
                 likeCount = 342,
                 collectCount = 267,
                 commentCount = 43,
@@ -178,10 +178,10 @@ object PromptCommunityData {
     }
     
     /**
-     * 获取所有分类
+     * 获取所有主分类
      */
     fun getAllCategories(): List<PromptCategory> {
-        return PromptCategory.values().toList()
+        return PromptCategory.values().filter { it.isMainCategory }
     }
     
     /**

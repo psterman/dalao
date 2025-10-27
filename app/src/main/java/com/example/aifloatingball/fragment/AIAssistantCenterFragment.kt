@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AutoCompleteTextView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import com.example.aifloatingball.R
@@ -478,6 +479,11 @@ class TaskFragment : AIAssistantCenterFragment() {
     // 搜索历史
     private val searchHistory = mutableListOf<String>()
     
+    // 高频场景快捷栏
+    private lateinit var scenarioOfficeLayout: LinearLayout
+    private lateinit var scenarioEducationLayout: LinearLayout
+    private lateinit var scenarioLifeLayout: LinearLayout
+    
     override fun getLayoutResId(): Int = R.layout.ai_assistant_prompt_community_fragment
     
     override fun onViewCreated(view: android.view.View, savedInstanceState: android.os.Bundle?) {
@@ -490,6 +496,7 @@ class TaskFragment : AIAssistantCenterFragment() {
         setupSearch()
         setupQuickFilters()
         setupUploadButton()
+        setupHighFrequencyScenarios()
         
         // 加载初始数据
         loadPrompts(currentFilter)
@@ -500,6 +507,11 @@ class TaskFragment : AIAssistantCenterFragment() {
         searchInput = view.findViewById(R.id.prompt_search_input)
         searchButton = view.findViewById(R.id.prompt_search_button)
         searchSuggestionsRecyclerView = view.findViewById(R.id.search_suggestions_recycler_view)
+        
+        // 高频场景快捷栏
+        scenarioOfficeLayout = view.findViewById(R.id.scenario_office)
+        scenarioEducationLayout = view.findViewById(R.id.scenario_education)
+        scenarioLifeLayout = view.findViewById(R.id.scenario_life)
         
         // 快捷入口卡片
         hotPromptCard = view.findViewById(R.id.hot_prompt_card)
@@ -520,12 +532,12 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun setupCategoryRecyclerView() {
-        // 只显示主要分类：行业、场景、技巧、热门
+        // 只显示主要分类：功能分类、高频场景、热门推荐、我的内容
         val mainCategories = listOf(
-            com.example.aifloatingball.model.PromptCategory.PROFESSIONAL,
-            com.example.aifloatingball.model.PromptCategory.SCENARIO,
-            com.example.aifloatingball.model.PromptCategory.TECHNIQUE,
-            com.example.aifloatingball.model.PromptCategory.HOT
+            com.example.aifloatingball.model.PromptCategory.FUNCTIONAL,
+            com.example.aifloatingball.model.PromptCategory.HIGH_FREQUENCY,
+            com.example.aifloatingball.model.PromptCategory.POPULAR,
+            com.example.aifloatingball.model.PromptCategory.MY_CONTENT
         )
         
         categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(mainCategories) { category ->
@@ -677,6 +689,32 @@ class TaskFragment : AIAssistantCenterFragment() {
     private fun setupUploadButton() {
         uploadPromptButton.setOnClickListener {
             showUploadPromptDialog()
+        }
+    }
+    
+    /**
+     * 设置高频场景快捷栏点击事件
+     */
+    private fun setupHighFrequencyScenarios() {
+        // 职场办公
+        scenarioOfficeLayout.setOnClickListener {
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.WORKPLACE_OFFICE
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.WORKPLACE_OFFICE)
+            android.util.Log.d("TaskFragment", "点击职场办公")
+        }
+        
+        // 教育学习
+        scenarioEducationLayout.setOnClickListener {
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.EDUCATION_STUDY
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.EDUCATION_STUDY)
+            android.util.Log.d("TaskFragment", "点击教育学习")
+        }
+        
+        // 生活服务
+        scenarioLifeLayout.setOnClickListener {
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.LIFE_SERVICE
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.LIFE_SERVICE)
+            android.util.Log.d("TaskFragment", "点击生活服务")
         }
     }
     
