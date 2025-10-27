@@ -74,30 +74,39 @@ class CategoryFilterPanelDialog(
     }
     
     private fun getSubcategoriesForMainCategory(category: PromptCategory): List<PromptCategory> {
-        return when (category) {
-            // 功能分类 -> 文案创作、数据分析、翻译转换
-            PromptCategory.FUNCTIONAL -> listOf(
-                PromptCategory.CREATIVE_WRITING,
-                PromptCategory.DATA_ANALYSIS,
-                PromptCategory.TRANSLATION_CONVERSION
-            )
-            // 高频场景 -> 职场办公、教育学习、生活服务
-            PromptCategory.HIGH_FREQUENCY -> listOf(
-                PromptCategory.WORKPLACE_OFFICE,
-                PromptCategory.EDUCATION_STUDY,
-                PromptCategory.LIFE_SERVICE
-            )
-            // 热门推荐 -> 本周TOP10、达人精选
-            PromptCategory.POPULAR -> listOf(
-                PromptCategory.TOP10_WEEK,
-                PromptCategory.EXPERT_PICKS
-            )
-            // 我的内容 -> 我的收藏、我的上传
-            PromptCategory.MY_CONTENT -> listOf(
-                PromptCategory.MY_COLLECTIONS,
-                PromptCategory.MY_UPLOADS
-            )
-            else -> emptyList()
+        return getSubcategoriesForCategory(category)
+    }
+    
+    /**
+     * 获取主分类对应的子分类列表（静态方法供外部调用）
+     */
+    companion object {
+        fun getSubcategoriesForCategory(category: PromptCategory): List<PromptCategory> {
+            return when (category) {
+                // 功能分类 -> 文案创作、数据分析、翻译转换
+                PromptCategory.FUNCTIONAL -> listOf(
+                    PromptCategory.CREATIVE_WRITING,
+                    PromptCategory.DATA_ANALYSIS,
+                    PromptCategory.TRANSLATION_CONVERSION
+                )
+                // 高频场景 -> 职场办公、教育学习、生活服务
+                PromptCategory.HIGH_FREQUENCY -> listOf(
+                    PromptCategory.WORKPLACE_OFFICE,
+                    PromptCategory.EDUCATION_STUDY,
+                    PromptCategory.LIFE_SERVICE
+                )
+                // 热门推荐 -> 本周TOP10、达人精选
+                PromptCategory.POPULAR -> listOf(
+                    PromptCategory.TOP10_WEEK,
+                    PromptCategory.EXPERT_PICKS
+                )
+                // 我的内容 -> 我的收藏、我的上传
+                PromptCategory.MY_CONTENT -> listOf(
+                    PromptCategory.MY_COLLECTIONS,
+                    PromptCategory.MY_UPLOADS
+                )
+                else -> emptyList()
+            }
         }
     }
     

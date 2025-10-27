@@ -1,39 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@color/ai_assistant_center_background_light">
 
-    <!-- 标题栏 -->
+    <!-- 主内容区域 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="16dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
         android:background="@color/ai_assistant_center_background_light">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text=""
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/ai_assistant_text_primary" />
-
-        <!-- 上传按钮 -->
-        <ImageButton
-            android:id="@+id/upload_prompt_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_add"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="上传Prompt"
-            android:scaleType="fitCenter" />
-    </LinearLayout>
 
     <!-- 智能搜索框容器 -->
     <FrameLayout
@@ -253,7 +230,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="新发布Prompt"
+                    android:text="最新上传"
                     android:textSize="12sp"
                     android:textColor="@color/ai_assistant_text_primary"
                     android:textStyle="bold"
@@ -302,26 +279,109 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="8dp" />
 
-    <!-- 内容瀑布流 -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/prompt_content_recycler_view"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-    <!-- 空状态提示 -->
-    <TextView
-        android:id="@+id/empty_prompt_text"
+    <!-- 子分类展开容器（默认隐藏） -->
+    <LinearLayout
+        android:id="@+id/subcategory_expand_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="64dp"
-        android:text="暂无Prompt内容"
-        android:textSize="16sp"
-        android:textColor="@color/ai_assistant_text_secondary"
-        android:gravity="center"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@color/ai_assistant_card_background_light"
+        android:padding="12dp"
+        android:visibility="gone">
 
-</LinearLayout>
+        <!-- 子分类横向滚动列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/subcategory_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal" />
+    </LinearLayout>
+
+    <!-- 内容区域（带下拉刷新） -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/prompt_content_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- 空状态提示（优化版） -->
+    <LinearLayout
+        android:id="@+id/empty_state_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone"
+        android:padding="32dp">
+
+        <!-- 图标 -->
+        <TextView
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:text="📄"
+            android:textSize="48sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 主文字 -->
+        <TextView
+            android:id="@+id/empty_state_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="暂无相关 Prompt"
+            android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <!-- 副文字 -->
+        <TextView
+            android:id="@+id/empty_state_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="去热门推荐看看～"
+            android:textSize="14sp"
+            android:textColor="@color/ai_assistant_text_secondary"
+            android:layout_marginBottom="24dp" />
+
+        <!-- 引导按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/empty_state_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="去发现"
+            android:backgroundTint="@color/ai_assistant_primary"
+            android:textColor="@android:color/white"
+            android:paddingHorizontal="32dp" />
+
+    </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 右下角悬浮按钮 -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_upload_prompt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_add"
+        app:tint="@android:color/white"
+        app:backgroundTint="#4080FF"
+        app:elevation="6dp"
+        app:contentDescription="上传Prompt" />
+
+</FrameLayout>
 

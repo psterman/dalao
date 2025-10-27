@@ -462,18 +462,31 @@ class TaskFragment : AIAssistantCenterFragment() {
     private lateinit var categoryRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var categoryAdapter: com.example.aifloatingball.adapter.PromptCategoryAdapter
     
+    // 子分类展开容器
+    private lateinit var subcategoryExpandContainer: LinearLayout
+    private lateinit var subcategoryRecyclerView: androidx.recyclerview.widget.RecyclerView
+    private lateinit var subcategoryAdapter: com.example.aifloatingball.adapter.PromptCategoryAdapter
+    private var currentExpandedCategory: com.example.aifloatingball.model.PromptCategory? = null
+    
     // Prompt内容列表
+    private lateinit var swipeRefreshLayout: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     private lateinit var promptContentRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var promptAdapter: com.example.aifloatingball.adapter.PromptCommunityAdapter
     
-    // 上传按钮
-    private lateinit var uploadPromptButton: android.widget.ImageButton
+    // 上传按钮（右下角悬浮按钮）
+    private lateinit var fabUploadPrompt: com.google.android.material.floatingactionbutton.FloatingActionButton
     
     // 空状态提示
-    private lateinit var emptyPromptText: android.widget.TextView
+    private lateinit var emptyStateLayout: LinearLayout
+    private lateinit var emptyStateTitle: android.widget.TextView
+    private lateinit var emptyStateButton: com.google.android.material.button.MaterialButton
     
     // 当前筛选状态
     private var currentFilter: com.example.aifloatingball.model.FilterType = com.example.aifloatingball.model.FilterType.HOT
+    
+    // 上拉加载状态
+    private var isLoading = false
+    private var hasMore = true
     private var selectedCategory: com.example.aifloatingball.model.PromptCategory? = null
     
     // 搜索历史
@@ -497,6 +510,9 @@ class TaskFragment : AIAssistantCenterFragment() {
         setupQuickFilters()
         setupUploadButton()
         setupHighFrequencyScenarios()
+        setupSwipeRefresh()
+        setupLoadMore()
+        setupEmptyState()
         
         // 加载初始数据
         loadPrompts(currentFilter)
@@ -521,14 +537,23 @@ class TaskFragment : AIAssistantCenterFragment() {
         // 分类导航
         categoryRecyclerView = view.findViewById(R.id.category_recycler_view)
         
+        // 子分类展开容器
+        subcategoryExpandContainer = view.findViewById(R.id.subcategory_expand_container)
+        subcategoryRecyclerView = view.findViewById(R.id.subcategory_recycler_view)
+        
+        // 下拉刷新
+        swipeRefreshLayout = view.findViewById(R.id.swipe_refresh_layout)
+        
         // Prompt内容列表
         promptContentRecyclerView = view.findViewById(R.id.prompt_content_recycler_view)
         
-        // 上传按钮
-        uploadPromptButton = view.findViewById(R.id.upload_prompt_button)
+        // 上传按钮（右下角悬浮按钮）
+        fabUploadPrompt = view.findViewById(R.id.fab_upload_prompt)
         
         // 空状态提示
-        emptyPromptText = view.findViewById(R.id.empty_prompt_text)
+        emptyStateLayout = view.findViewById(R.id.empty_state_layout)
+        emptyStateTitle = view.findViewById(R.id.empty_state_title)
+        emptyStateButton = view.findViewById(R.id.empty_state_button)
     }
     
     private fun setupCategoryRecyclerView() {
@@ -541,9 +566,8 @@ class TaskFragment : AIAssistantCenterFragment() {
         )
         
         categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(mainCategories) { category ->
-            selectedCategory = category
-            // 显示分类筛选面板
-            showCategoryFilterPanel(category)
+            // 页面内展开子分类，不再弹窗
+            expandOrCollapseSubcategory(category)
         }
         
         val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
@@ -553,19 +577,68 @@ class TaskFragment : AIAssistantCenterFragment() {
         )
         categoryRecyclerView.layoutManager = layoutManager
         categoryRecyclerView.adapter = categoryAdapter
+        
+        // 设置子分类RecyclerView
+        val subcategoryLayoutManager = androidx.recyclerview.widget.LinearLayoutManager(
+            requireContext(),
+            androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL,
+            false
+        )
+        subcategoryRecyclerView.layoutManager = subcategoryLayoutManager
     }
     
-    private fun showCategoryFilterPanel(category: com.example.aifloatingball.model.PromptCategory) {
-        val dialog = com.example.aifloatingball.dialog.CategoryFilterPanelDialog(
-            requireContext(),
-            category
-        ) { selectedSubCategory ->
-            // 用户选择了子分类
-            selectedCategory = selectedSubCategory
-            loadPromptsByCategory(selectedSubCategory)
-            android.util.Log.d("TaskFragment", "选择了子分类: ${selectedSubCategory.displayName}")
+    /**
+     * 展开或收起子分类栏
+     */
+    private fun expandOrCollapseSubcategory(category: com.example.aifloatingball.model.PromptCategory) {
+        // 如果点击的是当前已展开的分类，则收起
+        if (currentExpandedCategory == category) {
+            collapseSubcategory()
+            currentExpandedCategory = null
+            return
         }
-        dialog.show()
+        
+        // 展开子分类
+        currentExpandedCategory = category
+        expandSubcategory(category)
+    }
+    
+    /**
+     * 展开子分类栏
+     */
+    private fun expandSubcategory(category: com.example.aifloatingball.model.PromptCategory) {
+        // 获取子分类列表
+        val subcategories = com.example.aifloatingball.dialog.CategoryFilterPanelDialog.getSubcategoriesForCategory(category)
+        
+        if (subcategories.isEmpty()) {
+            // 没有子分类，收起容器
+            collapseSubcategory()
+            return
+        }
+        
+        // 设置子分类适配器
+        subcategoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(subcategories) { subCategory ->
+            // 选择子分类，刷新内容并收起
+            selectedCategory = subCategory
+            loadPromptsByCategory(subCategory)
+            collapseSubcategory()
+            currentExpandedCategory = null
+            android.util.Log.d("TaskFragment", "选择了子分类: ${subCategory.displayName}")
+        }
+        
+        subcategoryRecyclerView.adapter = subcategoryAdapter
+        
+        // 显示子分类容器
+        subcategoryExpandContainer.visibility = android.view.View.VISIBLE
+        android.util.Log.d("TaskFragment", "展开子分类: ${category.displayName}")
+    }
+    
+    /**
+     * 收起子分类栏
+     */
+    private fun collapseSubcategory() {
+        subcategoryExpandContainer.visibility = android.view.View.GONE
+        android.util.Log.d("TaskFragment", "收起子分类栏")
     }
     
     private fun setupPromptContentRecyclerView() {
@@ -645,51 +718,95 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun setupQuickFilters() {
+        // 热门卡片 → 直接跳转到"热门推荐-本周TOP10"列表
         hotPromptCard.setOnClickListener {
-            // 显示热门Prompt面板
-            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
-                requireContext(),
-                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.HOT
-            ) { prompt ->
-                // 点击Prompt时的处理
-                showPromptDetail(prompt)
-            }
-            dialog.show()
-            android.util.Log.d("TaskFragment", "打开热门Prompt面板")
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.TOP10_WEEK
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.TOP10_WEEK)
+            categoryAdapter.setSelectedCategory(com.example.aifloatingball.model.PromptCategory.POPULAR)
+            android.util.Log.d("TaskFragment", "跳转到热门推荐-本周TOP10")
         }
         
+        // 最新卡片 → 跳转到"热门推荐-最新上传"列表
         latestPromptCard.setOnClickListener {
-            // 显示新发布Prompt面板
-            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
-                requireContext(),
-                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.LATEST
-            ) { prompt ->
-                // 点击Prompt时的处理
-                showPromptDetail(prompt)
-            }
-            dialog.show()
-            android.util.Log.d("TaskFragment", "打开新发布Prompt面板")
+            currentFilter = com.example.aifloatingball.model.FilterType.LATEST
+            loadPrompts(currentFilter)
+            categoryAdapter.setSelectedCategory(null)
+            android.util.Log.d("TaskFragment", "跳转到最新上传")
         }
         
+        // 收藏卡片 → 跳转到"我的内容-我的收藏"列表
         myCollectionCard.setOnClickListener {
-            // 显示我的收藏Prompt面板
-            val dialog = com.example.aifloatingball.dialog.PromptFilterPanelDialog(
-                requireContext(),
-                com.example.aifloatingball.dialog.PromptFilterPanelDialog.FilterPanelType.MY_COLLECTION
-            ) { prompt ->
-                // 点击Prompt时的处理
-                showPromptDetail(prompt)
-            }
-            dialog.show()
-            android.util.Log.d("TaskFragment", "打开我的收藏Prompt面板")
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.MY_COLLECTIONS
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.MY_COLLECTIONS)
+            categoryAdapter.setSelectedCategory(com.example.aifloatingball.model.PromptCategory.MY_CONTENT)
+            android.util.Log.d("TaskFragment", "跳转到我的收藏")
         }
     }
     
     
     private fun setupUploadButton() {
-        uploadPromptButton.setOnClickListener {
+        fabUploadPrompt.setOnClickListener {
             showUploadPromptDialog()
         }
+    }
+    
+    /**
+     * 设置下拉刷新
+     */
+    private fun setupSwipeRefresh() {
+        swipeRefreshLayout.setColorSchemeResources(
+            com.example.aifloatingball.R.color.ai_assistant_primary
+        )
+        
+        swipeRefreshLayout.setOnRefreshListener {
+            // 刷新数据
+            if (selectedCategory != null) {
+                loadPromptsByCategory(selectedCategory!!)
+            } else {
+                loadPrompts(currentFilter)
+            }
+        }
+    }
+    
+    /**
+     * 设置上拉加载
+     */
+    private fun setupLoadMore() {
+        promptContentRecyclerView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+                
+                val layoutManager = recyclerView.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+                if (layoutManager != null && !isLoading && hasMore) {
+                    val lastVisiblePosition = layoutManager.findLastCompletelyVisibleItemPosition()
+                    val totalItemCount = layoutManager.itemCount
+                    
+                    // 接近底部时加载更多
+                    if (lastVisiblePosition >= totalItemCount - 3) {
+                        loadMorePrompts()
+                    }
+                }
+            }
+        })
+    }
+    
+    /**
+     * 加载更多数据
+     */
+    private fun loadMorePrompts() {
+        if (isLoading || !hasMore) return
+        
+        isLoading = true
+        android.util.Log.d("TaskFragment", "开始加载更多...")
+        
+        // 模拟加载延迟
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            // 这里应该从服务器加载更多数据
+            // 目前使用模拟数据
+            isLoading = false
+            hasMore = false // 模拟没有更多数据
+            android.util.Log.d("TaskFragment", "加载更多完成")
+        }, 1000)
     }
     
     /**
@@ -729,12 +846,13 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun updatePromptList(prompts: List<com.example.aifloatingball.model.PromptCommunityItem>) {
+        // 停止刷新动画
+        swipeRefreshLayout.isRefreshing = false
+        
         if (prompts.isEmpty()) {
-            emptyPromptText.visibility = android.view.View.VISIBLE
-            promptContentRecyclerView.visibility = android.view.View.GONE
+            showEmptyState()
         } else {
-            emptyPromptText.visibility = android.view.View.GONE
-            promptContentRecyclerView.visibility = android.view.View.VISIBLE
+            hideEmptyState()
             promptAdapter = com.example.aifloatingball.adapter.PromptCommunityAdapter(
                 prompts,
                 onItemClick = { prompt -> onPromptItemClick(prompt) },
@@ -744,6 +862,34 @@ class TaskFragment : AIAssistantCenterFragment() {
                 onShareClick = { prompt -> onPromptShareClick(prompt) }
             )
             promptContentRecyclerView.adapter = promptAdapter
+        }
+    }
+    
+    /**
+     * 显示空状态
+     */
+    private fun showEmptyState() {
+        emptyStateLayout.visibility = android.view.View.VISIBLE
+        promptContentRecyclerView.visibility = android.view.View.GONE
+    }
+    
+    /**
+     * 隐藏空状态
+     */
+    private fun hideEmptyState() {
+        emptyStateLayout.visibility = android.view.View.GONE
+        promptContentRecyclerView.visibility = android.view.View.VISIBLE
+    }
+    
+    /**
+     * 设置空状态点击事件
+     */
+    private fun setupEmptyState() {
+        emptyStateButton.setOnClickListener {
+            // 跳转到热门推荐
+            selectedCategory = com.example.aifloatingball.model.PromptCategory.POPULAR
+            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.POPULAR)
+            categoryAdapter.setSelectedCategory(com.example.aifloatingball.model.PromptCategory.POPULAR)
         }
     }
     
@@ -1176,7 +1322,8 @@ class TaskFragment : AIAssistantCenterFragment() {
         categoryAdapter.setSelectedCategory(null)
         
         if (results.isEmpty()) {
-            emptyPromptText.text = "未找到与「$query」相关的Prompt"
+            // 更新空状态文字
+            emptyStateTitle.text = "未找到与「$query」相关的Prompt"
             android.util.Log.d("TaskFragment", "搜索「$query」未找到结果")
         } else {
             android.util.Log.d("TaskFragment", "搜索「$query」找到 ${results.size} 个结果")
