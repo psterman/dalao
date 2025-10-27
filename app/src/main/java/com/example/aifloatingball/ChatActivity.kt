@@ -2945,13 +2945,6 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         }
         card.addView(aiManageButton)
 
-        // 应用设置按钮
-        val settingsButton = createMaterialButton("⚙️ 应用设置", "调整应用偏好和高级选项") {
-            val intent = Intent(this@ChatActivity, SettingsActivity::class.java)
-            startActivity(intent)
-        }
-        card.addView(settingsButton)
-
         return card
     }
 
