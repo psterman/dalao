@@ -13,8 +13,8 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:hint="AI名称 *"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-        app:boxBackgroundMode="outline">
+        app:boxBackgroundMode="outline"
+        app:hintTextAppearance="@style/TextAppearance.MaterialComponents.Body1">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/name_input"
@@ -32,9 +32,9 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:hint="API密钥 *"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
         app:boxBackgroundMode="outline"
-        app:endIconMode="password_toggle">
+        app:endIconMode="password_toggle"
+        app:hintTextAppearance="@style/TextAppearance.MaterialComponents.Body1">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/api_key_input"
@@ -52,8 +52,8 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
         android:hint="API地址 *"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-        app:boxBackgroundMode="outline">
+        app:boxBackgroundMode="outline"
+        app:hintTextAppearance="@style/TextAppearance.MaterialComponents.Body1">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/api_url_input"
@@ -71,8 +71,8 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
         android:hint="模型名称（可选）"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
-        app:boxBackgroundMode="outline">
+        app:boxBackgroundMode="outline"
+        app:hintTextAppearance="@style/TextAppearance.MaterialComponents.Body1">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/model_input"

@@ -219,9 +219,58 @@ class AIApiConfigActivity : AppCompatActivity() {
             return
         }
         
-        val intent = Intent(this, com.example.aifloatingball.AIApiSettingsActivity::class.java)
-        intent.putExtra("ai_name", aiName)
-        startActivityForResult(intent, REQUEST_CODE_API_SETTINGS)
+        // 直接在当前界面显示API配置对话框
+        showApiConfigDialog(aiName)
+    }
+    
+    private fun showApiConfigDialog(aiName: String) {
+        // 查找对应的AI配置
+        val aiConfig = aiConfigItems.find { it.name == aiName }
+        if (aiConfig == null) {
+            Toast.makeText(this, "未找到${aiName}配置", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 创建带有 Material 主题的上下文
+        val wrappedContext = android.view.ContextThemeWrapper(this, R.style.AppTheme_Dialog)
+        val dialogLayout = LayoutInflater.from(wrappedContext).inflate(R.layout.dialog_api_key_config, null)
+        val apiKeyInput = dialogLayout.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_key_input)
+        val apiUrlInput = dialogLayout.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_url_input)
+        
+        // 设置默认值
+        val currentApiKey = settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
+        val currentApiUrl = settingsManager.getString(aiConfig.apiUrlKey, "") ?: ""
+        
+        apiKeyInput.setText(currentApiKey)
+        apiUrlInput.setText(if (currentApiUrl.isNotEmpty()) currentApiUrl else aiConfig.defaultApiUrl)
+        
+        // 设置提示文本
+        apiKeyInput.hint = "请输入${aiName}的API密钥"
+        apiUrlInput.hint = "请输入${aiName}的API URL"
+        
+        AlertDialog.Builder(wrappedContext)
+            .setTitle("配置${aiName}")
+            .setMessage("请填写${aiName}的API密钥和URL（可选）")
+            .setView(dialogLayout)
+            .setPositiveButton("确定") { _, _ ->
+                val apiKey = apiKeyInput.text?.toString()?.trim() ?: ""
+                val apiUrl = apiUrlInput.text?.toString()?.trim() ?: ""
+                
+                if (apiKey.isNotEmpty()) {
+                    // 保存API密钥
+                    settingsManager.putString(aiConfig.apiKeyKey, apiKey)
+                    settingsManager.putString(aiConfig.apiUrlKey, if (apiUrl.isNotEmpty()) apiUrl else aiConfig.defaultApiUrl)
+                    
+                    Toast.makeText(this, "${aiName}配置成功", Toast.LENGTH_SHORT).show()
+                    
+                    // 刷新列表
+                    loadAIConfigs()
+                } else {
+                    Toast.makeText(this, "请输入API密钥", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     private fun testApiConnection(aiConfig: AIConfigItem) {
@@ -253,12 +302,12 @@ class AIApiConfigActivity : AppCompatActivity() {
                 }
                 
                 override fun onTestSuccess(message: String) {
-                    Toast.makeText(this@AIApiConfigActivity, "✅ $message", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@AIApiConfigActivity, "成功：$message", Toast.LENGTH_LONG).show()
                     Log.d(TAG, "API测试成功: ${aiConfig.name} - $message")
                 }
                 
                 override fun onTestFailure(error: String) {
-                    Toast.makeText(this@AIApiConfigActivity, "❌ $error", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@AIApiConfigActivity, "失败：$error", Toast.LENGTH_LONG).show()
                     Log.e(TAG, "API测试失败: ${aiConfig.name} - $error")
                 }
             }
@@ -282,8 +331,10 @@ class AIApiConfigActivity : AppCompatActivity() {
     }
     
     private fun showAddCustomAIDialog() {
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_ai_config, null)
-        val dialog = AlertDialog.Builder(this)
+        // 创建带有 Material 主题的上下文
+        val wrappedContext = android.view.ContextThemeWrapper(this, R.style.AppTheme_Dialog)
+        val dialogView = LayoutInflater.from(wrappedContext).inflate(R.layout.dialog_custom_ai_config, null)
+        val dialog = AlertDialog.Builder(wrappedContext)
             .setTitle("添加自定义AI")
             .setView(dialogView)
             .setPositiveButton("保存") { _, _ ->

@@ -73,11 +73,40 @@ object FaviconLoader {
     
     /**
      * 加载图标（兼容原有接口）
+     * 优先使用Google的favicon服务获取网站图标
      */
     fun loadIcon(imageView: ImageView, url: String, defaultIconRes: Int) {
-        loadFavicon(imageView, url)
-        // 如果favicon加载失败，会保持默认图标
+        val domain = extractDomain(url)
+        val cacheKey = "favicon_$domain"
+        
+        // 检查内存缓存
+        val cachedBitmap = memoryCache.get(cacheKey)
+        if (cachedBitmap != null) {
+            imageView.setImageBitmap(cachedBitmap)
+            return
+        }
+
+        // 设置默认图标
         imageView.setImageResource(defaultIconRes)
+        imageView.tag = cacheKey
+        
+        // 异步加载favicon
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val bitmap = loadFaviconFromUrl(domain)
+                if (bitmap != null) {
+                    memoryCache.put(cacheKey, bitmap)
+                    
+                    withContext(Dispatchers.Main) {
+                        if (imageView.tag == cacheKey) {
+                            imageView.setImageBitmap(bitmap)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load favicon for $domain: ${e.message}")
+            }
+        }
     }
     
     /**
@@ -96,6 +125,7 @@ object FaviconLoader {
 
         // 设置默认图标
         imageView.setImageResource(android.R.drawable.ic_menu_search)
+        imageView.tag = cacheKey
         
         // 异步加载favicon
         CoroutineScope(Dispatchers.IO).launch {
@@ -122,53 +152,103 @@ object FaviconLoader {
     private suspend fun loadFaviconFromUrl(domain: String): Bitmap? {
         val urls = faviconUrls[domain] ?: generateFaviconUrls(domain)
         
+        Log.d(TAG, "🔍 Loading favicon for domain: $domain, trying ${urls.size} URLs")
+        
         for (url in urls) {
             try {
+                Log.d(TAG, "  Trying: $url")
                 val bitmap = downloadBitmap(url)
-            if (bitmap != null) {
+                if (bitmap != null) {
+                    Log.d(TAG, "✅ Successfully loaded from: $url")
                     return bitmap
                 }
             } catch (e: Exception) {
-                Log.d(TAG, "Failed to load favicon from $url: ${e.message}")
+                Log.d(TAG, "  ❌ Failed: $url - ${e.message}")
                 continue
             }
         }
         
+        Log.e(TAG, "❌ All URLs failed for domain: $domain")
         return null
     }
     
     /**
      * 生成favicon URL列表
+     * 优先使用Google的favicon服务，因为它的可靠性和覆盖面最广
      */
     private fun generateFaviconUrls(domain: String): List<String> {
         return listOf(
-            "https://$domain/favicon.ico",
-            "https://$domain/favicon.png",
-            "https://$domain/apple-touch-icon.png",
+            // 1. 优先使用Google的favicon服务（最可靠）
+            "https://www.google.com/s2/favicons?domain=$domain&sz=64",
+            "https://www.google.com/s2/favicons?domain=$domain&sz=128",
             "https://www.google.com/s2/favicons?domain=$domain&sz=32",
-            "https://www.google.com/s2/favicons?domain=$domain&sz=64"
+            // 2. 使用网站自带的favicon
+            "https://$domain/favicon.ico",
+            "https://$domain/favicon-32x32.png",
+            "https://$domain/favicon-96x96.png",
+            "https://$domain/apple-touch-icon.png",
+            // 3. 备用：DuckDuckGo的favicon服务
+            "https://icons.duckduckgo.com/ip3/$domain.ico"
         )
     }
     
     /**
      * 下载Bitmap
+     * 支持Google favicon服务、PNG、ICO等多种格式
      */
     private suspend fun downloadBitmap(url: String): Bitmap? {
         return withContext(Dispatchers.IO) {
             try {
+                Log.d(TAG, "📥 Downloading: $url")
                 val connection = URL(url).openConnection() as HttpURLConnection
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
-                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36")
+                connection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                connection.instanceFollowRedirects = true
                 
-                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                    val inputStream: InputStream = connection.inputStream
-                val bitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream.close()
-                    connection.disconnect()
-                bitmap
-            } else {
-                    connection.disconnect()
+                // 自动跟随重定向
+                var actualConnection = connection
+                var redirectCount = 0
+                while (actualConnection.responseCode in arrayOf(
+                        HttpURLConnection.HTTP_MOVED_PERM,
+                        HttpURLConnection.HTTP_MOVED_TEMP,
+                        HttpURLConnection.HTTP_SEE_OTHER,
+                        301, 302, 303, 307, 308
+                    ) && redirectCount < 5
+                ) {
+                    val redirectUrl = actualConnection.getHeaderField("Location")
+                    if (redirectUrl != null) {
+                        actualConnection.disconnect()
+                        actualConnection = URL(redirectUrl).openConnection() as HttpURLConnection
+                        actualConnection.connectTimeout = 8000
+                        actualConnection.readTimeout = 8000
+                        actualConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+                        actualConnection.setRequestProperty("Accept", "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                        redirectCount++
+                    } else {
+                        break
+                    }
+                }
+                
+                if (actualConnection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val inputStream: InputStream = actualConnection.inputStream
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    actualConnection.disconnect()
+                    
+                    // 验证bitmap是否有效
+                    if (bitmap != null && !bitmap.isRecycled) {
+                        Log.d(TAG, "✅ Bitmap decoded: ${bitmap.width}x${bitmap.height} from $url")
+                        bitmap
+                    } else {
+                        Log.e(TAG, "❌ Invalid bitmap decoded from $url")
+                        actualConnection.disconnect()
+                        null
+                    }
+                } else {
+                    Log.d(TAG, "❌ HTTP ${actualConnection.responseCode} from $url")
+                    actualConnection.disconnect()
                     null
                 }
             } catch (e: Exception) {
@@ -193,35 +273,48 @@ object FaviconLoader {
     
     /**
      * 加载AI引擎图标
+     * 使用AI引擎名称生成对应的favicon URL
      */
     fun loadAIEngineIcon(imageView: ImageView, engineName: String, defaultIconRes: Int) {
-        val cacheKey = "ai_engine_$engineName"
+        val cacheKey = "ai_engine_${engineName.lowercase()}"
+        
+        Log.d(TAG, "🔍 Loading AI engine icon for: $engineName, cacheKey: $cacheKey")
 
         // 检查内存缓存
         val cachedBitmap = memoryCache.get(cacheKey)
         if (cachedBitmap != null) {
+            Log.d(TAG, "✅ Found cached bitmap for $engineName")
             imageView.setImageBitmap(cachedBitmap)
             return
         }
 
         // 设置默认图标
         imageView.setImageResource(defaultIconRes)
+        imageView.tag = cacheKey
+        
+        Log.d(TAG, "🌐 Starting async load for $engineName")
         
         // 异步加载AI引擎图标
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val bitmap = loadAIEngineIconFromUrl(engineName)
-                    if (bitmap != null) {
+                if (bitmap != null) {
+                    Log.d(TAG, "✅ Successfully loaded bitmap for $engineName (${bitmap.width}x${bitmap.height})")
                     memoryCache.put(cacheKey, bitmap)
                     
                     withContext(Dispatchers.Main) {
                         if (imageView.tag == cacheKey) {
-                                imageView.setImageBitmap(bitmap)
+                            Log.d(TAG, "🎨 Applying bitmap to ImageView for $engineName")
+                            imageView.setImageBitmap(bitmap)
+                        } else {
+                            Log.w(TAG, "⚠️ Tag mismatch for $engineName: expected $cacheKey, got ${imageView.tag}")
                         }
                     }
+                } else {
+                    Log.e(TAG, "❌ Failed to load bitmap for $engineName: returned null")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to load AI engine icon for $engineName: ${e.message}")
+                Log.e(TAG, "❌ Exception loading AI engine icon for $engineName", e)
             }
         }
     }
@@ -232,48 +325,62 @@ object FaviconLoader {
     private suspend fun loadAIEngineIconFromUrl(engineName: String): Bitmap? {
         val urls = generateAIEngineIconUrls(engineName)
         
+        Log.d(TAG, "🔍 Loading AI engine icon for: $engineName, trying ${urls.size} URLs")
+        
         for (url in urls) {
             try {
+                Log.d(TAG, "  Trying: $url")
                 val bitmap = downloadBitmap(url)
                 if (bitmap != null) {
+                    Log.d(TAG, "✅ Successfully loaded AI engine icon from: $url")
                     return bitmap
                 }
             } catch (e: Exception) {
-                Log.d(TAG, "Failed to load AI engine icon from $url: ${e.message}")
+                Log.d(TAG, "  ❌ Failed: $url - ${e.message}")
                 continue
             }
         }
         
-            return null
+        Log.e(TAG, "❌ All URLs failed for AI engine: $engineName")
+        return null
     }
     
     /**
      * 生成AI引擎图标URL列表
+     * 优先使用Google的favicon服务
      */
     private fun generateAIEngineIconUrls(engineName: String): List<String> {
         return when {
             engineName.contains("ChatGPT") || engineName.contains("OpenAI") -> listOf(
+                "https://www.google.com/s2/favicons?domain=chat.openai.com&sz=64",
+                "https://www.google.com/s2/favicons?domain=openai.com&sz=64",
                 "https://chat.openai.com/apple-touch-icon.png",
                 "https://chat.openai.com/favicon.ico",
                 "https://openai.com/favicon.ico"
             )
             engineName.contains("Claude") || engineName.contains("Anthropic") -> listOf(
+                "https://www.google.com/s2/favicons?domain=claude.ai&sz=64",
+                "https://www.google.com/s2/favicons?domain=anthropic.com&sz=64",
                 "https://claude.ai/apple-touch-icon.png",
                 "https://claude.ai/favicon.ico"
             )
             engineName.contains("Gemini") || engineName.contains("Google") -> listOf(
+                "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64",
                 "https://www.gstatic.com/lamda/images/favicon_v1_150160cddff7f294ce30.svg",
                 "https://gemini.google.com/favicon.ico"
             )
             engineName.contains("文心一言") || engineName.contains("百度") -> listOf(
+                "https://www.google.com/s2/favicons?domain=yiyan.baidu.com&sz=64",
                 "https://nlp-eb.cdn.bcebos.com/logo/favicon.ico",
                 "https://yiyan.baidu.com/favicon.ico"
             )
             engineName.contains("ChatGLM") -> listOf(
+                "https://www.google.com/s2/favicons?domain=chatglm.cn&sz=64",
                 "https://chatglm.cn/favicon.ico",
                 "https://chatglm.cn/static/favicon.ico"
             )
             engineName.contains("通义千问") || engineName.contains("阿里") -> listOf(
+                "https://www.google.com/s2/favicons?domain=tongyi.aliyun.com&sz=64",
                 "https://img.alicdn.com/imgextra/i1/O1CN01OzQd341jtBJJmKuEF_!!6000000004614-2-tps-144-144.png",
                 "https://tongyi.aliyun.com/favicon.ico"
             )
@@ -282,12 +389,26 @@ object FaviconLoader {
                 "https://xinghuo.xfyun.cn/favicon.ico"
             )
             engineName.contains("DeepSeek") -> listOf(
+                "https://www.google.com/s2/favicons?domain=chat.deepseek.com&sz=64",
                 "https://chat.deepseek.com/apple-touch-icon.png",
                 "https://chat.deepseek.com/favicon.ico"
             )
             engineName.contains("Kimi") || engineName.contains("月之暗面") -> listOf(
+                "https://www.google.com/s2/favicons?domain=kimi.moonshot.cn&sz=64",
                 "https://www.moonshot.cn/apple-touch-icon.png",
                 "https://kimi.moonshot.cn/favicon.ico"
+            )
+            engineName.contains("智谱") || engineName.contains("zhipu") || engineName.contains("glm") || engineName.contains("GLM") -> listOf(
+                "https://www.google.com/s2/favicons?domain=open.bigmodel.cn&sz=64",
+                "https://open.bigmodel.cn/favicon.ico",
+                "https://chatglm.cn/favicon.ico"
+            )
+            engineName.contains("MiniMax") || engineName.contains("minimax") -> listOf(
+                "https://www.minimax.chat/favicon.ico",
+                "https://api.minimax.chat/favicon.ico"
+            )
+            engineName.contains("百川") || engineName.contains("baichuan") -> listOf(
+                "https://www.baichuan-ai.com/favicon.ico"
             )
             engineName.contains("豆包") -> listOf(
                 "https://sf3-cdn-tos.douyinstatic.com/obj/eden-cn/uhbfnupkbps/doubao_favicon.ico",

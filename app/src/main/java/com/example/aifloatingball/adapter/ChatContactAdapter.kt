@@ -256,21 +256,29 @@ class ChatContactAdapter(
             // 设置头像
             when (contact.type) {
                 ContactType.AI -> {
-                    // 清除tint以显示真实图标颜色
-                    avatarImage.clearColorFilter()
-
-                    // 使用FaviconLoader加载AI助手的头像
-                    val apiUrl = contact.customData["api_url"] ?: ""
-                    if (apiUrl.isNotEmpty()) {
-                        FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_smart_toy)
+                    // 检查是否是临时专线或群讨论，使用软件logo
+                    val contactName = contact.name
+                    if (contactName == "临时专线") {
+                        // 临时专线使用软件logo
+                        avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
+                        avatarImage.clearColorFilter()
                     } else {
-                        // 如果没有API URL，尝试根据AI名称加载图标
-                        FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_smart_toy)
+                        // 清除tint以显示真实图标颜色
+                        avatarImage.clearColorFilter()
+
+                        // 使用FaviconLoader加载AI助手的头像
+                        val apiUrl = contact.customData["api_url"] ?: ""
+                        if (apiUrl.isNotEmpty()) {
+                            FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_smart_toy)
+                        } else {
+                            // 如果没有API URL，尝试根据AI名称加载图标
+                            FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_smart_toy)
+                        }
                     }
                 }
                 ContactType.GROUP -> {
-                    // 群聊头像
-                    avatarImage.setImageResource(R.drawable.ic_group)
+                    // 群讨论使用软件logo
+                    avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
                     avatarImage.clearColorFilter()
                 }
             }

@@ -268,8 +268,9 @@ class AIContactListActivity : AppCompatActivity() {
     private fun showAddApiKeyDialog(contact: ChatContact) {
         val aiName = contact.name
         
-        // 创建自定义布局
-        val dialogLayout = LayoutInflater.from(this).inflate(R.layout.dialog_api_key_config, null)
+        // 创建带有 Material 主题的上下文
+        val wrappedContext = android.view.ContextThemeWrapper(this, R.style.AppTheme_Dialog)
+        val dialogLayout = LayoutInflater.from(wrappedContext).inflate(R.layout.dialog_api_key_config, null)
         val apiKeyInput = dialogLayout.findViewById<TextInputEditText>(R.id.api_key_input)
         val apiUrlInput = dialogLayout.findViewById<TextInputEditText>(R.id.api_url_input)
         val modelInput = dialogLayout.findViewById<TextInputEditText>(R.id.model_input)
@@ -281,7 +282,7 @@ class AIContactListActivity : AppCompatActivity() {
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         
-        MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder(wrappedContext)
             .setTitle("配置${aiName}")
             .setMessage("请填写${aiName}的API密钥以激活对话功能")
             .setView(dialogLayout)
@@ -315,8 +316,9 @@ class AIContactListActivity : AppCompatActivity() {
         val currentApiUrl = contact.customData["api_url"] ?: ""
         val currentModel = contact.customData["model"] ?: ""
         
-        // 创建自定义布局
-        val dialogLayout = LayoutInflater.from(this).inflate(R.layout.dialog_api_key_config, null)
+        // 创建带有 Material 主题的上下文
+        val wrappedContext = android.view.ContextThemeWrapper(this, R.style.AppTheme_Dialog)
+        val dialogLayout = LayoutInflater.from(wrappedContext).inflate(R.layout.dialog_api_key_config, null)
         val apiKeyInput = dialogLayout.findViewById<TextInputEditText>(R.id.api_key_input)
         val apiUrlInput = dialogLayout.findViewById<TextInputEditText>(R.id.api_url_input)
         val modelInput = dialogLayout.findViewById<TextInputEditText>(R.id.model_input)
@@ -329,7 +331,7 @@ class AIContactListActivity : AppCompatActivity() {
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         
-        MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder(wrappedContext)
             .setTitle("修改${aiName}配置")
             .setMessage("修改${aiName}的API配置")
             .setView(dialogLayout)

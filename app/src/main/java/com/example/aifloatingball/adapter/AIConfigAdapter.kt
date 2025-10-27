@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.AIConfigItem
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
@@ -54,18 +55,36 @@ class AIConfigAdapter(
         }
         
         // 设置图标
-        val iconRes = when (item.name.lowercase()) {
-            "deepseek" -> R.drawable.ic_deepseek
-            "chatgpt" -> R.drawable.ic_chatgpt
-            "claude" -> R.drawable.ic_claude
-            "智谱ai" -> R.drawable.ic_zhipu
-            "通义千问" -> R.drawable.ic_qianwen
-            "文心一言" -> R.drawable.ic_wenxin
-            "gemini" -> R.drawable.ic_gemini
-            "kimi" -> R.drawable.ic_kimi
-            else -> R.drawable.ic_web_default
+        // 临时专线使用软件logo
+        if (item.name == "临时专线") {
+            holder.iconImageView.tag = null
+            holder.iconImageView.setImageResource(R.drawable.ic_launcher_foreground)
+        } else {
+            // 品牌一致性：优先根据引擎名称由 FaviconLoader 映射到官网域名图标
+            // 仅在自定义AI没有匹配映射时回退到其提供的 URL
+            val defaultIconRes = when (item.name.lowercase()) {
+                "deepseek" -> R.drawable.ic_deepseek
+                "chatgpt" -> R.drawable.ic_chatgpt
+                "claude" -> R.drawable.ic_claude
+                "智谱ai" -> R.drawable.ic_zhipu
+                "通义千问" -> R.drawable.ic_qianwen
+                "文心一言" -> R.drawable.ic_wenxin
+                "gemini" -> R.drawable.ic_gemini
+                "kimi" -> R.drawable.ic_kimi
+                else -> R.drawable.ic_web_default
+            }
+
+            val isCustom = item.isCustom
+            val apiUrl = item.defaultApiUrl
+
+            if (isCustom && apiUrl.isNotEmpty()) {
+                // 自定义AI优先用其 API/站点 URL 解析 favicon
+                FaviconLoader.loadIcon(holder.iconImageView, apiUrl, defaultIconRes)
+            } else {
+                // 预置AI使用名称映射，确保图标来自品牌官网
+                FaviconLoader.loadAIEngineIcon(holder.iconImageView, item.name, defaultIconRes)
+            }
         }
-        holder.iconImageView.setImageResource(iconRes)
         
         // 设置点击事件
         holder.cardView.setOnClickListener {

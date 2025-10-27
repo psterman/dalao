@@ -49,7 +49,15 @@ class AIContactListAdapter(
             nameText.text = contact.name
 
             // 设置AI头像
+            val contactName = contact.name
             val contactNameLower = contact.name.lowercase()
+            
+            // 临时专线使用软件logo
+            if (contactName == "临时专线") {
+                avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
+                return
+            }
+            
             when {
                 contactNameLower.contains("chatgpt") || contactNameLower.contains("gpt") -> 
                     avatarImage.setImageResource(R.drawable.ic_chatgpt)
@@ -64,7 +72,7 @@ class AIContactListAdapter(
                 contactNameLower.contains("通义千问") || contactNameLower.contains("qianwen") -> 
                     avatarImage.setImageResource(R.drawable.ic_qianwen)
                 contactNameLower.contains("讯飞星火") || contactNameLower.contains("xinghuo") -> 
-                    avatarImage.setImageResource(R.drawable.ic_xinghuo)
+avatarImage.setImageResource(R.drawable.ic_xinghuo)
                 contactNameLower.contains("kimi") -> 
                     avatarImage.setImageResource(R.drawable.ic_kimi)
                 contactNameLower.contains("智谱") || contactNameLower.contains("zhipu") || contactNameLower.contains("glm") -> 
@@ -80,17 +88,27 @@ class AIContactListAdapter(
                 contactNameLower.contains("minimax") -> 
                     avatarImage.setImageResource(R.drawable.ic_default_ai)
                 else -> {
-                    // 尝试通过FaviconLoader根据API URL加载图标
+                    // 优先使用FaviconLoader根据API URL加载图标
                     val apiUrl = contact.customData["api_url"]
                     if (!apiUrl.isNullOrEmpty()) {
                         try {
                             FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_default_ai)
                             return
                         } catch (e: Exception) {
-                            avatarImage.setImageResource(R.drawable.ic_default_ai)
+                            // 如果favicon加载失败，使用AI引擎图标加载
+                            try {
+                                FaviconLoader.loadAIEngineIcon(avatarImage, contactName, R.drawable.ic_default_ai)
+                            } catch (e2: Exception) {
+                                avatarImage.setImageResource(R.drawable.ic_default_ai)
+                            }
                         }
                     } else {
-                        avatarImage.setImageResource(R.drawable.ic_default_ai)
+                        // 如果没有API URL，尝试根据AI名称加载图标
+                        try {
+                            FaviconLoader.loadAIEngineIcon(avatarImage, contactName, R.drawable.ic_default_ai)
+                        } catch (e: Exception) {
+                            avatarImage.setImageResource(R.drawable.ic_default_ai)
+                        }
                     }
                 }
             }
