@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.chip.Chip xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp"
+    android:layout_marginStart="8dp"
+    app:chipBackgroundColor="@color/ai_assistant_card_background_light"
+    app:chipStrokeColor="@color/ai_assistant_primary"
+    app:chipStrokeWidth="1dp"
+    app:chipCornerRadius="16dp"
+    style="@style/Widget.MaterialComponents.Chip.Action" />
+

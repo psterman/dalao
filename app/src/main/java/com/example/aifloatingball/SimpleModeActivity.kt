@@ -371,8 +371,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var aiCenterViewPager: androidx.viewpager2.widget.ViewPager2
     private lateinit var aiCenterTabLayout: com.google.android.material.tabs.TabLayout
     private lateinit var aiCenterPagerAdapter: com.example.aifloatingball.adapter.AIAssistantCenterPagerAdapter
-    private lateinit var aiCenterBackButton: ImageButton
-    private lateinit var aiCenterAddButton: ImageButton
 
     // 任务选择页面组件
     private lateinit var taskRecyclerView: RecyclerView
@@ -1455,8 +1453,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             aiCenterViewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
             aiCenterTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
-            aiCenterBackButton = findViewById<ImageButton>(R.id.ai_center_back_button)
-            aiCenterAddButton = findViewById<ImageButton>(R.id.ai_center_add_button)
             Log.d(TAG, "AI助手中心组件初始化完成")
         } catch (e: Exception) {
             Log.e(TAG, "初始化AI助手中心组件失败", e)
@@ -4493,17 +4489,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     3 -> tab.text = "API设置"
                 }
             }.attach()
-            
-            // 设置按钮点击事件
-            aiCenterBackButton.setOnClickListener {
-                // 返回上一页或关闭AI助手中心
-                onBackPressed()
-            }
-            
-            aiCenterAddButton.setOnClickListener {
-                // TODO: 实现添加功能
-                Toast.makeText(this, "添加功能开发中", Toast.LENGTH_SHORT).show()
-            }
             
             Log.d(TAG, "AI助手中心设置完成")
         } catch (e: Exception) {

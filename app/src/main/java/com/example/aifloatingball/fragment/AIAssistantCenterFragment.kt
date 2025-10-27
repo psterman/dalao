@@ -443,45 +443,104 @@ class AIBehaviorFragment : AIAssistantCenterFragment() {
 
 
 /**
- * 任务Fragment
+ * Prompt社区Fragment
  */
 class TaskFragment : AIAssistantCenterFragment() {
-    private lateinit var taskRecyclerView: androidx.recyclerview.widget.RecyclerView
-    private lateinit var taskAdapter: com.example.aifloatingball.adapter.TaskTemplateAdapter
+    // 搜索相关
     private lateinit var searchInput: android.widget.EditText
     private lateinit var searchButton: android.widget.ImageButton
     
-    override fun getLayoutResId(): Int = R.layout.ai_assistant_task_fragment
+    // 顶部快捷入口
+    private lateinit var hotPromptCard: androidx.cardview.widget.CardView
+    private lateinit var latestPromptCard: androidx.cardview.widget.CardView
+    private lateinit var myCollectionCard: androidx.cardview.widget.CardView
+    
+    // 分类导航
+    private lateinit var categoryRecyclerView: androidx.recyclerview.widget.RecyclerView
+    private lateinit var categoryAdapter: com.example.aifloatingball.adapter.PromptCategoryAdapter
+    
+    // Prompt内容列表
+    private lateinit var promptContentRecyclerView: androidx.recyclerview.widget.RecyclerView
+    private lateinit var promptAdapter: com.example.aifloatingball.adapter.PromptCommunityAdapter
+    
+    // 上传按钮
+    private lateinit var uploadPromptButton: android.widget.ImageButton
+    
+    // 空状态提示
+    private lateinit var emptyPromptText: android.widget.TextView
+    
+    // 当前筛选状态
+    private var currentFilter: com.example.aifloatingball.model.FilterType = com.example.aifloatingball.model.FilterType.HOT
+    private var selectedCategory: com.example.aifloatingball.model.PromptCategory? = null
+    
+    override fun getLayoutResId(): Int = R.layout.ai_assistant_prompt_community_fragment
     
     override fun onViewCreated(view: android.view.View, savedInstanceState: android.os.Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
         setupViews(view)
-        setupRecyclerView()
+        setupCategoryRecyclerView()
+        setupPromptContentRecyclerView()
         setupSearch()
+        setupQuickFilters()
+        setupUploadButton()
+        
+        // 加载初始数据
+        loadPrompts(currentFilter)
     }
     
     private fun setupViews(view: android.view.View) {
-        taskRecyclerView = view.findViewById(R.id.ai_task_recycler_view)
-        searchInput = view.findViewById(R.id.task_direct_search_input)
-        searchButton = view.findViewById(R.id.task_direct_search_button)
+        // 搜索相关
+        searchInput = view.findViewById(R.id.prompt_search_input)
+        searchButton = view.findViewById(R.id.prompt_search_button)
+        
+        // 快捷入口卡片
+        hotPromptCard = view.findViewById(R.id.hot_prompt_card)
+        latestPromptCard = view.findViewById(R.id.latest_prompt_card)
+        myCollectionCard = view.findViewById(R.id.my_collection_card)
+        
+        // 分类导航
+        categoryRecyclerView = view.findViewById(R.id.category_recycler_view)
+        
+        // Prompt内容列表
+        promptContentRecyclerView = view.findViewById(R.id.prompt_content_recycler_view)
+        
+        // 上传按钮
+        uploadPromptButton = view.findViewById(R.id.upload_prompt_button)
+        
+        // 空状态提示
+        emptyPromptText = view.findViewById(R.id.empty_prompt_text)
     }
     
-    private fun setupRecyclerView() {
-        // 使用SimpleTaskTemplates的数据
-        val templates = com.example.aifloatingball.data.SimpleTaskTemplates.templates
-        taskAdapter = com.example.aifloatingball.adapter.TaskTemplateAdapter(templates) { template ->
-            onTaskSelected(template)
+    private fun setupCategoryRecyclerView() {
+        val categories = com.example.aifloatingball.data.PromptCommunityData.getAllCategories()
+        categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(categories) { category ->
+            selectedCategory = category
+            loadPromptsByCategory(category)
         }
         
-        // 设置网格布局管理器
-        val layoutManager = androidx.recyclerview.widget.GridLayoutManager(requireContext(), 2)
-        taskRecyclerView.layoutManager = layoutManager
-        taskRecyclerView.adapter = taskAdapter
+        val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
+            requireContext(),
+            androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL,
+            false
+        )
+        categoryRecyclerView.layoutManager = layoutManager
+        categoryRecyclerView.adapter = categoryAdapter
+    }
+    
+    private fun setupPromptContentRecyclerView() {
+        promptAdapter = com.example.aifloatingball.adapter.PromptCommunityAdapter(
+            emptyList(),
+            onItemClick = { prompt -> onPromptItemClick(prompt) },
+            onLikeClick = { prompt -> onPromptLikeClick(prompt) },
+            onCollectClick = { prompt -> onPromptCollectClick(prompt) },
+            onCommentClick = { prompt -> onPromptCommentClick(prompt) },
+            onShareClick = { prompt -> onPromptShareClick(prompt) }
+        )
         
-        // 添加分割线
-        val decoration = androidx.recyclerview.widget.DividerItemDecoration(requireContext(), layoutManager.orientation)
-        taskRecyclerView.addItemDecoration(decoration)
+        val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(requireContext())
+        promptContentRecyclerView.layoutManager = layoutManager
+        promptContentRecyclerView.adapter = promptAdapter
     }
     
     private fun setupSearch() {
@@ -507,8 +566,118 @@ class TaskFragment : AIAssistantCenterFragment() {
         }
     }
     
+    private fun setupQuickFilters() {
+        hotPromptCard.setOnClickListener {
+            currentFilter = com.example.aifloatingball.model.FilterType.HOT
+            selectedCategory = null
+            categoryAdapter.setSelectedCategory(null)
+            loadPrompts(com.example.aifloatingball.model.FilterType.HOT)
+        }
+        
+        latestPromptCard.setOnClickListener {
+            currentFilter = com.example.aifloatingball.model.FilterType.LATEST
+            selectedCategory = null
+            categoryAdapter.setSelectedCategory(null)
+            loadPrompts(com.example.aifloatingball.model.FilterType.LATEST)
+        }
+        
+        myCollectionCard.setOnClickListener {
+            currentFilter = com.example.aifloatingball.model.FilterType.MY_COLLECTION
+            selectedCategory = null
+            categoryAdapter.setSelectedCategory(null)
+            loadPrompts(com.example.aifloatingball.model.FilterType.MY_COLLECTION)
+        }
+    }
+    
+    private fun setupUploadButton() {
+        uploadPromptButton.setOnClickListener {
+            showUploadPromptDialog()
+        }
+    }
+    
+    private fun loadPrompts(filterType: com.example.aifloatingball.model.FilterType) {
+        val prompts = com.example.aifloatingball.data.PromptCommunityData.getPromptsByFilter(filterType)
+        updatePromptList(prompts)
+    }
+    
+    private fun loadPromptsByCategory(category: com.example.aifloatingball.model.PromptCategory) {
+        val prompts = com.example.aifloatingball.data.PromptCommunityData.getPromptsByCategory(category)
+        updatePromptList(prompts)
+    }
+    
+    private fun updatePromptList(prompts: List<com.example.aifloatingball.model.PromptCommunityItem>) {
+        if (prompts.isEmpty()) {
+            emptyPromptText.visibility = android.view.View.VISIBLE
+            promptContentRecyclerView.visibility = android.view.View.GONE
+        } else {
+            emptyPromptText.visibility = android.view.View.GONE
+            promptContentRecyclerView.visibility = android.view.View.VISIBLE
+            promptAdapter = com.example.aifloatingball.adapter.PromptCommunityAdapter(
+                prompts,
+                onItemClick = { prompt -> onPromptItemClick(prompt) },
+                onLikeClick = { prompt -> onPromptLikeClick(prompt) },
+                onCollectClick = { prompt -> onPromptCollectClick(prompt) },
+                onCommentClick = { prompt -> onPromptCommentClick(prompt) },
+                onShareClick = { prompt -> onPromptShareClick(prompt) }
+            )
+            promptContentRecyclerView.adapter = promptAdapter
+        }
+    }
+    
+    private fun onPromptItemClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        showPromptDetail(prompt)
+    }
+    
+    private fun onPromptLikeClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        android.widget.Toast.makeText(requireContext(), "点赞功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun onPromptCollectClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        android.widget.Toast.makeText(requireContext(), "收藏功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun onPromptCommentClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        android.widget.Toast.makeText(requireContext(), "评论功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun onPromptShareClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        sharePrompt(prompt)
+    }
+    
+    private fun showPromptDetail(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(prompt.title)
+            .setMessage(prompt.content)
+            .setPositiveButton("使用此Prompt") { _, _ ->
+                usePrompt(prompt)
+            }
+            .setNegativeButton("关闭", null)
+            .create()
+        dialog.show()
+    }
+    
+    private fun usePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        android.widget.Toast.makeText(requireContext(), "Prompt已应用", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun sharePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        val shareText = "分享Prompt：${prompt.title}\n\n${prompt.content}\n\n来自Prompt社区"
+        
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+        }
+        
+        val chooser = android.content.Intent.createChooser(shareIntent, "分享Prompt")
+        startActivity(chooser)
+    }
+    
+    private fun showUploadPromptDialog() {
+        android.widget.Toast.makeText(requireContext(), "上传功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
     private fun onTaskSelected(template: com.example.aifloatingball.model.PromptTemplate) {
-        // 显示关键词输入弹窗
+        // 保留原有功能，以便向后兼容
         showKeywordInputDialog(template)
     }
     
@@ -858,9 +1027,11 @@ class TaskFragment : AIAssistantCenterFragment() {
     
     private fun performSearch(query: String) {
         // 执行搜索逻辑
-        android.widget.Toast.makeText(requireContext(), "搜索: $query", android.widget.Toast.LENGTH_SHORT).show()
-        
-        // 这里可以添加实际的搜索功能
-        // 比如过滤任务模板或调用搜索API
+        val results = com.example.aifloatingball.data.PromptCommunityData.searchPrompts(query)
+        if (results.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), "未找到相关Prompt", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            updatePromptList(results)
+        }
     }
 }

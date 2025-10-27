@@ -900,5 +900,18 @@
     
     <!-- 文本颜色 -->
     <color name="textColorPrimary">#1A1A1A</color>
+    
+    <!-- =============================================================== -->
+    <!-- =============== Prompt社区专用颜色方案 ======================== -->
+    <!-- =============================================================== -->
+    
+    <!-- Prompt社区卡片背景颜色 -->
+    <color name="ai_assistant_card_background_light">#FFFFFF</color>
+    
+    <!-- Prompt社区黄色强调色 -->
+    <color name="primary_yellow">#FFD700</color>
+    
+    <!-- Prompt社区红色强调色 -->
+    <color name="primary_red">#F44336</color>
 
 </resources>
