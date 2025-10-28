@@ -12,8 +12,7 @@ class AIAssistantCenterPagerAdapter(fragmentActivity: FragmentActivity) : Fragme
     
     private val fragments = listOf(
         TaskFragment(),                    // 任务
-        BasicInfoFragment(),               // 基础信息（融合搜索模式设置和档案管理）
-        MasterPromptFragment(),           // AI指令
+        MasterPromptFragment(),           // AI指令（包含档案管理、核心指令、扩展配置等）
         AIApiSettingsFragment()           // API设置
     )
     

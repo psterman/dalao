@@ -453,11 +453,6 @@ class TaskFragment : AIAssistantCenterFragment() {
     private lateinit var searchSuggestionsRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var searchSuggestionAdapter: com.example.aifloatingball.adapter.PromptSearchSuggestionAdapter
     
-    // 顶部快捷入口
-    private lateinit var hotPromptCard: androidx.cardview.widget.CardView
-    private lateinit var latestPromptCard: androidx.cardview.widget.CardView
-    private lateinit var myCollectionCard: androidx.cardview.widget.CardView
-    
     // 分类导航
     private lateinit var categoryRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var categoryAdapter: com.example.aifloatingball.adapter.PromptCategoryAdapter
@@ -492,11 +487,6 @@ class TaskFragment : AIAssistantCenterFragment() {
     // 搜索历史
     private val searchHistory = mutableListOf<String>()
     
-    // 高频场景快捷栏
-    private lateinit var scenarioOfficeLayout: LinearLayout
-    private lateinit var scenarioEducationLayout: LinearLayout
-    private lateinit var scenarioLifeLayout: LinearLayout
-    
     override fun getLayoutResId(): Int = R.layout.ai_assistant_prompt_community_fragment
     
     override fun onViewCreated(view: android.view.View, savedInstanceState: android.os.Bundle?) {
@@ -507,9 +497,7 @@ class TaskFragment : AIAssistantCenterFragment() {
         setupPromptContentRecyclerView()
         setupSearchSuggestions()
         setupSearch()
-        setupQuickFilters()
         setupUploadButton()
-        setupHighFrequencyScenarios()
         setupSwipeRefresh()
         setupLoadMore()
         setupEmptyState()
@@ -523,16 +511,6 @@ class TaskFragment : AIAssistantCenterFragment() {
         searchInput = view.findViewById(R.id.prompt_search_input)
         searchButton = view.findViewById(R.id.prompt_search_button)
         searchSuggestionsRecyclerView = view.findViewById(R.id.search_suggestions_recycler_view)
-        
-        // 高频场景快捷栏
-        scenarioOfficeLayout = view.findViewById(R.id.scenario_office)
-        scenarioEducationLayout = view.findViewById(R.id.scenario_education)
-        scenarioLifeLayout = view.findViewById(R.id.scenario_life)
-        
-        // 快捷入口卡片
-        hotPromptCard = view.findViewById(R.id.hot_prompt_card)
-        latestPromptCard = view.findViewById(R.id.latest_prompt_card)
-        myCollectionCard = view.findViewById(R.id.my_collection_card)
         
         // 分类导航
         categoryRecyclerView = view.findViewById(R.id.category_recycler_view)
@@ -565,10 +543,15 @@ class TaskFragment : AIAssistantCenterFragment() {
             com.example.aifloatingball.model.PromptCategory.MY_CONTENT
         )
         
-        categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(mainCategories) { category ->
-            // 页面内展开子分类，不再弹窗
-            expandOrCollapseSubcategory(category)
-        }
+        // 父标签：isMainCategory=true，使其变大
+        categoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(
+            mainCategories,
+            onCategoryClick = { category ->
+                // 页面内展开子分类，不再弹窗
+                expandOrCollapseSubcategory(category)
+            },
+            isMainCategory = true
+        )
         
         val layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
             requireContext(),
@@ -616,15 +599,19 @@ class TaskFragment : AIAssistantCenterFragment() {
             return
         }
         
-        // 设置子分类适配器
-        subcategoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(subcategories) { subCategory ->
-            // 选择子分类，刷新内容并收起
-            selectedCategory = subCategory
-            loadPromptsByCategory(subCategory)
-            collapseSubcategory()
-            currentExpandedCategory = null
-            android.util.Log.d("TaskFragment", "选择了子分类: ${subCategory.displayName}")
-        }
+        // 设置子分类适配器（子标签：isMainCategory=false，使其变小）
+        subcategoryAdapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(
+            subcategories,
+            onCategoryClick = { subCategory ->
+                // 选择子分类，刷新内容并收起
+                selectedCategory = subCategory
+                loadPromptsByCategory(subCategory)
+                collapseSubcategory()
+                currentExpandedCategory = null
+                android.util.Log.d("TaskFragment", "选择了子分类: ${subCategory.displayName}")
+            },
+            isMainCategory = false
+        )
         
         subcategoryRecyclerView.adapter = subcategoryAdapter
         
@@ -717,33 +704,6 @@ class TaskFragment : AIAssistantCenterFragment() {
         dialog.show()
     }
     
-    private fun setupQuickFilters() {
-        // 热门卡片 → 直接跳转到"热门推荐-本周TOP10"列表
-        hotPromptCard.setOnClickListener {
-            selectedCategory = com.example.aifloatingball.model.PromptCategory.TOP10_WEEK
-            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.TOP10_WEEK)
-            categoryAdapter.setSelectedCategory(com.example.aifloatingball.model.PromptCategory.POPULAR)
-            android.util.Log.d("TaskFragment", "跳转到热门推荐-本周TOP10")
-        }
-        
-        // 最新卡片 → 跳转到"热门推荐-最新上传"列表
-        latestPromptCard.setOnClickListener {
-            currentFilter = com.example.aifloatingball.model.FilterType.LATEST
-            loadPrompts(currentFilter)
-            categoryAdapter.setSelectedCategory(null)
-            android.util.Log.d("TaskFragment", "跳转到最新上传")
-        }
-        
-        // 收藏卡片 → 跳转到"我的内容-我的收藏"列表
-        myCollectionCard.setOnClickListener {
-            selectedCategory = com.example.aifloatingball.model.PromptCategory.MY_COLLECTIONS
-            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.MY_COLLECTIONS)
-            categoryAdapter.setSelectedCategory(com.example.aifloatingball.model.PromptCategory.MY_CONTENT)
-            android.util.Log.d("TaskFragment", "跳转到我的收藏")
-        }
-    }
-    
-    
     private fun setupUploadButton() {
         fabUploadPrompt.setOnClickListener {
             showUploadPromptDialog()
@@ -807,32 +767,6 @@ class TaskFragment : AIAssistantCenterFragment() {
             hasMore = false // 模拟没有更多数据
             android.util.Log.d("TaskFragment", "加载更多完成")
         }, 1000)
-    }
-    
-    /**
-     * 设置高频场景快捷栏点击事件
-     */
-    private fun setupHighFrequencyScenarios() {
-        // 职场办公
-        scenarioOfficeLayout.setOnClickListener {
-            selectedCategory = com.example.aifloatingball.model.PromptCategory.WORKPLACE_OFFICE
-            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.WORKPLACE_OFFICE)
-            android.util.Log.d("TaskFragment", "点击职场办公")
-        }
-        
-        // 教育学习
-        scenarioEducationLayout.setOnClickListener {
-            selectedCategory = com.example.aifloatingball.model.PromptCategory.EDUCATION_STUDY
-            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.EDUCATION_STUDY)
-            android.util.Log.d("TaskFragment", "点击教育学习")
-        }
-        
-        // 生活服务
-        scenarioLifeLayout.setOnClickListener {
-            selectedCategory = com.example.aifloatingball.model.PromptCategory.LIFE_SERVICE
-            loadPromptsByCategory(com.example.aifloatingball.model.PromptCategory.LIFE_SERVICE)
-            android.util.Log.d("TaskFragment", "点击生活服务")
-        }
     }
     
     private fun loadPrompts(filterType: com.example.aifloatingball.model.FilterType) {

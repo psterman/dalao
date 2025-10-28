@@ -2,12 +2,12 @@
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/card_view"
-    android:layout_width="140dp"
-    android:layout_height="wrap_content"
-    android:layout_marginEnd="12dp"
-    app:cardElevation="1dp"
-    app:cardCornerRadius="20dp"
-    app:strokeWidth="1dp"
+    android:layout_width="80dp"
+    android:layout_height="80dp"
+    android:layout_marginEnd="8dp"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="16dp"
+    app:strokeWidth="2dp"
     app:strokeColor="@color/elderly_outline"
     app:cardBackgroundColor="@color/elderly_card_background"
     android:clickable="true"
@@ -15,25 +15,25 @@
     android:checkable="true"
     app:checkedIcon="@drawable/ic_check_circle"
     app:checkedIconTint="?attr/colorPrimary"
-    app:checkedIconSize="20dp"
-    app:checkedIconMargin="8dp">
+    app:checkedIconSize="16dp"
+    app:checkedIconMargin="4dp">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="16dp"
+        android:padding="8dp"
         android:gravity="center">
 
         <!-- 头像图标 -->
         <ImageView
             android:id="@+id/profile_avatar"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginBottom="8dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginBottom="4dp"
             android:src="@drawable/ic_person"
             android:background="@drawable/circle_background"
-            android:padding="8dp"
+            android:padding="6dp"
             app:tint="?attr/colorOnPrimary"
             android:backgroundTint="@color/elderly_primary" />
 
@@ -42,23 +42,10 @@
             android:id="@+id/profile_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="默认档案"
-            android:textSize="14sp"
+            android:text="默认"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:textColor="@color/elderly_text_primary"
-            android:gravity="center"
-            android:maxLines="2"
-            android:ellipsize="end" />
-
-        <!-- 档案描述 -->
-        <TextView
-            android:id="@+id/profile_description"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="通用助手"
-            android:textSize="12sp"
-            android:textColor="@color/elderly_text_secondary"
             android:gravity="center"
             android:maxLines="1"
             android:ellipsize="end" />

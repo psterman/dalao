@@ -4484,9 +4484,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             com.google.android.material.tabs.TabLayoutMediator(aiCenterTabLayout, aiCenterViewPager) { tab, position ->
                 when (position) {
                     0 -> tab.text = "任务"
-                    1 -> tab.text = "基础信息"
-                    2 -> tab.text = "AI指令"
-                    3 -> tab.text = "API设置"
+                    1 -> tab.text = "AI指令"
+                    2 -> tab.text = "API设置"
                 }
             }.attach()
             

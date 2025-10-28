@@ -101,10 +101,14 @@ class PromptSearchPanelDialog(
     
     private fun setupCategories(context: Context) {
         val categories = PromptCommunityData.getAllCategories()
-        val adapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(categories) { category ->
-            // 点击分类，搜索该分类的Prompt
-            performSearch(category.displayName)
-        }
+        val adapter = com.example.aifloatingball.adapter.PromptCategoryAdapter(
+            categories,
+            onCategoryClick = { category ->
+                // 点击分类，搜索该分类的Prompt
+                performSearch(category.displayName)
+            },
+            isMainCategory = false
+        )
         
         val layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
         categoryRecyclerView.layoutManager = layoutManager
