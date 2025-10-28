@@ -41,8 +41,6 @@ class MasterPromptFragment : Fragment() {
     private lateinit var pagerAdapter: SectionsPagerAdapter
     private lateinit var addProfileButton: MaterialButton
     private lateinit var saveButton: ExtendedFloatingActionButton
-    private lateinit var aiSearchModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
-    
     private lateinit var settingsManager: SettingsManager
     private val viewModel: com.example.aifloatingball.viewmodel.SettingsViewModel by activityViewModels()
     
@@ -97,7 +95,6 @@ class MasterPromptFragment : Fragment() {
         tabLayout = view.findViewById(R.id.tabs)
         addProfileButton = view.findViewById(R.id.btn_add_profile)
         saveButton = view.findViewById(R.id.fab_save)
-        aiSearchModeSwitch = view.findViewById(R.id.ai_search_mode_switch)
         
         settingsManager = SettingsManager.getInstance(requireContext())
     }
@@ -287,12 +284,6 @@ class MasterPromptFragment : Fragment() {
         saveButton.setOnClickListener {
             saveCurrentProfile()
         }
-        
-        // AI搜索模式开关
-        aiSearchModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setIsAIMode(isChecked)
-            android.util.Log.d("MasterPromptFragment", "AI搜索模式: $isChecked")
-        }
     }
     
     private fun loadProfiles() {
@@ -336,9 +327,6 @@ class MasterPromptFragment : Fragment() {
                 
                 // 加载档案数据到Fragment
                 loadProfileData(currentProfile)
-                
-                // 加载AI搜索模式开关状态
-                aiSearchModeSwitch.isChecked = settingsManager.getIsAIMode()
                 
                 android.util.Log.d("MasterPromptFragment", "加载档案完成，共${profiles.size}个档案，当前档案：${currentProfile.name}")
             } else {

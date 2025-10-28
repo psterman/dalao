@@ -78,69 +78,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- AI搜索模式开关 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            app:cardElevation="2dp"
-            app:cardCornerRadius="16dp"
-            app:cardBackgroundColor="@color/ai_assistant_card_background">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="搜索模式设置"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/ai_assistant_text_primary"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- 默认AI搜索模式开关 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="默认AI搜索模式"
-                            android:textSize="14sp"
-                            android:textColor="@color/ai_assistant_text_primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="启用后，默认使用AI搜索引擎进行搜索"
-                            android:textSize="12sp"
-                            android:textColor="@color/ai_assistant_text_secondary" />
-                    </LinearLayout>
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial
-                        android:id="@+id/ai_search_mode_switch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false"
-                        app:thumbTint="@color/ai_assistant_primary"
-                        app:trackTint="@color/ai_assistant_primary" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
         <!-- 配置标签页 -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tabs"
