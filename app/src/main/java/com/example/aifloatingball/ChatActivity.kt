@@ -8,6 +8,8 @@ import java.io.File
 import org.json.JSONObject
 import org.json.JSONArray
 import android.view.inputmethod.InputMethodManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -56,6 +58,7 @@ import com.example.aifloatingball.tts.TTSSupportLevel
 import com.example.aifloatingball.tts.TTSEngineInfo
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.view.Gravity
@@ -342,18 +345,30 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 contact.groupId?.let { groupId ->
                     Log.d(TAG, "尝试通过groupId查找群聊: $groupId")
                     
-                    // 1. 尝试从UnifiedGroupChatManager查找（优先）
-                    val unifiedManager = UnifiedGroupChatManager.getInstance(this)
-                    currentGroupChat = unifiedManager.getGroupChat(groupId)
+                    // 优先从GroupChatManager查找（用于消息发送）
+                    currentGroupChat = groupChatManager.getGroupChat(groupId)
                     if (currentGroupChat != null) {
-                        Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
-                    }
-                    
-                    // 2. 如果没找到，尝试从GroupChatManager查找
-                    if (currentGroupChat == null) {
-                        currentGroupChat = groupChatManager.getGroupChat(groupId)
+                        Log.d(TAG, "✓ 从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                    } else {
+                        Log.w(TAG, "GroupChatManager中未找到群聊: $groupId")
+                        
+                        // 回退：从UnifiedGroupChatManager查找
+                        val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                        currentGroupChat = unifiedManager.getGroupChat(groupId)
                         if (currentGroupChat != null) {
-                            Log.d(TAG, "从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                            Log.d(TAG, "✓ 从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                            Log.w(TAG, "⚠️ 警告：群聊在UnifiedGroupChatManager中，但不在GroupChatManager中")
+                            Log.w(TAG, "⚠️ 正在同步到GroupChatManager...")
+                            
+                            // 关键修复：将从UnifiedGroupChatManager获取的群聊同步到GroupChatManager
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try {
+                                    groupChatManager.syncFromUnified()
+                                    Log.d(TAG, "✓ 群聊已同步到GroupChatManager")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "同步群聊到GroupChatManager失败", e)
+                                }
+                            }
                         }
                     }
                     
@@ -372,18 +387,28 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     contact.customData["group_chat_id"]?.let { groupChatId ->
                         Log.d(TAG, "尝试通过customData中的group_chat_id查找群聊: $groupChatId")
                         
-                        // 优先从UnifiedGroupChatManager查找
-                        val unifiedManager = UnifiedGroupChatManager.getInstance(this)
-                        currentGroupChat = unifiedManager.getGroupChat(groupChatId)
+                        // 优先从GroupChatManager查找
+                        currentGroupChat = groupChatManager.getGroupChat(groupChatId)
                         if (currentGroupChat != null) {
-                            Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
-                        }
-                        
-                        // 如果没找到，尝试从GroupChatManager查找
-                        if (currentGroupChat == null) {
-                            currentGroupChat = groupChatManager.getGroupChat(groupChatId)
+                            Log.d(TAG, "✓ 从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                        } else {
+                            // 回退：从UnifiedGroupChatManager查找
+                            val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                            currentGroupChat = unifiedManager.getGroupChat(groupChatId)
                             if (currentGroupChat != null) {
-                                Log.d(TAG, "从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                                Log.d(TAG, "✓ 从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                                Log.w(TAG, "⚠️ 警告：群聊在UnifiedGroupChatManager中，但不在GroupChatManager中")
+                                Log.w(TAG, "⚠️ 正在同步到GroupChatManager...")
+                                
+                                // 关键修复：将从UnifiedGroupChatManager获取的群聊同步到GroupChatManager
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
+                                        groupChatManager.syncFromUnified()
+                                        Log.d(TAG, "✓ 群聊已同步到GroupChatManager")
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "同步群聊到GroupChatManager失败", e)
+                                    }
+                                }
                             }
                         }
                         
@@ -940,14 +965,116 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             // 验证群聊配置
             validateGroupChatAIMembers(groupChat)
             
-            // 使用GroupChatManager发送消息
+            // 发送前验证：检查网络连接和API配置
             lifecycleScope.launch {
                 try {
+                    Log.d(TAG, "=== 开始发送群聊消息 ===")
+                    
+                    // 检查网络连接
+                    val networkAvailable = isNetworkAvailable()
+                    Log.d(TAG, "网络连接检查: $networkAvailable")
+                    if (!networkAvailable) {
+                        Log.e(TAG, "网络不可用")
+                        runOnUiThread {
+                            restoreUserInput(messageText)
+                            Toast.makeText(this@ChatActivity, "发送消息失败，请检查网络连接", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    
+                    // 检查AI成员可用性：至少一个可用即可发送
+                    Log.d(TAG, "群聊总成员数量: ${groupChat.members.size}")
+                    groupChat.members.forEach { member ->
+                        Log.d(TAG, "群聊成员详情: ${member.name}, 类型=${member.type}, 角色=${member.role}, aiServiceType=${member.aiServiceType}, isActive=${member.isActive}")
+                    }
+                    
+                    val aiMembers = groupChat.members.filter { it.type == MemberType.AI && it.isActive }
+                    Log.d(TAG, "过滤后的AI成员数量: ${aiMembers.size}")
+                    aiMembers.forEach { member ->
+                        Log.d(TAG, "AI成员: ${member.name}, aiServiceType=${member.aiServiceType}")
+                    }
+                    
+                    // 检查每个AI成员的状态（用于日志）
+                    val availableAICount = aiMembers.count { member ->
+                        val aiServiceType = member.aiServiceType
+                        Log.d(TAG, "检查AI成员: ${member.name}, 类型: $aiServiceType")
+                        
+                        when (aiServiceType) {
+                            null -> {
+                                Log.w(TAG, "AI成员 ${member.name} 缺少服务类型")
+                                false
+                            }
+                            AIServiceType.TEMP_SERVICE -> {
+                                Log.d(TAG, "AI成员 ${member.name} 是临时专线，无需密钥，可用")
+                                true
+                            }
+                            else -> {
+                                val apiKey = getApiKeyForService(aiServiceType)
+                                val hasKey = apiKey.isNotBlank()
+                                Log.d(TAG, "AI成员 ${member.name} (${aiServiceType.name}) API密钥状态: ${if (hasKey) "已配置，可用" else "未配置，不可用"}")
+                                hasKey
+                            }
+                        }
+                    }
+                    
+                    Log.d(TAG, "可用AI成员数量: $availableAICount/${aiMembers.size}")
+                    
+                    // 只要至少有一个可用的AI就可以发送
+                    if (availableAICount == 0) {
+                        Log.e(TAG, "❌ 没有任何可用的AI成员（${aiMembers.size}个AI都不可用）")
+                        Log.e(TAG, "详细诊断:")
+                        aiMembers.forEach { member ->
+                            Log.e(TAG, "  - ${member.name}: aiServiceType=${member.aiServiceType}, isActive=${member.isActive}")
+                        }
+                        
+                        runOnUiThread {
+                            restoreUserInput(messageText)
+                            val errorMsg = getGroupChatErrorMessage(groupChat)
+                            Toast.makeText(this@ChatActivity, errorMsg, Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    
+                    Log.d(TAG, "✓ 至少有一个可用AI，继续发送流程")
+                    
+                    // 诊断：检查群聊在GroupChatManager中是否存在
+                    val allGroupChats = groupChatManager.getAllGroupChats()
+                    Log.d(TAG, "GroupChatManager中的群聊数量: ${allGroupChats.size}")
+                    Log.d(TAG, "当前群聊ID: ${groupChat.id}")
+                    allGroupChats.forEach { gc ->
+                        Log.d(TAG, "  群聊: ${gc.name}, ID: ${gc.id}, 成员数: ${gc.members.size}")
+                    }
+                    
+                    // 检查群聊是否存在
+                    val existsInManager = allGroupChats.any { it.id == groupChat.id }
+                    if (!existsInManager) {
+                        Log.e(TAG, "❌ 问题：当前群聊不在GroupChatManager中")
+                        Log.e(TAG, "当前群聊: ${groupChat.name} (${groupChat.id})")
+                        Log.e(TAG, "GroupChatManager中的群聊: ${allGroupChats.map { "${it.name}(${it.id})" }.joinToString(", ")}")
+                        
+                        // 尝试将群聊同步到GroupChatManager
+                        Log.d(TAG, "尝试将群聊同步到GroupChatManager")
+                        Log.w(TAG, "⚠️ 群聊不在GroupChatManager中，可能需要重新加载")
+                        Log.w(TAG, "建议：刷新群聊列表或重新打开群聊")
+                        
+                        runOnUiThread {
+                            restoreUserInput(messageText)
+                            Toast.makeText(this@ChatActivity, "群聊数据未同步，请刷新群聊列表后重试", Toast.LENGTH_LONG).show()
+                        }
+                        return@launch
+                    }
+                    
+                    Log.d(TAG, "✓ 群聊存在于GroupChatManager，调用 sendUserMessage")
                     val success = groupChatManager.sendUserMessage(groupChat.id, messageText)
+                    Log.d(TAG, "sendUserMessage 返回: $success")
+                    
                     if (success) {
                         // 重新加载群聊消息
+                        Log.d(TAG, "加载群聊消息")
                         loadGroupChatMessages(groupChat.id)
+                        Log.d(TAG, "群聊消息加载完成")
                     } else {
+                        Log.e(TAG, "sendUserMessage 返回 false")
                         runOnUiThread {
                             // 发送失败时恢复用户输入
                             restoreUserInput(messageText)
@@ -1014,19 +1141,114 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     /**
-     * 获取群聊错误信息
+     * 获取群聊错误信息（改进版：精确诊断）
      */
     private fun getGroupChatErrorMessage(groupChat: GroupChat): String {
-        val aiMembers = groupChat.members.filter { it.type == MemberType.AI }
+        val aiMembers = groupChat.members.filter { it.type == MemberType.AI && it.isActive }
+        val totalMembers = groupChat.members.size
         
+        Log.e(TAG, "===== 群聊错误诊断开始 =====")
+        Log.e(TAG, "群聊名称: ${groupChat.name}")
+        Log.e(TAG, "总成员数: $totalMembers")
+        Log.e(TAG, "活跃AI成员数: ${aiMembers.size}")
+        
+        // 详细检查每个成员
+        val userMembers = groupChat.members.filter { it.type == MemberType.USER }
+        Log.e(TAG, "用户成员数: ${userMembers.size}")
+        userMembers.forEach { member ->
+            Log.e(TAG, "  用户: ${member.name}, 角色=${member.role}")
+        }
+        
+        // 检查是否有AI成员
+        if (aiMembers.isEmpty()) {
+            val inactiveAI = groupChat.members.filter { it.type == MemberType.AI && !it.isActive }
+            val errorMsg = if (inactiveAI.isNotEmpty()) {
+                Log.e(TAG, "所有AI成员都被标记为不活跃")
+                "群聊中所有AI成员都不可用，请检查群聊设置"
+            } else {
+                Log.e(TAG, "群聊中没有AI成员")
+                "群聊中没有AI成员，无法发送消息"
+            }
+            Log.e(TAG, "===== 诊断完成 =====")
+            return errorMsg
+        }
+        
+        // 详细检查每个AI成员
+        val issues = mutableListOf<String>()
+        val availableAIs = mutableListOf<String>()
+        
+        aiMembers.forEachIndexed { index, member ->
+            Log.e(TAG, "AI成员[${index + 1}]: ${member.name}")
+            Log.e(TAG, "  - ID: ${member.id}")
+            Log.e(TAG, "  - 服务类型: ${member.aiServiceType}")
+            Log.e(TAG, "  - 是否活跃: ${member.isActive}")
+            
+            val serviceType = member.aiServiceType
+            if (serviceType == null) {
+                val issue = "${member.name}: 服务类型未配置"
+                issues.add(issue)
+                Log.e(TAG, "  ❌ $issue")
+            } else {
+                when (serviceType) {
+                    AIServiceType.TEMP_SERVICE -> {
+                        availableAIs.add(member.name)
+                        Log.e(TAG, "  ✅ ${member.name}: 临时专线（无需密钥）")
+                    }
+                    else -> {
+                        val apiKey = getApiKeyForService(serviceType)
+                        if (apiKey.isBlank()) {
+                            val issue = "${member.name}(${getServiceDisplayName(serviceType)}): API密钥未配置"
+                            issues.add(issue)
+                            Log.e(TAG, "  ❌ $issue")
+                        } else {
+                            availableAIs.add(member.name)
+                            Log.e(TAG, "  ✅ ${member.name}: API密钥已配置")
+                        }
+                    }
+                }
+            }
+        }
+        
+        Log.e(TAG, "可用AI: ${availableAIs.joinToString(", ")}")
+        Log.e(TAG, "问题AI: ${issues.joinToString("; ")}")
+        Log.e(TAG, "===== 诊断完成 =====")
+        
+        // 生成用户友好的错误信息
         return when {
-            aiMembers.isEmpty() -> "群聊中没有AI成员，无法发送消息"
-            aiMembers.all { it.aiServiceType == null } -> "群聊中AI成员配置不完整，请检查设置"
-            aiMembers.any { it.aiServiceType == AIServiceType.ZHIPU_AI && getApiKeyForService(AIServiceType.ZHIPU_AI).isBlank() } -> 
-                "智谱AI API密钥未配置，请检查设置"
-            aiMembers.any { it.aiServiceType == AIServiceType.DEEPSEEK && getApiKeyForService(AIServiceType.DEEPSEEK).isBlank() } -> 
-                "DeepSeek API密钥未配置，请检查设置"
-            else -> "发送消息失败，请检查网络连接或稍后重试"
+            issues.isEmpty() && availableAIs.isEmpty() -> {
+                "网络或服务异常，请稍后重试"
+            }
+            issues.isEmpty() -> {
+                "发送失败，请检查网络连接"
+            }
+            availableAIs.isNotEmpty() -> {
+                "部分AI不可用（${issues.size}个），但${availableAIs.size}个AI可用，消息已发送"
+            }
+            else -> {
+                if (issues.size == 1) {
+                    "错误：${issues[0]}"
+                } else {
+                    "错误：${issues.joinToString("；")}"
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取服务显示名称
+     */
+    private fun getServiceDisplayName(serviceType: AIServiceType): String {
+        return when (serviceType) {
+            AIServiceType.DEEPSEEK -> "DeepSeek"
+            AIServiceType.CHATGPT -> "ChatGPT"
+            AIServiceType.CLAUDE -> "Claude"
+            AIServiceType.ZHIPU_AI -> "智谱AI"
+            AIServiceType.KIMI -> "Kimi"
+            AIServiceType.GEMINI -> "Gemini"
+            AIServiceType.QIANWEN -> "通义千问"
+            AIServiceType.WENXIN -> "文心一言"
+            AIServiceType.XINGHUO -> "讯飞星火"
+            AIServiceType.TEMP_SERVICE -> "临时专线"
         }
     }
     
@@ -1428,6 +1650,52 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
             AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
+        }
+    }
+
+    /**
+     * 检查网络是否可用（放宽校验，避免误判）
+     *
+     * 说明：原实现要求 VALIDATED 能力，某些网络环境下（如内网/专线/门户未验证）会返回未验证，
+     * 但实际上可以正常访问 API，导致群聊前置检查误判为"无网络"。
+     *
+     * 策略：
+     * - 只要具备 INTERNET 能力且存在常见传输（WIFI/CELLULAR/ETHERNET），则认为可用；
+     * - 若无法获取到能力对象，则回退到旧式 activeNetworkInfo.isConnected 判定（兼容性）。
+     * - 出现异常时默认返回true，不阻断发送流程，让实际调用时再报错
+     */
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork
+            if (network != null) {
+                val nc = cm.getNetworkCapabilities(network)
+                if (nc != null) {
+                    val hasInternet = nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    val viaCommonTransport =
+                        nc.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        nc.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        nc.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                    
+                    // 只要具备基本能力就认为可用，不再强制要求 VALIDATED
+                    val isAvailable = hasInternet && viaCommonTransport
+                    Log.d(TAG, "网络能力检查: hasInternet=$hasInternet, viaCommonTransport=$viaCommonTransport, 结果=$isAvailable")
+                    return isAvailable
+                }
+            }
+            
+            // 兼容性回退：使用旧API
+            @Suppress("DEPRECATION")
+            val info = cm.activeNetworkInfo
+            val legacyResult = info != null && info.isConnected
+            @Suppress("DEPRECATION")
+            Log.d(TAG, "使用兼容性网络检查: $legacyResult")
+            legacyResult
+        } catch (e: Exception) {
+            Log.e(TAG, "检查网络连接失败，默认允许发送: ${e.message}", e)
+            // 出现异常时默认返回true，不阻断发送流程，让实际API调用时再报错
+            // 这样可以避免网络检查误判导致群聊完全无法发送
+            true
         }
     }
 

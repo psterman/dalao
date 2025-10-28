@@ -163,9 +163,35 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
+     * 手动触发从UnifiedGroupChatManager同步群聊数据
+     * 用于运行时动态刷新群聊列表
+     */
+    fun syncFromUnified(): Boolean {
+        return try {
+            syncFromUnifiedManager()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "手动同步群聊数据失败", e)
+            false
+        }
+    }
+    
+    /**
      * 根据ID获取群聊
+     * 如果本地找不到，尝试从UnifiedGroupChatManager同步
      */
     fun getGroupChat(groupId: String): GroupChat? {
+        // 先尝试从本地缓存获取
+        val localGroupChat = groupChats[groupId]
+        if (localGroupChat != null) {
+            return localGroupChat
+        }
+        
+        // 如果本地没有，尝试从UnifiedGroupChatManager同步
+        Log.d(TAG, "本地未找到群聊 $groupId，尝试从UnifiedGroupChatManager同步")
+        syncFromUnifiedManager()
+        
+        // 同步后再次尝试获取
         return groupChats[groupId]
     }
     
@@ -182,7 +208,19 @@ class GroupChatManager private constructor(private val context: Context) {
      * 发送用户消息到群聊
      */
     suspend fun sendUserMessage(groupId: String, content: String): Boolean {
-        val groupChat = groupChats[groupId] ?: return false
+        Log.d(TAG, "sendUserMessage 被调用: groupId=$groupId, content长度=${content.length}")
+        Log.d(TAG, "当前管理的群聊数量: ${groupChats.size}")
+        Log.d(TAG, "群聊ID列表: ${groupChats.keys.joinToString(", ")}")
+        
+        val groupChat = groupChats[groupId]
+        if (groupChat == null) {
+            Log.e(TAG, "❌ 未找到群聊: $groupId")
+            Log.e(TAG, "可用群聊ID列表: ${groupChats.keys.joinToString(", ")}")
+            return false
+        }
+        
+        Log.d(TAG, "✓ 找到群聊: ${groupChat.name}")
+        Log.d(TAG, "群聊成员数: ${groupChat.members.size}")
         
         // 获取用户在群聊中的角色
         val userMember = groupChat.members.find { it.id == "user" }
@@ -254,9 +292,38 @@ class GroupChatManager private constructor(private val context: Context) {
             return
         }
         
-        // 初始化AI回复状态
+        // 验证AI成员配置，过滤出有效的成员
+        val validAIMembers = aiMembers.filter { member ->
+            val isValid = member.aiServiceType != null
+            if (!isValid) {
+                Log.e(TAG, "AI成员 ${member.name} (ID: ${member.id}) 缺少aiServiceType，跳过")
+            }
+            isValid
+        }
+        
+        if (validAIMembers.isEmpty()) {
+            Log.e(TAG, "群聊 $groupId 中没有有效的AI成员（所有成员都缺少aiServiceType）")
+            // 通知所有监听器，所有AI回复失败
+            CoroutineScope(Dispatchers.Main).launch {
+                groupChatListeners.forEach { listener ->
+                    aiMembers.forEach { member ->
+                        listener.onAIReplyStatusChanged(
+                            groupId, 
+                            member.id, 
+                            AIReplyStatus.ERROR, 
+                            "AI服务类型未配置"
+                        )
+                    }
+                }
+            }
+            return
+        }
+        
+        Log.d(TAG, "准备触发 ${validAIMembers.size} 个有效AI成员的回复")
+        
+        // 初始化AI回复状态（只针对有效成员）
         val replyStatusMap = mutableMapOf<String, AIReplyInfo>()
-        aiMembers.forEach { member ->
+        validAIMembers.forEach { member ->
             replyStatusMap[member.id] = AIReplyInfo(
                 aiId = member.id,
                 aiName = member.name,
@@ -268,10 +335,10 @@ class GroupChatManager private constructor(private val context: Context) {
         // 根据设置决定回复方式
         if (groupChat.settings.simultaneousReply) {
             // 同时回复模式
-            triggerSimultaneousReplies(groupId, userMessage, aiMembers, groupChat)
+            triggerSimultaneousReplies(groupId, userMessage, validAIMembers, groupChat)
         } else {
             // 顺序回复模式
-            triggerSequentialReplies(groupId, userMessage, aiMembers, groupChat)
+            triggerSequentialReplies(groupId, userMessage, validAIMembers, groupChat)
         }
     }
     
@@ -905,21 +972,66 @@ class GroupChatManager private constructor(private val context: Context) {
             
             if (json == null) {
                 Log.w(TAG, "没有找到群聊数据")
-                return
+            } else {
+                val type = object : TypeToken<List<GroupChat>>() {}.type
+                val loadedGroupChats: List<GroupChat> = gson.fromJson(json, type)
+                
+                groupChats.clear()
+                loadedGroupChats.forEach { groupChat ->
+                    groupChats[groupChat.id] = groupChat
+                    loadGroupMessages(groupChat.id)
+                }
+                
+                Log.d(TAG, "从本地SharedPreferences加载群聊数据成功，共 ${groupChats.size} 个群聊")
             }
             
-            val type = object : TypeToken<List<GroupChat>>() {}.type
-            val loadedGroupChats: List<GroupChat> = gson.fromJson(json, type)
+            // 关键修复：从UnifiedGroupChatManager同步群聊数据
+            syncFromUnifiedManager()
             
-            groupChats.clear()
-            loadedGroupChats.forEach { groupChat ->
-                groupChats[groupChat.id] = groupChat
-                loadGroupMessages(groupChat.id)
-            }
-            
-            Log.d(TAG, "加载群聊数据成功，共 ${groupChats.size} 个群聊")
+            Log.d(TAG, "加载群聊数据完成，总共 ${groupChats.size} 个群聊")
         } catch (e: Exception) {
             Log.e(TAG, "加载群聊数据失败", e)
+        }
+    }
+    
+    /**
+     * 从UnifiedGroupChatManager同步群聊数据
+     * 解决UnifiedGroupChatManager创建的群聊在GroupChatManager中找不到的问题
+     */
+    private fun syncFromUnifiedManager() {
+        try {
+            val unifiedManager = UnifiedGroupChatManager.getInstance(context)
+            val unifiedGroupChats = unifiedManager.getAllGroupChats()
+            
+            Log.d(TAG, "从UnifiedGroupChatManager获取到 ${unifiedGroupChats.size} 个群聊")
+            
+            var syncedCount = 0
+            unifiedGroupChats.forEach { unifiedGroupChat ->
+                // 如果群聊不存在于当前管理器，则添加
+                if (!groupChats.containsKey(unifiedGroupChat.id)) {
+                    Log.d(TAG, "同步群聊: ${unifiedGroupChat.name} (ID: ${unifiedGroupChat.id})")
+                    groupChats[unifiedGroupChat.id] = unifiedGroupChat
+                    
+                    // 加载对应的消息
+                    val unifiedMessages = unifiedManager.getGroupMessages(unifiedGroupChat.id)
+                    if (unifiedMessages.isNotEmpty()) {
+                        groupMessages[unifiedGroupChat.id] = unifiedMessages.toMutableList()
+                        Log.d(TAG, "同步群聊消息: ${unifiedGroupChat.name}，共 ${unifiedMessages.size} 条消息")
+                    } else {
+                        groupMessages[unifiedGroupChat.id] = mutableListOf()
+                    }
+                    
+                    syncedCount++
+                }
+            }
+            
+            // 如果有同步的群聊，保存到本地
+            if (syncedCount > 0) {
+                saveGroupChats()
+                Log.d(TAG, "从UnifiedGroupChatManager同步了 $syncedCount 个群聊到GroupChatManager")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从UnifiedGroupChatManager同步群聊数据失败", e)
         }
     }
     
