@@ -19,12 +19,15 @@ import com.example.aifloatingball.ui.settings.PersonalizationFragment
 import com.example.aifloatingball.ui.settings.SectionsPagerAdapter
 import com.example.aifloatingball.viewmodel.SettingsViewModel
 import com.example.aifloatingball.SettingsManager
+import androidx.fragment.app.activityViewModels
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.UUID
+import android.os.Handler
+import android.os.Looper
 
 /**
  * AI指令中心Fragment - 集成到简易模式AI助手中心
@@ -41,6 +44,7 @@ class MasterPromptFragment : Fragment() {
     private lateinit var aiSearchModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
     
     private lateinit var settingsManager: SettingsManager
+    private val viewModel: com.example.aifloatingball.viewmodel.SettingsViewModel by activityViewModels()
     
     private var profiles: MutableList<PromptProfile> = mutableListOf()
     private var activeProfile: PromptProfile? = null
@@ -330,6 +334,9 @@ class MasterPromptFragment : Fragment() {
                 // 选择当前档案
                 activeProfile = currentProfile
                 
+                // 加载档案数据到Fragment
+                loadProfileData(currentProfile)
+                
                 // 加载AI搜索模式开关状态
                 aiSearchModeSwitch.isChecked = settingsManager.getIsAIMode()
                 
@@ -365,8 +372,16 @@ class MasterPromptFragment : Fragment() {
     }
     
     private fun loadProfileData(profile: PromptProfile) {
-        // 根据档案加载相应的配置数据到各个Fragment
-        // 这里需要实现具体的数据加载逻辑
+        try {
+            android.util.Log.d("MasterPromptFragment", "开始加载档案数据到Fragment: ${profile.name}")
+            
+            // 通过ViewModel设置档案数据，这会触发所有Fragment更新
+            viewModel.selectProfile(profile)
+            
+            android.util.Log.d("MasterPromptFragment", "档案数据已加载到各Fragment")
+        } catch (e: Exception) {
+            android.util.Log.e("MasterPromptFragment", "加载档案数据失败", e)
+        }
     }
     
     private fun createNewProfile() {
@@ -404,12 +419,21 @@ class MasterPromptFragment : Fragment() {
                         
                         // 立即添加到列表并刷新适配器
                         profiles.add(newProfile)
+                        activeProfile = newProfile
+                        
                         if (::profileAdapter.isInitialized) {
                             profileAdapter.updateData(profiles)
                             profileAdapter.setActiveProfileId(newProfile.id)
-                            activeProfile = newProfile
                             android.util.Log.d("MasterPromptFragment", "档案列表已更新，当前数量: ${profiles.size}")
                         }
+                        
+                        // 滚动到新档案的位置
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val index = profiles.indexOfFirst { it.id == newProfile.id }
+                            if (index != -1) {
+                                profilesRecyclerView.smoothScrollToPosition(index)
+                            }
+                        }, 300)
                         
                         Toast.makeText(requireContext(), "档案创建成功", Toast.LENGTH_SHORT).show()
                         
@@ -431,16 +455,77 @@ class MasterPromptFragment : Fragment() {
     
     private fun saveCurrentProfile() {
         if (activeProfile != null) {
-            // 保存当前档案的配置
-            saveProfileData(activeProfile!!)
-            Toast.makeText(requireContext(), "档案保存成功", Toast.LENGTH_SHORT).show()
+            try {
+                android.util.Log.d("MasterPromptFragment", "开始保存当前档案: ${activeProfile!!.name}")
+                
+                // 保存当前档案的配置
+                saveProfileData(activeProfile!!)
+                
+                Toast.makeText(requireContext(), "档案「${activeProfile!!.name}」保存成功", Toast.LENGTH_SHORT).show()
+                android.util.Log.d("MasterPromptFragment", "档案保存完成")
+            } catch (e: Exception) {
+                android.util.Log.e("MasterPromptFragment", "保存档案失败", e)
+                Toast.makeText(requireContext(), "保存档案失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         } else {
             Toast.makeText(requireContext(), "请先选择一个档案", Toast.LENGTH_SHORT).show()
         }
     }
     
     private fun saveProfileData(profile: PromptProfile) {
-        // 这里实现保存档案配置数据的逻辑
-        // 需要从各个Fragment中收集数据并保存
+        try {
+            var updatedProfile = profile
+            
+            android.util.Log.d("MasterPromptFragment", "开始收集档案数据")
+            
+            // 从childFragmentManager获取所有已附加的Fragment并收集数据
+            childFragmentManager.fragments.forEach { fragment ->
+                when (fragment) {
+                    is com.example.aifloatingball.ui.settings.CoreInstructionsFragment -> {
+                        updatedProfile = fragment.collectProfileData(updatedProfile)
+                        android.util.Log.d("MasterPromptFragment", "已收集核心指令数据")
+                    }
+                    is com.example.aifloatingball.ui.settings.ExtendedConfigFragment -> {
+                        updatedProfile = fragment.collectProfileData(updatedProfile)
+                        android.util.Log.d("MasterPromptFragment", "已收集扩展配置数据")
+                    }
+                    is com.example.aifloatingball.ui.settings.AiParamsFragment -> {
+                        updatedProfile = fragment.collectProfileData(updatedProfile)
+                        android.util.Log.d("MasterPromptFragment", "已收集AI参数数据")
+                    }
+                    is com.example.aifloatingball.ui.settings.PersonalizationFragment -> {
+                        updatedProfile = fragment.collectProfileData(updatedProfile)
+                        android.util.Log.d("MasterPromptFragment", "已收集个性化数据")
+                    }
+                }
+            }
+            
+            android.util.Log.d("MasterPromptFragment", "收集数据完成，准备保存档案: ${updatedProfile.name}")
+            
+            // 先保存到SettingsManager
+            settingsManager.savePromptProfile(updatedProfile)
+            android.util.Log.d("MasterPromptFragment", "已保存到SettingsManager")
+            
+            // 更新列表中的档案
+            val index = profiles.indexOfFirst { it.id == updatedProfile.id }
+            if (index != -1) {
+                profiles[index] = updatedProfile
+                android.util.Log.d("MasterPromptFragment", "更新现有档案，索引: $index")
+            } else {
+                profiles.add(updatedProfile)
+                android.util.Log.d("MasterPromptFragment", "添加新档案到列表")
+            }
+            
+            activeProfile = updatedProfile
+            
+            // 刷新适配器
+            profileAdapter.updateData(profiles)
+            profileAdapter.setActiveProfileId(updatedProfile.id)
+            
+            android.util.Log.d("MasterPromptFragment", "档案数据已保存并刷新列表: ${updatedProfile.name}")
+        } catch (e: Exception) {
+            android.util.Log.e("MasterPromptFragment", "保存档案数据失败", e)
+            Toast.makeText(requireContext(), "保存档案数据失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }
