@@ -138,9 +138,11 @@ object PlatformIconLoader {
         // 检查内存缓存
         val cachedBitmap = memoryCache.get(cacheKey)
         if (cachedBitmap != null) {
-            // 使用缓存图标时移除 tint，避免绿色覆盖
+            // 使用缓存图标时移除 tint 和背景，避免绿色覆盖/底色
             imageView.imageTintList = null
             imageView.clearColorFilter()
+            imageView.background = null
+            imageView.setPadding(0,0,0,0)
             imageView.setImageBitmap(cachedBitmap)
             return
         }
@@ -220,6 +222,9 @@ object PlatformIconLoader {
                             if (imageView.tag == cacheKey) {
                                 imageView.imageTintList = null
                                 imageView.clearColorFilter()
+                                imageView.background = null
+                                imageView.setPadding(0,0,0,0)
+                                imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
                                 imageView.setImageBitmap(bitmap)
                             }
                         }
@@ -232,6 +237,9 @@ object PlatformIconLoader {
                             if (imageView.tag == cacheKey) {
                                 imageView.imageTintList = null
                                 imageView.clearColorFilter()
+                                imageView.background = null
+                                imageView.setPadding(0,0,0,0)
+                                imageView.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
                                 imageView.setImageBitmap(scaledBitmap)
                             }
                         }
@@ -422,6 +430,8 @@ object PlatformIconLoader {
                 // 使用网站图标前移除 tint，避免颜色被覆盖
                 imageView.imageTintList = null
                 imageView.clearColorFilter()
+                imageView.background = null
+                imageView.setPadding(0,0,0,0)
                 FaviconLoader.loadFavicon(imageView, websiteUrl)
                 Log.d(TAG, "Using FaviconLoader for $appName: $websiteUrl")
             } else {

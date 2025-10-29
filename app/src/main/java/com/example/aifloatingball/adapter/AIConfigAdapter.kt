@@ -58,7 +58,11 @@ class AIConfigAdapter(
         // 临时专线使用Material风格的首字母L图标
         if (item.name == "临时专线") {
             holder.iconImageView.tag = null
-            holder.iconImageView.setImageResource(R.drawable.ic_temp_ai_letter_l)
+            holder.iconImageView.setImageResource(R.drawable.ic_temp_ai_bot)
+            holder.iconImageView.imageTintList = null
+            holder.iconImageView.clearColorFilter()
+            holder.iconImageView.background = null
+            holder.iconImageView.setPadding(0,0,0,0)
             holder.iconImageView.clearColorFilter()
         } else {
             // 品牌一致性：优先根据引擎名称由 FaviconLoader 映射到官网域名图标

@@ -1,5 +1,9 @@
 package com.example.aifloatingball.adapter
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,7 +16,9 @@ import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.utils.FaviconLoader
 import com.example.aifloatingball.utils.PlatformIconLoader
+import com.example.aifloatingball.utils.BitmapUtils
 import com.google.android.material.card.MaterialCardView
+import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -261,17 +267,19 @@ class ChatContactAdapter(
                     
                     // 临时专线使用Material风格的首字母L图标
                     if (contactName == "临时专线") {
-                        avatarImage.setImageResource(R.drawable.ic_temp_ai_letter_l)
+                        avatarImage.setImageResource(R.drawable.ic_temp_ai_bot)
+                        avatarImage.imageTintList = null
                         avatarImage.clearColorFilter()
+                        avatarImage.background = null
+                        avatarImage.setPadding(0,0,0,0)
                     } else {
                         // 使用PlatformIconLoader加载AI应用图标，与软件tab保持一致
                         PlatformIconLoader.loadPlatformIcon(avatarImage, contactName, avatarImage.context)
                     }
                 }
                 ContactType.GROUP -> {
-                    // 群聊使用默认图标
-                    avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
-                    avatarImage.clearColorFilter()
+                    // 群聊：组合显示多个AI成员的头像
+                    setupGroupAvatar(contact, avatarImage)
                 }
             }
             
@@ -311,4 +319,151 @@ class ChatContactAdapter(
             mutedIndicator.visibility = if (contact.isMuted) View.VISIBLE else View.GONE
         }
     }
+}
+
+private fun drawableToBitmap(drawable: Drawable): Bitmap? {
+    return try {
+        if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            drawable.bitmap
+        } else {
+            val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 144
+            val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 144
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            bitmap
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun setupGroupAvatar(contact: com.example.aifloatingball.model.ChatContact, avatarImage: ImageView) {
+    val names = buildGroupMemberNames(contact)
+    if (names.isEmpty()) {
+        avatarImage.setImageResource(R.drawable.ic_group_chat)
+        avatarImage.imageTintList = null
+        avatarImage.clearColorFilter()
+        avatarImage.background = null
+        avatarImage.setPadding(0,0,0,0)
+        return
+    }
+
+    val groupKey = com.example.aifloatingball.utils.GroupAvatarCache.makeGroupKey(names, 128)
+    avatarImage.tag = groupKey
+
+    // 先读缓存，避免重复合成
+    com.example.aifloatingball.utils.GroupAvatarCache.getGroupAvatar(groupKey)?.let { cached ->
+        avatarImage.imageTintList = null
+        avatarImage.clearColorFilter()
+        avatarImage.background = null
+        avatarImage.setPadding(0,0,0,0)
+        avatarImage.setImageBitmap(cached)
+        return
+    }
+
+    CoroutineScope(Dispatchers.IO).launch {
+        val bitmaps = mutableListOf<Bitmap>()
+
+        for (member in names.take(9)) {
+            val cachedMember = com.example.aifloatingball.utils.GroupAvatarCache.getMemberIcon(member)
+            val bmp = cachedMember ?: if (member == "临时专线") {
+                BitmapUtils.loadBitmapFromResource(avatarImage.context, R.drawable.ic_temp_ai_bot)
+            } else {
+                loadAIMemberBitmap(member, avatarImage)
+            }
+            if (bmp != null) {
+                bitmaps.add(bmp)
+                if (cachedMember == null) com.example.aifloatingball.utils.GroupAvatarCache.putMemberIcon(member, bmp)
+            }
+        }
+
+        if (bitmaps.isNotEmpty()) {
+            val combined = BitmapUtils.combineAvatarsGrid(bitmaps, 128)
+            com.example.aifloatingball.utils.GroupAvatarCache.putGroupAvatar(groupKey, combined)
+            withContext(Dispatchers.Main) {
+                if (avatarImage.tag == groupKey) {
+                    avatarImage.imageTintList = null
+                    avatarImage.clearColorFilter()
+                    avatarImage.background = null
+                    avatarImage.setPadding(0,0,0,0)
+                    avatarImage.scaleType = ImageView.ScaleType.CENTER_CROP
+                    avatarImage.setImageBitmap(combined)
+                }
+            }
+        } else {
+            withContext(Dispatchers.Main) {
+                if (avatarImage.tag == groupKey) {
+                    avatarImage.setImageResource(R.drawable.ic_group_chat)
+                    avatarImage.imageTintList = null
+                    avatarImage.clearColorFilter()
+                    avatarImage.background = null
+                    avatarImage.setPadding(0,0,0,0)
+                }
+            }
+        }
+    }
+}
+
+private suspend fun loadAIMemberBitmap(memberName: String, imageView: ImageView): Bitmap? {
+    // 1) 优先尝试从已安装应用读取图标
+    try {
+        val pm = imageView.context.packageManager
+        val candidates: List<String>? = when {
+            memberName.contains("DeepSeek", ignoreCase = true) -> listOf(
+                "com.deepseek.chat", "ai.deepseek.app", "com.deepseek.app", "com.deepseek.deepchat"
+            )
+            memberName.contains("ChatGPT", ignoreCase = true) -> listOf("com.openai.chatgpt")
+            memberName.contains("Claude", ignoreCase = true) -> listOf("com.anthropic.claude")
+            memberName.contains("Gemini", ignoreCase = true) -> listOf("com.google.android.apps.gemini")
+            memberName.contains("Kimi", ignoreCase = true) || memberName.contains("月之暗面", ignoreCase = true) -> listOf("com.moonshot.kimichat", "com.moonshot.kimi")
+            memberName.contains("豆包", ignoreCase = true) -> listOf("com.larus.nova")
+            else -> null
+        }
+        val installed = candidates?.firstOrNull { pkg ->
+            try { pm.getPackageInfo(pkg, 0); true } catch (_: Exception) { false }
+        }
+        if (installed != null) {
+            val appIcon = pm.getApplicationIcon(installed)
+            drawableToBitmap(appIcon)?.let { return it }
+        }
+    } catch (_: Exception) { }
+
+    // 2) 网络来源：使用 FaviconLoader 的 AI 引擎图标获取
+    return try {
+        FaviconLoader.getAIEngineBitmap(memberName)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun buildGroupMemberNames(contact: com.example.aifloatingball.model.ChatContact): List<String> {
+    // 1) 优先用显式成员
+    if (!contact.aiMembers.isNullOrEmpty()) return contact.aiMembers
+
+    // 2) 尝试从 customData 的 ai_service_types 恢复
+    val typesStr = contact.customData["ai_service_types"]
+    if (!typesStr.isNullOrBlank()) {
+        val names = typesStr.split(",").mapNotNull { raw ->
+            val key = raw.trim().uppercase()
+            try {
+                val t = com.example.aifloatingball.manager.AIServiceType.valueOf(key)
+                com.example.aifloatingball.utils.AIServiceTypeUtils.getAIDisplayName(t)
+            } catch (_: Exception) { null }
+        }
+        if (names.isNotEmpty()) return names
+    }
+
+    // 3) 从标题解析：群聊（A, B, C）
+    val title = contact.name
+    val start = title.indexOf('（')
+    val end = title.indexOf('）')
+    if (start != -1 && end != -1 && end > start) {
+        return title.substring(start + 1, end)
+            .split(',', '，')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+    return emptyList()
 }
