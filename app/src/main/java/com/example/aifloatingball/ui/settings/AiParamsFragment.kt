@@ -109,13 +109,24 @@ class AiParamsFragment : Fragment() {
                     return
                 }
                 
+                // 设置文字颜色（支持暗色模式）
+                val textColor = ctx.getColor(R.color.ai_assistant_text_primary)
+                inferenceModeDropdown.setTextColor(textColor)
+                codeStyleDropdown.setTextColor(textColor)
+                maxTokensDropdown.setTextColor(textColor)
+                
+                // 设置弹出背景（支持暗色模式）
+                inferenceModeDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+                codeStyleDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+                maxTokensDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+                
                 // 设置推理模式下拉菜单
                 val inferenceModeEntries = resources.getStringArray(R.array.inference_mode_entries)
                 android.util.Log.d("AiParamsFragment", "推理模式选项数量: ${inferenceModeEntries.size}")
                 if (inferenceModeEntries.isNotEmpty()) {
                     val inferenceModeAdapter = ArrayAdapter(
                         ctx,
-                        android.R.layout.simple_dropdown_item_1line,
+                        R.layout.dropdown_item,
                         inferenceModeEntries
                     )
                     inferenceModeDropdown.setAdapter(inferenceModeAdapter)
@@ -133,7 +144,7 @@ class AiParamsFragment : Fragment() {
                 if (codeStyleEntries.isNotEmpty()) {
                     val codeStyleAdapter = ArrayAdapter(
                         ctx,
-                        android.R.layout.simple_dropdown_item_1line,
+                        R.layout.dropdown_item,
                         codeStyleEntries
                     )
                     codeStyleDropdown.setAdapter(codeStyleAdapter)
@@ -151,7 +162,7 @@ class AiParamsFragment : Fragment() {
                 if (maxTokensEntries.isNotEmpty()) {
                     val maxTokensAdapter = ArrayAdapter(
                         ctx,
-                        android.R.layout.simple_dropdown_item_1line,
+                        R.layout.dropdown_item,
                         maxTokensEntries
                     )
                     maxTokensDropdown.setAdapter(maxTokensAdapter)

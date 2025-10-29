@@ -18,6 +18,7 @@
             android:text="基本信息"
             android:textStyle="bold"
             android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"/>
 
         <!-- 性别 -->
@@ -61,6 +62,7 @@
             android:text="职业信息"
             android:textStyle="bold"
             android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp"/>
 
@@ -122,6 +124,7 @@
             android:text="兴趣与偏好"
             android:textStyle="bold"
             android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp"/>
 
@@ -183,6 +186,7 @@
             android:text="观念与取向"
             android:textStyle="bold"
             android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp"/>
 
@@ -227,6 +231,7 @@
             android:text="健康信息"
             android:textStyle="bold"
             android:textSize="16sp"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"
             android:layout_marginTop="8dp"/>
 

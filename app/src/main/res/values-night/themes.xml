@@ -29,6 +29,13 @@
         <item name="colorOnSurfaceInverse">@color/md_theme_dark_inverseOnSurface</item>
         <item name="colorSurfaceInverse">@color/md_theme_dark_inverseSurface</item>
         <item name="colorPrimaryInverse">@color/md_theme_dark_inversePrimary</item>
+        <item name="android:textColorPrimary">@color/md_theme_dark_onSurface</item>
+        <item name="android:textColorSecondary">@color/md_theme_dark_onSurfaceVariant</item>
+
+        <!-- 全局下拉/弹出列表样式（暗色） -->
+        <item name="listPopupWindowStyle">@style/AI.ListPopupWindow</item>
+        <item name="dropDownListViewStyle">@style/AI.DropDownListView</item>
+        <item name="autoCompleteTextViewStyle">@style/AI.AutoComplete</item>
     </style>
 
     <!-- 剪贴板弹窗主题 -->

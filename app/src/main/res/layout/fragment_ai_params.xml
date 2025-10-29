@@ -58,7 +58,10 @@
                     android:hint="@string/thinking_mode_hint"
                     app:helperText="@string/thinking_mode_helper"
                     app:startIconDrawable="@drawable/ic_smart"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+                    style="@style/AIAssistantTextInputLayout"
+                    app:boxStrokeColor="@color/ai_assistant_input_stroke"
+                    app:hintTextColor="@color/ai_assistant_text_hint"
+                    app:boxBackgroundColor="@color/ai_assistant_input_background">
 
                     <AutoCompleteTextView
                         android:id="@+id/inference_mode_dropdown"
@@ -67,7 +70,9 @@
                         android:focusable="false"
                         android:clickable="true"
                         android:inputType="none"
-                        android:completionThreshold="0"/>
+                        android:completionThreshold="0"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:textColorHint="@color/ai_assistant_text_hint"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- 显示思考过程 -->
@@ -149,7 +154,10 @@
                     android:hint="@string/code_style_hint"
                     app:helperText="@string/code_style_helper"
                     app:startIconDrawable="@drawable/ic_code"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+                    style="@style/AIAssistantTextInputLayout"
+                    app:boxStrokeColor="@color/ai_assistant_input_stroke"
+                    app:hintTextColor="@color/ai_assistant_text_hint"
+                    app:boxBackgroundColor="@color/ai_assistant_input_background">
 
                     <AutoCompleteTextView
                         android:id="@+id/code_style_dropdown"
@@ -158,7 +166,9 @@
                         android:focusable="false"
                         android:clickable="true"
                         android:inputType="none"
-                        android:completionThreshold="0"/>
+                        android:completionThreshold="0"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:textColorHint="@color/ai_assistant_text_hint"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>
@@ -364,7 +374,10 @@
                     android:hint="@string/response_length_hint"
                     app:helperText="@string/response_length_helper"
                     app:startIconDrawable="@drawable/ic_article"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+                    style="@style/AIAssistantTextInputLayout"
+                    app:boxStrokeColor="@color/ai_assistant_input_stroke"
+                    app:hintTextColor="@color/ai_assistant_text_hint"
+                    app:boxBackgroundColor="@color/ai_assistant_input_background">
 
                     <AutoCompleteTextView
                         android:id="@+id/max_tokens_dropdown"
@@ -373,7 +386,9 @@
                         android:focusable="false"
                         android:clickable="true"
                         android:inputType="none"
-                        android:completionThreshold="0"/>
+                        android:completionThreshold="0"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:textColorHint="@color/ai_assistant_text_hint"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>

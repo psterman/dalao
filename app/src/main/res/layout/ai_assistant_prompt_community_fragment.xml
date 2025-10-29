@@ -50,7 +50,8 @@
                 android:src="@drawable/ic_search"
                 android:contentDescription="搜索"
                 android:scaleType="fitCenter"
-                android:layout_marginStart="8dp" />
+                android:layout_marginStart="8dp"
+                android:tint="@color/ai_assistant_text_secondary" />
         </LinearLayout>
 
         <!-- 搜索建议下拉列表 -->

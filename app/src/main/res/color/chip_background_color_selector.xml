@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 选中状态：绿色背景 -->
+    <item android:state_checked="true" android:color="@color/ai_assistant_primary" />
+    <!-- 未选中状态：卡片背景色 -->
+    <item android:color="@color/ai_assistant_card_background_light" />
+</selector>
+

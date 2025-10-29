@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜间覆盖：Spinner 和下拉列表背景、文字颜色 -->
+    <style name="SimpleModeSpinner" parent="Widget.AppCompat.Spinner">
+        <item name="android:textColor">@color/md_theme_dark_onSurface</item>
+        <item name="android:background">@color/md_theme_dark_surface</item>
+        <item name="android:popupBackground">@drawable/dropdown_popup_background</item>
+    </style>
+
+    <style name="AI.ListPopupWindow" parent="Widget.AppCompat.ListPopupWindow">
+        <item name="android:popupBackground">@drawable/dropdown_popup_background</item>
+    </style>
+
+    <style name="AI.DropDownListView" parent="Widget.AppCompat.ListView.DropDown">
+        <item name="android:divider">@android:color/transparent</item>
+        <item name="android:dividerHeight">0dp</item>
+        <item name="android:listSelector">@android:color/transparent</item>
+        <item name="android:textColor">@color/md_theme_dark_onSurface</item>
+        <item name="android:background">@color/md_theme_dark_surface</item>
+    </style>
+
+    <!-- 夜间 AutoCompleteTextView 样式 -->
+    <style name="AI.AutoComplete" parent="Widget.AppCompat.AutoCompleteTextView">
+        <item name="android:textColor">@color/md_theme_dark_onSurface</item>
+        <item name="android:textColorHint">@color/md_theme_dark_onSurfaceVariant</item>
+        <item name="android:popupBackground">@drawable/dropdown_popup_background</item>
+        <item name="android:dropDownVerticalOffset">4dp</item>
+        <item name="android:dropDownHorizontalOffset">0dp</item>
+    </style>
+    
+    <!-- AI助手TextInputLayout暗色模式样式覆盖 -->
+    <style name="AIAssistantTextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="boxStrokeColor">@color/ai_assistant_input_stroke</item>
+        <item name="hintTextColor">@color/ai_assistant_text_hint</item>
+        <item name="boxBackgroundColor">@color/ai_assistant_input_background</item>
+        <item name="android:textColorHint">@color/ai_assistant_text_hint</item>
+    </style>
+</resources>

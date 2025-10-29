@@ -108,6 +108,23 @@ class PersonalizationFragment : Fragment() {
     }
 
     private fun setupDropdowns() {
+        val textColor = requireContext().getColor(R.color.ai_assistant_text_primary)
+        
+        // 设置所有AutoCompleteTextView的文字颜色
+        genderDropdown.setTextColor(textColor)
+        ageGroupDropdown.setTextColor(textColor)
+        occupationDropdown.setTextColor(textColor)
+        occupationInterestDropdown.setTextColor(textColor)
+        educationDropdown.setTextColor(textColor)
+        entertainmentDropdown.setTextColor(textColor)
+        shoppingDropdown.setTextColor(textColor)
+        nicheDropdown.setTextColor(textColor)
+        orientationDropdown.setTextColor(textColor)
+        valuesDropdown.setTextColor(textColor)
+        diagnosedDropdown.setTextColor(textColor)
+        dietaryDropdown.setTextColor(textColor)
+        sleepDropdown.setTextColor(textColor)
+        
         // 设置性别选项
         val genders = arrayOf("未设置", "男", "女", "其他")
         genderDropdown.setAdapter(ArrayAdapter(requireContext(), R.layout.dropdown_item, genders))

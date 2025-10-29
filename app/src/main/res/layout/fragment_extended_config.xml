@@ -17,14 +17,19 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:hint="专业领域"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+            style="@style/AIAssistantTextInputLayout"
+            app:boxStrokeColor="@color/ai_assistant_input_stroke"
+            app:hintTextColor="@color/ai_assistant_text_hint"
+            app:boxBackgroundColor="@color/ai_assistant_input_background">
 
             <AutoCompleteTextView
                 android:id="@+id/expertise_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:focusable="false"
-                android:clickable="true"/>
+                android:clickable="true"
+                android:textColor="@color/ai_assistant_text_primary"
+                android:textColorHint="@color/ai_assistant_text_hint"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -33,14 +38,19 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:hint="语言偏好"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+            style="@style/AIAssistantTextInputLayout"
+            app:boxStrokeColor="@color/ai_assistant_input_stroke"
+            app:hintTextColor="@color/ai_assistant_text_hint"
+            app:boxBackgroundColor="@color/ai_assistant_input_background">
 
             <AutoCompleteTextView
                 android:id="@+id/language_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:focusable="false"
-                android:clickable="true"/>
+                android:clickable="true"
+                android:textColor="@color/ai_assistant_text_primary"
+                android:textColorHint="@color/ai_assistant_text_hint"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -49,14 +59,19 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:hint="正式程度"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+            style="@style/AIAssistantTextInputLayout"
+            app:boxStrokeColor="@color/ai_assistant_input_stroke"
+            app:hintTextColor="@color/ai_assistant_text_hint"
+            app:boxBackgroundColor="@color/ai_assistant_input_background">
 
             <AutoCompleteTextView
                 android:id="@+id/formality_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:focusable="false"
-                android:clickable="true"/>
+                android:clickable="true"
+                android:textColor="@color/ai_assistant_text_primary"
+                android:textColorHint="@color/ai_assistant_text_hint"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -65,20 +80,26 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:hint="回复长度"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+            style="@style/AIAssistantTextInputLayout"
+            app:boxStrokeColor="@color/ai_assistant_input_stroke"
+            app:hintTextColor="@color/ai_assistant_text_hint"
+            app:boxBackgroundColor="@color/ai_assistant_input_background">
 
             <AutoCompleteTextView
                 android:id="@+id/response_length_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:focusable="false"
-                android:clickable="true"/>
+                android:clickable="true"
+                android:textColor="@color/ai_assistant_text_primary"
+                android:textColorHint="@color/ai_assistant_text_hint"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="创造性水平"
+            android:textColor="@color/ai_assistant_text_primary"
             android:layout_marginBottom="8dp"/>
 
         <LinearLayout
@@ -99,7 +120,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                android:text="5"/>
+                android:text="5"
+                android:textColor="@color/ai_assistant_text_primary"/>
         </LinearLayout>
 
     </LinearLayout>

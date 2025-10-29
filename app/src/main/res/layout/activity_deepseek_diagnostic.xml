@@ -14,7 +14,7 @@
         android:background="@color/simple_mode_toolbar_background_light"
         android:elevation="4dp"
         android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
+        app:popupTheme="@style/ThemeOverlay.Material3.Dark" />
 
     <!-- 主内容区域 -->
     <ScrollView

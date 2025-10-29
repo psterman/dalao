@@ -495,7 +495,9 @@
     
     <!-- 标签颜色 - 暗色模式 -->
     <color name="ai_assistant_tab_selected">#10D876</color>
-    <color name="ai_assistant_tab_unselected">#888888</color>
+    <color name="ai_assistant_tab_unselected">#B8B8B8</color>
+    <color name="ai_assistant_tab_background">#1E1E1E</color>
+    <color name="ai_assistant_primary_container_light">#1A2E1A</color>
     
     <!-- 边框和分割线 - 暗色模式 -->
     <color name="ai_assistant_border">#404040</color>
@@ -522,5 +524,8 @@
     
     <!-- 卡片背景 - 暗色模式 -->
     <color name="ai_assistant_card_background">#1E1E1E</color>
+    
+    <!-- Prompt社区卡片背景颜色 - 暗色模式 -->
+    <color name="ai_assistant_card_background_light">#1E1E1E</color>
 
 </resources>

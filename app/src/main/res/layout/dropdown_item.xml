@@ -3,9 +3,11 @@
     android:id="@android:id/text1"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:minHeight="48dp"
     android:padding="16dp"
+    android:gravity="center_vertical"
     android:ellipsize="end"
     android:maxLines="1"
     android:textAppearance="?attr/textAppearanceSubtitle1"
-    android:textColor="@color/simple_mode_text_primary_light"
-    android:background="?attr/selectableItemBackground" />
+    android:textColor="@color/ai_assistant_text_primary"
+    android:background="@drawable/dropdown_item_background" />

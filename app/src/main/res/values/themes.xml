@@ -44,6 +44,11 @@
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
         <item name="icon_tint_color">@color/icon_tint_light_theme</item>
 
+        <!-- 全局下拉/弹出列表样式（亮色） -->
+        <item name="listPopupWindowStyle">@style/AI.ListPopupWindow</item>
+        <item name="dropDownListViewStyle">@style/AI.DropDownListView</item>
+        <item name="autoCompleteTextViewStyle">@style/AI.AutoComplete</item>
+
         <!-- Explicitly define container colors for selection states -->
         <item name="colorPrimaryContainer">@color/purple_200</item>
         <item name="colorOnPrimaryContainer">@color/black</item>

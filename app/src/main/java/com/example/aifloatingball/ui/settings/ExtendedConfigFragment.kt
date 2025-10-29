@@ -76,10 +76,24 @@ class ExtendedConfigFragment : Fragment() {
     
     private fun setupDropdowns() {
         context?.let { ctx ->
+            val textColor = ctx.getColor(R.color.ai_assistant_text_primary)
+            
+            // 设置AutoCompleteTextView的文字颜色
+            expertiseDropdown.setTextColor(textColor)
+            languageDropdown.setTextColor(textColor)
+            formalityDropdown.setTextColor(textColor)
+            responseLengthDropdown.setTextColor(textColor)
+            
+            // 设置弹出背景（支持暗色模式）
+            expertiseDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+            languageDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+            formalityDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+            responseLengthDropdown.setDropDownBackgroundResource(R.drawable.dropdown_popup_background)
+            
             // 设置专业领域下拉菜单
             val expertiseAdapter = ArrayAdapter(
                 ctx,
-                android.R.layout.simple_dropdown_item_1line,
+                R.layout.dropdown_item,
                 resources.getStringArray(R.array.expertise_entries)
             )
             expertiseDropdown.setAdapter(expertiseAdapter)
@@ -87,7 +101,7 @@ class ExtendedConfigFragment : Fragment() {
             // 设置语言偏好下拉菜单
             val languageAdapter = ArrayAdapter(
                 ctx,
-                android.R.layout.simple_dropdown_item_1line,
+                R.layout.dropdown_item,
                 resources.getStringArray(R.array.language_entries)
             )
             languageDropdown.setAdapter(languageAdapter)
@@ -95,7 +109,7 @@ class ExtendedConfigFragment : Fragment() {
             // 设置正式程度下拉菜单
             val formalityAdapter = ArrayAdapter(
                 ctx,
-                android.R.layout.simple_dropdown_item_1line,
+                R.layout.dropdown_item,
                 resources.getStringArray(R.array.formality_entries)
             )
             formalityDropdown.setAdapter(formalityAdapter)
@@ -103,7 +117,7 @@ class ExtendedConfigFragment : Fragment() {
             // 设置回复长度下拉菜单
             val responseLengthAdapter = ArrayAdapter(
                 ctx,
-                android.R.layout.simple_dropdown_item_1line,
+                R.layout.dropdown_item,
                 resources.getStringArray(R.array.response_length_entries)
             )
             responseLengthDropdown.setAdapter(responseLengthAdapter)

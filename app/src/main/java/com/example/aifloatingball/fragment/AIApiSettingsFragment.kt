@@ -2,6 +2,7 @@ package com.example.aifloatingball.fragment
 
 import android.content.Context
 import android.os.Bundle
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -20,12 +21,123 @@ class AIApiSettingsFragment : PreferenceFragmentCompat() {
     
     private lateinit var settingsManager: SettingsManager
     
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        // 应用主题以支持暗色模式
+        val contextThemeWrapper = ContextThemeWrapper(requireContext(), R.style.PreferenceTheme)
+        val themedInflater = inflater.cloneInContext(contextThemeWrapper)
+        val view = super.onCreateView(themedInflater, container, savedInstanceState)
+        
+        // 设置背景色
+        view?.setBackgroundColor(requireContext().getColor(R.color.ai_assistant_center_background_light))
+        
+        return view
+    }
+    
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        // 在view创建后设置文字颜色
+        view.post {
+            applyDarkModeTextColors()
+        }
+    }
+    
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.ai_api_preferences, rootKey)
         settingsManager = SettingsManager.getInstance(requireContext())
         
         // 设置API密钥的监听器
         setupApiKeyListeners()
+    }
+    
+    /**
+     * 应用暗色模式文字颜色
+     */
+    private fun applyDarkModeTextColors() {
+        val textPrimaryColor = requireContext().getColor(R.color.ai_assistant_text_primary)
+        val textSecondaryColor = requireContext().getColor(R.color.ai_assistant_text_secondary)
+        
+        // 获取RecyclerView（PreferenceFragment使用RecyclerView）
+        val recyclerView = view?.findViewById<androidx.recyclerview.widget.RecyclerView>(androidx.preference.R.id.recycler_view)
+        if (recyclerView != null) {
+            // 遍历所有可见的item
+            for (i in 0 until recyclerView.childCount) {
+                val itemView = recyclerView.getChildAt(i)
+                applyTextColorsToView(itemView, textPrimaryColor, textSecondaryColor)
+            }
+            
+            // 监听RecyclerView的滚动，为动态加载的item设置颜色
+            recyclerView.addOnScrollListener(object : androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: androidx.recyclerview.widget.RecyclerView, dx: Int, dy: Int) {
+                    super.onScrolled(recyclerView, dx, dy)
+                    for (i in 0 until recyclerView.childCount) {
+                        val itemView = recyclerView.getChildAt(i)
+                        applyTextColorsToView(itemView, textPrimaryColor, textSecondaryColor)
+                    }
+                }
+            })
+            
+            // 监听Adapter数据变化
+            recyclerView.adapter?.registerAdapterDataObserver(object : androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
+                override fun onChanged() {
+                    super.onChanged()
+                    for (i in 0 until recyclerView.childCount) {
+                        val itemView = recyclerView.getChildAt(i)
+                        applyTextColorsToView(itemView, textPrimaryColor, textSecondaryColor)
+                    }
+                }
+                
+                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                    super.onItemRangeInserted(positionStart, itemCount)
+                    for (i in 0 until recyclerView.childCount) {
+                        val itemView = recyclerView.getChildAt(i)
+                        applyTextColorsToView(itemView, textPrimaryColor, textSecondaryColor)
+                    }
+                }
+            })
+        }
+    }
+    
+    /**
+     * 递归查找并设置View中的TextView文字颜色
+     */
+    private fun applyTextColorsToView(view: View, primaryColor: Int, secondaryColor: Int) {
+        if (view is android.widget.TextView) {
+            // 根据TextView的资源ID判断类型
+            val resourceName = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    view.context.resources.getResourceEntryName(view.id)
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
+                null
+            }
+            
+            // 判断是否是标题或摘要
+            when {
+                resourceName?.contains("title", ignoreCase = true) == true -> {
+                    view.setTextColor(primaryColor)
+                }
+                resourceName?.contains("summary", ignoreCase = true) == true -> {
+                    view.setTextColor(secondaryColor)
+                }
+                else -> {
+                    // 根据文字大小判断
+                    val textSize = view.textSize / view.context.resources.displayMetrics.scaledDensity
+                    val isBold = view.typeface?.isBold ?: false
+                    if (textSize >= 16 || isBold) {
+                        view.setTextColor(primaryColor)
+                    } else if (textSize >= 14) {
+                        view.setTextColor(secondaryColor)
+                    }
+                }
+            }
+        } else if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                applyTextColorsToView(view.getChildAt(i), primaryColor, secondaryColor)
+            }
+        }
     }
     
     private fun setupApiKeyListeners() {

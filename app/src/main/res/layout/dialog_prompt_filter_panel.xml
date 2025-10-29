@@ -43,7 +43,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:background="@color/ai_assistant_background_light">
+        android:background="@color/ai_assistant_card_background_light">
 
         <TextView
             android:layout_width="wrap_content"
