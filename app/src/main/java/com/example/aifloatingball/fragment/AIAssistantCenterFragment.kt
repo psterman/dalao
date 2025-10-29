@@ -848,30 +848,67 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun showPromptDetail(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        // 检测当前是否为暗色模式
+        val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        
+        // 使用适合的主题
+        val dialogTheme = if (isDarkMode) {
+            R.style.Theme_MaterialDialog
+        } else {
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog
+        }
+        
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(requireContext(), dialogTheme)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(themedContext)
             .setTitle(prompt.title)
             .setMessage(prompt.content)
-            .setPositiveButton("使用此Prompt") { _, _ ->
+            .setPositiveButton("使用此提示词") { _, _ ->
                 usePrompt(prompt)
             }
             .setNegativeButton("关闭", null)
             .create()
+        
+        // 应用暗色模式样式
+        dialog.setOnShowListener {
+            val title = dialog.findViewById<android.widget.TextView>(androidx.appcompat.R.id.alertTitle)
+            val message = dialog.findViewById<android.widget.TextView>(android.R.id.message)
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 获取当前主题颜色
+            val textColor = androidx.core.content.ContextCompat.getColor(requireContext(), R.color.ai_assistant_text_primary)
+            
+            // 设置文字颜色
+            title?.setTextColor(textColor)
+            message?.setTextColor(textColor)
+            positiveButton?.setTextColor(textColor)
+            negativeButton?.setTextColor(textColor)
+            
+            // 设置对话框窗口背景和样式（Material Dialog样式自动支持暗色模式）
+            if (isDarkMode) {
+                dialog.window?.let { window ->
+                    window.setBackgroundDrawableResource(R.drawable.material_dialog_background_v2)
+                }
+            }
+        }
+        
         dialog.show()
     }
     
     private fun usePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
-        android.widget.Toast.makeText(requireContext(), "Prompt已应用", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(requireContext(), "提示词已应用", android.widget.Toast.LENGTH_SHORT).show()
     }
     
     private fun sharePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
-        val shareText = "分享Prompt：${prompt.title}\n\n${prompt.content}\n\n来自Prompt社区"
+        val shareText = "分享提示词：${prompt.title}\n\n${prompt.content}\n\n来自提示词社区"
         
         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(android.content.Intent.EXTRA_TEXT, shareText)
         }
         
-        val chooser = android.content.Intent.createChooser(shareIntent, "分享Prompt")
+        val chooser = android.content.Intent.createChooser(shareIntent, "分享提示词")
         startActivity(chooser)
     }
     
@@ -1257,7 +1294,7 @@ class TaskFragment : AIAssistantCenterFragment() {
         
         if (results.isEmpty()) {
             // 更新空状态文字
-            emptyStateTitle.text = "未找到与「$query」相关的Prompt"
+            emptyStateTitle.text = "未找到与「$query」相关的提示词"
             android.util.Log.d("TaskFragment", "搜索「$query」未找到结果")
         } else {
             android.util.Log.d("TaskFragment", "搜索「$query」找到 ${results.size} 个结果")

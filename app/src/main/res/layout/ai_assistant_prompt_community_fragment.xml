@@ -134,7 +134,7 @@
             android:id="@+id/empty_state_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="暂无相关 Prompt"
+            android:text="暂无相关提示词"
             android:textSize="16sp"
             android:textColor="@color/ai_assistant_text_primary"
             android:textStyle="bold"
