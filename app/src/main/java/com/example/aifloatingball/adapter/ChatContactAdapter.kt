@@ -11,6 +11,7 @@ import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.utils.PlatformIconLoader
 import com.google.android.material.card.MaterialCardView
 import java.text.SimpleDateFormat
 import java.util.*
@@ -256,28 +257,19 @@ class ChatContactAdapter(
             // 设置头像
             when (contact.type) {
                 ContactType.AI -> {
-                    // 检查是否是临时专线或群讨论，使用软件logo
                     val contactName = contact.name
+                    
+                    // 临时专线使用Material风格的首字母L图标
                     if (contactName == "临时专线") {
-                        // 临时专线使用软件logo
-                        avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
+                        avatarImage.setImageResource(R.drawable.ic_temp_ai_letter_l)
                         avatarImage.clearColorFilter()
                     } else {
-                        // 清除tint以显示真实图标颜色
-                        avatarImage.clearColorFilter()
-
-                        // 使用FaviconLoader加载AI助手的头像
-                        val apiUrl = contact.customData["api_url"] ?: ""
-                        if (apiUrl.isNotEmpty()) {
-                            FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_smart_toy)
-                        } else {
-                            // 如果没有API URL，尝试根据AI名称加载图标
-                            FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_smart_toy)
-                        }
+                        // 使用PlatformIconLoader加载AI应用图标，与软件tab保持一致
+                        PlatformIconLoader.loadPlatformIcon(avatarImage, contactName, avatarImage.context)
                     }
                 }
                 ContactType.GROUP -> {
-                    // 群讨论使用软件logo
+                    // 群聊使用默认图标
                     avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
                     avatarImage.clearColorFilter()
                 }

@@ -193,6 +193,20 @@ object FaviconLoader {
     }
     
     /**
+     * 获取AI引擎图标的Bitmap（公开方法）
+     */
+    suspend fun getAIEngineBitmap(engineName: String): Bitmap? {
+        return loadAIEngineIconFromUrl(engineName)
+    }
+    
+    /**
+     * 下载Bitmap（公开方法）
+     */
+    suspend fun downloadFavicon(url: String): Bitmap? {
+        return downloadBitmap(url)
+    }
+    
+    /**
      * 下载Bitmap
      * 支持Google favicon服务、PNG、ICO等多种格式
      */

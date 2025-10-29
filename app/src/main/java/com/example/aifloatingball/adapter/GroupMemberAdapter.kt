@@ -60,11 +60,20 @@ class GroupMemberAdapter(
             memberName.text = member.name
             
             // 设置AI头像
-            val apiUrl = member.customData["api_url"] ?: ""
-            if (apiUrl.isNotEmpty()) {
-                FaviconLoader.loadIcon(memberAvatar, apiUrl, R.drawable.ic_smart_toy)
-            } else {
-                FaviconLoader.loadAIEngineIcon(memberAvatar, member.name, R.drawable.ic_smart_toy)
+            // 临时专线使用Material风格的首字母L图标
+            when {
+                member.name == "临时专线" -> {
+                    memberAvatar.setImageResource(R.drawable.ic_temp_ai_letter_l)
+                    memberAvatar.clearColorFilter()
+                }
+                else -> {
+                    val apiUrl = member.customData["api_url"] ?: ""
+                    if (apiUrl.isNotEmpty()) {
+                        FaviconLoader.loadIcon(memberAvatar, apiUrl, R.drawable.ic_smart_toy)
+                    } else {
+                        FaviconLoader.loadAIEngineIcon(memberAvatar, member.name, R.drawable.ic_smart_toy)
+                    }
+                }
             }
 
             // 检查API配置状态

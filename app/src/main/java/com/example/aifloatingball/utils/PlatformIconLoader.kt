@@ -138,6 +138,9 @@ object PlatformIconLoader {
         // 检查内存缓存
         val cachedBitmap = memoryCache.get(cacheKey)
         if (cachedBitmap != null) {
+            // 使用缓存图标时移除 tint，避免绿色覆盖
+            imageView.imageTintList = null
+            imageView.clearColorFilter()
             imageView.setImageBitmap(cachedBitmap)
             return
         }
@@ -215,6 +218,8 @@ object PlatformIconLoader {
                         if (bitmap != null) {
                             memoryCache.put(cacheKey, bitmap)
                             if (imageView.tag == cacheKey) {
+                                imageView.imageTintList = null
+                                imageView.clearColorFilter()
                                 imageView.setImageBitmap(bitmap)
                             }
                         }
@@ -225,6 +230,8 @@ object PlatformIconLoader {
                             val scaledBitmap = scaleBitmap(bitmap, 144)
                             memoryCache.put(cacheKey, scaledBitmap)
                             if (imageView.tag == cacheKey) {
+                                imageView.imageTintList = null
+                                imageView.clearColorFilter()
                                 imageView.setImageBitmap(scaledBitmap)
                             }
                         }
@@ -321,7 +328,26 @@ object PlatformIconLoader {
             return packageName
         }
         
-        // 检查AI应用
+        // DeepSeek 优先：尝试多候选包名，返回第一个已安装的
+        if (appName.contains("DeepSeek", ignoreCase = true)) {
+            try {
+                val pm = context.packageManager
+                val candidates = listOf(
+                    "com.deepseek.chat",
+                    "ai.deepseek.app",
+                    "com.deepseek.app",
+                    "com.deepseek.deepchat"
+                )
+                for (pkg in candidates) {
+                    try {
+                        pm.getPackageInfo(pkg, 0)
+                        return pkg
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) { }
+        }
+
+        // 检查AI应用映射
         aiAppPackages[appName]?.let { packageName ->
             return packageName
         }
@@ -333,7 +359,15 @@ object PlatformIconLoader {
             
             for (packageInfo in installedPackages) {
                 val label = packageManager.getApplicationLabel(packageInfo.applicationInfo).toString()
-                if (label == appName) {
+                val nameMatch = label.equals(appName, ignoreCase = true) ||
+                        label.contains(appName, ignoreCase = true) ||
+                        appName.contains(label, ignoreCase = true)
+                if (nameMatch) {
+                    return packageInfo.packageName
+                }
+                // 名称不完全匹配时，根据关键字匹配包名（如 deepseek 等）
+                if (appName.contains("DeepSeek", ignoreCase = true) &&
+                    packageInfo.packageName.contains("deepseek", ignoreCase = true)) {
                     return packageInfo.packageName
                 }
             }
@@ -385,6 +419,9 @@ object PlatformIconLoader {
             // 根据应用名称生成对应的网站URL
             val websiteUrl = generateWebsiteUrl(appName)
             if (websiteUrl != null) {
+                // 使用网站图标前移除 tint，避免颜色被覆盖
+                imageView.imageTintList = null
+                imageView.clearColorFilter()
                 FaviconLoader.loadFavicon(imageView, websiteUrl)
                 Log.d(TAG, "Using FaviconLoader for $appName: $websiteUrl")
             } else {

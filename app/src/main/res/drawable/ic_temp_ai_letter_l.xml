@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Material Design风格的大写字母L -->
+    <!-- L的竖笔 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,5v-1h-2v16h2V5z"/>
+    <!-- L的横笔 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,19h8v-2H7v2z"/>
+</vector>
+

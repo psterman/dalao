@@ -8,7 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.ChatContact
-import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.utils.PlatformIconLoader
 import com.google.android.material.button.MaterialButton
 
 class AIContactListAdapter(
@@ -52,66 +52,15 @@ class AIContactListAdapter(
             val contactName = contact.name
             val contactNameLower = contact.name.lowercase()
             
-            // 临时专线使用软件logo
+            // 临时专线使用Material风格的首字母L图标
             if (contactName == "临时专线") {
-                avatarImage.setImageResource(R.drawable.ic_launcher_foreground)
+                avatarImage.setImageResource(R.drawable.ic_temp_ai_letter_l)
+                avatarImage.clearColorFilter()
                 return
             }
             
-            when {
-                contactNameLower.contains("chatgpt") || contactNameLower.contains("gpt") -> 
-                    avatarImage.setImageResource(R.drawable.ic_chatgpt)
-                contactNameLower.contains("claude") -> 
-                    avatarImage.setImageResource(R.drawable.ic_claude)
-                contactNameLower.contains("gemini") -> 
-                    avatarImage.setImageResource(R.drawable.ic_gemini)
-                contactNameLower.contains("文心一言") || contactNameLower.contains("wenxin") -> 
-                    avatarImage.setImageResource(R.drawable.ic_wenxin)
-                contactNameLower.contains("deepseek") -> 
-                    avatarImage.setImageResource(R.drawable.ic_deepseek)
-                contactNameLower.contains("通义千问") || contactNameLower.contains("qianwen") -> 
-                    avatarImage.setImageResource(R.drawable.ic_qianwen)
-                contactNameLower.contains("讯飞星火") || contactNameLower.contains("xinghuo") -> 
-avatarImage.setImageResource(R.drawable.ic_xinghuo)
-                contactNameLower.contains("kimi") -> 
-                    avatarImage.setImageResource(R.drawable.ic_kimi)
-                contactNameLower.contains("智谱") || contactNameLower.contains("zhipu") || contactNameLower.contains("glm") -> 
-                    avatarImage.setImageResource(R.drawable.ic_zhipu)
-                contactNameLower.contains("月之暗面") || contactNameLower.contains("moonshot") -> 
-                    avatarImage.setImageResource(R.drawable.ic_kimi)
-                contactNameLower.contains("豆包") || contactNameLower.contains("doubao") -> 
-                    avatarImage.setImageResource(R.drawable.ic_doubao)
-                contactNameLower.contains("腾讯混元") || contactNameLower.contains("hunyuan") -> 
-                    avatarImage.setImageResource(R.drawable.ic_default_ai)
-                contactNameLower.contains("百川") || contactNameLower.contains("baichuan") -> 
-                    avatarImage.setImageResource(R.drawable.ic_default_ai)
-                contactNameLower.contains("minimax") -> 
-                    avatarImage.setImageResource(R.drawable.ic_default_ai)
-                else -> {
-                    // 优先使用FaviconLoader根据API URL加载图标
-                    val apiUrl = contact.customData["api_url"]
-                    if (!apiUrl.isNullOrEmpty()) {
-                        try {
-                            FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_default_ai)
-                            return
-                        } catch (e: Exception) {
-                            // 如果favicon加载失败，使用AI引擎图标加载
-                            try {
-                                FaviconLoader.loadAIEngineIcon(avatarImage, contactName, R.drawable.ic_default_ai)
-                            } catch (e2: Exception) {
-                                avatarImage.setImageResource(R.drawable.ic_default_ai)
-                            }
-                        }
-                    } else {
-                        // 如果没有API URL，尝试根据AI名称加载图标
-                        try {
-                            FaviconLoader.loadAIEngineIcon(avatarImage, contactName, R.drawable.ic_default_ai)
-                        } catch (e: Exception) {
-                            avatarImage.setImageResource(R.drawable.ic_default_ai)
-                        }
-                    }
-                }
-            }
+            // 使用PlatformIconLoader加载AI应用图标，与软件tab保持一致
+            PlatformIconLoader.loadPlatformIcon(avatarImage, contactName, avatarImage.context)
 
             // 设置AI分组标签 - 始终显示
             val groupTag = getAIGroupTag(contact.name)
@@ -160,6 +109,7 @@ avatarImage.setImageResource(R.drawable.ic_xinghuo)
             }
         }
 
+        
         /**
          * 获取AI分组标签
          */

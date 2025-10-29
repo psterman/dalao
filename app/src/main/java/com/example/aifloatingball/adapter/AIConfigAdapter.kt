@@ -55,10 +55,11 @@ class AIConfigAdapter(
         }
         
         // 设置图标
-        // 临时专线使用软件logo
+        // 临时专线使用Material风格的首字母L图标
         if (item.name == "临时专线") {
             holder.iconImageView.tag = null
-            holder.iconImageView.setImageResource(R.drawable.ic_launcher_foreground)
+            holder.iconImageView.setImageResource(R.drawable.ic_temp_ai_letter_l)
+            holder.iconImageView.clearColorFilter()
         } else {
             // 品牌一致性：优先根据引擎名称由 FaviconLoader 映射到官网域名图标
             // 仅在自定义AI没有匹配映射时回退到其提供的 URL
