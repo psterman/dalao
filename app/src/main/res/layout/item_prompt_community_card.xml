@@ -3,18 +3,18 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="8dp"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="4dp"
     android:foreground="?attr/selectableItemBackground"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
     app:cardBackgroundColor="@color/ai_assistant_card_background_light">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="12dp">
 
         <!-- 标题和作者信息 -->
         <LinearLayout
@@ -34,7 +34,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Prompt标题"
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/ai_assistant_text_primary"
                     android:maxLines="2"
@@ -44,21 +44,21 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:layout_marginTop="4dp">
+                    android:layout_marginTop="2dp">
 
                     <TextView
                         android:id="@+id/prompt_author_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@匿名用户"
-                        android:textSize="12sp"
+                        android:textSize="11sp"
                         android:textColor="@color/ai_assistant_text_secondary" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text=" · "
-                        android:textSize="12sp"
+                        android:textSize="11sp"
                         android:textColor="@color/ai_assistant_text_secondary" />
 
                     <TextView
@@ -66,7 +66,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="刚刚"
-                        android:textSize="12sp"
+                        android:textSize="11sp"
                         android:textColor="@color/ai_assistant_text_secondary" />
                 </LinearLayout>
             </LinearLayout>
@@ -91,11 +91,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Prompt预览内容..."
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textColor="@color/ai_assistant_text_primary"
-            android:maxLines="3"
+            android:maxLines="2"
             android:ellipsize="end"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="6dp" />
 
         <!-- 标签区域 -->
         <TextView
@@ -103,9 +103,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="#标签1 #标签2"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textColor="@color/ai_assistant_primary"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="0dp"
             android:maxLines="1"
             android:ellipsize="end" />
 

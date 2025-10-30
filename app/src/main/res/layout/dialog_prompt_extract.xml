@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 描述文本 -->
+    <TextView
+        android:id="@+id/prompt_description"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textColor="@color/ai_assistant_text_secondary"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Prompt内容预览 -->
+    <TextView
+        android:id="@+id/prompt_content"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:textColor="@color/ai_assistant_text_primary"
+        android:background="@color/ai_assistant_card_background_light"
+        android:padding="12dp"
+        android:layout_marginBottom="12dp"
+        android:maxLines="5"
+        android:ellipsize="end" />
+
+    <!-- 可编辑的Prompt输入框 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:hintEnabled="true"
+        android:hint="编辑提示词（可选）">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/prompt_edit_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="120dp"
+            android:gravity="top|start"
+            android:inputType="textMultiLine"
+            android:maxLines="10"
+            android:textSize="14sp" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+</LinearLayout>
+

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/ai_assistant_center_background_light">
+
+    <!-- 左侧：Prompt任务场景分类 -->
+    <LinearLayout
+        android:layout_width="100dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/ai_assistant_card_background_light"
+        android:layout_marginEnd="4dp">
+
+        <!-- 左侧标题 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="任务场景"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/ai_assistant_text_primary" />
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/ai_assistant_text_secondary"
+                android:contentDescription="搜索场景" />
+        </LinearLayout>
+
+        <!-- 场景分类列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/task_scenario_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:padding="8dp" />
+
+    </LinearLayout>
+
+    <!-- 右侧：对应场景分类中的Prompt列表 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="2"
+        android:orientation="vertical"
+        android:background="@color/ai_assistant_center_background_light"
+        android:layout_marginStart="4dp">
+
+        <!-- 右侧标题和操作栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/ai_assistant_card_background_light"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
+
+            <!-- 标题行 -->
+            <TextView
+                android:id="@+id/selected_scenario_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="选择场景查看提示词"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/ai_assistant_text_primary"
+                android:layout_marginBottom="8dp" />
+
+            <!-- 功能按钮行 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageButton
+                    android:id="@+id/prompt_favorite_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_favorite_border"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/ai_assistant_text_secondary"
+                    android:contentDescription="收藏"
+                    android:layout_marginEnd="4dp" />
+
+                <ImageButton
+                    android:id="@+id/prompt_edit_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_edit"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/ai_assistant_text_secondary"
+                    android:contentDescription="编辑"
+                    android:layout_marginEnd="4dp" />
+
+                <ImageButton
+                    android:id="@+id/prompt_add_category_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_add"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/ai_assistant_text_secondary"
+                    android:contentDescription="新增分类"
+                    android:layout_marginEnd="4dp" />
+
+                <ImageButton
+                    android:id="@+id/prompt_search_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_search"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/ai_assistant_text_secondary"
+                    android:contentDescription="搜索"
+                    android:layout_marginEnd="4dp" />
+
+                <ImageButton
+                    android:id="@+id/prompt_filter_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_filter"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/ai_assistant_text_secondary"
+                    android:contentDescription="过滤"
+                    android:layout_marginEnd="4dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Prompt内容列表 -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/prompt_swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/prompt_content_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="8dp" />
+
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <!-- 空状态提示 -->
+        <LinearLayout
+            android:id="@+id/prompt_empty_state"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone"
+            android:padding="32dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📝"
+                android:textSize="48sp"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="请选择左侧场景查看提示词"
+                android:textSize="16sp"
+                android:textColor="@color/ai_assistant_text_secondary"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>
+

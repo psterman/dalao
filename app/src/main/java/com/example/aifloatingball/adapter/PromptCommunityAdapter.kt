@@ -42,6 +42,13 @@ class PromptCommunityAdapter(
         prompts = newPrompts
         notifyDataSetChanged()
     }
+    
+    /**
+     * 获取当前的Prompt列表
+     */
+    fun getCurrentPrompts(): List<PromptCommunityItem> {
+        return prompts
+    }
 
     inner class PromptViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val titleText: TextView = itemView.findViewById(R.id.prompt_title_text)
