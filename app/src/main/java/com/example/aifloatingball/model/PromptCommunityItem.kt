@@ -44,11 +44,23 @@ enum class PromptCategory(
     CREATIVE_WRITING("文案创作", "✏️", false),
     DATA_ANALYSIS("数据分析", "📊", false),
     TRANSLATION_CONVERSION("翻译转换", "🌐", false),
+    CODE_ASSISTANT("编程开发", "🧑‍💻", false),
+    SEO_MARKETING("营销推广", "📣", false),
+    PRODUCT_DOCS("产品文档", "📄", false),
+    CUSTOMER_SUPPORT("客服回复", "🎧", false),
+    IMAGE_GENERATION("图像生成", "🖼️", false),
+    AUDIO_VIDEO("音视频处理", "🎬", false),
+    LEGAL_ADVICE("法律咨询", "⚖️", false),
+    MEDICAL_HEALTH("医疗健康", "🩺", false),
+    FINANCE_ANALYSIS("财务分析", "💹", false),
     
     // 高频场景子分类
     WORKPLACE_OFFICE("职场办公", "💼", false),
     EDUCATION_STUDY("教育学习", "📚", false),
     LIFE_SERVICE("生活服务", "🏠", false),
+    SOCIAL_MEDIA("社媒内容", "💬", false),
+    ECOMMERCE("电商运营", "🛒", false),
+    RESUME_INTERVIEW("简历面试", "📝", false),
     
     // 热门推荐子分类
     TOP10_WEEK("本周TOP10", "🏆", false),

@@ -76,37 +76,18 @@ class PromptCommunityAdapter(
             // 显示标签
             tagsText.text = prompt.tags.joinToString(" ") { "#$it" }
             
-            // 更新点赞状态
-            updateLikeState(prompt)
-            
-            // 更新收藏状态
-            updateCollectState(prompt)
-            
-            // 设置数量
-            likeCountText.text = prompt.likeCount.toString()
-            collectCountText.text = prompt.collectCount.toString()
-            commentCountText.text = prompt.commentCount.toString()
+            // 隐藏社交相关（布局中已 GONE，这里避免不必要的状态设置）
+            likeButton.visibility = View.GONE
+            collectButton.visibility = View.GONE
+            commentButton.visibility = View.GONE
+            shareButton.visibility = View.GONE
             
             // 设置点击事件
             itemView.setOnClickListener {
                 onItemClick(prompt)
             }
             
-            likeButton.setOnClickListener {
-                onLikeClick(prompt)
-            }
-            
-            collectButton.setOnClickListener {
-                onCollectClick(prompt)
-            }
-            
-            commentButton.setOnClickListener {
-                onCommentClick(prompt)
-            }
-            
-            shareButton.setOnClickListener {
-                onShareClick(prompt)
-            }
+            // 社交操作暂不启用
         }
         
         private fun updateLikeState(prompt: PromptCommunityItem) {

@@ -3662,6 +3662,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         try {
             val autoSendMessage = intent.getStringExtra("auto_send_message")
             val activateInputOnly = intent.getBooleanExtra("activate_input_only", false)
+            val prefillMessage = intent.getStringExtra("prefill_message")
             val source = intent.getStringExtra("source")
 
             if (!autoSendMessage.isNullOrEmpty()) {
@@ -3680,6 +3681,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         Toast.makeText(this, "来自桌面小组件的搜索", Toast.LENGTH_SHORT).show()
                     }
                 }, 500)
+            } else if (!prefillMessage.isNullOrEmpty()) {
+                Log.d(TAG, "收到预填消息请求: message='$prefillMessage', source='$source'")
+                messageInput.postDelayed({
+                    messageInput.setText(prefillMessage)
+                    messageInput.setSelection(prefillMessage.length)
+                }, 300)
             } else if (activateInputOnly) {
                 Log.d(TAG, "收到激活输入状态请求: source='$source'")
 

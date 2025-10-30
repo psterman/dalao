@@ -828,7 +828,7 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun onPromptItemClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
-        showPromptDetail(prompt)
+        showPromptQuickActions(prompt)
     }
     
     private fun onPromptLikeClick(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
@@ -897,7 +897,58 @@ class TaskFragment : AIAssistantCenterFragment() {
     }
     
     private fun usePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
-        android.widget.Toast.makeText(requireContext(), "提示词已应用", android.widget.Toast.LENGTH_SHORT).show()
+        showPromptQuickActions(prompt)
+    }
+
+    private fun showPromptQuickActions(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        val options = arrayOf("复制到剪贴板", "用于聊天输入", "编辑后使用")
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(prompt.title)
+            .setItems(options) { dialog, which ->
+                when (which) {
+                    0 -> copyPromptToClipboard(prompt)
+                    1 -> prefillChatWithPrompt(prompt.content)
+                    2 -> editPromptThenUse(prompt)
+                }
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun copyPromptToClipboard(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("Prompt", prompt.content)
+        clipboard.setPrimaryClip(clip)
+        android.widget.Toast.makeText(requireContext(), "已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private fun prefillChatWithPrompt(text: String) {
+        try {
+            val intent = android.content.Intent(requireContext(), com.example.aifloatingball.ChatActivity::class.java)
+            intent.putExtra("prefill_message", text)
+            intent.putExtra("source", "PromptCenter")
+            startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("AIAssistantCenter", "打开聊天页面失败", e)
+            android.widget.Toast.makeText(requireContext(), "无法打开聊天页面", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun editPromptThenUse(prompt: com.example.aifloatingball.model.PromptCommunityItem) {
+        val input = android.widget.EditText(requireContext()).apply {
+            setText(prompt.content)
+            minLines = 4
+            maxLines = 10
+        }
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("编辑提示词")
+            .setView(input)
+            .setPositiveButton("用于聊天输入") { d, _ ->
+                prefillChatWithPrompt(input.text.toString())
+                d.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     private fun sharePrompt(prompt: com.example.aifloatingball.model.PromptCommunityItem) {

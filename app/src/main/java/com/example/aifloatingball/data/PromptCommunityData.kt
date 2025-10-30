@@ -41,8 +41,8 @@ object PromptCommunityData {
                 content = "你是一位经验丰富的代码审查专家，擅长发现代码中的问题...",
                 author = "代码专家",
                 authorId = "user2",
-                tags = listOf("编程", "代码", "技术"),
-                category = PromptCategory.DATA_ANALYSIS,
+                tags = listOf("编程", "代码审查", "Clean Code"),
+                category = PromptCategory.CODE_ASSISTANT,
                 scene = "代码开发",
                 description = "提供专业的代码审查服务，发现潜在问题和改进建议。",
                 likeCount = 892,
@@ -141,8 +141,8 @@ object PromptCommunityData {
                 content = "你是一位资深的HR，擅长简历优化和面试指导...",
                 author = "职场达人",
                 authorId = "user7",
-                tags = listOf("职场", "简历", "面试"),
-                category = PromptCategory.WORKPLACE_OFFICE,
+                tags = listOf("职场", "简历", "面试", "STAR法则"),
+                category = PromptCategory.RESUME_INTERVIEW,
                 scene = "职场办公",
                 description = "提供专业的简历优化和求职指导服务，提升面试成功率。",
                 likeCount = 1256,
@@ -172,6 +172,114 @@ object PromptCommunityData {
                 isLiked = false,
                 isCollected = false,
                 publishTime = System.currentTimeMillis() - 604800_000L,
+                isOriginal = true
+            ),
+
+            // 新增：SEO/营销
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "SEO标题与元描述生成",
+                content = "根据页面主题生成高点击率的SEO标题和元描述，包含核心关键词，长度控制在最佳范围...",
+                author = "增长黑客",
+                authorId = "user9",
+                tags = listOf("SEO", "元描述", "关键词", "CTR"),
+                category = PromptCategory.SEO_MARKETING,
+                scene = "搜索优化",
+                description = "一键生成SEO友好的标题与描述，提高自然流量点击率。",
+                likeCount = 911,
+                collectCount = 702,
+                commentCount = 77,
+                viewCount = 4100,
+                isOriginal = true
+            ),
+
+            // 新增：图像生成
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "产品图 Midjourney 提示词",
+                content = "以[产品名称]为主体，白底，高对比，柔和阴影，工作室光，f1.8，超清，--ar 1:1 --v 6",
+                author = "视觉设计师",
+                authorId = "user10",
+                tags = listOf("Midjourney", "电商主图", "白底图"),
+                category = PromptCategory.IMAGE_GENERATION,
+                scene = "电商主图",
+                description = "标准化电商主图生成提示，提升转化率。",
+                likeCount = 688,
+                collectCount = 512,
+                commentCount = 41,
+                viewCount = 3001,
+                isOriginal = true
+            ),
+
+            // 新增：法律咨询
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "合同条款风险扫描",
+                content = "从以下合同文本中识别不对等或潜在风险条款，以项目列表输出，并给出修改建议...",
+                author = "法务顾问",
+                authorId = "user11",
+                tags = listOf("合同", "风险", "审查"),
+                category = PromptCategory.LEGAL_ADVICE,
+                scene = "合同审查",
+                description = "快速发现合同中的潜在风险，提供可操作的调整建议。",
+                likeCount = 532,
+                collectCount = 401,
+                commentCount = 22,
+                viewCount = 2099,
+                isOriginal = true
+            ),
+
+            // 新增：医疗健康（免责声明类提示）
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "科普型用药咨询（非诊断）",
+                content = "以下问题仅提供一般性医学科普信息，不构成诊断或治疗建议...",
+                author = "健康顾问",
+                authorId = "user12",
+                tags = listOf("用药", "健康科普", "非诊断"),
+                category = PromptCategory.MEDICAL_HEALTH,
+                scene = "健康咨询",
+                description = "面向大众的用药与健康常识问答模板，含安全提示。",
+                likeCount = 477,
+                collectCount = 350,
+                commentCount = 19,
+                viewCount = 1988,
+                isOriginal = true
+            ),
+
+            // 新增：财务分析
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "现金流量表解读助手",
+                content = "按照经营/投资/筹资活动拆解现金流变化，指出异常波动区间并给出可能原因...",
+                author = "财务分析师",
+                authorId = "user13",
+                tags = listOf("报表分析", "现金流", "财务"),
+                category = PromptCategory.FINANCE_ANALYSIS,
+                scene = "财务报表",
+                description = "快速定位现金流异常并产出业务可读的解读。",
+                likeCount = 721,
+                collectCount = 589,
+                commentCount = 35,
+                viewCount = 3302,
+                isOriginal = true
+            ),
+
+            // 新增：客服回复
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "电商客服标准回复库生成",
+                content = "根据店铺品类和常见问题清单，生成品牌语气一致的FAQ标准回复，包含换货/退款/物流/售后...",
+                author = "客服经理",
+                authorId = "user14",
+                tags = listOf("SOP", "客服", "FAQ", "语气一致性"),
+                category = PromptCategory.CUSTOMER_SUPPORT,
+                scene = "售后支持",
+                description = "标准化客服话术库，显著缩短响应时间。",
+                likeCount = 845,
+                collectCount = 640,
+                commentCount = 58,
+                viewCount = 4200,
                 isOriginal = true
             )
         )
