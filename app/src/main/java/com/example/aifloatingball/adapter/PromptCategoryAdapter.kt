@@ -37,17 +37,21 @@ class PromptCategoryAdapter(
     inner class CategoryViewHolder(private val chip: Chip, private val isLarge: Boolean) : RecyclerView.ViewHolder(chip) {
         
         fun bind(category: PromptCategory) {
-            // 根据isMainCategory调整大小
+            // 根据isMainCategory调整大小，去掉图标
             if (isLarge) {
-                // 父标签：更大的字号和padding
-                chip.textSize = 16f
-                chip.minHeight = 48  // 48dp高度
-                chip.text = "${category.icon} ${category.displayName}"
+                // 父标签：更大的字号和padding，不使用图标
+                chip.textSize = 15f
+                chip.minHeight = 44  // 44dp高度，更紧凑
+                chip.text = category.displayName  // 去掉图标
+                chip.chipStartPadding = 8f  // 减少左右padding
+                chip.chipEndPadding = 8f
             } else {
-                // 子标签：较小的字号和padding
-                chip.textSize = 14f
-                chip.minHeight = 36  // 36dp高度
-                chip.text = "${category.icon} ${category.displayName}"
+                // 子标签：较小的字号和padding，不使用图标
+                chip.textSize = 13f
+                chip.minHeight = 32  // 32dp高度，更紧凑
+                chip.text = category.displayName  // 去掉图标
+                chip.chipStartPadding = 6f  // 减少左右padding
+                chip.chipEndPadding = 6f
             }
             
             chip.isChecked = selectedCategory == category

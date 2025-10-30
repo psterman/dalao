@@ -468,9 +468,6 @@ class TaskFragment : AIAssistantCenterFragment() {
     private lateinit var promptContentRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var promptAdapter: com.example.aifloatingball.adapter.PromptCommunityAdapter
     
-    // 上传按钮（右下角悬浮按钮）
-    private lateinit var fabUploadPrompt: com.google.android.material.floatingactionbutton.FloatingActionButton
-    
     // 空状态提示
     private lateinit var emptyStateLayout: LinearLayout
     private lateinit var emptyStateTitle: android.widget.TextView
@@ -497,7 +494,6 @@ class TaskFragment : AIAssistantCenterFragment() {
         setupPromptContentRecyclerView()
         setupSearchSuggestions()
         setupSearch()
-        setupUploadButton()
         setupSwipeRefresh()
         setupLoadMore()
         setupEmptyState()
@@ -524,9 +520,6 @@ class TaskFragment : AIAssistantCenterFragment() {
         
         // Prompt内容列表
         promptContentRecyclerView = view.findViewById(R.id.prompt_content_recycler_view)
-        
-        // 上传按钮（右下角悬浮按钮）
-        fabUploadPrompt = view.findViewById(R.id.fab_upload_prompt)
         
         // 空状态提示
         emptyStateLayout = view.findViewById(R.id.empty_state_layout)
@@ -702,12 +695,6 @@ class TaskFragment : AIAssistantCenterFragment() {
             performSearch(query)
         }
         dialog.show()
-    }
-    
-    private fun setupUploadButton() {
-        fabUploadPrompt.setOnClickListener {
-            showUploadPromptDialog()
-        }
     }
     
     /**
@@ -961,10 +948,6 @@ class TaskFragment : AIAssistantCenterFragment() {
         
         val chooser = android.content.Intent.createChooser(shareIntent, "分享提示词")
         startActivity(chooser)
-    }
-    
-    private fun showUploadPromptDialog() {
-        android.widget.Toast.makeText(requireContext(), "上传功能开发中", android.widget.Toast.LENGTH_SHORT).show()
     }
     
     private fun onTaskSelected(template: com.example.aifloatingball.model.PromptTemplate) {

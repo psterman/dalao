@@ -67,24 +67,25 @@
             android:padding="8dp" />
     </FrameLayout>
 
-    <!-- 分类导航栏（父标签 - 变大） -->
+    <!-- 分类导航栏（父标签 - 紧凑排列） -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/category_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:layout_marginHorizontal="8dp"
         android:layout_marginBottom="8dp" />
 
-    <!-- 子分类展开容器（默认隐藏） -->
+    <!-- 子分类展开容器（默认隐藏，紧凑排列） -->
     <LinearLayout
         android:id="@+id/subcategory_expand_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginHorizontal="8dp"
+        android:layout_marginBottom="12dp"
         android:background="@color/ai_assistant_card_background_light"
-        android:padding="12dp"
+        android:padding="8dp"
         android:visibility="gone">
 
         <!-- 子分类横向滚动列表 -->
@@ -163,19 +164,6 @@
     </LinearLayout>
 
     </LinearLayout>
-
-    <!-- 右下角悬浮按钮 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_upload_prompt"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:src="@drawable/ic_add"
-        app:tint="@android:color/white"
-        app:backgroundTint="#4080FF"
-        app:elevation="6dp"
-        app:contentDescription="上传Prompt" />
 
 </FrameLayout>
 
