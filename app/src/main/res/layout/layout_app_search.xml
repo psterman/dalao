@@ -120,16 +120,16 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="horizontal"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
             android:layout_marginBottom="16dp">
 
             <!-- 左侧分类标签栏 -->
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="80dp"
+                android:layout_width="60dp"
                 android:layout_height="match_parent"
-                android:layout_marginEnd="8dp"
-                app:cardCornerRadius="12dp"
+                android:layout_marginEnd="4dp"
+                app:cardCornerRadius="8dp"
                 app:cardElevation="1dp"
                 app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
@@ -143,10 +143,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:paddingTop="8dp"
-                        android:paddingBottom="8dp"
-                        android:paddingStart="2dp"
-                        android:paddingEnd="2dp">
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp">
 
                         <!-- 自定义分类 -->
                         <LinearLayout
@@ -155,8 +155,8 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
-                            android:layout_marginBottom="6dp"
+                            android:padding="6dp"
+                            android:layout_marginBottom="4dp"
                             android:background="@drawable/material_category_button_background"
                             android:clickable="true"
                             android:focusable="true">
@@ -186,8 +186,8 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
-                            android:layout_marginBottom="6dp"
+                            android:padding="6dp"
+                            android:layout_marginBottom="4dp"
                             android:background="@drawable/material_category_button_background"
                             android:clickable="true"
                             android:focusable="true">
@@ -217,8 +217,8 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
-                            android:layout_marginBottom="6dp"
+                            android:padding="6dp"
+                            android:layout_marginBottom="4dp"
                             android:background="@drawable/material_category_button_background"
                             android:clickable="true"
                             android:focusable="true">
@@ -248,8 +248,8 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:gravity="center"
-                            android:padding="8dp"
-                            android:layout_marginBottom="6dp"
+                            android:padding="6dp"
+                            android:layout_marginBottom="4dp"
                             android:background="@drawable/material_category_button_background"
                             android:clickable="true"
                             android:focusable="true">
@@ -336,7 +336,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:clipToPadding="false"
-                    android:padding="8dp"
+                    android:padding="4dp"
                     android:scrollbars="none"
                     android:overScrollMode="never" />
 
