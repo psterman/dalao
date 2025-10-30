@@ -2672,12 +2672,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 根据分类加载应用
      */
     private fun loadAppsByCategory(category: AppCategory) {
-        currentAppConfigs.clear()
-        currentAppConfigs.addAll(appSearchSettings.getAppConfigsByCategory(category))
-        appSearchAdapter.updateAppConfigs(currentAppConfigs)
+        // 优先：设备已安装应用扫描（满足“全部标签中加载所有已安装app图标、自动分类与过滤”）
+        try {
+            val loadingOverlay = findViewById<android.view.View>(R.id.app_search_loading_overlay)
+            loadingOverlay?.visibility = android.view.View.VISIBLE
 
-        // 重置搜索框图标为默认状态
-        resetSearchInputIcon()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val repo = com.example.aifloatingball.manager.InstalledAppsRepository.getInstance(this@SimpleModeActivity)
+                // 扫描并获得已按规则过滤与分类的应用
+                val allApps = repo.scanInstalledSearchableApps()
+                val list = if (category == AppCategory.ALL) {
+                    allApps
+                } else if (category == AppCategory.CUSTOM) {
+                    // 自定义分类仍沿用原有配置
+                    appSearchSettings.getAppConfigsByCategory(category)
+                } else {
+                    allApps.filter { it.category == category }
+                }
+
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    currentAppConfigs.clear()
+                    currentAppConfigs.addAll(list)
+                    appSearchAdapter.updateAppConfigs(currentAppConfigs)
+                    resetSearchInputIcon()
+                    loadingOverlay?.visibility = android.view.View.GONE
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "加载已安装应用失败，回退到内置配置", e)
+            currentAppConfigs.clear()
+            currentAppConfigs.addAll(appSearchSettings.getAppConfigsByCategory(category))
+            appSearchAdapter.updateAppConfigs(currentAppConfigs)
+            resetSearchInputIcon()
+            findViewById<android.view.View>(R.id.app_search_loading_overlay)?.visibility = android.view.View.GONE
+        }
     }
 
     /**

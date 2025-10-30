@@ -776,6 +776,7 @@ class AppSearchGridAdapter(
             menuItems.add(statusText)
 
         if (isInstalled) {
+            menuItems.add("移动到分类…")
             menuItems.add("添加到自定义分类")
         }
 
@@ -818,15 +819,52 @@ class AppSearchGridAdapter(
                             val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         } else if (isInstalled) {
-                            addToCustomCategory(appConfig)
+                            // 移动到分类…
+                            showMoveToCategoryDialog(appConfig)
                         } else if (appConfig.category == AppCategory.CUSTOM) {
                             removeFromCustomCategory(appConfig)
                         }
                     }
-                    3 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
+                    3 -> if (isInstalled) {
+                        addToCustomCategory(appConfig)
+                    } else if (appConfig.category == AppCategory.CUSTOM) {
+                        removeFromCustomCategory(appConfig)
+                    }
+                    4 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
                 }
             }
             .show()
+    }
+
+    private fun showMoveToCategoryDialog(appConfig: AppSearchConfig) {
+        try {
+            val categories = AppCategory.values().filter { it != AppCategory.CUSTOM }
+            val names = categories.map { it.displayName }.toTypedArray()
+
+            AlertDialog.Builder(context)
+                .setTitle("移动到分类")
+                .setItems(names) { _, idx ->
+                    val target = categories[idx]
+                    // 保存覆盖
+                    val overrides = com.example.aifloatingball.manager.AppCategoryOverridesManager.getInstance(context)
+                    overrides.setOverride(appConfig.packageName, target)
+                    // 更新当前项并通知刷新
+                    val newConfig = appConfig.copy(category = target)
+                    val list = appConfigs.toMutableList()
+                    val index = list.indexOfFirst { it.appId == appConfig.appId }
+                    if (index >= 0) {
+                        list[index] = newConfig
+                        updateAppConfigs(list)
+                    }
+                    // 使安装应用缓存失效，以便下次重扫生效
+                    com.example.aifloatingball.manager.InstalledAppsRepository.getInstance(context).invalidate()
+                    Toast.makeText(context, "已移动到 ${target.displayName}", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "移动分类失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
