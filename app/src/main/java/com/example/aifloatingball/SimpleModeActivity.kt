@@ -419,6 +419,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var currentAppConfigs = mutableListOf<AppSearchConfig>()
     private lateinit var appSearchSettings: AppSearchSettings
     private lateinit var searchHistoryManager: SearchHistoryManager
+    private lateinit var appSortManager: com.example.aifloatingball.manager.AppSortManager
+    private lateinit var appUsageTracker: com.example.aifloatingball.manager.AppUsageTracker
     private lateinit var categoryDragHelper: CategoryDragHelper
     private lateinit var appSelectionHistoryManager: AppSelectionHistoryManager
 
@@ -1524,6 +1526,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             searchHistoryManager = SearchHistoryManager.getInstance(this)
             categoryDragHelper = CategoryDragHelper(this)
             appSelectionHistoryManager = AppSelectionHistoryManager.getInstance(this)
+            appSortManager = com.example.aifloatingball.manager.AppSortManager.getInstance(this)
+            appUsageTracker = com.example.aifloatingball.manager.AppUsageTracker.getInstance(this)
 
             // 临时：强制更新到最新配置以显示新增的应用
             // 这将确保用户能看到所有新增的应用
@@ -2535,8 +2539,114 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 设置搜索输入框
             setupAppSearchInput()
 
+            // 设置排序图标按钮
+            setupSortIconButtons()
+
             // 加载默认分类的应用
             loadAppsByCategory(AppCategory.ALL)
+        }
+    }
+
+    /**
+     * 设置排序图标按钮
+     */
+    private fun setupSortIconButtons() {
+        val sortAlphabetical = findViewById<LinearLayout>(R.id.sort_alphabetical)
+        val sortUsageCount = findViewById<LinearLayout>(R.id.sort_usage_count)
+        val sortRecentPosition = findViewById<LinearLayout>(R.id.sort_recent_position)
+
+        sortAlphabetical?.setOnClickListener {
+            selectSortType(com.example.aifloatingball.manager.AppSortType.ALPHABETICAL)
+        }
+
+        sortUsageCount?.setOnClickListener {
+            selectSortType(com.example.aifloatingball.manager.AppSortType.USAGE_COUNT)
+        }
+
+        sortRecentPosition?.setOnClickListener {
+            selectSortType(com.example.aifloatingball.manager.AppSortType.RECENT_POSITION)
+        }
+
+        // 初始化选中状态
+        updateSortIconButtonsState()
+    }
+
+    /**
+     * 选择排序类型
+     */
+    private fun selectSortType(sortType: com.example.aifloatingball.manager.AppSortType) {
+        appSortManager.setSortType(currentAppCategory, sortType)
+        updateSortIconButtonsState()
+        // 实时排序当前已加载的应用列表
+        applySortToCurrentList()
+    }
+
+    /**
+     * 更新排序图标按钮的选中状态
+     */
+    private fun updateSortIconButtonsState() {
+        val currentSortType = appSortManager.getSortType(currentAppCategory)
+        
+        val sortAlphabeticalIcon = findViewById<ImageView>(R.id.sort_alphabetical_icon)
+        val sortUsageCountIcon = findViewById<ImageView>(R.id.sort_usage_count_icon)
+        val sortRecentPositionIcon = findViewById<ImageView>(R.id.sort_recent_position_icon)
+        
+        val sortAlphabeticalLayout = findViewById<LinearLayout>(R.id.sort_alphabetical)
+        val sortUsageCountLayout = findViewById<LinearLayout>(R.id.sort_usage_count)
+        val sortRecentPositionLayout = findViewById<LinearLayout>(R.id.sort_recent_position)
+
+        // 重置所有按钮状态
+        val unselectedColor = ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light)
+        val selectedColor = ContextCompat.getColor(this, R.color.simple_mode_accent_light)
+        
+        sortAlphabeticalIcon?.setColorFilter(unselectedColor)
+        sortUsageCountIcon?.setColorFilter(unselectedColor)
+        sortRecentPositionIcon?.setColorFilter(unselectedColor)
+        
+        sortAlphabeticalLayout?.alpha = 0.6f
+        sortUsageCountLayout?.alpha = 0.6f
+        sortRecentPositionLayout?.alpha = 0.6f
+
+        // 设置选中状态
+        when (currentSortType) {
+            com.example.aifloatingball.manager.AppSortType.ALPHABETICAL -> {
+                sortAlphabeticalIcon?.setColorFilter(selectedColor)
+                sortAlphabeticalLayout?.alpha = 1.0f
+            }
+            com.example.aifloatingball.manager.AppSortType.USAGE_COUNT -> {
+                sortUsageCountIcon?.setColorFilter(selectedColor)
+                sortUsageCountLayout?.alpha = 1.0f
+            }
+            com.example.aifloatingball.manager.AppSortType.RECENT_POSITION -> {
+                sortRecentPositionIcon?.setColorFilter(selectedColor)
+                sortRecentPositionLayout?.alpha = 1.0f
+            }
+        }
+    }
+
+    /**
+     * 对当前已加载的应用列表应用排序
+     */
+    private fun applySortToCurrentList() {
+        if (currentAppConfigs.isEmpty()) {
+            return
+        }
+        
+        try {
+            // 创建当前列表的副本进行排序
+            val sortedList = appSortManager.sortApps(currentAppConfigs.toList(), currentAppCategory)
+            
+            // 更新列表
+            currentAppConfigs.clear()
+            currentAppConfigs.addAll(sortedList)
+            
+            // 更新适配器，触发UI刷新
+            appSearchAdapter.updateAppConfigs(currentAppConfigs)
+            
+            Log.d(TAG, "已应用排序: ${appSortManager.getSortType(currentAppCategory).displayName}, 共 ${sortedList.size} 个应用")
+        } catch (e: Exception) {
+            Log.e(TAG, "应用排序失败", e)
+            Toast.makeText(this, "排序失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -2666,6 +2776,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 加载对应分类的应用
         loadAppsByCategory(category)
+        // 更新排序图标按钮状态
+        updateSortIconButtonsState()
     }
 
     /**
@@ -2692,18 +2804,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
                     currentAppConfigs.clear()
-                    currentAppConfigs.addAll(list)
+                    // 应用排序
+                    val sortedList = appSortManager.sortApps(list, category)
+                    currentAppConfigs.addAll(sortedList)
                     appSearchAdapter.updateAppConfigs(currentAppConfigs)
                     resetSearchInputIcon()
+                    updateSortIconButtonsState()
                     loadingOverlay?.visibility = android.view.View.GONE
                 }
             }
         } catch (e: Exception) {
             android.util.Log.e(TAG, "加载已安装应用失败，回退到内置配置", e)
             currentAppConfigs.clear()
-            currentAppConfigs.addAll(appSearchSettings.getAppConfigsByCategory(category))
+            val fallbackList = appSearchSettings.getAppConfigsByCategory(category)
+            // 应用排序
+            val sortedList = appSortManager.sortApps(fallbackList, category)
+            currentAppConfigs.addAll(sortedList)
             appSearchAdapter.updateAppConfigs(currentAppConfigs)
             resetSearchInputIcon()
+            updateSortIconButtonsState()
             findViewById<android.view.View>(R.id.app_search_loading_overlay)?.visibility = android.view.View.GONE
         }
     }
@@ -2799,6 +2918,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                         // 保存到选择历史
                         appSelectionHistoryManager.addAppSelection(appConfig)
+                        
+                        // 记录应用选择（包括位置）
+                        val position = currentAppConfigs.indexOfFirst { it.packageName == appConfig.packageName }
+                        appUsageTracker.recordUsage(appConfig.packageName, appConfig.appName, position)
 
                         // 更新提示文本
                         appSearchHint.text = "已选择 ${appConfig.appName}，输入关键词进行搜索"
@@ -3184,6 +3307,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleAppSearch(appConfig: AppSearchConfig, query: String) {
         try {
+            // 记录应用使用（包括位置）
+            val position = currentAppConfigs.indexOfFirst { it.packageName == appConfig.packageName }
+            appUsageTracker.recordUsage(appConfig.packageName, appConfig.appName, position)
+            
             if (query.isNotEmpty()) {
                 // 检查是否为AI应用
                 if (isAIApp(appConfig)) {

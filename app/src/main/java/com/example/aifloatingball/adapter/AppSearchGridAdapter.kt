@@ -120,21 +120,16 @@ class AppSearchGridAdapter(
      * 更新应用配置列表
      */
     fun updateAppConfigs(newConfigs: List<AppSearchConfig>) {
-        // 对AI应用按常用AI排序
-        val sortedConfigs = newConfigs.map { config ->
-            if (config.category == AppCategory.AI) {
-                // 对AI应用列表进行排序
-                val aiConfigs = newConfigs.filter { it.category == AppCategory.AI }
-                val sortedAIConfigs = favoriteAIManager.sortAIAppsByFavorites(aiConfigs)
-                val aiIndex = aiConfigs.indexOf(config)
-                if (aiIndex >= 0 && aiIndex < sortedAIConfigs.size) {
-                    sortedAIConfigs[aiIndex]
-                } else {
-                    config
-                }
-            } else {
-                config
-            }
+        // 对AI应用按常用AI排序（仅在AI分类中生效）
+        val sortedConfigs = if (newConfigs.isNotEmpty() && newConfigs.first().category == AppCategory.AI) {
+            // 只有当前分类是AI时才进行AI应用的特殊排序
+            val aiConfigs = newConfigs.filter { it.category == AppCategory.AI }
+            val sortedAIConfigs = favoriteAIManager.sortAIAppsByFavorites(aiConfigs)
+            val nonAIConfigs = newConfigs.filter { it.category != AppCategory.AI }
+            sortedAIConfigs + nonAIConfigs
+        } else {
+            // 其他分类或全部分类，直接使用传入的列表（已经排序好了）
+            newConfigs
         }
         
         appConfigs = sortedConfigs
