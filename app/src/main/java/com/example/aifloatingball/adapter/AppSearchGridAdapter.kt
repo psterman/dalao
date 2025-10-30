@@ -123,11 +123,11 @@ class AppSearchGridAdapter(
         // 对AI应用按常用AI排序（仅在AI分类中生效）
         val sortedConfigs = if (newConfigs.isNotEmpty() && newConfigs.first().category == AppCategory.AI) {
             // 只有当前分类是AI时才进行AI应用的特殊排序
-            val aiConfigs = newConfigs.filter { it.category == AppCategory.AI }
-            val sortedAIConfigs = favoriteAIManager.sortAIAppsByFavorites(aiConfigs)
+                val aiConfigs = newConfigs.filter { it.category == AppCategory.AI }
+                val sortedAIConfigs = favoriteAIManager.sortAIAppsByFavorites(aiConfigs)
             val nonAIConfigs = newConfigs.filter { it.category != AppCategory.AI }
             sortedAIConfigs + nonAIConfigs
-        } else {
+                } else {
             // 其他分类或全部分类，直接使用传入的列表（已经排序好了）
             newConfigs
         }
@@ -821,10 +821,10 @@ class AppSearchGridAdapter(
                         }
                     }
                     3 -> if (isInstalled) {
-                        addToCustomCategory(appConfig)
-                    } else if (appConfig.category == AppCategory.CUSTOM) {
-                        removeFromCustomCategory(appConfig)
-                    }
+                            addToCustomCategory(appConfig)
+                        } else if (appConfig.category == AppCategory.CUSTOM) {
+                            removeFromCustomCategory(appConfig)
+                        }
                     4 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
                 }
             }
@@ -856,7 +856,7 @@ class AppSearchGridAdapter(
                     Toast.makeText(context, "已移动到 ${target.displayName}", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("取消", null)
-                .show()
+            .show()
         } catch (e: Exception) {
             Toast.makeText(context, "移动分类失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }

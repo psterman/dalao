@@ -19,6 +19,7 @@ import com.example.aifloatingball.data.PromptCommunityData
 import com.example.aifloatingball.dialog.PromptExtractDialog
 import com.example.aifloatingball.model.PromptCategory
 import com.example.aifloatingball.model.PromptCommunityItem
+import com.example.aifloatingball.model.ScenarioItem
 
 /**
  * 任务Fragment - 两列布局版本
@@ -30,6 +31,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     // 左侧场景分类
     private lateinit var scenarioRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var scenarioAdapter: TaskScenarioAdapter
+    private val scenarioItems: MutableList<ScenarioItem> = mutableListOf()
     
     // 右侧Prompt列表
     private lateinit var promptRecyclerView: androidx.recyclerview.widget.RecyclerView
@@ -48,6 +50,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     // 当前选中的场景
     private var currentScenario: PromptCategory? = null
     private var isFilterMode: Boolean = false
+    private var currentFilterIndex: Int = -1 // -1 表示未过滤
     private var originalPrompts: List<PromptCommunityItem> = emptyList() // 保存原始数据，用于搜索和过滤
     
     override fun getLayoutResId(): Int = R.layout.ai_assistant_task_two_column_fragment
@@ -61,8 +64,8 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         setupButtons()
         
         // 默认选中第一个场景
-        val firstScenario = getAvailableScenarios().firstOrNull()
-        firstScenario?.let { selectScenario(it) }
+        val firstItem = scenarioItems.firstOrNull()
+        firstItem?.let { selectScenario(it) }
     }
     
     private fun setupViews(view: View) {
@@ -84,10 +87,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     }
     
     private fun setupScenarioRecyclerView() {
-        val scenarios = getAvailableScenarios()
+        val categories = getAvailableScenarios()
+        scenarioItems.clear()
+        scenarioItems.addAll(categories.map { ScenarioItem(it.displayName, it) })
         
-        scenarioAdapter = TaskScenarioAdapter(scenarios) { scenario ->
-            selectScenario(scenario)
+        scenarioAdapter = TaskScenarioAdapter(scenarioItems) { item ->
+            selectScenario(item)
         }
         
         scenarioRecyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -127,9 +132,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         }
         
         // 新增分类按钮
-        promptAddCategoryButton.setOnClickListener {
-            showAddCategoryDialog()
-        }
+        promptAddCategoryButton.setOnClickListener { showAddCategoryDialog() }
         
         // 搜索按钮
         promptSearchButton.setOnClickListener {
@@ -137,9 +140,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         }
         
         // 过滤按钮
-        promptFilterButton.setOnClickListener {
-            toggleFilterMode()
-        }
+        promptFilterButton.setOnClickListener { cycleFilterMode() }
     }
     
     /**
@@ -168,8 +169,13 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             .setPositiveButton("确定") { _, _ ->
                 val categoryName = input.text.toString()
                 if (categoryName.isNotEmpty()) {
-                    android.widget.Toast.makeText(requireContext(), "新增分类：$categoryName", android.widget.Toast.LENGTH_SHORT).show()
-                    // TODO: 实现新增分类功能，将新分类添加到场景列表中
+                    scenarioAdapter.addScenario(categoryName)
+                    // 选中新建分组
+                    val newItem = ScenarioItem(categoryName, null)
+                    scenarioItems.add(newItem)
+                    scenarioRecyclerView.smoothScrollToPosition(scenarioItems.lastIndex)
+                    selectScenario(newItem)
+                    android.widget.Toast.makeText(requireContext(), "已新增分类：$categoryName", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("取消", null)
@@ -179,69 +185,38 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     /**
      * 切换过滤模式
      */
-    private fun toggleFilterMode() {
-        isFilterMode = !isFilterMode
-        
-        if (isFilterMode) {
-            promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_primary))
-            android.widget.Toast.makeText(requireContext(), "已启用过滤模式", android.widget.Toast.LENGTH_SHORT).show()
-            // TODO: 实现过滤功能，显示过滤选项（如：按热度、按时间、按标签等）
-            showFilterOptionsDialog()
-        } else {
-            promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_text_secondary))
-            // 恢复原场景显示
-            currentScenario?.let { loadPromptsForScenario(it) }
+    private fun cycleFilterMode() {
+        // 顺序：未过滤 -> 热度 -> 时间 -> 收藏 -> 未过滤
+        currentFilterIndex = (currentFilterIndex + 1) % 4
+        when (currentFilterIndex) {
+            0 -> { // 热度
+                promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_primary))
+                val sorted = originalPrompts.sortedByDescending { it.likeCount }
+                promptAdapter.updateData(sorted)
+                android.widget.Toast.makeText(requireContext(), "按热度排序", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            1 -> { // 时间
+                promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_primary))
+                val sorted = originalPrompts.sortedByDescending { it.publishTime }
+                promptAdapter.updateData(sorted)
+                android.widget.Toast.makeText(requireContext(), "按时间排序", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            2 -> { // 收藏
+                promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_primary))
+                val favorites = originalPrompts.filter { it.isCollected }
+                promptAdapter.updateData(favorites)
+                android.widget.Toast.makeText(requireContext(), "仅显示收藏", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            else -> { // 清除
+                promptFilterButton.setColorFilter(ContextCompat.getColor(requireContext(), R.color.ai_assistant_text_secondary))
+                promptAdapter.updateData(originalPrompts)
+                android.widget.Toast.makeText(requireContext(), "清除过滤", android.widget.Toast.LENGTH_SHORT).show()
+                currentFilterIndex = -1
+            }
         }
     }
     
-    /**
-     * 显示过滤选项对话框
-     */
-    private fun showFilterOptionsDialog() {
-        val filterOptions = arrayOf("按热度排序", "按时间排序", "按标签筛选", "仅显示收藏")
-        var selectedIndex = -1
-        
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle("选择过滤方式")
-            .setSingleChoiceItems(filterOptions, -1) { _, which ->
-                selectedIndex = which
-            }
-            .setPositiveButton("确定") { _, _ ->
-                when (selectedIndex) {
-                    0 -> {
-                        // 按热度排序
-                        val sorted = originalPrompts.sortedByDescending { it.likeCount }
-                        promptAdapter.updateData(sorted)
-                        android.widget.Toast.makeText(requireContext(), "已按热度排序", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    1 -> {
-                        // 按时间排序
-                        val sorted = originalPrompts.sortedByDescending { it.publishTime }
-                        promptAdapter.updateData(sorted)
-                        android.widget.Toast.makeText(requireContext(), "已按时间排序", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        // 按标签筛选
-                        android.widget.Toast.makeText(requireContext(), "标签筛选功能开发中", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    3 -> {
-                        // 仅显示收藏
-                        val favorites = originalPrompts.filter { it.isCollected }
-                        promptAdapter.updateData(favorites)
-                        android.widget.Toast.makeText(requireContext(), "已筛选收藏", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("取消") { _, _ ->
-                toggleFilterMode() // 取消时关闭过滤模式
-            }
-            .setOnDismissListener {
-                if (selectedIndex == -1) {
-                    toggleFilterMode() // 未选择时关闭过滤模式
-                }
-            }
-            .show()
-    }
+    // 过滤改为即时切换（cycleFilterMode），此处不再使用弹窗
     
     /**
      * 获取可用的场景列表（包含主分类和子分类）
@@ -255,11 +230,17 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     /**
      * 选择场景
      */
-    private fun selectScenario(scenario: PromptCategory) {
-        currentScenario = scenario
+    private fun selectScenario(scenario: ScenarioItem) {
         scenarioAdapter.setSelectedScenario(scenario)
-        selectedScenarioTitle.text = scenario.displayName
-        loadPromptsForScenario(scenario)
+        selectedScenarioTitle.text = scenario.name
+        currentScenario = scenario.category
+        currentScenario?.let { loadPromptsForScenario(it) } ?: run {
+            // 用户自定义分组暂无内容
+            originalPrompts = emptyList()
+            promptAdapter.updateData(emptyList())
+            promptEmptyState.visibility = View.VISIBLE
+            promptRecyclerView.visibility = View.GONE
+        }
     }
     
     /**
@@ -431,12 +412,40 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 显示编辑对话框（编辑当前场景的提示词）
      */
     private fun showEditDialog() {
-        currentScenario?.let { scenario ->
-            android.widget.Toast.makeText(requireContext(), "编辑功能：${scenario.displayName}", android.widget.Toast.LENGTH_SHORT).show()
-            // 这里可以打开一个编辑器，让用户编辑该场景下的所有Prompt
-        } ?: run {
-            android.widget.Toast.makeText(requireContext(), "请先选择一个场景", android.widget.Toast.LENGTH_SHORT).show()
+        val names = scenarioItems.map { it.name }.toTypedArray()
+        if (names.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), "暂无场景可编辑", android.widget.Toast.LENGTH_SHORT).show()
+            return
         }
+        var index = 0
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("编辑场景")
+            .setSingleChoiceItems(names, index) { _, which -> index = which }
+            .setNeutralButton("上移") { _, _ -> if (index > 0) scenarioAdapter.moveScenario(index, index - 1) }
+            .setNegativeButton("下移") { _, _ -> if (index < scenarioItems.size - 1) scenarioAdapter.moveScenario(index, index + 1) }
+            .setPositiveButton("更多") { _, _ ->
+                val options = arrayOf("重命名", "删除")
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setItems(options) { _, which2 ->
+                        when (which2) {
+                            0 -> {
+                                val input = android.widget.EditText(requireContext()).apply { hint = "新的名称" }
+                                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                                    .setTitle("重命名")
+                                    .setView(input)
+                                    .setPositiveButton("确定") { _, _ ->
+                                        val newName = input.text.toString()
+                                        if (newName.isNotEmpty()) scenarioAdapter.renameScenario(index, newName)
+                                    }
+                                    .setNegativeButton("取消", null)
+                                    .show()
+                            }
+                            1 -> scenarioAdapter.deleteScenario(index)
+                        }
+                    }
+                    .show()
+            }
+            .show()
     }
 }
 
