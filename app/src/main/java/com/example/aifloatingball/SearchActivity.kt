@@ -1457,18 +1457,52 @@ class SearchActivity : AppCompatActivity() {
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                val errorUrl = request?.url?.toString()
+                val errorCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    error?.errorCode
+                } else {
+                    -1
+                }
+                val errorDescription = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    error?.description?.toString()
+                } else {
+                    "未知错误"
+                }
+                
+                Log.e("SearchActivity", "WebView加载错误: $errorDescription, URL: $errorUrl, ErrorCode: $errorCode")
+                
+                // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误，且 URL 是特殊 scheme
+                if (request?.isForMainFrame == true && errorUrl != null) {
+                    if (errorCode == -2 || errorDescription?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                        errorDescription?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                        // 检查是否为特殊 scheme（intent://, douban://, clash:// 等）
+                        val lower = errorUrl.lowercase()
+                        val isSpecialScheme = lower.startsWith("intent://") || 
+                                             lower.startsWith("clash://") ||
+                                             lower.startsWith("douban://") ||
+                                             (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                        
+                        if (isSpecialScheme) {
+                            // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
+                            Log.d("SearchActivity", "检测到特殊 scheme 错误，直接启动Intent: $errorUrl")
+                            if (errorUrl.startsWith("intent://")) {
+                                launchIntentUrlDirectly(errorUrl)
+                            } else {
+                                launchSchemeUrlDirectly(errorUrl)
+                            }
+                            // 不调用 super.onReceivedError，避免显示错误页面
+                            return
+                        }
+                    }
+                }
+                
                 super.onReceivedError(view, request, error)
                 
                 // 只处理主页面加载错误，忽略资源加载错误
                 if (request?.isForMainFrame == true) {
                     progressBar.visibility = View.GONE
                     
-                    val errorUrl = request.url?.toString() ?: "unknown"
-                    val errorDescription = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        error?.description?.toString()
-                    } else {
-                        "未知错误"
-                    }
+                    val finalErrorUrl = errorUrl ?: "unknown"
                     
                     Toast.makeText(this@SearchActivity, "页面加载失败", Toast.LENGTH_SHORT).show()
                     
@@ -1538,6 +1572,32 @@ class SearchActivity : AppCompatActivity() {
 
             override fun onReceivedError(view: WebView?, errorCode: Int,
                                        description: String?, failingUrl: String?) {
+                Log.e("SearchActivity", "WebView加载错误 (legacy): $description, URL: $failingUrl, ErrorCode: $errorCode")
+                
+                // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误（错误代码 -2），且 URL 是特殊 scheme
+                if (errorCode == -2 || description?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                    description?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                    if (failingUrl != null) {
+                        val lower = failingUrl.lowercase()
+                        val isSpecialScheme = lower.startsWith("intent://") || 
+                                             lower.startsWith("clash://") ||
+                                             lower.startsWith("douban://") ||
+                                             (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                        
+                            if (isSpecialScheme) {
+                                // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
+                                Log.d("SearchActivity", "检测到特殊 scheme 错误 (legacy)，直接启动Intent: $failingUrl")
+                                if (failingUrl.startsWith("intent://")) {
+                                    launchIntentUrlDirectly(failingUrl)
+                                } else {
+                                    launchSchemeUrlDirectly(failingUrl)
+                                }
+                                // 不调用 super.onReceivedError，避免显示错误页面和可能的循环
+                                return
+                            }
+                    }
+                }
+                
                 super.onReceivedError(view, errorCode, description, failingUrl)
                 
                 // 忽略资源加载错误的提示
@@ -2670,6 +2730,24 @@ class SearchActivity : AppCompatActivity() {
                 view?.loadUrl(url)
                 true
             }
+            // 优先处理 intent:// 链接，直接启动（类似 Chrome，让系统显示对话框）
+            url.startsWith("intent://") -> {
+                Log.d("SearchActivity", "检测到 intent:// 链接，直接启动Intent")
+                launchIntentUrlDirectly(url)
+                true
+            }
+            // 优先处理 clash:// 链接，直接启动（类似 Chrome，让系统显示对话框）
+            url.startsWith("clash://") -> {
+                Log.d("SearchActivity", "检测到 clash:// 链接，直接启动Intent")
+                launchSchemeUrlDirectly(url)
+                true
+            }
+            // 优先处理 douban:// 链接，直接启动（类似 Chrome，让系统显示对话框）
+            url.startsWith("douban://") -> {
+                Log.d("SearchActivity", "检测到 douban:// 链接，直接启动Intent")
+                launchSchemeUrlDirectly(url)
+                true
+            }
             // 处理其他特殊协议
             url.startsWith("tel:") ||
             url.startsWith("mailto:") ||
@@ -2677,7 +2755,7 @@ class SearchActivity : AppCompatActivity() {
                 // 由系统处理
                 true
             }
-            // 处理应用URL scheme
+            // 处理其他应用URL scheme（baidumap://, amap:// 等）
             url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") -> {
                 Log.d("SearchActivity", "检测到应用URL scheme: $url")
                 handleAppUrlScheme(view, url)
@@ -2778,6 +2856,83 @@ class SearchActivity : AppCompatActivity() {
             )
         } catch (e: Exception) {
             Log.e("SearchActivity", "处理URL scheme时出错: $url", e)
+        }
+    }
+    
+    /**
+     * 直接启动 intent:// URL（类似 Chrome，让系统显示应用选择对话框）
+     */
+    private fun launchIntentUrlDirectly(intentUrl: String) {
+        try {
+            val intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME)
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            // 针对 clash:// 指定优先包，确保精确拉起
+            val data = intent.dataString
+            if (intent.`package` == null && data != null && data.startsWith("clash://")) {
+                val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+                for (pkg in clashPackages) {
+                    try {
+                        packageManager.getPackageInfo(pkg, 0)
+                        intent.`package` = pkg
+                        break
+                    } catch (_: Exception) { }
+                }
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                // 直接启动，让系统显示应用选择对话框（类似 Chrome）
+                startActivity(intent)
+                Log.d("SearchActivity", "直接启动 intent:// 链接成功: $intentUrl")
+            } else {
+                // 如果没有应用可以处理，尝试 fallback URL
+                val fallback = intent.getStringExtra("browser_fallback_url")
+                if (!fallback.isNullOrBlank()) {
+                    webView.loadUrl(fallback)
+                } else {
+                    Toast.makeText(this, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "直接启动 intent:// 链接失败: $intentUrl", e)
+            Toast.makeText(this, "打开应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 直接启动 scheme URL（类似 Chrome，让系统显示应用选择对话框）
+     */
+    private fun launchSchemeUrlDirectly(schemeUrl: String) {
+        try {
+            val uri = Uri.parse(schemeUrl)
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            // 针对 clash:// 指定优先包
+            if (schemeUrl.startsWith("clash://")) {
+                val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+                for (pkg in clashPackages) {
+                    try {
+                        packageManager.getPackageInfo(pkg, 0)
+                        intent.`package` = pkg
+                        break
+                    } catch (_: Exception) { }
+                }
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                // 直接启动，让系统显示应用选择对话框（类似 Chrome）
+                startActivity(intent)
+                Log.d("SearchActivity", "直接启动 scheme 链接成功: $schemeUrl")
+            } else {
+                Toast.makeText(this, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "直接启动 scheme 链接失败: $schemeUrl", e)
+            Toast.makeText(this, "打开应用失败", Toast.LENGTH_SHORT).show()
         }
     }
 

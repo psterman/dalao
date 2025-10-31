@@ -652,6 +652,138 @@ class PaperStackWebViewManager(
     /**
      * 标签页WebView类
      */
+    /**
+     * 处理特殊 scheme URL（如 intent://、douban://、clash:// 等）
+     * 直接启动Intent，让系统显示应用选择对话框（类似 Chrome）
+     * @param url URL 字符串
+     * @param view WebView 实例
+     * @return true 表示已处理，false 表示非特殊 scheme
+     */
+    private fun handleSpecialSchemeUrl(url: String, view: WebView?): Boolean {
+        if (url.isBlank()) {
+            Log.d(TAG, "handleSpecialSchemeUrl: URL 为空")
+            return false
+        }
+        
+        val lower = url.lowercase()
+        
+        // 检查是否为 HTTP/HTTPS，这些应该在 WebView 中加载
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            return false
+        }
+        
+        // 检查是否为特殊 scheme
+        val isSpecialScheme = when {
+            lower.startsWith("intent://") -> true
+            lower.startsWith("clash://") -> true
+            lower.startsWith("douban://") -> true
+            lower.startsWith("baidumap://") -> true
+            lower.startsWith("amap://") -> true
+            lower.startsWith("alipay://") -> true
+            lower.startsWith("wechat://") -> true
+            lower.startsWith("weixin://") -> true
+            lower.startsWith("qq://") -> true
+            lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://") && 
+            !lower.startsWith("file://") && !lower.startsWith("javascript:") -> true
+            else -> false
+        }
+        
+        if (!isSpecialScheme) {
+            return false
+        }
+        
+        // 对于特殊 scheme，直接启动Intent（类似 Chrome，让系统显示对话框）
+        Log.d(TAG, "检测到特殊 scheme URL: $url，直接启动Intent")
+        
+        // 在主线程启动Intent
+        if (context is android.app.Activity) {
+            context.runOnUiThread {
+                launchSchemeUrlDirectly(url)
+            }
+        } else {
+            // 如果不是 Activity，尝试直接启动
+            try {
+                launchSchemeUrlDirectly(url)
+            } catch (e: Exception) {
+                Log.e(TAG, "处理特殊 scheme 失败: $url", e)
+            }
+        }
+        
+        return true // 返回 true 表示已处理，阻止在 WebView 中加载
+    }
+    
+    /**
+     * 直接启动 scheme URL（类似 Chrome，让系统显示应用选择对话框）
+     */
+    private fun launchSchemeUrlDirectly(schemeUrl: String) {
+        try {
+            val packageManager = context.packageManager
+            
+            if (schemeUrl.startsWith("intent://")) {
+                // 处理 intent:// URL
+                val intent = android.content.Intent.parseUri(schemeUrl, android.content.Intent.URI_INTENT_SCHEME)
+                intent.addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                
+                // 针对 clash:// 指定优先包
+                val data = intent.dataString
+                if (intent.`package` == null && data != null && data.startsWith("clash://")) {
+                    val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+                    for (pkg in clashPackages) {
+                        try {
+                            packageManager.getPackageInfo(pkg, 0)
+                            intent.`package` = pkg
+                            break
+                        } catch (_: Exception) { }
+                    }
+                }
+                
+                if (intent.resolveActivity(packageManager) != null) {
+                    context.startActivity(intent)
+                    Log.d(TAG, "直接启动 intent:// 链接成功: $schemeUrl")
+                } else {
+                    // 尝试 fallback URL
+                    val fallback = intent.getStringExtra("browser_fallback_url")
+                    if (!fallback.isNullOrBlank()) {
+                        Log.d(TAG, "使用 fallback URL: $fallback")
+                    } else {
+                        android.widget.Toast.makeText(context, "未找到可处理的应用", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                // 处理普通 scheme URL
+                val uri = android.net.Uri.parse(schemeUrl)
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
+                    addCategory(android.content.Intent.CATEGORY_BROWSABLE)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                // 针对 clash:// 指定优先包
+                if (schemeUrl.startsWith("clash://")) {
+                    val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+                    for (pkg in clashPackages) {
+                        try {
+                            packageManager.getPackageInfo(pkg, 0)
+                            intent.`package` = pkg
+                            break
+                        } catch (_: Exception) { }
+                    }
+                }
+                
+                if (intent.resolveActivity(packageManager) != null) {
+                    // 直接启动，让系统显示应用选择对话框（类似 Chrome）
+                    context.startActivity(intent)
+                    Log.d(TAG, "直接启动 scheme 链接成功: $schemeUrl")
+                } else {
+                    android.widget.Toast.makeText(context, "未找到可处理的应用", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "直接启动 scheme 链接失败: $schemeUrl", e)
+            android.widget.Toast.makeText(context, "打开应用失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private inner class PaperWebView(context: Context) : WebView(context) {
         var stackIndex = 0
         
@@ -732,6 +864,26 @@ class PaperStackWebViewManager(
             
             // 设置WebViewClient
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                    val url = request?.url?.toString()
+                    Log.d(TAG, "PaperWebView URL加载拦截: $url")
+                    
+                    if (url != null) {
+                        return handleSpecialSchemeUrl(url, view)
+                    }
+                    return false
+                }
+                
+                @Deprecated("Deprecated in Java")
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    Log.d(TAG, "PaperWebView URL加载拦截 (legacy): $url")
+                    
+                    if (url != null) {
+                        return handleSpecialSchemeUrl(url, view)
+                    }
+                    return false
+                }
+                
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     
@@ -754,6 +906,72 @@ class PaperStackWebViewManager(
                             }
                         })();
                     """.trimIndent(), null)
+                }
+                
+                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                    val errorUrl = request?.url?.toString()
+                    val errorCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        error?.errorCode
+                    } else {
+                        -1
+                    }
+                    val errorDescription = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                        error?.description?.toString()
+                    } else {
+                        "Unknown error"
+                    }
+                    
+                    Log.e(TAG, "PaperWebView加载错误: $errorDescription, URL: $errorUrl, ErrorCode: $errorCode")
+                    
+                    // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误，且 URL 是特殊 scheme
+                    if (request?.isForMainFrame == true && errorUrl != null) {
+                        if (errorCode == -2 || errorDescription?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                            errorDescription?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                            // 检查是否为特殊 scheme
+                            val lower = errorUrl.lowercase()
+                            val isSpecialScheme = lower.startsWith("intent://") || 
+                                                 lower.startsWith("clash://") ||
+                                                 lower.startsWith("douban://") ||
+                                                 (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                            
+                            if (isSpecialScheme) {
+                                // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
+                                Log.d(TAG, "检测到特殊 scheme 错误，直接启动Intent: $errorUrl")
+                                handleSpecialSchemeUrl(errorUrl, view)
+                                // 不调用 super.onReceivedError，避免显示错误页面和可能的循环
+                                return
+                            }
+                        }
+                    }
+                    
+                    super.onReceivedError(view, request, error)
+                }
+                
+                @Deprecated("Deprecated in Java")
+                override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                    Log.e(TAG, "PaperWebView加载错误 (legacy): $description, URL: $failingUrl, ErrorCode: $errorCode")
+                    
+                    // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误（错误代码 -2），且 URL 是特殊 scheme
+                    if (errorCode == -2 || description?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                        description?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                        if (failingUrl != null) {
+                            val lower = failingUrl.lowercase()
+                            val isSpecialScheme = lower.startsWith("intent://") || 
+                                                 lower.startsWith("clash://") ||
+                                                 lower.startsWith("douban://") ||
+                                                 (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                            
+                            if (isSpecialScheme) {
+                                // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
+                                Log.d(TAG, "检测到特殊 scheme 错误 (legacy)，直接启动Intent: $failingUrl")
+                                handleSpecialSchemeUrl(failingUrl, view)
+                                // 不调用 super.onReceivedError，避免显示错误页面和可能的循环
+                                return
+                            }
+                        }
+                    }
+                    
+                    super.onReceivedError(view, errorCode, description, failingUrl)
                 }
             }
         }

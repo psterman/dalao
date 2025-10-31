@@ -455,6 +455,15 @@ class UrlSchemeHandler(private val context: Context) {
                 downloadUrl = "https://www.weather.com.cn/download",
                 webUrl = "https://www.weather.com.cn",
                 description = "中国天气 - 天气预报"
+            ),
+            
+            // 工具类
+            "clash" to AppSchemeInfo(
+                appName = "Clash",
+                packageName = "com.github.kr328.clash",
+                downloadUrl = "https://github.com/Kr328/ClashForAndroid/releases",
+                webUrl = "https://github.com/Kr328/ClashForAndroid",
+                description = "Clash - 网络代理工具"
             )
         )
     }
@@ -532,15 +541,18 @@ class UrlSchemeHandler(private val context: Context) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // 精准指定包名，避免落入其它同名 scheme 的应用
+            try {
+                intent.`package` = appInfo.packageName
+            } catch (_: Exception) { }
             
             // 检查是否有应用可以处理这个intent
             val packageManager = context.packageManager
             val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             
             if (resolveInfo != null) {
-                context.startActivity(intent)
-                onSuccess?.invoke()
-                Log.d(TAG, "成功跳转到${appInfo.appName}")
+                // 先显示确认对话框，而不是直接跳转
+                showJumpConfirmDialog(url, appInfo, intent, onSuccess, onFailure)
             } else {
                 // 没有应用可以处理，显示提示
                 showAppNotFoundDialog(appInfo, onSuccess, onFailure)
@@ -564,9 +576,8 @@ class UrlSchemeHandler(private val context: Context) {
             val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
             
             if (resolveInfo != null) {
-                context.startActivity(intent)
-                onSuccess?.invoke()
-                Log.d(TAG, "通用跳转成功: $url")
+                // 先显示确认对话框，而不是直接跳转
+                showGenericJumpConfirmDialog(url, intent, onSuccess, onFailure)
             } else {
                 showGenericNotFoundDialog(url, onSuccess, onFailure)
             }
@@ -619,6 +630,122 @@ class UrlSchemeHandler(private val context: Context) {
             openWebPage(appInfo.webUrl)
             onSuccess?.invoke()
         }
+        
+        // 取消按钮
+        dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+            onFailure?.invoke()
+        }
+        
+        dialog.show()
+    }
+    
+    /**
+     * 显示跳转确认对话框（已知应用）
+     */
+    private fun showJumpConfirmDialog(
+        url: String,
+        appInfo: AppSchemeInfo,
+        intent: Intent,
+        onSuccess: (() -> Unit)?,
+        onFailure: (() -> Unit)?
+    ) {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_url_scheme_handler, null)
+        
+        // 设置内容
+        dialogView.findViewById<ImageView>(R.id.dialog_icon).setImageResource(R.drawable.ic_warning)
+        dialogView.findViewById<TextView>(R.id.dialog_title).text = "打开${appInfo.appName}"
+        dialogView.findViewById<TextView>(R.id.dialog_message).text = 
+            "检测到${appInfo.appName}链接，是否要跳转到外部应用？\n\n链接: $url"
+        
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+        
+        // 确认跳转按钮
+        dialogView.findViewById<Button>(R.id.btn_download).apply {
+            text = "打开应用"
+            setOnClickListener {
+                dialog.dismiss()
+                try {
+                    context.startActivity(intent)
+                    onSuccess?.invoke()
+                    Log.d(TAG, "成功跳转到${appInfo.appName}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "跳转到${appInfo.appName}失败", e)
+                    android.widget.Toast.makeText(context, "无法打开应用", android.widget.Toast.LENGTH_SHORT).show()
+                    onFailure?.invoke()
+                }
+            }
+        }
+        
+        // 网页版按钮
+        dialogView.findViewById<Button>(R.id.btn_web).apply {
+            text = "网页版"
+            setOnClickListener {
+                dialog.dismiss()
+                openWebPage(appInfo.webUrl)
+                onSuccess?.invoke()
+            }
+        }
+        
+        // 取消按钮
+        dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+            onFailure?.invoke()
+        }
+        
+        dialog.show()
+    }
+    
+    /**
+     * 显示通用跳转确认对话框（未知应用）
+     */
+    private fun showGenericJumpConfirmDialog(
+        url: String,
+        intent: Intent,
+        onSuccess: (() -> Unit)?,
+        onFailure: (() -> Unit)?
+    ) {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_url_scheme_handler, null)
+        
+        // 设置内容
+        dialogView.findViewById<ImageView>(R.id.dialog_icon).setImageResource(R.drawable.ic_warning)
+        
+        // 尝试获取应用名称
+        val packageManager = context.packageManager
+        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        val appName = resolveInfo?.loadLabel(packageManager)?.toString() ?: "外部应用"
+        
+        dialogView.findViewById<TextView>(R.id.dialog_title).text = "打开外部应用"
+        dialogView.findViewById<TextView>(R.id.dialog_message).text = 
+            "检测到特殊链接，是否要跳转到外部应用？\n\n应用: $appName\n链接: $url"
+        
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+        
+        // 确认跳转按钮
+        dialogView.findViewById<Button>(R.id.btn_download).apply {
+            text = "打开应用"
+            setOnClickListener {
+                dialog.dismiss()
+                try {
+                    context.startActivity(intent)
+                    onSuccess?.invoke()
+                    Log.d(TAG, "通用跳转成功: $url")
+                } catch (e: Exception) {
+                    Log.e(TAG, "通用跳转失败: $url", e)
+                    android.widget.Toast.makeText(context, "无法打开应用", android.widget.Toast.LENGTH_SHORT).show()
+                    onFailure?.invoke()
+                }
+            }
+        }
+        
+        // 隐藏网页版按钮（未知应用没有网页版）
+        dialogView.findViewById<Button>(R.id.btn_web).visibility = View.GONE
         
         // 取消按钮
         dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {

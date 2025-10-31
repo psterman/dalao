@@ -12,6 +12,17 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebViewClient
+import android.webkit.WebResourceResponse
+import android.net.http.SslError
+import android.webkit.SslErrorHandler
+import android.net.Uri
+import android.content.Intent
+import androidx.appcompat.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebView.HitTestResult
 import com.example.aifloatingball.ui.text.TextSelectionManager
@@ -47,6 +58,7 @@ class CustomWebView @JvmOverloads constructor(
     
     // 输入法管理器
     private var inputMethodManager: InputMethodManager? = null
+    private var delegatedClient: WebViewClient? = null
     
     init {
         // 不再使用 setOnLongClickListener，以避免与 onTouchEvent 中的自定义长按逻辑冲突。
@@ -59,6 +71,133 @@ class CustomWebView @JvmOverloads constructor(
         // 设置WebView属性以更好地支持输入
         isFocusable = true
         isFocusableInTouchMode = true
+    }
+
+    override fun setWebViewClient(client: WebViewClient) {
+        delegatedClient = client
+        // 包装一层，优先拦截外部 scheme（clash://、intent:// 等）
+        super.setWebViewClient(object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString()
+                if (handleExternalIfNeeded(view, url)) return true
+                return delegatedClient?.shouldOverrideUrlLoading(view, request) ?: false
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                if (handleExternalIfNeeded(view, url)) return true
+                return delegatedClient?.shouldOverrideUrlLoading(view, url) ?: false
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                delegatedClient?.onPageStarted(view, url, favicon)
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                delegatedClient?.onPageFinished(view, url)
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                delegatedClient?.onReceivedError(view, request, error)
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                delegatedClient?.onReceivedError(view, errorCode, description, failingUrl)
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                delegatedClient?.onReceivedSslError(view, handler, error)
+            }
+
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                return delegatedClient?.shouldInterceptRequest(view, request)
+            }
+        })
+    }
+
+    private fun handleExternalIfNeeded(view: WebView?, url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val lower = url.lowercase()
+        val isHttp = lower.startsWith("http://") || lower.startsWith("https://")
+        if (isHttp) return false
+
+        // intent:// 以及自定义 scheme 都走外部处理
+        if (lower.startsWith("intent://")) {
+            showExternalConfirmDialog(view, url) {
+                openByIntentUri(view, url)
+            }
+            return true
+        }
+
+        // 其它自定义 scheme 交给 UrlSchemeHandler（含 clash:// 专用提示）
+        showExternalConfirmDialog(view, url) {
+            try {
+                val handler = com.example.aifloatingball.manager.UrlSchemeHandler(context)
+                handler.handleUrlScheme(url)
+            } catch (e: Exception) {
+                Log.e(TAG, "UrlSchemeHandler 处理失败", e)
+                Toast.makeText(context, "无法处理链接", Toast.LENGTH_SHORT).show()
+            }
+        }
+        return true
+    }
+
+    private fun showExternalConfirmDialog(view: WebView?, targetUrl: String, onAllow: () -> Unit) {
+        val originHost = try { Uri.parse(view?.url ?: "").host } catch (_: Exception) { null }
+        val title = if (!originHost.isNullOrBlank()) "$originHost 想启动第三方应用:" else "网页想启动第三方应用:"
+        val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
+
+        AlertDialog.Builder(context)
+            .setTitle(title)
+            .setMessage(displayUrl)
+            .setNeutralButton("拷贝") { _, _ ->
+                try {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("URL", targetUrl))
+                    Toast.makeText(context, "已拷贝", Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {}
+            }
+            .setNegativeButton("不允许", null)
+            .setPositiveButton("允许") { _, _ -> onAllow() }
+            .show()
+    }
+
+    private fun openByIntentUri(view: WebView?, intentUrl: String) {
+        try {
+            val intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME)
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+            // 针对 clash:// 指定优先包，确保精确拉起
+            val data = intent.dataString
+            if (intent.`package` == null && data != null && data.startsWith("clash://")) {
+                val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+                // 尝试指定可用包名
+                for (pkg in clashPackages) {
+                    try {
+                        context.packageManager.getPackageInfo(pkg, 0)
+                        intent.`package` = pkg
+                        break
+                    } catch (_: Exception) { }
+                }
+            }
+
+            val canHandle = intent.resolveActivity(context.packageManager) != null
+            if (canHandle) {
+                context.startActivity(intent)
+            } else {
+                val fallback = intent.getStringExtra("browser_fallback_url")
+                if (!fallback.isNullOrBlank()) {
+                    view?.loadUrl(fallback)
+                } else {
+                    Toast.makeText(context, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "解析/启动 intent:// 失败", e)
+            Toast.makeText(context, "拉起应用失败", Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**

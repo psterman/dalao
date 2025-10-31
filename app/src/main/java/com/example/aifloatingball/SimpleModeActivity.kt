@@ -238,6 +238,224 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 统一处理 WebView 的 URL 加载逻辑：
+     * - http/https 内联加载
+     * - 其他自定义 scheme（如 clash://、intent://、mailto: 等）走外部应用
+     */
+    private fun handleUrlForWebView(view: WebView?, url: String): Boolean {
+        return try {
+            val lower = url.lowercase()
+            if (lower.startsWith("http://") || lower.startsWith("https://")) {
+                view?.loadUrl(url)
+                true
+            } else {
+                // 自定义 scheme，先弹出确认对话框再尝试拉起外部应用
+                confirmAndLaunchExternal(view, url)
+                true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理WebView URL失败: $url", e)
+            true
+        }
+    }
+
+    /**
+     * 仿 Alook/Chrome 的外部唤起确认对话框
+     */
+    private fun confirmAndLaunchExternal(view: WebView?, targetUrl: String) {
+        val originHost = try { Uri.parse(view?.url ?: "").host } catch (_: Exception) { null }
+        val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
+        val title = if (!originHost.isNullOrBlank()) "$originHost 想启动第三方应用:" else "网页想启动第三方应用:"
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(displayUrl)
+            .setNeutralButton("拷贝") { _, _ ->
+                try {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("url", targetUrl))
+                    Toast.makeText(this, "已拷贝", Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {}
+            }
+            .setNegativeButton("不允许") { dialog, _ -> dialog.dismiss() }
+            .setPositiveButton("允许") { _, _ ->
+                launchExternalFromUrl(view, targetUrl)
+            }
+            .show()
+    }
+
+    private fun launchExternalFromUrl(view: WebView?, url: String) {
+        val lower = url.lowercase()
+        if (lower.startsWith("intent://")) {
+            openExternalByIntentUri(view, url)
+            return
+        }
+
+        val uri = try { Uri.parse(url) } catch (_: Exception) { null }
+        if (uri == null) {
+            Toast.makeText(this, "无效链接", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (uri.scheme.equals("clash", ignoreCase = true)) {
+            launchClashUrl(uri)
+        } else {
+            openExternalByScheme(uri)
+        }
+    }
+
+    private fun openExternalByIntentUri(view: WebView?, intentUrl: String) {
+        try {
+            val intent = Intent.parseUri(intentUrl, Intent.URI_INTENT_SCHEME)
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+
+            // 优先指定 Clash 包，确保精确拉起
+            val data = intent.dataString
+            if ((intent.`package` == null) && data != null && data.startsWith("clash://")) {
+                val clashPkg = getInstalledAIPackageName(listOf("com.github.kr328.clash", "com.github.metacubex.clash"))
+                if (!clashPkg.isNullOrBlank()) intent.`package` = clashPkg
+            }
+
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return
+            }
+
+            // 解析 browser_fallback_url
+            val fallback = intent.getStringExtra("browser_fallback_url")
+            if (!fallback.isNullOrBlank()) {
+                view?.loadUrl(fallback)
+                return
+            }
+
+            Toast.makeText(this, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "处理 intent:// 失败", e)
+            Toast.makeText(this, "拉起应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun launchClashUrl(uri: Uri) {
+        val candidates = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
+        val installed = getInstalledAIPackageName(candidates)
+
+        // 先尝试精确包名启动
+        if (!installed.isNullOrBlank()) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    `package` = installed
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+                return
+            } catch (e: ActivityNotFoundException) {
+                Log.w(TAG, "指定包名启动失败，尝试通用处理", e)
+            }
+        }
+
+        // 再尝试通用处理
+        openExternalByScheme(uri)
+    }
+
+    private fun openExternalByScheme(uri: Uri) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "外部应用打开失败: ${uri}", e)
+            Toast.makeText(this, "拉起应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 处理特殊 scheme URL（如 clash://、intent:// 等）
+     * @param url URL 字符串
+     * @param view WebView 实例
+     * @return true 表示已处理（已显示对话框），false 表示非特殊 scheme
+     */
+    private fun handleSpecialSchemeUrl(url: String, view: WebView?): Boolean {
+        if (url.isBlank()) {
+            Log.d(TAG, "handleSpecialSchemeUrl: URL 为空")
+            return false
+        }
+        
+        // 尝试从 URL 中提取真实的特殊 scheme URL
+        // 例如：如果 URL 是 "clash://install-config?url=https://..."，我们需要提取出完整的 clash:// URL
+        var processedUrl = url.trim()
+        
+        // 检查是否包含 clash:// 但可能被截断或编码
+        val lower = processedUrl.lowercase()
+        
+        // 检查是否为 HTTP/HTTPS，这些应该在 WebView 中加载
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            Log.d(TAG, "handleSpecialSchemeUrl: 是 HTTP/HTTPS URL，不在 WebView 中处理")
+            return false
+        }
+        
+        // 检查是否为特殊 scheme（直接匹配或包含）
+        val isSpecialScheme = when {
+            lower.startsWith("clash://") -> {
+                // clash:// URL 已经完整，直接使用
+                Log.d(TAG, "handleSpecialSchemeUrl: 检测到完整的 clash:// URL: $processedUrl")
+                true
+            }
+            lower.startsWith("intent://") -> true
+            lower.startsWith("baidumap://") -> true
+            lower.startsWith("amap://") -> true
+            lower.startsWith("alipay://") -> true
+            lower.startsWith("wechat://") -> true
+            lower.startsWith("weixin://") -> true
+            lower.startsWith("qq://") -> true
+            // 检查是否包含任何已知的特殊 scheme（从错误信息中提取）
+            lower.contains("clash://") -> {
+                // 从错误信息中提取完整的 clash:// URL
+                val clashIndex = lower.indexOf("clash://")
+                if (clashIndex >= 0) {
+                    val remaining = processedUrl.substring(clashIndex)
+                    // 提取完整的 URL，直到遇到空格、换行或字符串末尾
+                    // 但保留查询参数（? 后的内容）
+                    val spaceIndex = remaining.indexOfFirst { it == ' ' || it == '\n' || it == '\r' }
+                    processedUrl = if (spaceIndex > 0) remaining.substring(0, spaceIndex) else remaining
+                    Log.d(TAG, "handleSpecialSchemeUrl: 从错误信息中提取的 clash:// URL: $processedUrl")
+                }
+                true
+            }
+            lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://") && 
+            !lower.startsWith("file://") && !lower.startsWith("javascript:") -> {
+                // 尝试提取 scheme
+                val schemeIndex = lower.indexOf("://")
+                if (schemeIndex > 0) {
+                    val scheme = processedUrl.substring(0, schemeIndex + 3)
+                    Log.d(TAG, "handleSpecialSchemeUrl: 检测到未知特殊 scheme: $scheme")
+                }
+                true
+            }
+            else -> false
+        }
+        
+        if (!isSpecialScheme) {
+            Log.d(TAG, "handleSpecialSchemeUrl: 不是特殊 scheme URL: $url")
+            return false
+        }
+        
+        // 对于特殊 scheme，显示确认对话框让用户选择是否打开外部应用
+        Log.d(TAG, "handleSpecialSchemeUrl: 检测到特殊 scheme URL: $processedUrl，显示确认对话框")
+        
+        // 使用现有的确认对话框方法
+        confirmAndLaunchExternal(view, processedUrl)
+        
+        return true // 返回 true 表示已处理，阻止在 WebView 中加载
+    }
+
+    /**
      * 通用AI应用跳转方法
      */
     private fun launchAIAppWithFallback(
@@ -8791,7 +9009,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val query = browserSearchInput.text.toString().trim()
         if (query.isNotEmpty()) {
             try {
-                // 增强的URL判断逻辑
+                val lower = query.lowercase()
+                
+                // 检查是否为特殊 scheme（需要外部应用打开），这些应该当作搜索词而不是URL
+                val isSpecialScheme = when {
+                    lower.startsWith("intent://") -> true
+                    lower.startsWith("clash://") -> true
+                    lower.startsWith("douban://") -> true
+                    lower.startsWith("baidumap://") -> true
+                    lower.startsWith("amap://") -> true
+                    lower.startsWith("alipay://") -> true
+                    lower.startsWith("wechat://") -> true
+                    lower.startsWith("weixin://") -> true
+                    lower.startsWith("qq://") -> true
+                    // 其他已知的特殊 scheme
+                    lower.contains("://") && !lower.startsWith("http://") && 
+                    !lower.startsWith("https://") && !lower.startsWith("file://") -> true
+                    else -> false
+                }
+                
+                // 如果是特殊 scheme，当作搜索词处理（类似 Chrome）
+                if (isSpecialScheme) {
+                    Log.d(TAG, "检测到特殊 scheme '$query'，当作搜索词处理")
+                    val searchEngine = currentSearchEngine ?: com.example.aifloatingball.model.SearchEngine(
+                        name = "Google",
+                        displayName = "Google",
+                        url = "https://www.google.com/search?q={query}",
+                        iconResId = R.drawable.ic_google,
+                        description = "Google搜索"
+                    )
+                    val searchUrl = searchEngine.getSearchUrl(query)
+                    loadBrowserContent(searchUrl)
+                    Log.d(TAG, "浏览器搜索 - 特殊 scheme '$query' 已转换为搜索: $searchUrl")
+                    return
+                }
+                
+                // 增强的URL判断逻辑（排除特殊 scheme）
                 val isUrl = when {
                     // 1. 标准URL格式判断
                     android.webkit.URLUtil.isValidUrl(query) -> true
@@ -8801,9 +9054,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     query.startsWith("http://") || query.startsWith("https://") -> true
                     // 4. 本地文件
                     query.startsWith("file://") -> true
-                    // 5. 其他协议
-                    query.contains("://") -> true
-                    // 6. IP地址格式
+                    // 5. IP地址格式
                     query.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d+)?(/.*)?$")) -> true
                     else -> false
                 }
@@ -9021,23 +9272,63 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             currentSearchEngine = engine
 
             val query = browserSearchInput.text.toString().trim()
+            
+            if (query.isEmpty()) {
+                // 没有查询内容，跳转到搜索引擎首页
+                val baseUrl = engine.url.split("?")[0].replace("{query}", "")
+                    .replace("search", "").replace("/s", "").replace("/search", "")
+                loadBrowserContent(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
+                browserLayout.closeDrawer(GravityCompat.START)
+                updateSearchTabIcon()
+                return@setOnClickListener
+            }
+            
+            val lower = query.lowercase()
+            
+            // 检查是否为特殊 scheme（需要外部应用打开），这些应该当作搜索词而不是URL
+            val isSpecialScheme = when {
+                lower.startsWith("intent://") -> true
+                lower.startsWith("clash://") -> true
+                lower.startsWith("douban://") -> true
+                lower.startsWith("baidumap://") -> true
+                lower.startsWith("amap://") -> true
+                lower.startsWith("alipay://") -> true
+                lower.startsWith("wechat://") -> true
+                lower.startsWith("weixin://") -> true
+                lower.startsWith("qq://") -> true
+                // 其他已知的特殊 scheme
+                lower.contains("://") && !lower.startsWith("http://") && 
+                !lower.startsWith("https://") && !lower.startsWith("file://") -> true
+                else -> false
+            }
+            
+            // 如果是特殊 scheme，当作搜索词处理（类似 Chrome）
+            if (isSpecialScheme) {
+                Log.d(TAG, "检测到特殊 scheme '$query'，当作搜索词处理")
+                val searchUrl = engine.getSearchUrl(query)
+                loadBrowserContent(searchUrl)
+                browserLayout.closeDrawer(GravityCompat.START)
+                updateSearchTabIcon()
+                return@setOnClickListener
+            }
 
             // 检查输入是否为URL（避免将URL作为搜索关键词）
             val isUrl = query.isNotEmpty() && (
                 query.startsWith("http://") ||
                 query.startsWith("https://") ||
-                query.contains("://") ||
+                query.startsWith("file://") ||
                 (query.contains(".") && !query.contains(" "))
             )
 
-            val url = if (query.isNotEmpty() && !isUrl) {
+            val url = if (!isUrl) {
                 // 有查询内容且不是URL，使用搜索引擎搜索
                 engine.getSearchUrl(query)
             } else {
-                // 没有查询内容或输入的是URL，跳转到搜索引擎首页
-                val baseUrl = engine.url.split("?")[0].replace("{query}", "")
-                    .replace("search", "").replace("/s", "").replace("/search", "")
-                if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+                // 输入的是URL，确保有协议前缀
+                when {
+                    query.startsWith("http://") || query.startsWith("https://") || query.startsWith("file://") -> query
+                    else -> "https://$query"
+                }
             }
 
             loadBrowserContent(url)
@@ -23819,6 +24110,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             val url = request?.url?.toString()
                             Log.d(TAG, "语音胶囊WebView URL加载: $url")
                             
+                            // 检查是否为特殊 scheme，需要外部应用打开
+                            if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                return true // 已处理，返回true阻止默认加载
+                            }
+                            
                             // 强制阻止外部浏览器打开，所有链接都在WebView内加载
                             if (url != null && view != null) {
                                 try {
@@ -23834,6 +24130,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         @Deprecated("Deprecated in Java")
                         override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                             Log.d(TAG, "语音胶囊WebView URL加载 (legacy): $url")
+                            
+                            // 检查是否为特殊 scheme，需要外部应用打开
+                            if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                return true // 已处理，返回true阻止默认加载
+                            }
                             
                             // 强制阻止外部浏览器打开，所有链接都在WebView内加载
                             if (url != null && view != null) {
@@ -23858,8 +24159,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         }
                         
                         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                            val url = request?.url?.toString()
+                            val errorCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                error?.errorCode
+                            } else {
+                                -1
+                            }
+                            val errorDescription = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                error?.description?.toString()
+                            } else {
+                                "Unknown error"
+                            }
+                            
+                            Log.e(TAG, "语音胶囊WebView加载错误: $errorDescription, URL: $url, ErrorCode: $errorCode")
+                            
+                            // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误，且 URL 是特殊 scheme
+                            if (errorCode == -2 || errorDescription?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                                errorDescription?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                                if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                    // 已处理特殊 scheme，不显示错误页面
+                                    Log.d(TAG, "已通过 handleSpecialSchemeUrl 处理特殊 scheme: $url")
+                                    return
+                                }
+                            }
+                            
                             super.onReceivedError(view, request, error)
-                            Log.e(TAG, "语音胶囊WebView加载错误: ${error?.description}")
+                        }
+                        
+                        @Deprecated("Deprecated in Java")
+                        override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                            Log.e(TAG, "语音胶囊WebView加载错误 (legacy): $description, URL: $failingUrl, ErrorCode: $errorCode")
+                            
+                            // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误（错误代码 -2）
+                            if (errorCode == -2 || description?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                                description?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                                if (failingUrl != null && handleSpecialSchemeUrl(failingUrl, view)) {
+                                    // 已处理特殊 scheme，不显示错误页面
+                                    Log.d(TAG, "已通过 handleSpecialSchemeUrl 处理特殊 scheme (legacy): $failingUrl")
+                                    return
+                                }
+                            }
+                            
+                            super.onReceivedError(view, errorCode, description, failingUrl)
                         }
                     }
                     
@@ -24139,6 +24480,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             val url = request?.url?.toString()
                             Log.d(TAG, "语音胶囊WebView URL拦截: $url")
                             
+                            // 检查是否为特殊 scheme，需要外部应用打开
+                            if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                return true // 已处理，返回true阻止默认加载
+                            }
+                            
                             // 强制在WebView内加载，阻止外部浏览器
                             if (url != null && view != null) {
                                 try {
@@ -24154,6 +24500,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         @Deprecated("Deprecated in Java")
                         override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                             Log.d(TAG, "语音胶囊WebView URL拦截 (legacy): $url")
+                            
+                            // 检查是否为特殊 scheme，需要外部应用打开
+                            if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                return true // 已处理，返回true阻止默认加载
+                            }
                             
                             if (url != null && view != null) {
                                 try {
@@ -24174,6 +24525,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             Log.d(TAG, "语音胶囊WebView页面加载完成: $url")
+                        }
+                        
+                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                            val url = request?.url?.toString()
+                            val errorCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                error?.errorCode
+                            } else {
+                                -1
+                            }
+                            val errorDescription = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                error?.description?.toString()
+                            } else {
+                                "Unknown error"
+                            }
+                            
+                            Log.e(TAG, "语音胶囊WebView加载错误: $errorDescription, URL: $url, ErrorCode: $errorCode")
+                            
+                            // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误，且 URL 是特殊 scheme
+                            if (errorCode == -2 || errorDescription?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                                errorDescription?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                                if (url != null && handleSpecialSchemeUrl(url, view)) {
+                                    // 已处理特殊 scheme，不显示错误页面
+                                    Log.d(TAG, "已通过 handleSpecialSchemeUrl 处理特殊 scheme: $url")
+                                    return
+                                }
+                            }
+                            
+                            super.onReceivedError(view, request, error)
+                        }
+                        
+                        @Deprecated("Deprecated in Java")
+                        override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                            Log.e(TAG, "语音胶囊WebView加载错误 (legacy): $description, URL: $failingUrl, ErrorCode: $errorCode")
+                            
+                            // 检查是否为 ERR_UNKNOWN_URL_SCHEME 错误（错误代码 -2）
+                            if (errorCode == -2 || description?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
+                                description?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
+                                if (failingUrl != null && handleSpecialSchemeUrl(failingUrl, view)) {
+                                    // 已处理特殊 scheme，不显示错误页面
+                                    Log.d(TAG, "已通过 handleSpecialSchemeUrl 处理特殊 scheme (legacy): $failingUrl")
+                                    return
+                                }
+                            }
+                            
+                            super.onReceivedError(view, errorCode, description, failingUrl)
                         }
                     }
                     
