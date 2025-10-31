@@ -1475,16 +1475,20 @@ class SearchActivity : AppCompatActivity() {
                 if (request?.isForMainFrame == true && errorUrl != null) {
                     if (errorCode == -2 || errorDescription?.contains("ERR_UNKNOWN_URL_SCHEME") == true || 
                         errorDescription?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
-                        // 检查是否为特殊 scheme（intent://, douban://, clash:// 等）
+                        // 检查是否为应用 scheme（非 http/https/file/javascript/tel/mailto/sms）
                         val lower = errorUrl.lowercase()
-                        val isSpecialScheme = lower.startsWith("intent://") || 
-                                             lower.startsWith("clash://") ||
-                                             lower.startsWith("douban://") ||
-                                             (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                        val isAppScheme = lower.contains("://") && 
+                                         !lower.startsWith("http://") && 
+                                         !lower.startsWith("https://") &&
+                                         !lower.startsWith("file://") &&
+                                         !lower.startsWith("javascript:") &&
+                                         !lower.startsWith("tel:") &&
+                                         !lower.startsWith("mailto:") &&
+                                         !lower.startsWith("sms:")
                         
-                        if (isSpecialScheme) {
-                            // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
-                            Log.d("SearchActivity", "检测到特殊 scheme 错误，直接启动Intent: $errorUrl")
+                        if (isAppScheme) {
+                            // 应用 scheme 导致的错误，直接启动Intent（类似 Chrome，识别所有intent）
+                            Log.d("SearchActivity", "检测到应用 scheme 错误，直接启动Intent: $errorUrl")
                             if (errorUrl.startsWith("intent://")) {
                                 launchIntentUrlDirectly(errorUrl)
                             } else {
@@ -1579,14 +1583,18 @@ class SearchActivity : AppCompatActivity() {
                     description?.contains("net::ERR_UNKNOWN_URL_SCHEME") == true) {
                     if (failingUrl != null) {
                         val lower = failingUrl.lowercase()
-                        val isSpecialScheme = lower.startsWith("intent://") || 
-                                             lower.startsWith("clash://") ||
-                                             lower.startsWith("douban://") ||
-                                             (lower.contains("://") && !lower.startsWith("http://") && !lower.startsWith("https://"))
+                        val isAppScheme = lower.contains("://") && 
+                                         !lower.startsWith("http://") && 
+                                         !lower.startsWith("https://") &&
+                                         !lower.startsWith("file://") &&
+                                         !lower.startsWith("javascript:") &&
+                                         !lower.startsWith("tel:") &&
+                                         !lower.startsWith("mailto:") &&
+                                         !lower.startsWith("sms:")
                         
-                            if (isSpecialScheme) {
-                                // 特殊 scheme 导致的错误，直接启动Intent（类似 Chrome）
-                                Log.d("SearchActivity", "检测到特殊 scheme 错误 (legacy)，直接启动Intent: $failingUrl")
+                            if (isAppScheme) {
+                                // 应用 scheme 导致的错误，直接启动Intent（类似 Chrome，识别所有intent）
+                                Log.d("SearchActivity", "检测到应用 scheme 错误 (legacy)，直接启动Intent: $failingUrl")
                                 if (failingUrl.startsWith("intent://")) {
                                     launchIntentUrlDirectly(failingUrl)
                                 } else {
@@ -2755,10 +2763,17 @@ class SearchActivity : AppCompatActivity() {
                 // 由系统处理
                 true
             }
-            // 处理其他应用URL scheme（baidumap://, amap:// 等）
-            url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") -> {
-                Log.d("SearchActivity", "检测到应用URL scheme: $url")
-                handleAppUrlScheme(view, url)
+            // 处理其他应用URL scheme（baidumap://, amap:// 等），直接启动Intent（类似 Chrome）
+            url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") && 
+            !url.startsWith("file://") && !url.startsWith("javascript:") && 
+            !url.startsWith("tel:") && !url.startsWith("mailto:") && !url.startsWith("sms:") -> {
+                Log.d("SearchActivity", "检测到应用URL scheme: $url，直接启动Intent")
+                // 尝试判断是否为 intent://
+                if (url.startsWith("intent://")) {
+                    launchIntentUrlDirectly(url)
+                } else {
+                    launchSchemeUrlDirectly(url)
+                }
                 true
             }
             // 处理文件下载
@@ -2902,6 +2917,8 @@ class SearchActivity : AppCompatActivity() {
     
     /**
      * 直接启动 scheme URL（类似 Chrome，让系统显示应用选择对话框）
+     * 支持所有类型的应用scheme，自动识别并启动
+     * 系统会自动匹配已安装的应用，无需手动指定包名
      */
     private fun launchSchemeUrlDirectly(schemeUrl: String) {
         try {
@@ -2911,24 +2928,29 @@ class SearchActivity : AppCompatActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             
-            // 针对 clash:// 指定优先包
+            // 针对 clash:// 指定优先包（特殊处理，因为可能有多个Clash版本）
             if (schemeUrl.startsWith("clash://")) {
                 val clashPackages = listOf("com.github.kr328.clash", "com.github.metacubex.clash")
                 for (pkg in clashPackages) {
                     try {
                         packageManager.getPackageInfo(pkg, 0)
                         intent.`package` = pkg
+                        Log.d("SearchActivity", "为 clash:// 指定包名: $pkg")
                         break
                     } catch (_: Exception) { }
                 }
             }
             
+            // 检查是否有应用可以处理此Intent
             if (intent.resolveActivity(packageManager) != null) {
-                // 直接启动，让系统显示应用选择对话框（类似 Chrome）
+                // 直接启动，让系统显示应用选择对话框（类似 Chrome，识别所有intent）
+                // 如果只有一个应用可以处理，系统会直接打开；如果有多个，系统会显示选择对话框
                 startActivity(intent)
                 Log.d("SearchActivity", "直接启动 scheme 链接成功: $schemeUrl")
             } else {
+                // 没有应用可以处理，提示用户
                 Toast.makeText(this, "未找到可处理的应用", Toast.LENGTH_SHORT).show()
+                Log.w("SearchActivity", "没有应用可以处理 scheme: $schemeUrl")
             }
         } catch (e: Exception) {
             Log.e("SearchActivity", "直接启动 scheme 链接失败: $schemeUrl", e)
