@@ -28,6 +28,15 @@
         android:maxLines="5"
         android:ellipsize="end" />
 
+    <!-- 填空输入框容器 -->
+    <LinearLayout
+        android:id="@+id/fill_in_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:layout_marginBottom="12dp" />
+
     <!-- 可编辑的Prompt输入框 -->
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"

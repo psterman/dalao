@@ -269,7 +269,7 @@ object PromptCommunityData {
             PromptCommunityItem(
                 id = UUID.randomUUID().toString(),
                 title = "电商客服标准回复库生成",
-                content = "根据店铺品类和常见问题清单，生成品牌语气一致的FAQ标准回复，包含换货/退款/物流/售后...",
+                content = "根据店铺品类{店铺类型}和常见问题清单，生成品牌语气一致的FAQ标准回复，包含换货/退款/物流/售后...",
                 author = "客服经理",
                 authorId = "user14",
                 tags = listOf("SOP", "客服", "FAQ", "语气一致性"),
@@ -280,6 +280,204 @@ object PromptCommunityData {
                 collectCount = 640,
                 commentCount = 58,
                 viewCount = 4200,
+                isOriginal = true
+            ),
+            
+            // 新增：带填空的实用 prompt
+            // 文案创作类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "产品推广文案生成器",
+                content = "请为{产品名称}撰写一篇吸引人的推广文案，目标受众是{目标用户}，重点突出{核心卖点}，风格要求{文案风格}。",
+                author = "文案专家",
+                authorId = "user15",
+                tags = listOf("文案创作", "营销", "推广"),
+                category = PromptCategory.CREATIVE_WRITING,
+                scene = "文案创作",
+                description = "快速生成个性化产品推广文案，只需填写关键信息。",
+                likeCount = 1250,
+                collectCount = 980,
+                commentCount = 156,
+                viewCount = 8500,
+                isOriginal = true
+            ),
+            
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "邮件标题优化助手",
+                content = "请为以下邮件主题优化标题：{原邮件主题}。要求：1) 吸引收件人注意 2) 清晰表达邮件目的 3) 长度控制在{标题长度}字以内。",
+                author = "职场助手",
+                authorId = "user16",
+                tags = listOf("职场办公", "邮件", "沟通"),
+                category = PromptCategory.WORKPLACE_OFFICE,
+                scene = "职场办公",
+                description = "一键优化邮件标题，提高邮件打开率。",
+                likeCount = 890,
+                collectCount = 720,
+                commentCount = 98,
+                viewCount = 6200,
+                isOriginal = true
+            ),
+            
+            // 代码助手类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "代码功能解释器",
+                content = "请用通俗易懂的语言解释以下{编程语言}代码的功能：\n{代码片段}\n\n要求：1) 说明代码的主要作用 2) 解释关键步骤 3) 如果适用，提供改进建议。",
+                author = "编程导师",
+                authorId = "user17",
+                tags = listOf("编程开发", "代码解释", "学习"),
+                category = PromptCategory.CODE_ASSISTANT,
+                scene = "代码开发",
+                description = "快速理解代码功能，适合学习和代码审查。",
+                likeCount = 1120,
+                collectCount = 890,
+                commentCount = 234,
+                viewCount = 7800,
+                isOriginal = true
+            ),
+            
+            // 翻译转换类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "多语言翻译助手",
+                content = "请将以下{源语言}文本翻译成{目标语言}，保持原文的语气和风格：\n{待翻译文本}\n\n如果文本涉及专业术语或特定文化背景，请提供适当的解释或注释。",
+                author = "翻译专家",
+                authorId = "user18",
+                tags = listOf("翻译转换", "多语言", "本地化"),
+                category = PromptCategory.TRANSLATION_CONVERSION,
+                scene = "文本翻译",
+                description = "专业级翻译服务，支持多种语言对和语境适配。",
+                likeCount = 980,
+                collectCount = 810,
+                commentCount = 187,
+                viewCount = 6900,
+                isOriginal = true
+            ),
+            
+            // 数据分析类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "数据报告生成器",
+                content = "基于以下数据：\n{数据内容}\n\n请生成一份{报告类型}报告，包括：1) 数据概览 2) 关键指标分析 3) 趋势说明 4) 建议和改进方向。报告长度控制在{报告长度}字左右。",
+                author = "数据分析师",
+                authorId = "user19",
+                tags = listOf("数据分析", "报告", "洞察"),
+                category = PromptCategory.DATA_ANALYSIS,
+                scene = "数据分析",
+                description = "自动生成结构化数据报告，节省分析时间。",
+                likeCount = 1050,
+                collectCount = 860,
+                commentCount = 143,
+                viewCount = 7200,
+                isOriginal = true
+            ),
+            
+            // 教育学习类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "学习计划制定助手",
+                content = "请为{学习主题}制定一份为期{学习时长}的学习计划，目标学员是{学员水平}。计划应包括：1) 学习目标 2) 阶段性任务 3) 时间安排 4) 评估方法 5) 推荐资源。",
+                author = "教育专家",
+                authorId = "user20",
+                tags = listOf("教育学习", "学习计划", "课程设计"),
+                category = PromptCategory.EDUCATION_STUDY,
+                scene = "教育学习",
+                description = "个性化学习计划生成，提高学习效率。",
+                likeCount = 940,
+                collectCount = 780,
+                commentCount = 112,
+                viewCount = 6500,
+                isOriginal = true
+            ),
+            
+            // 简历面试类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "简历优化建议",
+                content = "请为应聘{职位名称}的简历提供优化建议。应聘者背景：{个人背景}。要求：1) 指出简历中的亮点 2) 提出改进建议 3) 针对目标职位优化关键词 4) 提供具体的修改示例。",
+                author = "HR顾问",
+                authorId = "user21",
+                tags = listOf("简历面试", "求职", "职业发展"),
+                category = PromptCategory.RESUME_INTERVIEW,
+                scene = "职场办公",
+                description = "专业的简历优化服务，提升面试通过率。",
+                likeCount = 1580,
+                collectCount = 1240,
+                commentCount = 289,
+                viewCount = 9200,
+                isOriginal = true
+            ),
+            
+            // 社媒内容类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "社交媒体文案创作",
+                content = "请为{平台名称}创建一条关于{主题内容}的文案，目标受众是{目标用户}，风格要求{内容风格}，长度控制在{文案长度}字以内。要求：1) 吸引注意力 2) 引导互动 3) 包含相关标签。",
+                author = "社媒运营",
+                authorId = "user22",
+                tags = listOf("社媒内容", "社交媒体", "内容创作"),
+                category = PromptCategory.SOCIAL_MEDIA,
+                scene = "社媒内容",
+                description = "快速创作适合各平台的社交媒体文案。",
+                likeCount = 1100,
+                collectCount = 920,
+                commentCount = 198,
+                viewCount = 8100,
+                isOriginal = true
+            ),
+            
+            // 电商运营类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "产品详情页优化",
+                content = "请为{产品名称}优化电商详情页文案，产品特点：{产品特点}，目标用户：{目标用户}。要求：1) 吸引人的标题 2) 清晰的产品卖点 3) 解决用户痛点的描述 4) 促进购买的文案。",
+                author = "电商运营",
+                authorId = "user23",
+                tags = listOf("电商运营", "产品文案", "转化优化"),
+                category = PromptCategory.ECOMMERCE,
+                scene = "电商运营",
+                description = "提升产品页面转化率，增加销售额。",
+                likeCount = 1280,
+                collectCount = 1050,
+                commentCount = 234,
+                viewCount = 8800,
+                isOriginal = true
+            ),
+            
+            // 生活服务类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "旅行攻略生成器",
+                content = "请为{目的地}生成一份{旅行天数}天的旅行攻略，旅行者类型：{旅行者类型}，预算：{预算范围}。包括：1) 行程安排 2) 推荐景点 3) 美食推荐 4) 住宿建议 5) 交通指南 6) 注意事项。",
+                author = "旅行达人",
+                authorId = "user24",
+                tags = listOf("生活服务", "旅行", "攻略"),
+                category = PromptCategory.LIFE_SERVICE,
+                scene = "生活服务",
+                description = "个性化旅行攻略，让旅程更精彩。",
+                likeCount = 860,
+                collectCount = 690,
+                commentCount = 87,
+                viewCount = 5800,
+                isOriginal = true
+            ),
+            
+            // SEO营销类
+            PromptCommunityItem(
+                id = UUID.randomUUID().toString(),
+                title = "SEO关键词优化",
+                content = "请为{网页主题}生成SEO优化的标题和元描述，目标关键词：{关键词}，字数要求：标题{标题字数}字以内，描述{描述字数}字以内。要求：1) 包含目标关键词 2) 吸引点击 3) 准确描述内容。",
+                author = "SEO专家",
+                authorId = "user25",
+                tags = listOf("营销推广", "SEO", "关键词优化"),
+                category = PromptCategory.SEO_MARKETING,
+                scene = "搜索优化",
+                description = "提升搜索引擎排名，增加自然流量。",
+                likeCount = 1020,
+                collectCount = 840,
+                commentCount = 156,
+                viewCount = 7400,
                 isOriginal = true
             )
         )

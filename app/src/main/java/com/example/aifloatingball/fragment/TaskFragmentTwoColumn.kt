@@ -9,8 +9,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.example.aifloatingball.ChatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SimpleModeActivity
 import com.example.aifloatingball.adapter.PromptCommunityAdapter
@@ -97,16 +101,42 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         scenarioRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         scenarioRecyclerView.adapter = scenarioAdapter
+        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
+            override fun onMove(recyclerView: androidx.recyclerview.widget.RecyclerView, viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, target: androidx.recyclerview.widget.RecyclerView.ViewHolder): Boolean {
+                val from = viewHolder.bindingAdapterPosition
+                val to = target.bindingAdapterPosition
+                if (from == to) return false
+                val moved = scenarioItems.removeAt(from)
+                scenarioItems.add(to, moved)
+                scenarioAdapter.moveScenario(from, to)
+                return true
+            }
+            override fun onSwiped(viewHolder: androidx.recyclerview.widget.RecyclerView.ViewHolder, direction: Int) {}
+            override fun isLongPressDragEnabled(): Boolean = true
+        })
+        itemTouchHelper.attachToRecyclerView(scenarioRecyclerView)
     }
     
     private fun setupPromptRecyclerView() {
+        val favoriteManager = com.example.aifloatingball.manager.PromptFavoriteManager.getInstance(requireContext())
         promptAdapter = PromptCommunityAdapter(
             emptyList(),
             onItemClick = { prompt -> onPromptItemClick(prompt) },
             onLikeClick = { prompt -> {} },
-            onCollectClick = { prompt -> {} },
+            onCollectClick = { prompt -> 
+                if (favoriteManager.isFavorite(prompt.id)) {
+                    favoriteManager.removeFavorite(prompt.id)
+                    android.widget.Toast.makeText(requireContext(), "已取消收藏", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    favoriteManager.addFavorite(prompt)
+                    android.widget.Toast.makeText(requireContext(), "已收藏", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                // 刷新列表以更新收藏状态
+                currentScenario?.let { loadPromptsForScenario(it) }
+            },
             onCommentClick = { prompt -> {} },
-            onShareClick = { prompt -> {} }
+            onShareClick = { prompt -> onPromptShare(prompt) },
+            favoriteManager = favoriteManager
         )
         
         promptRecyclerView.layoutManager = LinearLayoutManager(requireContext())
@@ -144,14 +174,14 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     }
     
     /**
-     * 显示收藏对话框
+     * 显示收藏对话框（跳转到我的收藏）
      */
     private fun showFavoriteDialog() {
-        currentScenario?.let { scenario ->
-            android.widget.Toast.makeText(requireContext(), "收藏功能：${scenario.displayName}", android.widget.Toast.LENGTH_SHORT).show()
-            // TODO: 实现收藏功能，将当前场景下的所有Prompt添加到收藏列表
-        } ?: run {
-            android.widget.Toast.makeText(requireContext(), "请先选择一个场景", android.widget.Toast.LENGTH_SHORT).show()
+        val myCollectionsItem = scenarioItems.find { it.category == PromptCategory.MY_COLLECTIONS }
+        if (myCollectionsItem != null) {
+            selectScenario(myCollectionsItem)
+        } else {
+            android.widget.Toast.makeText(requireContext(), "我的收藏", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -170,11 +200,8 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 val categoryName = input.text.toString()
                 if (categoryName.isNotEmpty()) {
                     scenarioAdapter.addScenario(categoryName)
-                    // 选中新建分组
-                    val newItem = ScenarioItem(categoryName, null)
-                    scenarioItems.add(newItem)
-                    scenarioRecyclerView.smoothScrollToPosition(scenarioItems.lastIndex)
-                    selectScenario(newItem)
+                    scenarioRecyclerView.smoothScrollToPosition(0)
+                    scenarioItems.firstOrNull()?.let { selectScenario(it) }
                     android.widget.Toast.makeText(requireContext(), "已新增分类：$categoryName", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
@@ -220,10 +247,31 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     
     /**
      * 获取可用的场景列表（包含主分类和子分类）
+     * 将"我的收藏"置顶，去掉不需要的类别
      */
     private fun getAvailableScenarios(): List<PromptCategory> {
-        return PromptCategory.values().filter { 
-            it != PromptCategory.UNKNOWN 
+        val excludedCategories = setOf(
+            PromptCategory.UNKNOWN,
+            PromptCategory.MY_UPLOADS,           // 我的上传
+            PromptCategory.EXPERT_PICKS,         // 达人精选
+            PromptCategory.TOP10_WEEK,           // 本周TOP10
+            PromptCategory.POPULAR,              // 热门推荐
+            PromptCategory.HIGH_FREQUENCY,       // 高频场景
+            PromptCategory.FUNCTIONAL             // 功能分类
+        )
+        
+        val allCategories = PromptCategory.values().filter { 
+            it !in excludedCategories 
+        }
+        
+        // 将"我的收藏"置顶
+        val myCollections = allCategories.find { it == PromptCategory.MY_COLLECTIONS }
+        val others = allCategories.filter { it != PromptCategory.MY_COLLECTIONS }
+        
+        return if (myCollections != null) {
+            listOf(myCollections) + others
+        } else {
+            allCategories
         }
     }
     
@@ -247,8 +295,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 加载指定场景的Prompt列表
      */
     private fun loadPromptsForScenario(scenario: PromptCategory) {
-        // 如果是主分类，获取其所有子分类的prompts
-        val prompts = if (scenario.isMainCategory) {
+        val favoriteManager = com.example.aifloatingball.manager.PromptFavoriteManager.getInstance(requireContext())
+        
+        // 如果是"我的收藏"，显示收藏列表
+        val prompts = if (scenario == PromptCategory.MY_COLLECTIONS) {
+            favoriteManager.getFavorites()
+        } else if (scenario.isMainCategory) {
             val subcategories = getSubcategoriesForMainCategory(scenario)
             PromptCommunityData.getSamplePrompts().filter { prompt ->
                 prompt.category == scenario || prompt.category in subcategories
@@ -257,17 +309,35 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             PromptCommunityData.getPromptsByCategory(scenario)
         }
         
-        // 保存原始数据
-        originalPrompts = prompts
+        // 更新收藏状态
+        val promptsWithFavoriteStatus = prompts.map { prompt ->
+            prompt.copy(isCollected = favoriteManager.isFavorite(prompt.id))
+        }
         
-        if (prompts.isEmpty()) {
+        // 保存原始数据
+        originalPrompts = promptsWithFavoriteStatus
+        
+        if (promptsWithFavoriteStatus.isEmpty()) {
             promptEmptyState.visibility = View.VISIBLE
             promptRecyclerView.visibility = View.GONE
         } else {
             promptEmptyState.visibility = View.GONE
             promptRecyclerView.visibility = View.VISIBLE
-            promptAdapter.updateData(prompts)
+            promptAdapter.updateData(promptsWithFavoriteStatus)
         }
+    }
+    
+    /**
+     * 分享Prompt
+     */
+    private fun onPromptShare(prompt: PromptCommunityItem) {
+        val shareText = "${prompt.title}\n\n${prompt.description}\n\n提示词：\n${prompt.content}"
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+            putExtra(android.content.Intent.EXTRA_SUBJECT, prompt.title)
+        }
+        startActivity(android.content.Intent.createChooser(shareIntent, "分享提示词"))
     }
     
     /**
@@ -275,35 +345,8 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      */
     private fun getSubcategoriesForMainCategory(mainCategory: PromptCategory): List<PromptCategory> {
         return when (mainCategory) {
-            PromptCategory.FUNCTIONAL -> listOf(
-                PromptCategory.CREATIVE_WRITING,
-                PromptCategory.DATA_ANALYSIS,
-                PromptCategory.TRANSLATION_CONVERSION,
-                PromptCategory.CODE_ASSISTANT,
-                PromptCategory.SEO_MARKETING,
-                PromptCategory.PRODUCT_DOCS,
-                PromptCategory.CUSTOMER_SUPPORT,
-                PromptCategory.IMAGE_GENERATION,
-                PromptCategory.AUDIO_VIDEO,
-                PromptCategory.LEGAL_ADVICE,
-                PromptCategory.MEDICAL_HEALTH,
-                PromptCategory.FINANCE_ANALYSIS
-            )
-            PromptCategory.HIGH_FREQUENCY -> listOf(
-                PromptCategory.WORKPLACE_OFFICE,
-                PromptCategory.EDUCATION_STUDY,
-                PromptCategory.LIFE_SERVICE,
-                PromptCategory.SOCIAL_MEDIA,
-                PromptCategory.ECOMMERCE,
-                PromptCategory.RESUME_INTERVIEW
-            )
-            PromptCategory.POPULAR -> listOf(
-                PromptCategory.TOP10_WEEK,
-                PromptCategory.EXPERT_PICKS
-            )
             PromptCategory.MY_CONTENT -> listOf(
-                PromptCategory.MY_COLLECTIONS,
-                PromptCategory.MY_UPLOADS
+                PromptCategory.MY_COLLECTIONS
             )
             else -> emptyList()
         }
@@ -326,13 +369,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      */
     private fun usePromptForChat(prompt: String) {
         try {
-            // 使用SimpleModeActivity的聊天功能
-            val intent = Intent(requireContext(), SimpleModeActivity::class.java).apply {
-                putExtra("initial_message", prompt)
-                putExtra("source", "task_prompt")
-                putExtra("auto_switch_to_chat", true)
-            }
-            startActivity(intent)
+            createGroupChatFromPrompt(prompt)
         } catch (e: Exception) {
             android.util.Log.e("TaskFragmentTwoColumn", "启动AI对话失败", e)
             // 如果SimpleModeActivity不存在，尝试使用ChatActivity
@@ -353,16 +390,94 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      */
     private fun usePromptForSearch(prompt: String) {
         try {
-            // 启动搜索页面
-            val intent = Intent(requireContext(), SimpleModeActivity::class.java).apply {
+            // 直接启动Web搜索服务（默认引擎）
+            val intent = Intent(requireContext(), com.example.aifloatingball.service.DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", prompt)
-                putExtra("auto_switch_to_search", true)
             }
-            startActivity(intent)
+            requireContext().startService(intent)
         } catch (e: Exception) {
             android.util.Log.e("TaskFragmentTwoColumn", "启动搜索失败", e)
             android.widget.Toast.makeText(requireContext(), "启动搜索失败", android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * 基于Prompt创建一个AI群组并发送消息
+     */
+    private fun createGroupChatFromPrompt(prompt: String) {
+        try {
+            val aiServices = getAvailableAIServices()
+            if (aiServices.isEmpty()) {
+                android.widget.Toast.makeText(requireContext(), "未配置可用的AI服务", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            val title = prompt.split('\n').firstOrNull()?.take(24) ?: "AI协作群"
+            val groupChatManager = com.example.aifloatingball.manager.GroupChatManager.getInstance(requireContext())
+            val group = groupChatManager.createGroupChat(
+                name = title,
+                description = "由任务Tab创建的群组：${title}",
+                aiMembers = aiServices
+            )
+            // 发送用户消息（prompt作为首条消息）
+            val userMessage = com.example.aifloatingball.model.GroupChatMessage(
+                id = java.util.UUID.randomUUID().toString(),
+                content = prompt,
+                senderId = "user",
+                senderName = "用户",
+                senderType = com.example.aifloatingball.model.MemberType.USER,
+                timestamp = System.currentTimeMillis(),
+                messageType = com.example.aifloatingball.model.GroupMessageType.TEXT
+            )
+            groupChatManager.addMessageToGroup(group.id, userMessage)
+            // 触发AI自动回复（协程）
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    groupChatManager.sendUserMessage(group.id, prompt)
+                } catch (e: Exception) {
+                    android.util.Log.e("TaskFragmentTwoColumn", "发送群聊首条消息失败", e)
+                }
+            }
+
+            // 打开群聊界面
+            val contact = com.example.aifloatingball.model.ChatContact(
+                id = group.id,
+                name = group.name,
+                avatar = group.avatar,
+                type = com.example.aifloatingball.model.ContactType.GROUP,
+                description = group.description,
+                isOnline = true,
+                lastMessage = "群聊已创建",
+                lastMessageTime = System.currentTimeMillis(),
+                unreadCount = 0,
+                isPinned = false,
+                isMuted = false,
+                groupId = group.id,
+                memberCount = group.members.size,
+                aiMembers = group.members.filter { it.type == com.example.aifloatingball.model.MemberType.AI }.map { it.name }
+            )
+            val chatIntent = Intent(requireContext(), ChatActivity::class.java)
+            chatIntent.putExtra(ChatActivity.EXTRA_CONTACT, contact)
+            startActivity(chatIntent)
+        } catch (e: Exception) {
+            android.util.Log.e("TaskFragmentTwoColumn", "创建群聊失败", e)
+            android.widget.Toast.makeText(requireContext(), "创建群聊失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun getAvailableAIServices(): List<com.example.aifloatingball.manager.AIServiceType> {
+        val settings = com.example.aifloatingball.SettingsManager.getInstance(requireContext())
+        val list = mutableListOf<com.example.aifloatingball.manager.AIServiceType>()
+        if (settings.getDeepSeekApiKey().isNotEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.DEEPSEEK)
+        if (settings.getKimiApiKey().isNotEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.KIMI)
+        if (settings.getString("zhipu_ai_api_key", "")?.isNotEmpty() == true) list.add(com.example.aifloatingball.manager.AIServiceType.ZHIPU_AI)
+        if (settings.getString("chatgpt_api_key", "")?.isNotEmpty() == true) list.add(com.example.aifloatingball.manager.AIServiceType.CHATGPT)
+        if (settings.getString("claude_api_key", "")?.isNotEmpty() == true) list.add(com.example.aifloatingball.manager.AIServiceType.CLAUDE)
+        if (settings.getQianwenApiKey().isNotEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.QIANWEN)
+        if (settings.getString("xinghuo_api_key", "")?.isNotEmpty() == true) list.add(com.example.aifloatingball.manager.AIServiceType.XINGHUO)
+        if (settings.getWenxinApiKey().isNotEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.WENXIN)
+        if (settings.getGeminiApiKey().isNotEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.GEMINI)
+        if (list.isEmpty()) list.add(com.example.aifloatingball.manager.AIServiceType.TEMP_SERVICE)
+        return list
     }
     
     /**
@@ -418,18 +533,39 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             return
         }
         var index = 0
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle("编辑场景")
             .setSingleChoiceItems(names, index) { _, which -> index = which }
-            .setNeutralButton("上移") { _, _ -> if (index > 0) scenarioAdapter.moveScenario(index, index - 1) }
-            .setNegativeButton("下移") { _, _ -> if (index < scenarioItems.size - 1) scenarioAdapter.moveScenario(index, index + 1) }
-            .setPositiveButton("更多") { _, _ ->
-                val options = arrayOf("重命名", "删除")
-                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setNeutralButton("上移", null)
+            .setNegativeButton("退出", null)
+            .setPositiveButton("更多", null)
+            .create()
+        dlg.setOnShowListener {
+            val up = dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL)
+            val more = dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            up.setOnClickListener {
+                if (index > 0) {
+                    scenarioAdapter.moveScenario(index, index - 1)
+                    index -= 1
+                }
+            }
+            more.setOnClickListener {
+                val options = arrayOf("下移", "重命名", "删除")
+                val sub = androidx.appcompat.app.AlertDialog.Builder(requireContext())
                     .setItems(options) { _, which2 ->
                         when (which2) {
-                            0 -> {
-                                val input = android.widget.EditText(requireContext()).apply { hint = "新的名称" }
+                            0 -> { // 下移
+                                if (index < scenarioItems.size - 1) {
+                                    scenarioAdapter.moveScenario(index, index + 1)
+                                    index += 1
+                                }
+                            }
+                            1 -> {
+                                val input = android.widget.EditText(requireContext()).apply {
+                                    hint = "新的名称"
+                                    setText(scenarioItems[index].name)
+                                    setSelection(text.length)
+                                }
                                 androidx.appcompat.app.AlertDialog.Builder(requireContext())
                                     .setTitle("重命名")
                                     .setView(input)
@@ -440,12 +576,15 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                                     .setNegativeButton("取消", null)
                                     .show()
                             }
-                            1 -> scenarioAdapter.deleteScenario(index)
+                            2 -> scenarioAdapter.deleteScenario(index)
                         }
                     }
-                    .show()
+                    .create()
+                sub.show()
             }
-            .show()
+        }
+        dlg.show()
     }
 }
+
 

@@ -41,8 +41,8 @@ class TaskScenarioAdapter(
     }
 
     fun addScenario(name: String) {
-        scenarios.add(ScenarioItem(name, null))
-        notifyItemInserted(scenarios.lastIndex)
+        scenarios.add(0, ScenarioItem(name, null))
+        notifyItemInserted(0)
     }
 
     fun moveScenario(from: Int, to: Int) {

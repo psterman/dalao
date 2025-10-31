@@ -22,7 +22,8 @@ class PromptCommunityAdapter(
     private val onLikeClick: (PromptCommunityItem) -> Unit,
     private val onCollectClick: (PromptCommunityItem) -> Unit,
     private val onCommentClick: (PromptCommunityItem) -> Unit,
-    private val onShareClick: (PromptCommunityItem) -> Unit
+    private val onShareClick: (PromptCommunityItem) -> Unit,
+    private val favoriteManager: com.example.aifloatingball.manager.PromptFavoriteManager? = null
 ) : RecyclerView.Adapter<PromptCommunityAdapter.PromptViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PromptViewHolder {
@@ -83,18 +84,29 @@ class PromptCommunityAdapter(
             // 显示标签
             tagsText.text = prompt.tags.joinToString(" ") { "#$it" }
             
-            // 隐藏社交相关（布局中已 GONE，这里避免不必要的状态设置）
+            // 显示收藏和分享按钮
             likeButton.visibility = View.GONE
-            collectButton.visibility = View.GONE
             commentButton.visibility = View.GONE
-            shareButton.visibility = View.GONE
+            collectButton.visibility = View.VISIBLE
+            shareButton.visibility = View.VISIBLE
+            
+            // 更新收藏状态
+            updateCollectState(prompt)
             
             // 设置点击事件
             itemView.setOnClickListener {
                 onItemClick(prompt)
             }
             
-            // 社交操作暂不启用
+            // 收藏按钮点击
+            collectButton.setOnClickListener {
+                onCollectClick(prompt)
+            }
+            
+            // 分享按钮点击
+            shareButton.setOnClickListener {
+                onShareClick(prompt)
+            }
         }
         
         private fun updateLikeState(prompt: PromptCommunityItem) {
@@ -108,7 +120,8 @@ class PromptCommunityAdapter(
         }
         
         private fun updateCollectState(prompt: PromptCommunityItem) {
-            if (prompt.isCollected) {
+            val isFavorite = favoriteManager?.isFavorite(prompt.id) ?: prompt.isCollected
+            if (isFavorite) {
                 collectIcon.setImageResource(R.drawable.ic_star_rate)
                 collectIcon.setColorFilter(itemView.context.getColor(R.color.primary_yellow))
             } else {
