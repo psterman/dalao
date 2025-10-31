@@ -533,56 +533,181 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             return
         }
         var index = 0
-        val dlg = androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle("编辑场景")
-            .setSingleChoiceItems(names, index) { _, which -> index = which }
-            .setNeutralButton("上移", null)
-            .setNegativeButton("退出", null)
-            .setPositiveButton("更多", null)
-            .create()
-        dlg.setOnShowListener {
-            val up = dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL)
-            val more = dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
-            up.setOnClickListener {
+        
+        // 创建自定义布局，包含列表和按钮
+        val layout = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(
+                (16 * resources.displayMetrics.density).toInt(),
+                (8 * resources.displayMetrics.density).toInt(),
+                (16 * resources.displayMetrics.density).toInt(),
+                (8 * resources.displayMetrics.density).toInt()
+            )
+        }
+        
+        // 创建列表视图
+        val listView = android.widget.ListView(requireContext())
+        // 使用可变列表初始化 adapter，这样才能调用 clear() 和 addAll()
+        val adapter = android.widget.ArrayAdapter<String>(
+            requireContext(),
+            android.R.layout.simple_list_item_single_choice,
+            android.R.id.text1,
+            mutableListOf<String>().apply { addAll(names.toList()) }
+        )
+        listView.adapter = adapter
+        listView.choiceMode = android.widget.AbsListView.CHOICE_MODE_SINGLE
+        listView.setItemChecked(index, true)
+        
+        listView.setOnItemClickListener { _, _, position, _ ->
+            index = position
+        }
+        
+        // 更新列表的函数
+        fun updateList() {
+            val newNames = scenarioItems.map { it.name }
+            adapter.clear()
+            adapter.addAll(newNames)
+            adapter.notifyDataSetChanged()
+            if (index >= 0 && index < newNames.size) {
+                listView.setItemChecked(index, true)
+            }
+        }
+        
+        layout.addView(listView, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ))
+        
+        // 创建按钮容器
+        val buttonContainer = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+        }
+        
+        // 创建所有按钮
+        val btnUp = android.widget.Button(requireContext()).apply {
+            text = "上移"
+            setOnClickListener {
                 if (index > 0) {
                     scenarioAdapter.moveScenario(index, index - 1)
                     index -= 1
+                    updateList()
                 }
             }
-            more.setOnClickListener {
-                val options = arrayOf("下移", "重命名", "删除")
-                val sub = androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setItems(options) { _, which2 ->
-                        when (which2) {
-                            0 -> { // 下移
-                                if (index < scenarioItems.size - 1) {
-                                    scenarioAdapter.moveScenario(index, index + 1)
-                                    index += 1
-                                }
-                            }
-                            1 -> {
-                                val input = android.widget.EditText(requireContext()).apply {
-                                    hint = "新的名称"
-                                    setText(scenarioItems[index].name)
-                                    setSelection(text.length)
-                                }
-                                androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                                    .setTitle("重命名")
-                                    .setView(input)
-                                    .setPositiveButton("确定") { _, _ ->
-                                        val newName = input.text.toString()
-                                        if (newName.isNotEmpty()) scenarioAdapter.renameScenario(index, newName)
-                                    }
-                                    .setNegativeButton("取消", null)
-                                    .show()
-                            }
-                            2 -> scenarioAdapter.deleteScenario(index)
-                        }
-                    }
-                    .create()
-                sub.show()
+        }
+        
+        val btnDown = android.widget.Button(requireContext()).apply {
+            text = "下移"
+            setOnClickListener {
+                if (index < scenarioItems.size - 1) {
+                    scenarioAdapter.moveScenario(index, index + 1)
+                    index += 1
+                    updateList()
+                }
             }
         }
+        
+        val btnRename = android.widget.Button(requireContext()).apply {
+            text = "重命名"
+            setOnClickListener {
+                val input = android.widget.EditText(requireContext()).apply {
+                    hint = "新的名称"
+                    setText(scenarioItems[index].name)
+                    setSelection(text.length)
+                }
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("重命名")
+                    .setView(input)
+                    .setPositiveButton("确定") { _, _ ->
+                        val newName = input.text.toString()
+                        if (newName.isNotEmpty()) {
+                            scenarioAdapter.renameScenario(index, newName)
+                            updateList()
+                        }
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+        }
+        
+        val btnDelete = android.widget.Button(requireContext()).apply {
+            text = "删除"
+        }
+        
+        val btnExit = android.widget.Button(requireContext()).apply {
+            text = "退出"
+        }
+        
+        // 先创建对话框，这样按钮的点击事件就可以引用 dlg
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("编辑场景")
+            .setView(layout)
+            .create()
+        
+        // 现在设置按钮的点击事件
+        btnDelete.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("确认删除")
+                .setMessage("确定要删除「${scenarioItems[index].name}」吗？")
+                .setPositiveButton("删除") { _, _ ->
+                    val deletedIndex = index
+                    scenarioAdapter.deleteScenario(deletedIndex)
+                    if (deletedIndex >= scenarioItems.size && scenarioItems.isNotEmpty()) {
+                        index = scenarioItems.size - 1
+                    } else if (scenarioItems.isEmpty()) {
+                        dlg.dismiss()
+                        return@setPositiveButton
+                    }
+                    if (index < 0) index = 0
+                    updateList()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+        
+        btnExit.setOnClickListener {
+            dlg.dismiss()
+        }
+        
+        // 设置按钮布局参数
+        val buttonMargin = (4 * resources.displayMetrics.density).toInt()
+        
+        buttonContainer.addView(btnUp, android.widget.LinearLayout.LayoutParams(
+            0,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply { marginEnd = buttonMargin })
+        
+        buttonContainer.addView(btnDown, android.widget.LinearLayout.LayoutParams(
+            0,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply { marginEnd = buttonMargin })
+        
+        buttonContainer.addView(btnRename, android.widget.LinearLayout.LayoutParams(
+            0,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply { marginEnd = buttonMargin })
+        
+        buttonContainer.addView(btnDelete, android.widget.LinearLayout.LayoutParams(
+            0,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply { marginEnd = buttonMargin })
+        
+        buttonContainer.addView(btnExit, android.widget.LinearLayout.LayoutParams(
+            0,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        ))
+        
+        layout.addView(buttonContainer, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        
         dlg.show()
     }
 }

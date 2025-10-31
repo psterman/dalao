@@ -451,10 +451,10 @@
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:clipToPadding="false"
-                        android:padding="4dp"
-                        android:scrollbars="none"
-                        android:overScrollMode="never" />
+                    android:clipToPadding="false"
+                    android:padding="4dp"
+                    android:scrollbars="none"
+                    android:overScrollMode="never" />
 
                 </LinearLayout>
 
