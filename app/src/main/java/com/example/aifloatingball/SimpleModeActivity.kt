@@ -8531,62 +8531,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hideAllOverlays()
             clearAllOverlays()
 
-            // 尝试使用MobileCardManager，如果失败则使用原有的管理器
-            var newCard: GestureCardWebViewManager.WebViewCardData? = null
-
-            try {
-                // 初始化MobileCardManager（如果还没有）
-                if (mobileCardManager == null) {
-                    setupMobileCardManager()
-                }
-
-                // 创建新卡片
-                newCard = mobileCardManager?.addNewCard(url)
-            } catch (e: Exception) {
-                Log.w(TAG, "MobileCardManager创建卡片失败，使用原有管理器", e)
-
-                // 确保原有管理器已初始化
-                if (gestureCardWebViewManager == null) {
-                    setupBrowserWebView()
-                }
-
-                // 使用原有管理器创建卡片
-                newCard = gestureCardWebViewManager?.addNewCard(url)
-                
-                // 如果原有管理器也失败，记录错误
-                if (newCard == null) {
-                    Log.e(TAG, "所有卡片管理器都无法创建卡片")
-                    Toast.makeText(this, "无法创建卡片，请检查系统状态", Toast.LENGTH_SHORT).show()
-                    return
-                }
+            // 确保PaperStackWebViewManager已初始化
+            if (paperStackWebViewManager == null) {
+                setupBrowserWebView()
             }
 
-            if (newCard != null) {
-                Log.d(TAG, "新卡片创建成功: ${newCard.id}")
+            // 使用PaperStackWebViewManager统一创建标签页
+            val newTab = paperStackWebViewManager?.addTab(url, title)
+            
+            if (newTab != null) {
+                Log.d(TAG, "新标签页创建成功: ${newTab.id}, 标题: ${newTab.title}, URL: ${newTab.url}")
 
-                // 检查卡片总数
-                val mobileCardCount = mobileCardManager?.getAllCards()?.size ?: 0
-                val gestureCardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
-                Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
+                // 检查标签页总数
+                val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+                Log.d(TAG, "当前标签页数量: $tabCount")
 
                 // 显示成功提示
-                Toast.makeText(this, "新卡片已在后台创建: $title", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "新标签页已创建: $title", Toast.LENGTH_SHORT).show()
 
-                // 不立即显示预览，让卡片在后台加载
-                // showNewCardPreview()
+                // 隐藏主页内容，显示纸堆界面
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
 
                 // 确保UI状态正确切换
                 browserLayout.post {
                     forceRefreshUIState()
                 }
             } else {
-                Log.e(TAG, "新卡片创建失败")
-                Toast.makeText(this, "创建卡片失败", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "新标签页创建失败")
+                Toast.makeText(this, "创建标签页失败", Toast.LENGTH_SHORT).show()
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "从URL创建新卡片时发生错误", e)
-            Toast.makeText(this, "创建卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "创建标签页时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -8601,48 +8582,32 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hideAllOverlays()
             clearAllOverlays()
 
-            // 尝试使用MobileCardManager，如果失败则使用原有的管理器
-            var newCard: GestureCardWebViewManager.WebViewCardData? = null
-
-            try {
-                // 初始化MobileCardManager（如果还没有）
-                if (mobileCardManager == null) {
-                    setupMobileCardManager()
-                }
-
-                // 创建新卡片
-                newCard = mobileCardManager?.addNewCard("about:blank")
-            } catch (e: Exception) {
-                Log.w(TAG, "MobileCardManager创建卡片失败，使用原有管理器", e)
-
-                // 确保原有管理器已初始化
-                if (gestureCardWebViewManager == null) {
-                    setupBrowserWebView()
-                }
-
-                // 使用原有管理器创建卡片
-                newCard = gestureCardWebViewManager?.addNewCard("about:blank")
-                
-                // 如果原有管理器也失败，记录错误
-                if (newCard == null) {
-                    Log.e(TAG, "所有卡片管理器都无法创建空白卡片")
-                    Toast.makeText(this, "无法创建空白卡片，请检查系统状态", Toast.LENGTH_SHORT).show()
-                    return
-                }
+            // 确保PaperStackWebViewManager已初始化
+            if (paperStackWebViewManager == null) {
+                setupBrowserWebView()
             }
 
-            if (newCard != null) {
-                Log.d(TAG, "空白卡片创建成功: ${newCard.id}")
+            // 使用PaperStackWebViewManager统一创建空白标签页
+            val newTab = paperStackWebViewManager?.addTab("about:blank", "新标签页")
+            
+            if (newTab != null) {
+                Log.d(TAG, "空白标签页创建成功: ${newTab.id}")
 
-                // 检查卡片总数
-                val mobileCardCount = mobileCardManager?.getAllCards()?.size ?: 0
-                val gestureCardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
-                Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
+                // 检查标签页总数
+                val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+                Log.d(TAG, "当前标签页数量: $tabCount")
 
                 // 显示成功提示
-                Toast.makeText(this, "空白卡片已创建 (总计: ${mobileCardCount + gestureCardCount})", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "空白标签页已创建 (总计: $tabCount)", Toast.LENGTH_SHORT).show()
 
-                // 创建卡片后自动显示预览卡片系统
+                // 隐藏主页内容，显示纸堆界面
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
+
+                // 创建标签页后自动显示预览卡片系统
                 showNewCardPreview()
 
                 // 确保UI状态正确切换
@@ -8650,13 +8615,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     forceRefreshUIState()
                 }
             } else {
-                Log.e(TAG, "空白卡片创建失败")
-                Toast.makeText(this, "创建空白卡片失败", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "空白标签页创建失败")
+                Toast.makeText(this, "创建空白标签页失败", Toast.LENGTH_SHORT).show()
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "创建空白卡片时发生错误", e)
-            Toast.makeText(this, "创建空白卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "创建空白标签页时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
