@@ -499,6 +499,56 @@ class PaperStackWebViewManager(
     }
 
     /**
+     * 检查当前标签页是否可以返回
+     */
+    fun canGoBack(): Boolean {
+        val currentTab = getCurrentTab()
+        return currentTab?.webView?.canGoBack() == true
+    }
+
+    /**
+     * 返回上一页
+     */
+    fun goBack(): Boolean {
+        val currentTab = getCurrentTab()
+        val webView = currentTab?.webView
+        
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack()
+            Log.d(TAG, "当前标签页返回上一页: ${currentTab.title}")
+            return true
+        }
+        
+        Log.d(TAG, "当前标签页无法返回")
+        return false
+    }
+
+    /**
+     * 检查当前标签页是否可以前进
+     */
+    fun canGoForward(): Boolean {
+        val currentTab = getCurrentTab()
+        return currentTab?.webView?.canGoForward() == true
+    }
+
+    /**
+     * 前进下一页
+     */
+    fun goForward(): Boolean {
+        val currentTab = getCurrentTab()
+        val webView = currentTab?.webView
+        
+        if (webView != null && webView.canGoForward()) {
+            webView.goForward()
+            Log.d(TAG, "当前标签页前进下一页: ${currentTab.title}")
+            return true
+        }
+        
+        Log.d(TAG, "当前标签页无法前进")
+        return false
+    }
+
+    /**
      * 设置标签页创建监听器
      */
     fun setOnTabCreatedListener(listener: (WebViewTab) -> Unit) {

@@ -5229,9 +5229,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 使用统一的返回逻辑
-            performUnifiedWebViewBack("系统返回键")
-            return
+            // 检查是否有可返回的页面
+            val hasPaperStackTabs = paperStackWebViewManager?.getTabCount() ?: 0 > 0
+            val canPaperStackGoBack = paperStackWebViewManager?.canGoBack() == true
+            val canUnifiedGoBack = unifiedWebViewManager.canGoBack()
+            
+            // 如果有可返回的页面，执行返回
+            if (hasPaperStackTabs && canPaperStackGoBack) {
+                performUnifiedWebViewBack("系统返回键")
+                return
+            } else if (canUnifiedGoBack) {
+                performUnifiedWebViewBack("系统返回键")
+                return
+            } else if (hasPaperStackTabs) {
+                // 有标签页但无法返回（已在首页），显示浏览器首页
+                showBrowserHome()
+                return
+            } else {
+                // 没有标签页，也没有可返回的页面，允许返回到上一级
+                // 继续执行，允许返回到其他状态
+            }
         }
 
         // 如果在步骤引导页面，处理返回逻辑
@@ -6916,6 +6933,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun performUnifiedWebViewBack(source: String) {
         Log.d(TAG, "执行统一WebView后退操作，来源: $source")
         
+        // 优先检查 PaperStackWebViewManager
+        val paperStackHandled = paperStackWebViewManager?.canGoBack() == true
+        if (paperStackHandled) {
+            paperStackWebViewManager?.goBack()
+            if (source == "边缘侧滑") {
+                showBrowserGestureHint("网页后退")
+            }
+            Log.d(TAG, "$source：PaperStackWebViewManager 成功返回上一页")
+            return
+        }
+        
         // 使用统一WebView管理器处理返回逻辑
         val handled = unifiedWebViewManager.goBack()
         
@@ -6991,15 +7019,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 短按：返回上一页
             var handled = false
 
-            // 优先检查MobileCardManager
-            val mobileCurrentCard = mobileCardManager?.getCurrentCard()
-            if (mobileCurrentCard?.webView?.canGoBack() == true) {
-                mobileCurrentCard.webView.goBack()
+            // 优先检查 PaperStackWebViewManager
+            if (paperStackWebViewManager?.canGoBack() == true) {
+                paperStackWebViewManager?.goBack()
                 handled = true
-                Log.d(TAG, "短按：手机卡片返回上一页")
+                Log.d(TAG, "短按：PaperStackWebViewManager 返回上一页")
             }
 
-            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            // 如果 PaperStackWebViewManager 没有处理，检查 MobileCardManager
+            if (!handled) {
+                val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+                if (mobileCurrentCard?.webView?.canGoBack() == true) {
+                    mobileCurrentCard.webView.goBack()
+                    handled = true
+                    Log.d(TAG, "短按：手机卡片返回上一页")
+                }
+            }
+
+            // 如果 MobileCardManager 没有处理，检查 GestureCardWebViewManager
             if (!handled) {
                 val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
                 if (gestureCurrentCard?.webView?.canGoBack() == true) {
