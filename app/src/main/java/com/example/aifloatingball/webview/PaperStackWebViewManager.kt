@@ -297,7 +297,7 @@ class PaperStackWebViewManager(
         
         // 获取容器宽度，用于计算左右移动距离
         val containerWidth = container.width.toFloat()
-        val swipeDistance = if (containerWidth > 0) containerWidth * 0.8f else 400f // 滑动距离为容器宽度的80%
+        val swipeDistance = if (containerWidth > 0) containerWidth * 0.6f else 400f // 滑动距离为容器宽度的60%
         
         // 1. 当前卡片（上方）根据滑动方向向左或向右滑动，同时移到底部
         val currentTargetStackIndex = tabs.size - 1
@@ -311,10 +311,10 @@ class PaperStackWebViewManager(
         // 左滑时向左移动，右滑时向右移动，同时移动到堆叠底部
         val currentTargetX = if (isSwipeLeft) {
             // 左滑：当前卡片向左移动并到达堆叠底部位置
-            currentTargetOffsetX - swipeDistance * 0.4f // 向左移动一段距离，同时移到堆叠底部
+            currentTargetOffsetX - swipeDistance * 0.3f // 向左移动一段距离，同时移到堆叠底部
         } else {
             // 右滑：当前卡片向右移动并到达堆叠底部位置
-            currentTargetOffsetX + swipeDistance * 0.4f // 向右移动一段距离，同时移到堆叠底部
+            currentTargetOffsetX + swipeDistance * 0.3f // 向右移动一段距离，同时移到堆叠底部
         }
         
         val currentAnimatorX = ObjectAnimator.ofFloat(currentWebView, "translationX", currentWebView.translationX, currentTargetX)
@@ -327,10 +327,10 @@ class PaperStackWebViewManager(
         // 添加轻微的旋转效果，根据滑动方向旋转
         val currentRotationY = if (isSwipeLeft) {
             // 左滑：向左旋转
-            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, -15f, 0f)
+            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, -10f, 0f)
         } else {
             // 右滑：向右旋转
-            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, 15f, 0f)
+            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, 10f, 0f)
         }
         
         // 设置动画时长
@@ -343,6 +343,7 @@ class PaperStackWebViewManager(
         currentRotationY.duration = duration
         
         val decelerateInterpolator = DecelerateInterpolator(1.5f)
+        currentAnimatorX.interpolator = decelerateInterpolator
         currentAnimatorY.interpolator = decelerateInterpolator
         currentAnimatorScaleX.interpolator = decelerateInterpolator
         currentAnimatorScaleY.interpolator = decelerateInterpolator
@@ -350,7 +351,6 @@ class PaperStackWebViewManager(
         currentAnimatorElevation.interpolator = decelerateInterpolator
         currentRotationY.interpolator = DecelerateInterpolator()
         
-        currentAnimatorX.interpolator = decelerateInterpolator
         val currentCardAnimatorSet = AnimatorSet()
         currentCardAnimatorSet.playTogether(
             currentAnimatorX, currentAnimatorY, currentAnimatorScaleX, 
@@ -382,7 +382,7 @@ class PaperStackWebViewManager(
         val targetCurrentStackIndex = targetCurrentDistance
         val targetStartOffsetY = targetCurrentStackIndex * TAB_OFFSET_Y
         
-        // 临时提升目标卡片的elevation，确保它在动画过程中能显示在当前卡片之上
+        // 提升目标卡片的elevation，确保显示在当前卡片之上
         val targetStartElevation = currentWebView.elevation + 5f
         
         // 在动画开始前，设置目标卡片的初始位置和elevation
@@ -400,10 +400,10 @@ class PaperStackWebViewManager(
         // 添加轻微的旋转效果，从侧面滑入
         val targetRotationY = if (isSwipeLeft) {
             // 左滑：从右侧来，先向右倾斜，然后恢复
-            ObjectAnimator.ofFloat(targetWebView, "rotationY", 15f, 0f)
+            ObjectAnimator.ofFloat(targetWebView, "rotationY", 10f, 0f)
         } else {
             // 右滑：从左侧来，先向左倾斜，然后恢复
-            ObjectAnimator.ofFloat(targetWebView, "rotationY", -15f, 0f)
+            ObjectAnimator.ofFloat(targetWebView, "rotationY", -10f, 0f)
         }
         
         targetAnimatorX.duration = duration
