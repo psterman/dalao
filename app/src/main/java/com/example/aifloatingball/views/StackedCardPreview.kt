@@ -3,6 +3,7 @@ package com.example.aifloatingball.views
 import android.animation.ValueAnimator
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.animation.AnimatorListenerAdapter
 import android.content.Context
 import android.graphics.*
 import android.os.Build
@@ -106,6 +107,7 @@ class StackedCardPreview @JvmOverloads constructor(
     private var centerCardOffsetY = 0f // 中心卡片的垂直偏移
     private var closeThreshold = 0f // 关闭阈值（旁边卡片高度的一半）
     private var refreshAnimationProgress = 0f // 刷新动画进度
+    private var isButtonsActive = false // 按钮是否已激活（下滑后保持显示）
     
     // 手势优化相关
     private var swipeStartY = 0f // 滑动起始Y坐标
@@ -455,11 +457,7 @@ class StackedCardPreview @JvmOverloads constructor(
                                     closeCurrentCard()
                                     vibrate(VibrationType.HEAVY) // 重要操作震动
                                 }
-                                isNewCardButtonOnCardClicked(event.x, event.y) -> {
-                                    Log.d(TAG, "🟢 检测到卡片上的新建按钮点击")
-                                    onNewCardRequestedListener?.invoke()
-                                    vibrate(VibrationType.IMPORTANT) // 重要操作震动
-                                }
+                                // 去掉卡片右上角的新建按钮点击检测
                                 isBottomButtonClicked(event.x, event.y, true, false, false, false, false, false) -> {
                                     // 底部新建按钮
                                     Log.d(TAG, "🟢 检测到底部新建按钮点击")
@@ -490,24 +488,7 @@ class StackedCardPreview @JvmOverloads constructor(
                                         vibrate(VibrationType.IMPORTANT)
                                     }
                                 }
-                                isBottomButtonClicked(event.x, event.y, false, false, false, true, false, false) -> {
-                                    // 静音按钮
-                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
-                                        val card = webViewCards[currentCardIndex]
-                                        Log.d(TAG, "🔇 检测到底部静音按钮点击: ${card.title}")
-                                        onCardMuteListener?.invoke(currentCardIndex)
-                                        vibrate(VibrationType.BASIC)
-                                    }
-                                }
-                                isBottomButtonClicked(event.x, event.y, false, false, false, false, true, false) -> {
-                                    // 添加到桌面按钮
-                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
-                                        val card = webViewCards[currentCardIndex]
-                                        Log.d(TAG, "🏠 检测到底部添加到桌面按钮点击: ${card.url}")
-                                        onCardAddToDesktopListener?.invoke(currentCardIndex, card.url, card.title)
-                                        vibrate(VibrationType.IMPORTANT)
-                                    }
-                                }
+                                // 去掉静音和添加到桌面按钮的点击检测
                                 else -> {
                                     Log.d("StackedCardPreview", "检测到点击操作，纠正索引后打开当前中心卡片")
                                     // 点击时根据当前位置重新计算最近的中心索引，避免轻微偏移导致错选相邻卡片
@@ -566,6 +547,7 @@ class StackedCardPreview @JvmOverloads constructor(
     fun resetActivationState() {
         isLongPressActivated = false
         longPressStartTime = 0L
+        isButtonsActive = false // 重置按钮激活状态
         // Add any other state resets needed
     }
 
@@ -604,7 +586,7 @@ class StackedCardPreview @JvmOverloads constructor(
         lastSlideTime = currentTime
 
         // 添加阻尼效果：应用阻尼系数，让滑动更有阻力感
-        val dampingFactor = 0.4f // 增加阻尼系数到40%，让滑动更有阻力感
+        val dampingFactor = 0.65f // 增加阻尼系数到65%，显著增强阻力感，防止误滑
         val dampedDeltaX = deltaX * (1f - dampingFactor)
         
         // 更新滚动偏移，应用阻尼后的移动距离
@@ -741,31 +723,33 @@ class StackedCardPreview @JvmOverloads constructor(
         val isSwipeDown = centerCardOffsetY > 0
         val isSwipeUp = centerCardOffsetY < 0
         
-        // 智能关闭判断：考虑滑动距离、速度和进度（支持向上和向下）
+        // 修改逻辑：只有向上滑动才关闭卡片，向下滑动只激活功能按钮
         val shouldClose = when {
-            // 向上滑动关闭
+            // 只支持向上滑动关闭
             isSwipeUp && centerCardOffsetY < -dynamicCloseThreshold -> true
             isSwipeUp && swipeCloseProgress > 0.7f -> true
             isSwipeUp && velocity > 1500f && centerCardOffsetY < -minSwipeDistance -> true
-            // 向下滑动关闭
-            isSwipeDown && centerCardOffsetY > dynamicCloseThreshold -> true
-            isSwipeDown && swipeCloseProgress > 0.7f -> true
-            isSwipeDown && velocity > 1500f && centerCardOffsetY > minSwipeDistance -> true
             else -> false
         }
         
         if (shouldClose) {
-            // 超过关闭阈值（向上或向下），关闭中心卡片
-            val direction = if (isSwipeDown) "下滑" else "上滑"
-            Log.d(TAG, "🗑️ ${direction}关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
+            // 只有向上滑动超过阈值才关闭中心卡片
+            Log.d(TAG, "🗑️ 上滑关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
             closeCurrentCard()
-        } else if (centerCardOffsetY > maxRefreshOffset && !isSwipeDown) {
-            // 向下超过刷新阈值（且不是关闭操作），刷新当前卡片
-            Log.d("StackedCardPreview", "刷新中心卡片: $currentCardIndex")
-            refreshCurrentCard()
+        } else if (isSwipeDown && centerCardOffsetY > maxRefreshOffset) {
+            // 向下滑动超过阈值：激活按钮并标记为已激活
+            isButtonsActive = true
+            Log.d("StackedCardPreview", "下滑激活功能按钮，偏移: $centerCardOffsetY")
+            // 卡片回弹到原位置，但保留按钮显示
+            animateCenterCardReturnButKeepButtons()
         } else {
-            // 没有超过任何阈值，回弹到原位置
-            animateCenterCardReturn()
+            // 没有超过任何阈值，回弹到原位置（如果按钮未激活）
+            if (!isButtonsActive) {
+                animateCenterCardReturn()
+            } else {
+                // 按钮已激活，保持原位置
+                invalidate()
+            }
         }
         
         // 清理速度跟踪器
@@ -885,10 +869,57 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
+     * 中心卡片回弹动画但保留按钮显示 - 新增方法
+     */
+    private fun animateCenterCardReturnButKeepButtons() {
+        if (centerCardOffsetY == 0f) {
+            // 如果已经在原位置，只确保按钮显示
+            invalidate()
+            return
+        }
+
+        // 根据滑动距离和速度调整回弹动画
+        val swipeDistance = abs(centerCardOffsetY)
+        val velocity = velocityTracker?.let { 
+            it.computeCurrentVelocity(1000)
+            abs(it.yVelocity)
+        } ?: 0f
+        
+        // 动态调整动画时长：滑动距离越大，速度越快，动画时间越短
+        val baseDuration = 300L
+        val distanceFactor = (swipeDistance / closeThreshold).coerceIn(0.1f, 2.0f)
+        val velocityFactor = (velocity / 1000f).coerceIn(0.5f, 2.0f)
+        val dynamicDuration = (baseDuration / distanceFactor / velocityFactor).toLong().coerceIn(150L, 500L)
+        
+        ValueAnimator.ofFloat(centerCardOffsetY, 0f).apply {
+            duration = dynamicDuration
+            interpolator = DecelerateInterpolator(1.5f)
+            addUpdateListener { animator ->
+                centerCardOffsetY = animator.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    centerCardOffsetY = 0f
+                    // 卡片已回弹，但保持按钮激活状态
+                    isButtonsActive = true
+                    invalidate()
+                    Log.d(TAG, "卡片已回弹，按钮保持激活状态")
+                }
+            })
+            start()
+        }
+    }
+    
+    /**
      * 中心卡片回弹动画 - 优化版本
      */
     private fun animateCenterCardReturn() {
-        if (centerCardOffsetY == 0f) return
+        if (centerCardOffsetY == 0f) {
+            // 重置按钮激活状态
+            isButtonsActive = false
+            return
+        }
 
         // 根据滑动距离和速度调整回弹动画
         val swipeDistance = abs(centerCardOffsetY)
@@ -1526,7 +1557,7 @@ class StackedCardPreview @JvmOverloads constructor(
         // 绘制右上角红色关闭按钮（保留）
         drawCloseButton(canvas, left, top, width, scale, alpha)
 
-        // 绘制卡片下方的按钮：新建、收藏、关闭
+        // 绘制卡片下方的按钮（只有下滑时才显示）
         drawBottomButtons(canvas, left, top, width, height, scale, alpha)
     }
 
@@ -1681,7 +1712,8 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 绘制卡片下方的按钮：新建、收藏、关闭，以及复制网址、静音、添加到桌面
+     * 绘制卡片下方的按钮：新建、收藏、复制网址、关闭
+     * 只有下滑卡片时才显示，使用Material Design风格
      */
     private fun drawBottomButtons(
         canvas: Canvas,
@@ -1692,51 +1724,231 @@ class StackedCardPreview @JvmOverloads constructor(
         scale: Float,
         alpha: Float
     ) {
-        // 增大按钮尺寸
-        val buttonSize = 70f * scale // 从50f增加到70f
-        val buttonSpacing = 15f * scale
-        val buttonMargin = 25f * scale
+        // 显示按钮的条件：下滑超过阈值 OR 按钮已激活
+        val showButtonThreshold = 30f
+        if (centerCardOffsetY < showButtonThreshold && !isButtonsActive) {
+            return // 未下滑且按钮未激活，不显示按钮
+        }
+        
+        // 计算按钮显示透明度
+        val finalAlpha = if (isButtonsActive) {
+            // 按钮已激活，完全显示
+            alpha
+        } else {
+            // 根据下滑距离计算透明度（根据下滑距离，最大为1.0）
+            val maxOffset = 150f // 最大下滑距离
+            val buttonAlpha = ((centerCardOffsetY - showButtonThreshold) / (maxOffset - showButtonThreshold)).coerceIn(0f, 1f)
+            alpha * buttonAlpha
+        }
+        
+        // Material Design风格的按钮尺寸（更大更醒目）
+        val buttonWidth = 120f * scale // 增大按钮宽度
+        val buttonHeight = 75f * scale // 增大按钮高度
+        val buttonSpacing = 16f * scale // 按钮间距
+        val buttonMargin = 30f * scale
         val textSpacing = 12f * scale // 按钮和文字之间的间距
+        val cornerRadius = 16f * scale // 更大的圆角半径
         
-        // 第一行按钮：新建、收藏、关闭
-        val firstRowButtons = 3
-        val firstRowTotalWidth = buttonSize * firstRowButtons + buttonSpacing * (firstRowButtons - 1)
-        val firstRowStartX = cardLeft + (cardWidth - firstRowTotalWidth) / 2f
-        val firstRowButtonY = cardTop + cardHeight + buttonMargin + buttonSize / 2f
+        // 4个按钮排成一行
+        val totalButtons = 4
+        val totalWidth = buttonWidth * totalButtons + buttonSpacing * (totalButtons - 1)
+        val startX = cardLeft + (cardWidth - totalWidth) / 2f
+        val buttonCenterY = cardTop + cardHeight + buttonMargin + buttonHeight / 2f
         
-        // 绘制第一行按钮
-        drawBottomButtonWithLabel(canvas, firstRowStartX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#4CAF50"), "新建", true, false, false, false, false)
+        // Material Design颜色方案（更醒目）
+        val isDark = isSystemInDarkMode(context)
+        val primaryColor = if (isDark) {
+            Color.parseColor("#6200EE") // Material Purple 700 (暗色模式)
+        } else {
+            Color.parseColor("#2196F3") // Material Blue 500 (亮色模式)
+        }
+        val buttonBgColor = if (isDark) {
+            Color.parseColor("#424242") // 暗色模式背景
+        } else {
+            Color.parseColor("#FFFFFF") // 亮色模式白色背景
+        }
         
-        val favoriteX = firstRowStartX + buttonSize + buttonSpacing
-        drawBottomButtonWithLabel(canvas, favoriteX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#FF9800"), "收藏", false, true, false, false, false)
+        // 绘制4个按钮（一行）- 去掉静音和添加到桌面
+        data class ButtonInfo(
+            val label: String,
+            val isNew: Boolean,
+            val isFavorite: Boolean,
+            val isCopy: Boolean,
+            val isClose: Boolean,
+            val iconColor: Int // Material Design主色
+        )
         
-        val closeX = favoriteX + buttonSize + buttonSpacing
-        drawBottomButtonWithLabel(canvas, closeX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#F44336"), "关闭", false, false, false, false, true)
+        val buttons = listOf(
+            ButtonInfo("新建", true, false, false, false, primaryColor),
+            ButtonInfo("收藏", false, true, false, false, Color.parseColor("#FF9800")), // Orange
+            ButtonInfo("复制网址", false, false, true, false, Color.parseColor("#4CAF50")), // Green
+            ButtonInfo("关闭", false, false, false, true, Color.parseColor("#F44336")) // Red
+        )
         
-        // 第二行按钮：复制网址、静音、添加到桌面
-        val secondRowButtons = 3
-        val secondRowTotalWidth = buttonSize * secondRowButtons + buttonSpacing * (secondRowButtons - 1)
-        val secondRowStartX = cardLeft + (cardWidth - secondRowTotalWidth) / 2f
-        val textHeight = 24f * scale // 文字高度
-        val secondRowButtonY = firstRowButtonY + buttonSize / 2f + textSpacing + textHeight + buttonMargin // 第一行按钮下方
-        
-        drawBottomButtonWithLabel(canvas, secondRowStartX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#2196F3"), "复制网址", false, false, true, false, false)
-        
-        val muteX = secondRowStartX + buttonSize + buttonSpacing
-        drawBottomButtonWithLabel(canvas, muteX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#9C27B0"), "静音", false, false, false, true, false)
-        
-        val desktopX = muteX + buttonSize + buttonSpacing
-        drawBottomButtonWithLabel(canvas, desktopX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#607D8B"), "添加到桌面", false, false, false, false, false)
+        buttons.forEachIndexed { index, buttonInfo ->
+            val buttonX = startX + (buttonWidth + buttonSpacing) * index + buttonWidth / 2f
+            drawBottomButtonMaterial(
+                canvas, buttonX, buttonCenterY, buttonWidth, buttonHeight, 
+                cornerRadius, scale, finalAlpha, buttonBgColor, buttonInfo.label,
+                buttonInfo.isNew, buttonInfo.isFavorite, buttonInfo.isCopy, 
+                buttonInfo.isClose, buttonInfo.iconColor, textSpacing
+            )
+        }
     }
     
     /**
-     * 绘制底部单个按钮（带标签文字）
+     * 检查是否为暗色模式
      */
-    private fun drawBottomButtonWithLabel(
+    private fun isSystemInDarkMode(context: Context): Boolean {
+        val nightModeFlags = context.resources.configuration.uiMode and 
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        return nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+    
+    /**
+     * 绘制底部单个按钮（带标签文字）- Material Design风格版本
+     */
+    private fun drawBottomButtonMaterial(
         canvas: Canvas,
         x: Float,
         y: Float,
-        size: Float,
+        width: Float,
+        height: Float,
+        cornerRadius: Float,
+        scale: Float,
+        alpha: Float,
+        bgColor: Int,
+        label: String,
+        isNew: Boolean,
+        isFavorite: Boolean,
+        isCopy: Boolean,
+        isClose: Boolean,
+        iconColor: Int,
+        textSpacing: Float
+    ) {
+        val rect = android.graphics.RectF(
+            x - width / 2f,
+            y - height / 2f,
+            x + width / 2f,
+            y + height / 2f
+        )
+        
+        // Material Design阴影效果（更明显）
+        val shadowRect = android.graphics.RectF(
+            rect.left + 4f,
+            rect.top + 4f,
+            rect.right + 4f,
+            rect.bottom + 4f
+        )
+        val shadowPaint = Paint().apply {
+            color = Color.parseColor("#60000000")
+            isAntiAlias = true
+            this.alpha = (255 * alpha * 0.8f).toInt()
+        }
+        canvas.drawRoundRect(shadowRect, cornerRadius, cornerRadius, shadowPaint)
+        
+        // Material Design背景（白色背景，有边框）
+        val bgPaint = Paint().apply {
+            color = bgColor
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+        
+        // Material Design边框（使用图标颜色）
+        val borderPaint = Paint().apply {
+            color = iconColor
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f * scale // 更粗的边框
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+        
+        // 绘制图标（使用Material Design颜色，更醒目）
+        val iconPaint = Paint().apply {
+            color = iconColor
+            strokeWidth = 5f * scale // 更粗的图标
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+            this.alpha = (255 * alpha).toInt()
+        }
+        
+        val iconSize = minOf(width, height) * 0.3f // 更大的图标
+        
+        if (isNew) {
+            // 绘制加号
+            val plusSize = iconSize * 0.8f
+            canvas.drawLine(x - plusSize / 2f, y - height / 4f, x + plusSize / 2f, y - height / 4f, iconPaint)
+            canvas.drawLine(x, y - height / 4f - plusSize / 2f, x, y - height / 4f + plusSize / 2f, iconPaint)
+        } else if (isFavorite) {
+            // 绘制星星（填充）
+            val starSize = iconSize * 0.7f
+            val path = android.graphics.Path()
+            path.moveTo(x, y - height / 4f - starSize)
+            path.lineTo(x + starSize * 0.3f, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x + starSize, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x + starSize * 0.4f, y - height / 4f + starSize * 0.2f)
+            path.lineTo(x + starSize * 0.6f, y - height / 4f + starSize)
+            path.lineTo(x, y - height / 4f + starSize * 0.4f)
+            path.lineTo(x - starSize * 0.6f, y - height / 4f + starSize)
+            path.lineTo(x - starSize * 0.4f, y - height / 4f + starSize * 0.2f)
+            path.lineTo(x - starSize, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x - starSize * 0.3f, y - height / 4f - starSize * 0.3f)
+            path.close()
+            iconPaint.style = Paint.Style.FILL
+            canvas.drawPath(path, iconPaint)
+        } else if (isCopy) {
+            // 绘制复制图标（两个重叠的矩形）
+            val rectSize = iconSize * 0.7f
+            val rectPaint = Paint().apply {
+                color = iconColor
+                style = Paint.Style.STROKE
+                strokeWidth = 4f * scale
+                isAntiAlias = true
+                this.alpha = (255 * alpha).toInt()
+            }
+            // 第一个矩形
+            canvas.drawRect(x - rectSize / 2f, y - height / 4f - rectSize / 2f, 
+                x + rectSize / 2f, y - height / 4f + rectSize / 2f, rectPaint)
+            // 第二个矩形（偏移）
+            canvas.drawRect(x - rectSize / 2f + rectSize * 0.25f, y - height / 4f - rectSize / 2f + rectSize * 0.25f, 
+                x + rectSize / 2f + rectSize * 0.25f, y - height / 4f + rectSize / 2f + rectSize * 0.25f, rectPaint)
+        } else if (isClose) {
+            // 绘制X（关闭）
+            val xSize = iconSize * 0.8f
+            iconPaint.strokeWidth = 6f * scale
+            canvas.drawLine(x - xSize / 2f, y - height / 4f - xSize / 2f, 
+                x + xSize / 2f, y - height / 4f + xSize / 2f, iconPaint)
+            canvas.drawLine(x + xSize / 2f, y - height / 4f - xSize / 2f, 
+                x - xSize / 2f, y - height / 4f + xSize / 2f, iconPaint)
+        }
+        
+        // 绘制文字标签（Material Design风格，更大更醒目）
+        val isDark = isSystemInDarkMode(context)
+        val textColor = if (isDark) Color.WHITE else Color.parseColor("#212121")
+        val textPaint = Paint().apply {
+            color = textColor
+            textSize = 20f * scale // 更大的文字
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD // 加粗
+            this.alpha = (255 * alpha).toInt()
+        }
+        val textY = y + height / 2f + textSpacing + 20f * scale
+        canvas.drawText(label, x, textY, textPaint)
+    }
+    
+    /**
+     * 绘制底部单个按钮（带标签文字）- 圆角矩形版本
+     */
+    private fun drawBottomButtonWithLabelRect(
+        canvas: Canvas,
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        cornerRadius: Float,
         scale: Float,
         alpha: Float,
         bgColor: Int,
@@ -1745,137 +1957,161 @@ class StackedCardPreview @JvmOverloads constructor(
         isFavorite: Boolean,
         isCopy: Boolean,
         isMute: Boolean,
-        isClose: Boolean
+        isClose: Boolean,
+        textSpacing: Float
     ) {
+        val rect = android.graphics.RectF(
+            x - width / 2f,
+            y - height / 2f,
+            x + width / 2f,
+            y + height / 2f
+        )
+        
         // 绘制阴影
+        val shadowRect = android.graphics.RectF(
+            rect.left + 2f,
+            rect.top + 2f,
+            rect.right + 2f,
+            rect.bottom + 2f
+        )
         val shadowPaint = Paint().apply {
             color = Color.parseColor("#40000000")
             isAntiAlias = true
             this.alpha = (255 * alpha * 0.6f).toInt()
         }
-        canvas.drawCircle(x + 2f, y + 2f, size / 2f, shadowPaint)
+        canvas.drawRoundRect(shadowRect, cornerRadius, cornerRadius, shadowPaint)
         
-        // 绘制背景
+        // 绘制背景（圆角矩形）
         val bgPaint = Paint().apply {
             color = bgColor
             isAntiAlias = true
             this.alpha = (255 * alpha).toInt()
         }
-        canvas.drawCircle(x, y, size / 2f, bgPaint)
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
         
-        // 绘制边框
+        // 绘制边框（可选，使用主题颜色）
+        val isDark = isSystemInDarkMode(context)
+        val borderColor = if (isDark) Color.parseColor("#666666") else Color.parseColor("#CCCCCC")
         val borderPaint = Paint().apply {
-            color = Color.WHITE
+            color = borderColor
             style = Paint.Style.STROKE
-            strokeWidth = 2f * scale
+            strokeWidth = 1.5f * scale
             isAntiAlias = true
             this.alpha = (255 * alpha).toInt()
         }
-        canvas.drawCircle(x, y, size / 2f - 1f, borderPaint)
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
         
-        // 绘制图标
+        // 绘制图标（在按钮上方，文字在下方）
+        val iconColor = if (isDark) Color.WHITE else Color.parseColor("#212121") // 暗色模式用白色，亮色模式用深灰
         val iconPaint = Paint().apply {
-            color = Color.WHITE
+            color = iconColor
             strokeWidth = 4f * scale
             isAntiAlias = true
             strokeCap = Paint.Cap.ROUND
             this.alpha = (255 * alpha).toInt()
         }
         
+        val iconSize = minOf(width, height) * 0.25f // 图标大小
+        
         if (isNew) {
             // 绘制加号
-            val plusSize = size * 0.35f
-            canvas.drawLine(x - plusSize / 2f, y, x + plusSize / 2f, y, iconPaint)
-            canvas.drawLine(x, y - plusSize / 2f, x, y + plusSize / 2f, iconPaint)
+            val plusSize = iconSize * 0.7f
+            canvas.drawLine(x - plusSize / 2f, y - height / 4f, x + plusSize / 2f, y - height / 4f, iconPaint)
+            canvas.drawLine(x, y - height / 4f - plusSize / 2f, x, y - height / 4f + plusSize / 2f, iconPaint)
         } else if (isFavorite) {
             // 绘制星星（简化版）
-            val starSize = size * 0.3f
+            val starSize = iconSize * 0.6f
             val path = android.graphics.Path()
-            path.moveTo(x, y - starSize)
-            path.lineTo(x + starSize * 0.3f, y - starSize * 0.3f)
-            path.lineTo(x + starSize, y - starSize * 0.3f)
-            path.lineTo(x + starSize * 0.4f, y + starSize * 0.2f)
-            path.lineTo(x + starSize * 0.6f, y + starSize)
-            path.lineTo(x, y + starSize * 0.4f)
-            path.lineTo(x - starSize * 0.6f, y + starSize)
-            path.lineTo(x - starSize * 0.4f, y + starSize * 0.2f)
-            path.lineTo(x - starSize, y - starSize * 0.3f)
-            path.lineTo(x - starSize * 0.3f, y - starSize * 0.3f)
+            path.moveTo(x, y - height / 4f - starSize)
+            path.lineTo(x + starSize * 0.3f, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x + starSize, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x + starSize * 0.4f, y - height / 4f + starSize * 0.2f)
+            path.lineTo(x + starSize * 0.6f, y - height / 4f + starSize)
+            path.lineTo(x, y - height / 4f + starSize * 0.4f)
+            path.lineTo(x - starSize * 0.6f, y - height / 4f + starSize)
+            path.lineTo(x - starSize * 0.4f, y - height / 4f + starSize * 0.2f)
+            path.lineTo(x - starSize, y - height / 4f - starSize * 0.3f)
+            path.lineTo(x - starSize * 0.3f, y - height / 4f - starSize * 0.3f)
             path.close()
             iconPaint.style = Paint.Style.FILL
             canvas.drawPath(path, iconPaint)
         } else if (isCopy) {
             // 绘制复制图标（两个重叠的矩形）
-            val rectSize = size * 0.3f
+            val rectSize = iconSize * 0.6f
             val rectPaint = Paint().apply {
-                color = Color.WHITE
+                color = iconColor
                 style = Paint.Style.STROKE
                 strokeWidth = 3f * scale
                 isAntiAlias = true
                 this.alpha = (255 * alpha).toInt()
             }
             // 第一个矩形
-            canvas.drawRect(x - rectSize / 2f, y - rectSize / 2f, x + rectSize / 2f, y + rectSize / 2f, rectPaint)
+            canvas.drawRect(x - rectSize / 2f, y - height / 4f - rectSize / 2f, 
+                x + rectSize / 2f, y - height / 4f + rectSize / 2f, rectPaint)
             // 第二个矩形（偏移）
-            canvas.drawRect(x - rectSize / 2f + rectSize * 0.2f, y - rectSize / 2f + rectSize * 0.2f, 
-                x + rectSize / 2f + rectSize * 0.2f, y + rectSize / 2f + rectSize * 0.2f, rectPaint)
+            canvas.drawRect(x - rectSize / 2f + rectSize * 0.2f, y - height / 4f - rectSize / 2f + rectSize * 0.2f, 
+                x + rectSize / 2f + rectSize * 0.2f, y - height / 4f + rectSize / 2f + rectSize * 0.2f, rectPaint)
         } else if (isMute) {
             // 绘制静音图标（扬声器带斜线）
-            val speakerSize = size * 0.3f
+            val speakerSize = iconSize * 0.6f
             // 扬声器主体（三角形）
             val path = android.graphics.Path()
-            path.moveTo(x - speakerSize / 2f, y - speakerSize / 3f)
-            path.lineTo(x - speakerSize / 4f, y)
-            path.lineTo(x - speakerSize / 2f, y + speakerSize / 3f)
+            path.moveTo(x - speakerSize / 2f, y - height / 4f - speakerSize / 3f)
+            path.lineTo(x - speakerSize / 4f, y - height / 4f)
+            path.lineTo(x - speakerSize / 2f, y - height / 4f + speakerSize / 3f)
             path.close()
             iconPaint.style = Paint.Style.FILL
             canvas.drawPath(path, iconPaint)
             // 声波（两个半圆）
             iconPaint.style = Paint.Style.STROKE
-            canvas.drawArc(x - speakerSize / 4f, y - speakerSize / 2f, x + speakerSize / 2f, y + speakerSize / 2f, -90f, 180f, false, iconPaint)
-            canvas.drawArc(x - speakerSize / 8f, y - speakerSize, x + speakerSize, y + speakerSize, -90f, 180f, false, iconPaint)
+            canvas.drawArc(x - speakerSize / 4f, y - height / 4f - speakerSize / 2f, 
+                x + speakerSize / 2f, y - height / 4f + speakerSize / 2f, -90f, 180f, false, iconPaint)
+            canvas.drawArc(x - speakerSize / 8f, y - height / 4f - speakerSize, 
+                x + speakerSize, y - height / 4f + speakerSize, -90f, 180f, false, iconPaint)
             // 静音斜线
             val linePaint = Paint().apply {
-                color = Color.WHITE
+                color = iconColor
                 strokeWidth = 4f * scale
                 isAntiAlias = true
                 strokeCap = Paint.Cap.ROUND
                 this.alpha = (255 * alpha).toInt()
             }
-            canvas.drawLine(x + speakerSize / 2f, y - speakerSize / 2f, x + speakerSize, y + speakerSize / 2f, linePaint)
+            canvas.drawLine(x + speakerSize / 2f, y - height / 4f - speakerSize / 2f, 
+                x + speakerSize, y - height / 4f + speakerSize / 2f, linePaint)
         } else if (isClose) {
             // 绘制X（关闭）
-            val xSize = size * 0.35f
-            canvas.drawLine(x - xSize / 2f, y - xSize / 2f, x + xSize / 2f, y + xSize / 2f, iconPaint)
-            canvas.drawLine(x + xSize / 2f, y - xSize / 2f, x - xSize / 2f, y + xSize / 2f, iconPaint)
+            val xSize = iconSize * 0.7f
+            canvas.drawLine(x - xSize / 2f, y - height / 4f - xSize / 2f, 
+                x + xSize / 2f, y - height / 4f + xSize / 2f, iconPaint)
+            canvas.drawLine(x + xSize / 2f, y - height / 4f - xSize / 2f, 
+                x - xSize / 2f, y - height / 4f + xSize / 2f, iconPaint)
         } else {
             // 绘制添加到桌面图标（房子）
-            val houseSize = size * 0.35f
+            val houseSize = iconSize * 0.7f
             val path = android.graphics.Path()
-            path.moveTo(x, y - houseSize / 2f)
-            path.lineTo(x - houseSize / 2f, y)
-            path.lineTo(x - houseSize / 4f, y)
-            path.lineTo(x - houseSize / 4f, y + houseSize / 2f)
-            path.lineTo(x + houseSize / 4f, y + houseSize / 2f)
-            path.lineTo(x + houseSize / 4f, y)
-            path.lineTo(x + houseSize / 2f, y)
+            path.moveTo(x, y - height / 4f - houseSize / 2f)
+            path.lineTo(x - houseSize / 2f, y - height / 4f)
+            path.lineTo(x - houseSize / 4f, y - height / 4f)
+            path.lineTo(x - houseSize / 4f, y - height / 4f + houseSize / 2f)
+            path.lineTo(x + houseSize / 4f, y - height / 4f + houseSize / 2f)
+            path.lineTo(x + houseSize / 4f, y - height / 4f)
+            path.lineTo(x + houseSize / 2f, y - height / 4f)
             path.close()
             iconPaint.style = Paint.Style.FILL
             canvas.drawPath(path, iconPaint)
         }
         
-        // 绘制文字标签
+        // 绘制文字标签（在按钮下方）
+        val textColor = if (isDark) Color.WHITE else Color.parseColor("#212121")
         val textPaint = Paint().apply {
-            color = Color.WHITE
-            textSize = 20f * scale
+            color = textColor
+            textSize = 18f * scale
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = android.graphics.Typeface.DEFAULT
             this.alpha = (255 * alpha).toInt()
-            setShadowLayer(2f, 0f, 1f, Color.parseColor("#80000000"))
         }
-        val textSpacing = 12f * scale // 按钮和文字之间的间距
-        val textY = y + size / 2f + textSpacing
+        val textY = y + height / 2f + textSpacing + 18f * scale
         canvas.drawText(label, x, textY, textPaint)
     }
 
@@ -1970,37 +2206,41 @@ class StackedCardPreview @JvmOverloads constructor(
         val cardLeft = centerX - cardWidth / 2f
         val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
         
-        // 计算按钮位置（与绘制时保持一致）
-        val buttonSize = 70f
-        val buttonSpacing = 15f
-        val buttonMargin = 25f
-        val textSpacing = 12f
-        val textHeight = 24f
-        
-        // 第一行按钮
-        val firstRowButtons = 3
-        val firstRowTotalWidth = buttonSize * firstRowButtons + buttonSpacing * (firstRowButtons - 1)
-        val firstRowStartX = cardLeft + (cardWidth - firstRowTotalWidth) / 2f
-        val firstRowButtonY = cardTop + cardHeight + buttonMargin + buttonSize / 2f
-        
-        // 第二行按钮
-        val secondRowButtons = 3
-        val secondRowTotalWidth = buttonSize * secondRowButtons + buttonSpacing * (secondRowButtons - 1)
-        val secondRowStartX = cardLeft + (cardWidth - secondRowTotalWidth) / 2f
-        val secondRowButtonY = firstRowButtonY + buttonSize / 2f + textSpacing + textHeight + buttonMargin
-        
-        val (buttonX, buttonY) = when {
-            isNew -> Pair(firstRowStartX, firstRowButtonY)
-            isFavorite -> Pair(firstRowStartX + buttonSize + buttonSpacing, firstRowButtonY)
-            isClose -> Pair(firstRowStartX + (buttonSize + buttonSpacing) * 2, firstRowButtonY)
-            isCopy -> Pair(secondRowStartX, secondRowButtonY)
-            isMute -> Pair(secondRowStartX + buttonSize + buttonSpacing, secondRowButtonY)
-            isDesktop -> Pair(secondRowStartX + (buttonSize + buttonSpacing) * 2, secondRowButtonY)
-            else -> return false
+        // 只有下滑时才检测按钮点击（centerCardOffsetY > 30时）
+        val showButtonThreshold = 30f
+        if (centerCardOffsetY < showButtonThreshold) {
+            return false // 未下滑，按钮未显示，不检测点击
         }
         
-        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
-        return distance <= buttonSize / 2f
+        // 计算按钮位置（与绘制时保持一致）- Material Design版本
+        val buttonWidth = 120f
+        val buttonHeight = 75f
+        val buttonSpacing = 16f
+        val buttonMargin = 30f
+        
+        // 所有按钮排成一行（4个按钮）
+        val totalButtons = 4
+        val totalWidth = buttonWidth * totalButtons + buttonSpacing * (totalButtons - 1)
+        val startX = cardLeft + (cardWidth - totalWidth) / 2f
+        val buttonCenterY = cardTop + cardHeight + buttonMargin + buttonHeight / 2f
+        
+        val buttonIndex = when {
+            isNew -> 0
+            isFavorite -> 1
+            isCopy -> 2
+            isClose -> 3
+            else -> return false // 去掉了isMute和isDesktop
+        }
+        
+        val buttonX = startX + (buttonWidth + buttonSpacing) * buttonIndex + buttonWidth / 2f
+        
+        // 检查点击是否在按钮矩形区域内
+        val buttonLeft = buttonX - buttonWidth / 2f
+        val buttonRight = buttonX + buttonWidth / 2f
+        val buttonTop = buttonCenterY - buttonHeight / 2f
+        val buttonBottom = buttonCenterY + buttonHeight / 2f
+        
+        return x >= buttonLeft && x <= buttonRight && y >= buttonTop && y <= buttonBottom
     }
     
     /**
@@ -2128,8 +2368,8 @@ class StackedCardPreview @JvmOverloads constructor(
             canvas.drawText(title, indicatorCenterX, titleY, titlePaint)
         }
 
-        // 绘制新建卡片按钮（在指示器右侧）
-        drawNewCardButton(canvas, viewWidth, viewHeight, indicatorY)
+        // 移除右上角新建按钮（已禁用）
+        // drawNewCardButton(canvas, viewWidth, viewHeight, indicatorY)
     }
 
     /**
@@ -2175,32 +2415,11 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 检查是否点击了当前中心卡片的新建按钮
+     * 检查是否点击了当前中心卡片的新建按钮（已移除，此方法不再使用）
      */
     private fun isNewCardButtonOnCardClicked(x: Float, y: Float): Boolean {
-        if (webViewCards.isEmpty() || currentCardIndex < 0 || currentCardIndex >= webViewCards.size) {
-            return false
-        }
-
-        val viewWidth = width.toFloat()
-        val viewHeight = height.toFloat()
-        val centerX = viewWidth / 2f
-        val centerY = viewHeight / 2f
-
-        // 计算当前中心卡片的位置
-        val cardWidth = baseCardWidth
-        val cardHeight = baseCardHeight
-        val cardLeft = centerX - cardWidth / 2f
-        val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
-
-        // 计算新建按钮的位置（与绘制时保持一致）
-        val buttonSize = 60f // 更新为新的按钮尺寸
-        val buttonMargin = 8f // 更新为新的边距
-        val buttonX = cardLeft + buttonMargin + buttonSize / 2f
-        val buttonY = cardTop + buttonMargin + buttonSize / 2f
-
-        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
-        return distance <= buttonSize / 2f
+        // 右上角新建按钮已移除，始终返回false
+        return false
     }
 
     /**

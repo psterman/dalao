@@ -516,9 +516,6 @@ class SearchActivity : AppCompatActivity() {
     }
 
     // 长按相关变量
-    private var longPressStartTime = 0L
-    private var isLongPressActivated = false
-    private val longPressThreshold = 500L // 500ms长按阈值
     
     /**
      * 调试触摸事件流向
@@ -555,29 +552,14 @@ class SearchActivity : AppCompatActivity() {
             return stackedCardPreview?.dispatchTouchEvent(ev) ?: true
         }
 
-        // 处理长按激活StackedCardPreview
+        // 去掉长按激活StackedCardPreview功能，确保tab区域长期可以使用手势
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                longPressStartTime = System.currentTimeMillis()
-                isLongPressActivated = false
                 lastTapCount = 1
                 lastTapTime = System.currentTimeMillis()
                 isTwoFingerTap = false
             }
-            MotionEvent.ACTION_MOVE -> {
-                val currentTime = System.currentTimeMillis()
-                if (!isLongPressActivated && (currentTime - longPressStartTime) >= longPressThreshold) {
-                    isLongPressActivated = true
-                    activateStackedCardPreview()
-                    return true
-                }
-            }
             MotionEvent.ACTION_UP -> {
-                if (isLongPressActivated) {
-                    isLongPressActivated = false
-                    return true
-                }
-                
                 if (isTwoFingerTap &&
                     System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
                     !isScaling) {
@@ -955,7 +937,7 @@ class SearchActivity : AppCompatActivity() {
     }
     
     /**
-     * 激活StackedCardPreview预览
+     * 激活StackedCardPreview预览（立即激活，无延迟）
      */
     private fun activateStackedCardPreview() {
         try {
@@ -963,7 +945,6 @@ class SearchActivity : AppCompatActivity() {
             val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
             if (paperStackTabs.isEmpty()) {
                 Log.d("SearchActivity", "没有纸堆标签页，无法激活StackedCardPreview")
-                Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
                 return
             }
             
@@ -972,29 +953,34 @@ class SearchActivity : AppCompatActivity() {
             // 确保StackedCardPreview已初始化
             if (stackedCardPreview == null) {
                 Log.e("SearchActivity", "StackedCardPreview未初始化")
-                Toast.makeText(this, "卡片预览系统未初始化", Toast.LENGTH_SHORT).show()
                 return
             }
             
-            // 动态加载页面内容，确保卡片不显示白屏
-            ensureCardContentLoaded()
-            
-            // 同步数据
-            syncAllCardSystems()
-            
-            // 显示StackedCardPreview
+            // 立即显示StackedCardPreview（不等待数据同步，确保快速响应）
             stackedCardPreview?.visibility = View.VISIBLE
             
-            // 建立最强触摸隔膜
+            // 立即建立触摸隔膜
             buildTouchBarrier()
             
-            // 确保StackedCardPreview在最顶层
+            // 立即确保StackedCardPreview在最顶层
             ensureStackedCardPreviewOnTop()
             
-            // 强制刷新显示
+            // 立即强制刷新显示
             stackedCardPreview?.invalidate()
             
-            Log.d("SearchActivity", "StackedCardPreview已激活并显示，隔膜已建立")
+            // 在后台异步加载内容和同步数据（不阻塞显示）
+            handler.post {
+                // 动态加载页面内容，确保卡片不显示白屏
+                ensureCardContentLoaded()
+                
+                // 同步数据
+                syncAllCardSystems()
+                
+                // 数据同步完成后再次刷新
+                stackedCardPreview?.invalidate()
+            }
+            
+            Log.d("SearchActivity", "StackedCardPreview已立即激活并显示，隔膜已建立")
             
             // 设置卡片选择监听器
             stackedCardPreview?.setOnCardSelectedListener { cardIndex ->
@@ -1089,11 +1075,11 @@ class SearchActivity : AppCompatActivity() {
                 android.widget.Toast.makeText(this, "添加到桌面功能开发中", android.widget.Toast.LENGTH_SHORT).show()
             }
             
-            Toast.makeText(this, "显示 ${paperStackTabs.size} 张卡片", Toast.LENGTH_SHORT).show()
+            // 去掉激活提示
             
         } catch (e: Exception) {
             Log.e("SearchActivity", "激活StackedCardPreview失败", e)
-            Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()
+            // 去掉错误提示的Toast
         }
     }
     
@@ -1143,11 +1129,11 @@ class SearchActivity : AppCompatActivity() {
                 preview.elevation = 9999f
                 preview.bringToFront()
                 
-                // 设置触摸拦截器 - 完全拦截，不传递给StackedCardPreview
-                preview.setOnTouchListener { _, event ->
-                    Log.d("SearchActivity", "🔒 隔膜完全拦截触摸: ${event.action}")
-                    // 不调用preview.onTouchEvent，完全拦截
-                    true // 强制拦截
+                // 设置触摸拦截器 - 允许事件传递给StackedCardPreview处理
+                preview.setOnTouchListener { view, event ->
+                    Log.d("SearchActivity", "🔒 隔膜传递触摸事件: ${event.action}")
+                    // 将触摸事件传递给StackedCardPreview处理，而不是完全拦截
+                    view.onTouchEvent(event)
                 }
                 
                 Log.d("SearchActivity", "🔒 最强触摸隔膜建立完成")
