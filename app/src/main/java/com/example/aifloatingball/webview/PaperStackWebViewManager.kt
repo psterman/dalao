@@ -19,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
@@ -248,32 +249,17 @@ class PaperStackWebViewManager(
         val currentTab = tabs[currentTabIndex]
         val targetTab = tabs[targetIndex]
         
-        Log.d(TAG, "开始切换标签页：从 ${currentTab.title} 到 ${targetTab.title}")
+        // 判断滑动方向：targetIndex > currentTabIndex 表示左滑（下一个），否则为右滑（上一个）
+        val isSwipeLeft = targetIndex > currentTabIndex || (currentTabIndex == tabs.size - 1 && targetIndex == 0)
         
-        // 创建动画集合
-        val animatorSet = AnimatorSet()
-        val animators = mutableListOf<Animator>()
+        Log.d(TAG, "开始卡片交叠切换：从 ${currentTab.title} 到 ${targetTab.title}, 方向=${if (isSwipeLeft) "左滑" else "右滑"}")
         
-        // 1. 当前标签页移到底部的动画
-        val moveToBottomAnimator = createMoveToBottomAnimation(currentTab, tabs.size - 1)
-        animators.add(moveToBottomAnimator)
+        // 创建卡片交叠动画
+        val animatorSet = createCardStackAnimation(currentTab, targetTab, isSwipeLeft)
         
-        // 2. 目标标签页移到顶部的动画
-        val moveToTopAnimator = createMoveToTopAnimation(targetTab, 0)
-        animators.add(moveToTopAnimator)
-        
-        // 3. 其他标签页重新排列的动画
-        val rearrangeAnimators = createRearrangeAnimations(currentTabIndex, targetIndex)
-        animators.addAll(rearrangeAnimators)
-        
-        // 执行动画
-        animatorSet.playTogether(animators)
-        animatorSet.duration = ANIMATION_DURATION
-        // 使用更平滑的插值器，让动画更自然
-        animatorSet.interpolator = DecelerateInterpolator(1.5f)
         animatorSet.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationStart(animation: Animator) {
-                Log.d(TAG, "标签页切换动画开始")
+                Log.d(TAG, "卡片交叠切换动画开始")
             }
             
             override fun onAnimationEnd(animation: Animator) {
@@ -285,16 +271,176 @@ class PaperStackWebViewManager(
                 // 通知监听器
                 onTabSwitchedListener?.invoke(targetTab, currentTabIndex)
                 
-                Log.d(TAG, "标签页切换完成，当前标签页: ${targetTab.title}, 索引: $currentTabIndex")
+                Log.d(TAG, "卡片交叠切换完成，当前标签页: ${targetTab.title}, 索引: $currentTabIndex")
             }
             
             override fun onAnimationCancel(animation: Animator) {
                 isAnimating = false
-                Log.d(TAG, "标签页切换动画被取消")
+                Log.d(TAG, "卡片交叠切换动画被取消")
             }
         })
         
         animatorSet.start()
+    }
+
+    /**
+     * 创建卡片交叠切换动画（左右滑动）
+     * @param currentTab 当前卡片（上方）
+     * @param targetTab 目标卡片（将从侧面移上来）
+     * @param isSwipeLeft 是否左滑（true=左滑，false=右滑）
+     */
+    private fun createCardStackAnimation(currentTab: WebViewTab, targetTab: WebViewTab, isSwipeLeft: Boolean): AnimatorSet {
+        val animators = mutableListOf<Animator>()
+        val duration = ANIMATION_DURATION
+        val currentWebView = currentTab.webView
+        val targetWebView = targetTab.webView
+        
+        // 获取容器宽度，用于计算左右移动距离
+        val containerWidth = container.width.toFloat()
+        val swipeDistance = if (containerWidth > 0) containerWidth * 0.8f else 400f // 滑动距离为容器宽度的80%
+        
+        // 1. 当前卡片（上方）根据滑动方向向左或向右滑动，同时移到底部
+        val currentTargetStackIndex = tabs.size - 1
+        val currentTargetOffsetX = currentTargetStackIndex * TAB_OFFSET_X
+        val currentTargetOffsetY = currentTargetStackIndex * TAB_OFFSET_Y
+        val currentTargetScale = TAB_SCALE_FACTOR.pow(currentTargetStackIndex)
+        val currentTargetAlpha = max(0.4f, 1f - (currentTargetStackIndex * TAB_ALPHA_FACTOR))
+        val currentTargetElevation = 10f // 移到底部，elevation最小
+        
+        // 根据滑动方向，计算当前卡片的目标X位置
+        // 左滑时向左移动，右滑时向右移动，同时移动到堆叠底部
+        val currentTargetX = if (isSwipeLeft) {
+            // 左滑：当前卡片向左移动并到达堆叠底部位置
+            currentTargetOffsetX - swipeDistance * 0.4f // 向左移动一段距离，同时移到堆叠底部
+        } else {
+            // 右滑：当前卡片向右移动并到达堆叠底部位置
+            currentTargetOffsetX + swipeDistance * 0.4f // 向右移动一段距离，同时移到堆叠底部
+        }
+        
+        val currentAnimatorX = ObjectAnimator.ofFloat(currentWebView, "translationX", currentWebView.translationX, currentTargetX)
+        val currentAnimatorY = ObjectAnimator.ofFloat(currentWebView, "translationY", currentWebView.translationY, currentTargetOffsetY)
+        val currentAnimatorScaleX = ObjectAnimator.ofFloat(currentWebView, "scaleX", currentWebView.scaleX, currentTargetScale)
+        val currentAnimatorScaleY = ObjectAnimator.ofFloat(currentWebView, "scaleY", currentWebView.scaleY, currentTargetScale)
+        val currentAnimatorAlpha = ObjectAnimator.ofFloat(currentWebView, "alpha", currentWebView.alpha, currentTargetAlpha)
+        val currentAnimatorElevation = ObjectAnimator.ofFloat(currentWebView, "elevation", currentWebView.elevation, currentTargetElevation)
+        
+        // 添加轻微的旋转效果，根据滑动方向旋转
+        val currentRotationY = if (isSwipeLeft) {
+            // 左滑：向左旋转
+            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, -15f, 0f)
+        } else {
+            // 右滑：向右旋转
+            ObjectAnimator.ofFloat(currentWebView, "rotationY", 0f, 15f, 0f)
+        }
+        
+        // 设置动画时长
+        currentAnimatorX.duration = duration
+        currentAnimatorY.duration = duration
+        currentAnimatorScaleX.duration = duration
+        currentAnimatorScaleY.duration = duration
+        currentAnimatorAlpha.duration = duration
+        currentAnimatorElevation.duration = duration
+        currentRotationY.duration = duration
+        
+        val decelerateInterpolator = DecelerateInterpolator(1.5f)
+        currentAnimatorY.interpolator = decelerateInterpolator
+        currentAnimatorScaleX.interpolator = decelerateInterpolator
+        currentAnimatorScaleY.interpolator = decelerateInterpolator
+        currentAnimatorAlpha.interpolator = decelerateInterpolator
+        currentAnimatorElevation.interpolator = decelerateInterpolator
+        currentRotationY.interpolator = DecelerateInterpolator()
+        
+        currentAnimatorX.interpolator = decelerateInterpolator
+        val currentCardAnimatorSet = AnimatorSet()
+        currentCardAnimatorSet.playTogether(
+            currentAnimatorX, currentAnimatorY, currentAnimatorScaleX, 
+            currentAnimatorScaleY, currentAnimatorAlpha, currentAnimatorElevation, currentRotationY
+        )
+        animators.add(currentCardAnimatorSet)
+        
+        // 2. 目标卡片从相反方向移上来（左滑时从右侧，右滑时从左侧）
+        val targetTargetStackIndex = 0
+        val targetTargetOffsetX = 0f
+        val targetTargetOffsetY = 0f
+        val targetTargetScale = 1.0f
+        val targetTargetAlpha = 1.0f
+        val targetTargetElevation = (tabs.size + 20).toFloat() // 移到顶部，elevation最大
+        
+        // 根据滑动方向，计算目标卡片的起始位置
+        // 左滑时：目标卡片从右侧进来
+        // 右滑时：目标卡片从左侧进来
+        val targetStartX = if (isSwipeLeft) {
+            // 左滑：从右侧开始
+            swipeDistance
+        } else {
+            // 右滑：从左侧开始
+            -swipeDistance
+        }
+        
+        // 获取目标卡片当前的位置信息，用于计算初始Y位置
+        val targetCurrentDistance = abs(tabs.indexOf(targetTab) - currentTabIndex)
+        val targetCurrentStackIndex = targetCurrentDistance
+        val targetStartOffsetY = targetCurrentStackIndex * TAB_OFFSET_Y
+        
+        // 临时提升目标卡片的elevation，确保它在动画过程中能显示在当前卡片之上
+        val targetStartElevation = currentWebView.elevation + 5f
+        
+        // 在动画开始前，设置目标卡片的初始位置和elevation
+        targetWebView.translationX = targetStartX
+        targetWebView.translationY = targetStartOffsetY
+        targetWebView.elevation = targetStartElevation
+        
+        val targetAnimatorX = ObjectAnimator.ofFloat(targetWebView, "translationX", targetStartX, targetTargetOffsetX)
+        val targetAnimatorY = ObjectAnimator.ofFloat(targetWebView, "translationY", targetStartOffsetY, targetTargetOffsetY)
+        val targetAnimatorScaleX = ObjectAnimator.ofFloat(targetWebView, "scaleX", targetWebView.scaleX, targetTargetScale)
+        val targetAnimatorScaleY = ObjectAnimator.ofFloat(targetWebView, "scaleY", targetWebView.scaleY, targetTargetScale)
+        val targetAnimatorAlpha = ObjectAnimator.ofFloat(targetWebView, "alpha", targetWebView.alpha, targetTargetAlpha)
+        val targetAnimatorElevation = ObjectAnimator.ofFloat(targetWebView, "elevation", targetStartElevation, targetTargetElevation)
+        
+        // 添加轻微的旋转效果，从侧面滑入
+        val targetRotationY = if (isSwipeLeft) {
+            // 左滑：从右侧来，先向右倾斜，然后恢复
+            ObjectAnimator.ofFloat(targetWebView, "rotationY", 15f, 0f)
+        } else {
+            // 右滑：从左侧来，先向左倾斜，然后恢复
+            ObjectAnimator.ofFloat(targetWebView, "rotationY", -15f, 0f)
+        }
+        
+        targetAnimatorX.duration = duration
+        targetAnimatorY.duration = duration
+        targetAnimatorScaleX.duration = duration
+        targetAnimatorScaleY.duration = duration
+        targetAnimatorAlpha.duration = duration
+        targetAnimatorElevation.duration = duration
+        targetRotationY.duration = duration
+        
+        val accelerateDecelerateInterpolator = AccelerateDecelerateInterpolator()
+        targetAnimatorX.interpolator = accelerateDecelerateInterpolator
+        targetAnimatorY.interpolator = accelerateDecelerateInterpolator
+        targetAnimatorScaleX.interpolator = accelerateDecelerateInterpolator
+        targetAnimatorScaleY.interpolator = accelerateDecelerateInterpolator
+        targetAnimatorAlpha.interpolator = accelerateDecelerateInterpolator
+        targetAnimatorElevation.interpolator = accelerateDecelerateInterpolator
+        targetRotationY.interpolator = accelerateDecelerateInterpolator
+        
+        val targetCardAnimatorSet = AnimatorSet()
+        targetCardAnimatorSet.playTogether(
+            targetAnimatorX, targetAnimatorY, targetAnimatorScaleX,
+            targetAnimatorScaleY, targetAnimatorAlpha, targetAnimatorElevation, targetRotationY
+        )
+        animators.add(targetCardAnimatorSet)
+        
+        // 3. 其他卡片重新排列的动画
+        val rearrangeAnimators = createRearrangeAnimations(currentTabIndex, tabs.indexOf(targetTab))
+        animators.addAll(rearrangeAnimators)
+        
+        // 组合所有动画，同步执行
+        val animatorSet = AnimatorSet()
+        animatorSet.playTogether(animators)
+        animatorSet.duration = ANIMATION_DURATION
+        animatorSet.interpolator = DecelerateInterpolator(1.5f)
+        
+        return animatorSet
     }
 
     /**
