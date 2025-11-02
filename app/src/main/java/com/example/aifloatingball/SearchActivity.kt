@@ -681,13 +681,13 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupBasicClickListeners() {
-        // 设置菜单按钮点击事件：优先激活StackedCardPreview，如果没有卡片则显示菜单
+        // 设置菜单按钮点击事件：如果有网页加载，立即激活StackedCardPreview
         menuButton.setOnClickListener {
-            // 检查是否有纸堆标签页可以显示
+            // 检查是否有纸堆标签页可以显示（有网页加载）
             val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
             if (paperStackTabs.isNotEmpty()) {
-                // 有标签页，激活StackedCardPreview
-                Log.d("SearchActivity", "点击菜单按钮激活StackedCardPreview")
+                // 有标签页（有网页加载），立即激活StackedCardPreview
+                Log.d("SearchActivity", "点击菜单按钮立即激活StackedCardPreview")
                 activateStackedCardPreview()
             } else {
                 // 没有标签页，显示菜单选项
@@ -956,7 +956,14 @@ class SearchActivity : AppCompatActivity() {
                 return
             }
             
-            // 立即显示StackedCardPreview（不等待数据同步，确保快速响应）
+            // 先同步数据，确保卡片内容加载完成后再显示（避免空白）
+            // 动态加载页面内容，确保卡片不显示白屏
+            ensureCardContentLoaded()
+            
+            // 同步数据
+            syncAllCardSystems()
+            
+            // 数据同步完成后，再显示StackedCardPreview（确保卡片可见，不出现空白）
             stackedCardPreview?.visibility = View.VISIBLE
             
             // 立即建立触摸隔膜
@@ -967,18 +974,6 @@ class SearchActivity : AppCompatActivity() {
             
             // 立即强制刷新显示
             stackedCardPreview?.invalidate()
-            
-            // 在后台异步加载内容和同步数据（不阻塞显示）
-            handler.post {
-                // 动态加载页面内容，确保卡片不显示白屏
-                ensureCardContentLoaded()
-                
-                // 同步数据
-                syncAllCardSystems()
-                
-                // 数据同步完成后再次刷新
-                stackedCardPreview?.invalidate()
-            }
             
             Log.d("SearchActivity", "StackedCardPreview已立即激活并显示，隔膜已建立")
             

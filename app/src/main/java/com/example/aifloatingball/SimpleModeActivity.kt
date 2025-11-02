@@ -20465,14 +20465,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "✅ 层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
             }
 
-            // 给用户简洁的操作提示
-            val message = when {
-                allCards.size == 1 -> "卡片预览已激活\n• 点击按钮关闭/新建 • 上滑关闭 • 点击打开"
-                allCards.size > 1 -> "已显示 ${allCards.size} 张卡片\n• 左右滑动切换 • 上滑关闭 • 点击打开"
-                else -> "没有可显示的卡片"
-            }
-
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            // 去掉激活提示弹窗
 
             // 确保搜索tab保持选中状态（绿色主题）
             updateTabColors()
@@ -20549,10 +20542,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 模拟长按激活
                 activateStackedCardPreview()
 
-                Toast.makeText(this, "层叠卡片预览已激活，可以用手指移动来悬停卡片", Toast.LENGTH_LONG).show()
+                // 去掉激活提示弹窗
 
             } ?: run {
-                Toast.makeText(this, "WebView管理器未初始化", Toast.LENGTH_SHORT).show()
+                // 去掉错误提示
             }
 
         } catch (e: Exception) {

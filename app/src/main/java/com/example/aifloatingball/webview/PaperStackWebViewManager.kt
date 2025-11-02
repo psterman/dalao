@@ -6,6 +6,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -27,6 +28,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.children
 import com.example.aifloatingball.utils.WebViewConstants
 import android.view.WindowManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.example.aifloatingball.model.HistoryEntry
+import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -90,6 +95,10 @@ class PaperStackWebViewManager(
     private var lastTouchX = 0f
     private var lastTouchY = 0f
 
+    private val historyPrefs: SharedPreferences = context.getSharedPreferences("browser_history", Context.MODE_PRIVATE)
+    private val gson = Gson()
+    private val MAX_HISTORY_SIZE = 100 // 最大历史记录数量
+    
     init {
         setupGestureDetector()
         setupContainer()
@@ -676,6 +685,57 @@ class PaperStackWebViewManager(
      */
     fun getAllTabs(): List<WebViewTab> {
         return tabs.toList()
+    }
+
+    /**
+     * 保存历史访问记录（精准记录每次访问）
+     */
+    private fun saveHistoryEntry(url: String, title: String, finalUrl: String) {
+        try {
+            val historyJson = historyPrefs.getString("history_data", "[]")
+            val type = object : TypeToken<MutableList<HistoryEntry>>() {}.type
+            val historyList = if (historyJson != null && historyJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<HistoryEntry>>(historyJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // 创建新的历史记录条目
+            val newEntry = HistoryEntry(
+                id = System.currentTimeMillis().toString(),
+                title = if (title.isNotEmpty() && title != finalUrl) title else {
+                    // 如果没有标题，尝试从URL提取
+                    try {
+                        val uri = java.net.URI(finalUrl)
+                        uri.host ?: finalUrl
+                    } catch (e: Exception) {
+                        finalUrl
+                    }
+                },
+                url = finalUrl,
+                visitTime = Date()
+            )
+            
+            // 添加到历史记录列表（即使URL相同也记录，因为是精准记录每次访问）
+            historyList.add(0, newEntry)
+            
+            // 限制历史记录数量
+            if (historyList.size > MAX_HISTORY_SIZE) {
+                historyList.removeAt(historyList.size - 1)
+            }
+            
+            // 保存到SharedPreferences
+            val updatedJson = gson.toJson(historyList)
+            historyPrefs.edit().putString("history_data", updatedJson).apply()
+            
+            Log.d(TAG, "保存历史记录: ${newEntry.title}, URL: $finalUrl, 总数: ${historyList.size}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存历史记录失败", e)
+        }
     }
 
     /**
@@ -1407,6 +1467,15 @@ class PaperStackWebViewManager(
                 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    
+                    // 保存历史访问记录（精准记录每次访问）
+                    if (url != null && url.isNotEmpty() && !url.startsWith("javascript:") && url != "about:blank") {
+                        try {
+                            saveHistoryEntry(url, view?.title ?: url, view?.url ?: url)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "保存历史记录失败", e)
+                        }
+                    }
                     
                     // 注入viewport meta标签
                     view?.evaluateJavascript("""

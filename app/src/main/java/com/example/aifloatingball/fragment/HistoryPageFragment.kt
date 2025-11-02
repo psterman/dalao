@@ -23,7 +23,7 @@ class HistoryPageFragment : Fragment() {
     
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyLayout: LinearLayout
-    private lateinit var searchEditText: TextInputEditText
+    // private lateinit var searchEditText: TextInputEditText // 已移除
     private lateinit var adapter: HistoryEntryAdapter
     
     private var onHistoryItemClick: ((HistoryEntry) -> Unit)? = null
@@ -49,7 +49,8 @@ class HistoryPageFragment : Fragment() {
     private fun initViews(view: View) {
         recyclerView = view.findViewById(R.id.rv_history)
         emptyLayout = view.findViewById(R.id.layout_empty_history)
-        searchEditText = view.findViewById(R.id.et_search_history)
+        // searchEditText已移除（避免与dialog中的输入框重复）
+        // searchEditText = view.findViewById(R.id.et_search_history)
     }
     
     private fun setupRecyclerView() {
@@ -67,15 +68,16 @@ class HistoryPageFragment : Fragment() {
     }
     
     private fun setupSearch() {
-        searchEditText.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                adapter.filterEntries(s.toString())
-            }
-            
-            override fun afterTextChanged(s: Editable?) {}
-        })
+        // 搜索功能已移除（避免与dialog中的输入框重复）
+        // searchEditText.addTextChangedListener(object : TextWatcher {
+        //     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+        //     
+        //     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+        //         adapter.filterEntries(s.toString())
+        //     }
+        //     
+        //     override fun afterTextChanged(s: Editable?) {}
+        // })
     }
     
     private fun loadHistoryData() {

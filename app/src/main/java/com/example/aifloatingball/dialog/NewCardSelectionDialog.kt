@@ -603,9 +603,10 @@ class NewCardSelectionDialog(
             if (historyJson.isNullOrEmpty()) {
                 emptyList()
             } else {
-                // 这里简化处理，实际应该用Gson等库解析JSON
-                // 暂时返回空列表，等待真实的历史数据实现
-                emptyList()
+                // 使用Gson解析JSON历史记录
+                val gson = com.google.gson.Gson()
+                val type = object : com.google.gson.reflect.TypeToken<List<HistoryEntry>>() {}.type
+                gson.fromJson<List<HistoryEntry>>(historyJson, type) ?: emptyList()
             }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "获取浏览历史失败", e)

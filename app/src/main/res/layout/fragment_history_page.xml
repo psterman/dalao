@@ -5,26 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <!-- 搜索栏 -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        app:boxStrokeColor="@color/primary_green"
-        app:hintTextColor="@color/primary_green"
-        app:startIconDrawable="@drawable/ic_search"
-        app:startIconTint="@color/primary_green"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_search_history"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="搜索历史记录"
-            android:inputType="text"
-            android:textSize="14sp" />
-
-    </com.google.android.material.textfield.TextInputLayout>
+    <!-- 搜索栏（已移除，避免与dialog中的输入框重复） -->
 
     <!-- 历史记录列表 -->
     <androidx.recyclerview.widget.RecyclerView
