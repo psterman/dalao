@@ -147,6 +147,10 @@ class PaperStackWebViewManager(
         container.addView(webView)
         tabs.add(tab)
         
+        // 立即切换到新标签页（确保用户看到新页面加载）
+        val newTabIndex = tabs.size - 1
+        currentTabIndex = newTabIndex
+        
         // 更新标签页位置
         updateTabPositions()
         
@@ -156,7 +160,7 @@ class PaperStackWebViewManager(
         // 通知监听器
         onTabCreatedListener?.invoke(tab)
         
-        Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}")
+        Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 已切换到新标签页")
         return tab
     }
 
@@ -756,13 +760,17 @@ class PaperStackWebViewManager(
                         
                         Log.d(TAG, "滑动开始: 方向=${swipeDirection}, deltaX=$deltaX, deltaY=$deltaY")
                         
-                        // 如果是横向滑动，阻止WebView的滚动
+                        // 如果是横向滑动，阻止WebView的滚动，并清除文本选择
                         if (swipeDirection == SwipeDirection.HORIZONTAL) {
+                            // 清除文本选择，防止文本选择菜单弹出
+                            clearTextSelection()
+                            isTextSelectionActive = false
                             return true
                         }
                     }
                 } else if (swipeDirection == SwipeDirection.HORIZONTAL) {
-                    // 横向滑动过程中，继续阻止WebView滚动
+                    // 横向滑动过程中，继续阻止WebView滚动，并保持清除文本选择状态
+                    isTextSelectionActive = false
                     return true
                 }
             }
@@ -776,6 +784,10 @@ class PaperStackWebViewManager(
                     val deltaY = event.y - swipeStartY
                     
                     Log.d(TAG, "滑动结束: deltaX=$deltaX, deltaY=$deltaY, 阈值=$SWIPE_THRESHOLD, 持续时间=${touchDuration}ms")
+                    
+                    // 横向滑动时，确保清除文本选择，防止菜单弹出
+                    clearTextSelection()
+                    isTextSelectionActive = false
                     
                     // 检查是否满足滑动条件 - 进一步降低阈值提高响应性
                     val effectiveThreshold = if (touchDuration < 300) SWIPE_THRESHOLD * 0.5f else SWIPE_THRESHOLD * 0.7f
@@ -836,6 +848,40 @@ class PaperStackWebViewManager(
             return isInTextArea
         }
         return false
+    }
+    
+    /**
+     * 清除WebView中的文本选择，防止文本选择菜单弹出
+     */
+    private fun clearTextSelection() {
+        try {
+            // 获取当前标签页的WebView
+            val currentTab = getCurrentTab()
+            currentTab?.webView?.let { webView ->
+                // 通过JavaScript清除文本选择
+                webView.evaluateJavascript("""
+                    (function() {
+                        if (window.getSelection) {
+                            window.getSelection().removeAllRanges();
+                        }
+                        if (document.selection && document.selection.empty) {
+                            document.selection.empty();
+                        }
+                        var activeElement = document.activeElement;
+                        if (activeElement && activeElement.blur) {
+                            activeElement.blur();
+                        }
+                    })();
+                """.trimIndent(), null)
+                
+                // 清除WebView的文本选择状态
+                webView.clearFocus()
+                
+                Log.d(TAG, "已清除文本选择")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清除文本选择失败", e)
+        }
     }
     
     /**
