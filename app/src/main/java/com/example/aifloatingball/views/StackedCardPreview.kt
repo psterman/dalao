@@ -142,6 +142,10 @@ class StackedCardPreview @JvmOverloads constructor(
     private var onCardCloseListener: ((String) -> Unit)? = null  // 改为传递URL
     private var onCardRefreshListener: ((Int) -> Unit)? = null
     private var onNewCardRequestedListener: (() -> Unit)? = null
+    private var onCardFavoriteListener: ((Int, String) -> Unit)? = null // 收藏监听器：传递索引和URL
+    private var onCardCopyUrlListener: ((Int, String) -> Unit)? = null // 复制网址监听器
+    private var onCardMuteListener: ((Int) -> Unit)? = null // 静音监听器
+    private var onCardAddToDesktopListener: ((Int, String, String) -> Unit)? = null // 添加到桌面监听器：传递索引、URL和标题
     private var onAllCardsRemovedListener: (() -> Unit)? = null
     
     // 底部导航栏高度获取回调
@@ -456,6 +460,54 @@ class StackedCardPreview @JvmOverloads constructor(
                                     onNewCardRequestedListener?.invoke()
                                     vibrate(VibrationType.IMPORTANT) // 重要操作震动
                                 }
+                                isBottomButtonClicked(event.x, event.y, true, false, false, false, false, false) -> {
+                                    // 底部新建按钮
+                                    Log.d(TAG, "🟢 检测到底部新建按钮点击")
+                                    onNewCardRequestedListener?.invoke()
+                                    vibrate(VibrationType.IMPORTANT)
+                                }
+                                isBottomButtonClicked(event.x, event.y, false, true, false, false, false, false) -> {
+                                    // 底部收藏按钮
+                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+                                        val card = webViewCards[currentCardIndex]
+                                        Log.d(TAG, "⭐ 检测到底部收藏按钮点击: ${card.title}")
+                                        onCardFavoriteListener?.invoke(currentCardIndex, card.url)
+                                        vibrate(VibrationType.IMPORTANT)
+                                    }
+                                }
+                                isBottomButtonClicked(event.x, event.y, false, false, false, false, false, true) -> {
+                                    // 底部关闭按钮
+                                    Log.d(TAG, "🔴 检测到底部关闭按钮点击")
+                                    closeCurrentCard()
+                                    vibrate(VibrationType.HEAVY)
+                                }
+                                isBottomButtonClicked(event.x, event.y, false, false, true, false, false, false) -> {
+                                    // 复制网址按钮
+                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+                                        val card = webViewCards[currentCardIndex]
+                                        Log.d(TAG, "📋 检测到底部复制网址按钮点击: ${card.url}")
+                                        onCardCopyUrlListener?.invoke(currentCardIndex, card.url)
+                                        vibrate(VibrationType.IMPORTANT)
+                                    }
+                                }
+                                isBottomButtonClicked(event.x, event.y, false, false, false, true, false, false) -> {
+                                    // 静音按钮
+                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+                                        val card = webViewCards[currentCardIndex]
+                                        Log.d(TAG, "🔇 检测到底部静音按钮点击: ${card.title}")
+                                        onCardMuteListener?.invoke(currentCardIndex)
+                                        vibrate(VibrationType.BASIC)
+                                    }
+                                }
+                                isBottomButtonClicked(event.x, event.y, false, false, false, false, true, false) -> {
+                                    // 添加到桌面按钮
+                                    if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+                                        val card = webViewCards[currentCardIndex]
+                                        Log.d(TAG, "🏠 检测到底部添加到桌面按钮点击: ${card.url}")
+                                        onCardAddToDesktopListener?.invoke(currentCardIndex, card.url, card.title)
+                                        vibrate(VibrationType.IMPORTANT)
+                                    }
+                                }
                                 else -> {
                                     Log.d("StackedCardPreview", "检测到点击操作，纠正索引后打开当前中心卡片")
                                     // 点击时根据当前位置重新计算最近的中心索引，避免轻微偏移导致错选相邻卡片
@@ -537,7 +589,7 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 处理长按滑动（控制悬浮卡片左右滑动）
+     * 处理长按滑动（控制悬浮卡片左右滑动）- 添加阻尼效果
      */
     private fun handleLongPressSlide(deltaX: Float) {
         val currentTime = System.currentTimeMillis()
@@ -551,14 +603,18 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         lastSlideTime = currentTime
 
-        // 更新滚动偏移，大幅增加灵敏度让滑动更流畅
+        // 添加阻尼效果：应用阻尼系数，让滑动更有阻力感
+        val dampingFactor = 0.4f // 增加阻尼系数到40%，让滑动更有阻力感
+        val dampedDeltaX = deltaX * (1f - dampingFactor)
+        
+        // 更新滚动偏移，应用阻尼后的移动距离
         val sensitivity = when {
-            abs(slideVelocity) > 3000f -> 2.2f // 极快滑动时大幅增加灵敏度
-            abs(slideVelocity) > 2000f -> 1.8f // 快速滑动时增加灵敏度
-            abs(slideVelocity) > 1000f -> 1.4f // 中等速度时适度增加灵敏度
-            else -> 1.2f // 慢速滑动时也增加灵敏度
+            abs(slideVelocity) > 3000f -> 2.0f // 极快滑动时降低灵敏度
+            abs(slideVelocity) > 2000f -> 1.6f // 快速滑动时适度降低灵敏度
+            abs(slideVelocity) > 1000f -> 1.3f // 中等速度时适度降低灵敏度
+            else -> 1.1f // 慢速滑动时轻微降低灵敏度
         }
-        scrollOffset -= deltaX * sensitivity
+        scrollOffset -= dampedDeltaX * sensitivity
 
         // 限制滚动范围
         val maxOffset = (webViewCards.size - 1) * cardSpacing
@@ -622,10 +678,35 @@ class StackedCardPreview @JvmOverloads constructor(
             Log.d(TAG, "⬆️ 上滑关闭进度: ${(swipeCloseProgress * 100).toInt()}%, 速度: ${velocity.toInt()}px/s, 动态阈值: $dynamicCloseThreshold")
             
         } else if (deltaY > 0) {
-            // 向下拖拽：刷新页面（限制最大偏移量）
-            val maxRefreshOffset = closeThreshold * 0.8f // 刷新阈值为关闭阈值的80%
-            centerCardOffsetY = minOf(deltaY, maxRefreshOffset)
-            Log.d("StackedCardPreview", "中心卡片向下偏移: $centerCardOffsetY, 刷新阈值: $maxRefreshOffset")
+            // 向下拖拽：关闭页面（类似向上拖拽关闭，但方向相反）
+            val swipeDistance = abs(deltaY)
+            
+            // 计算关闭进度（0-1），基于滑动距离和速度
+            swipeCloseProgress = when {
+                swipeDistance < minSwipeDistance -> 0f
+                swipeDistance > maxSwipeDistance -> 1f
+                else -> (swipeDistance - minSwipeDistance) / (maxSwipeDistance - minSwipeDistance)
+            }
+            
+            // 根据进度计算卡片偏移，提供更自然的跟随效果
+            centerCardOffsetY = minSwipeDistance + (swipeDistance - minSwipeDistance) * 0.8f
+            
+            // 根据滑动速度调整关闭阈值
+            val velocity = velocityTracker?.let { 
+                it.computeCurrentVelocity(1000)
+                abs(it.yVelocity)
+            } ?: 0f
+            
+            // 快速滑动时降低关闭阈值
+            val dynamicCloseThreshold = if (velocity > 2000f) {
+                closeThreshold * 0.6f // 快速滑动时阈值降低40%
+            } else if (velocity > 1000f) {
+                closeThreshold * 0.8f // 中等速度时阈值降低20%
+            } else {
+                closeThreshold
+            }
+            
+            Log.d(TAG, "⬇️ 下滑关闭进度: ${(swipeCloseProgress * 100).toInt()}%, 速度: ${velocity.toInt()}px/s, 动态阈值: $dynamicCloseThreshold")
         } else {
             centerCardOffsetY = 0f
             swipeCloseProgress = 0f
@@ -656,20 +737,30 @@ class StackedCardPreview @JvmOverloads constructor(
             closeThreshold
         }
         
-        // 智能关闭判断：考虑滑动距离、速度和进度
+        // 判断是向上还是向下滑动
+        val isSwipeDown = centerCardOffsetY > 0
+        val isSwipeUp = centerCardOffsetY < 0
+        
+        // 智能关闭判断：考虑滑动距离、速度和进度（支持向上和向下）
         val shouldClose = when {
-            centerCardOffsetY < -dynamicCloseThreshold -> true // 超过动态阈值
-            swipeCloseProgress > 0.7f -> true // 进度超过70%
-            velocity > 1500f && centerCardOffsetY < -minSwipeDistance -> true // 快速滑动且有一定距离
+            // 向上滑动关闭
+            isSwipeUp && centerCardOffsetY < -dynamicCloseThreshold -> true
+            isSwipeUp && swipeCloseProgress > 0.7f -> true
+            isSwipeUp && velocity > 1500f && centerCardOffsetY < -minSwipeDistance -> true
+            // 向下滑动关闭
+            isSwipeDown && centerCardOffsetY > dynamicCloseThreshold -> true
+            isSwipeDown && swipeCloseProgress > 0.7f -> true
+            isSwipeDown && velocity > 1500f && centerCardOffsetY > minSwipeDistance -> true
             else -> false
         }
         
         if (shouldClose) {
-            // 向上超过关闭阈值，关闭中心卡片
-            Log.d(TAG, "🗑️ 关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
+            // 超过关闭阈值（向上或向下），关闭中心卡片
+            val direction = if (isSwipeDown) "下滑" else "上滑"
+            Log.d(TAG, "🗑️ ${direction}关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
             closeCurrentCard()
-        } else if (centerCardOffsetY > maxRefreshOffset) {
-            // 向下超过刷新阈值，刷新当前卡片
+        } else if (centerCardOffsetY > maxRefreshOffset && !isSwipeDown) {
+            // 向下超过刷新阈值（且不是关闭操作），刷新当前卡片
             Log.d("StackedCardPreview", "刷新中心卡片: $currentCardIndex")
             refreshCurrentCard()
         } else {
@@ -705,16 +796,22 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 卡片关闭动画 - 修复版本
+     * 卡片关闭动画 - 修复版本（支持向上和向下关闭）
      */
     private fun animateCardClose() {
         // 关键修复：在动画开始前就获取要关闭的卡片URL并通知外部系统销毁WebView
         val cardToClose = webViewCards[currentCardIndex]
-        Log.d("StackedCardPreview", "开始关闭动画，准备销毁WebView: ${cardToClose.url}")
+        val isSwipeDown = centerCardOffsetY > 0
+        val closeDirection = if (isSwipeDown) "向下" else "向上"
+        Log.d("StackedCardPreview", "开始${closeDirection}关闭动画，准备销毁WebView: ${cardToClose.url}")
 
-        // 创建更流畅的关闭动画
+        // 创建更流畅的关闭动画（根据滑动方向）
         val startOffset = centerCardOffsetY
-        val endOffset = -height.toFloat()
+        val endOffset = if (isSwipeDown) {
+            height.toFloat() // 向下滑动关闭，卡片向下移出屏幕
+        } else {
+            -height.toFloat() // 向上滑动关闭，卡片向上移出屏幕
+        }
 
         ValueAnimator.ofFloat(startOffset, endOffset).apply {
             duration = 300 // 缩短动画时间，减少WebView处于不稳定状态的时间
@@ -723,8 +820,10 @@ class StackedCardPreview @JvmOverloads constructor(
             addUpdateListener { animator ->
                 centerCardOffsetY = animator.animatedValue as Float
 
-                // 计算动画进度，用于视觉反馈
-                val progress = (centerCardOffsetY - startOffset) / (endOffset - startOffset)
+                // 计算动画进度，用于视觉反馈（支持向上和向下）
+                val offsetDiff = abs(endOffset - startOffset)
+                val currentDiff = abs(centerCardOffsetY - startOffset)
+                val progress = if (offsetDiff > 0) (currentDiff / offsetDiff).coerceIn(0f, 1f) else 0f
 
                 // 根据进度调整卡片透明度，提供更自然的消失效果
                 val alpha = (1f - progress * 0.8f).coerceAtLeast(0.2f)
@@ -1272,8 +1371,8 @@ class StackedCardPreview @JvmOverloads constructor(
         // 绘制卡片位置指示器
         drawCardPositionIndicator(canvas, viewWidth, viewHeight)
         
-        // 绘制上滑关闭进度指示器（如果有上滑操作）
-        if (isVerticalDragging && centerCardOffsetY < 0) {
+        // 绘制滑动关闭进度指示器（如果有向上或向下滑动操作）
+        if (isVerticalDragging && centerCardOffsetY != 0f) {
             drawSwipeCloseIndicator(canvas, centerX, centerY)
         }
     }
@@ -1354,10 +1453,12 @@ class StackedCardPreview @JvmOverloads constructor(
             alpha = (255 * swipeCloseProgress).toInt()
         }
         
+        // 判断是向上还是向下滑动
+        val isSwipeDown = centerCardOffsetY > 0
         val closeText = when {
             swipeCloseProgress > 0.7f -> "松手关闭"
-            swipeCloseProgress > 0.3f -> "继续上滑关闭"
-            else -> "上滑关闭"
+            swipeCloseProgress > 0.3f -> if (isSwipeDown) "继续下滑关闭" else "继续上滑关闭"
+            else -> if (isSwipeDown) "下滑关闭" else "上滑关闭"
         }
         
         canvas.drawText(
@@ -1422,11 +1523,11 @@ class StackedCardPreview @JvmOverloads constructor(
             titlePaint
         )
 
-        // 绘制右上角红色关闭按钮
+        // 绘制右上角红色关闭按钮（保留）
         drawCloseButton(canvas, left, top, width, scale, alpha)
 
-        // 绘制左上角绿色新建按钮
-        drawNewCardButtonOnCard(canvas, left, top, scale, alpha)
+        // 绘制卡片下方的按钮：新建、收藏、关闭
+        drawBottomButtons(canvas, left, top, width, height, scale, alpha)
     }
 
     /**
@@ -1580,73 +1681,202 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 绘制卡片左上角的绿色新建按钮
+     * 绘制卡片下方的按钮：新建、收藏、关闭，以及复制网址、静音、添加到桌面
      */
-    private fun drawNewCardButtonOnCard(
+    private fun drawBottomButtons(
         canvas: Canvas,
         cardLeft: Float,
         cardTop: Float,
+        cardWidth: Float,
+        cardHeight: Float,
         scale: Float,
         alpha: Float
     ) {
-        // 增大按钮尺寸，提高点击便利性
-        val buttonSize = 60f * scale // 从40f增加到60f
-        val buttonMargin = 8f * scale // 减少边距，让按钮更靠近边缘
-        val buttonX = cardLeft + buttonMargin + buttonSize / 2f
-        val buttonY = cardTop + buttonMargin + buttonSize / 2f
-
-        // 绘制按钮阴影
+        // 增大按钮尺寸
+        val buttonSize = 70f * scale // 从50f增加到70f
+        val buttonSpacing = 15f * scale
+        val buttonMargin = 25f * scale
+        val textSpacing = 12f * scale // 按钮和文字之间的间距
+        
+        // 第一行按钮：新建、收藏、关闭
+        val firstRowButtons = 3
+        val firstRowTotalWidth = buttonSize * firstRowButtons + buttonSpacing * (firstRowButtons - 1)
+        val firstRowStartX = cardLeft + (cardWidth - firstRowTotalWidth) / 2f
+        val firstRowButtonY = cardTop + cardHeight + buttonMargin + buttonSize / 2f
+        
+        // 绘制第一行按钮
+        drawBottomButtonWithLabel(canvas, firstRowStartX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#4CAF50"), "新建", true, false, false, false, false)
+        
+        val favoriteX = firstRowStartX + buttonSize + buttonSpacing
+        drawBottomButtonWithLabel(canvas, favoriteX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#FF9800"), "收藏", false, true, false, false, false)
+        
+        val closeX = favoriteX + buttonSize + buttonSpacing
+        drawBottomButtonWithLabel(canvas, closeX, firstRowButtonY, buttonSize, scale, alpha, Color.parseColor("#F44336"), "关闭", false, false, false, false, true)
+        
+        // 第二行按钮：复制网址、静音、添加到桌面
+        val secondRowButtons = 3
+        val secondRowTotalWidth = buttonSize * secondRowButtons + buttonSpacing * (secondRowButtons - 1)
+        val secondRowStartX = cardLeft + (cardWidth - secondRowTotalWidth) / 2f
+        val textHeight = 24f * scale // 文字高度
+        val secondRowButtonY = firstRowButtonY + buttonSize / 2f + textSpacing + textHeight + buttonMargin // 第一行按钮下方
+        
+        drawBottomButtonWithLabel(canvas, secondRowStartX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#2196F3"), "复制网址", false, false, true, false, false)
+        
+        val muteX = secondRowStartX + buttonSize + buttonSpacing
+        drawBottomButtonWithLabel(canvas, muteX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#9C27B0"), "静音", false, false, false, true, false)
+        
+        val desktopX = muteX + buttonSize + buttonSpacing
+        drawBottomButtonWithLabel(canvas, desktopX, secondRowButtonY, buttonSize, scale, alpha, Color.parseColor("#607D8B"), "添加到桌面", false, false, false, false, false)
+    }
+    
+    /**
+     * 绘制底部单个按钮（带标签文字）
+     */
+    private fun drawBottomButtonWithLabel(
+        canvas: Canvas,
+        x: Float,
+        y: Float,
+        size: Float,
+        scale: Float,
+        alpha: Float,
+        bgColor: Int,
+        label: String,
+        isNew: Boolean,
+        isFavorite: Boolean,
+        isCopy: Boolean,
+        isMute: Boolean,
+        isClose: Boolean
+    ) {
+        // 绘制阴影
         val shadowPaint = Paint().apply {
             color = Color.parseColor("#40000000")
             isAntiAlias = true
             this.alpha = (255 * alpha * 0.6f).toInt()
         }
-        canvas.drawCircle(buttonX + 2f, buttonY + 2f, buttonSize / 2f, shadowPaint)
-
-        // 绘制按钮背景（绿色背景）
-        val buttonBackgroundPaint = Paint().apply {
-            color = Color.parseColor("#4CAF50") // 绿色背景
+        canvas.drawCircle(x + 2f, y + 2f, size / 2f, shadowPaint)
+        
+        // 绘制背景
+        val bgPaint = Paint().apply {
+            color = bgColor
             isAntiAlias = true
             this.alpha = (255 * alpha).toInt()
         }
-        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f, buttonBackgroundPaint)
-
-        // 绘制按钮边框
-        val buttonBorderPaint = Paint().apply {
+        canvas.drawCircle(x, y, size / 2f, bgPaint)
+        
+        // 绘制边框
+        val borderPaint = Paint().apply {
             color = Color.WHITE
             style = Paint.Style.STROKE
             strokeWidth = 2f * scale
             isAntiAlias = true
             this.alpha = (255 * alpha).toInt()
         }
-        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f - 1f, buttonBorderPaint)
-
-        // 绘制加号图标
-        val plusPaint = Paint().apply {
+        canvas.drawCircle(x, y, size / 2f - 1f, borderPaint)
+        
+        // 绘制图标
+        val iconPaint = Paint().apply {
             color = Color.WHITE
-            strokeWidth = 4f * scale // 增加加号粗细
+            strokeWidth = 4f * scale
             isAntiAlias = true
             strokeCap = Paint.Cap.ROUND
             this.alpha = (255 * alpha).toInt()
         }
-
-        val plusSize = buttonSize * 0.35f // 稍微增大加号符号
-        // 水平线
-        canvas.drawLine(
-            buttonX - plusSize / 2f,
-            buttonY,
-            buttonX + plusSize / 2f,
-            buttonY,
-            plusPaint
-        )
-        // 垂直线
-        canvas.drawLine(
-            buttonX,
-            buttonY - plusSize / 2f,
-            buttonX,
-            buttonY + plusSize / 2f,
-            plusPaint
-        )
+        
+        if (isNew) {
+            // 绘制加号
+            val plusSize = size * 0.35f
+            canvas.drawLine(x - plusSize / 2f, y, x + plusSize / 2f, y, iconPaint)
+            canvas.drawLine(x, y - plusSize / 2f, x, y + plusSize / 2f, iconPaint)
+        } else if (isFavorite) {
+            // 绘制星星（简化版）
+            val starSize = size * 0.3f
+            val path = android.graphics.Path()
+            path.moveTo(x, y - starSize)
+            path.lineTo(x + starSize * 0.3f, y - starSize * 0.3f)
+            path.lineTo(x + starSize, y - starSize * 0.3f)
+            path.lineTo(x + starSize * 0.4f, y + starSize * 0.2f)
+            path.lineTo(x + starSize * 0.6f, y + starSize)
+            path.lineTo(x, y + starSize * 0.4f)
+            path.lineTo(x - starSize * 0.6f, y + starSize)
+            path.lineTo(x - starSize * 0.4f, y + starSize * 0.2f)
+            path.lineTo(x - starSize, y - starSize * 0.3f)
+            path.lineTo(x - starSize * 0.3f, y - starSize * 0.3f)
+            path.close()
+            iconPaint.style = Paint.Style.FILL
+            canvas.drawPath(path, iconPaint)
+        } else if (isCopy) {
+            // 绘制复制图标（两个重叠的矩形）
+            val rectSize = size * 0.3f
+            val rectPaint = Paint().apply {
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = 3f * scale
+                isAntiAlias = true
+                this.alpha = (255 * alpha).toInt()
+            }
+            // 第一个矩形
+            canvas.drawRect(x - rectSize / 2f, y - rectSize / 2f, x + rectSize / 2f, y + rectSize / 2f, rectPaint)
+            // 第二个矩形（偏移）
+            canvas.drawRect(x - rectSize / 2f + rectSize * 0.2f, y - rectSize / 2f + rectSize * 0.2f, 
+                x + rectSize / 2f + rectSize * 0.2f, y + rectSize / 2f + rectSize * 0.2f, rectPaint)
+        } else if (isMute) {
+            // 绘制静音图标（扬声器带斜线）
+            val speakerSize = size * 0.3f
+            // 扬声器主体（三角形）
+            val path = android.graphics.Path()
+            path.moveTo(x - speakerSize / 2f, y - speakerSize / 3f)
+            path.lineTo(x - speakerSize / 4f, y)
+            path.lineTo(x - speakerSize / 2f, y + speakerSize / 3f)
+            path.close()
+            iconPaint.style = Paint.Style.FILL
+            canvas.drawPath(path, iconPaint)
+            // 声波（两个半圆）
+            iconPaint.style = Paint.Style.STROKE
+            canvas.drawArc(x - speakerSize / 4f, y - speakerSize / 2f, x + speakerSize / 2f, y + speakerSize / 2f, -90f, 180f, false, iconPaint)
+            canvas.drawArc(x - speakerSize / 8f, y - speakerSize, x + speakerSize, y + speakerSize, -90f, 180f, false, iconPaint)
+            // 静音斜线
+            val linePaint = Paint().apply {
+                color = Color.WHITE
+                strokeWidth = 4f * scale
+                isAntiAlias = true
+                strokeCap = Paint.Cap.ROUND
+                this.alpha = (255 * alpha).toInt()
+            }
+            canvas.drawLine(x + speakerSize / 2f, y - speakerSize / 2f, x + speakerSize, y + speakerSize / 2f, linePaint)
+        } else if (isClose) {
+            // 绘制X（关闭）
+            val xSize = size * 0.35f
+            canvas.drawLine(x - xSize / 2f, y - xSize / 2f, x + xSize / 2f, y + xSize / 2f, iconPaint)
+            canvas.drawLine(x + xSize / 2f, y - xSize / 2f, x - xSize / 2f, y + xSize / 2f, iconPaint)
+        } else {
+            // 绘制添加到桌面图标（房子）
+            val houseSize = size * 0.35f
+            val path = android.graphics.Path()
+            path.moveTo(x, y - houseSize / 2f)
+            path.lineTo(x - houseSize / 2f, y)
+            path.lineTo(x - houseSize / 4f, y)
+            path.lineTo(x - houseSize / 4f, y + houseSize / 2f)
+            path.lineTo(x + houseSize / 4f, y + houseSize / 2f)
+            path.lineTo(x + houseSize / 4f, y)
+            path.lineTo(x + houseSize / 2f, y)
+            path.close()
+            iconPaint.style = Paint.Style.FILL
+            canvas.drawPath(path, iconPaint)
+        }
+        
+        // 绘制文字标签
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 20f * scale
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            this.alpha = (255 * alpha).toInt()
+            setShadowLayer(2f, 0f, 1f, Color.parseColor("#80000000"))
+        }
+        val textSpacing = 12f * scale // 按钮和文字之间的间距
+        val textY = y + size / 2f + textSpacing
+        canvas.drawText(label, x, textY, textPaint)
     }
 
     /**
@@ -1683,7 +1913,96 @@ class StackedCardPreview @JvmOverloads constructor(
     fun setOnNewCardRequestedListener(listener: () -> Unit) {
         onNewCardRequestedListener = listener
     }
-
+    
+    /**
+     * 设置卡片收藏监听器
+     */
+    fun setOnCardFavoriteListener(listener: (Int, String) -> Unit) {
+        onCardFavoriteListener = listener
+    }
+    
+    /**
+     * 设置复制网址监听器
+     */
+    fun setOnCardCopyUrlListener(listener: (Int, String) -> Unit) {
+        onCardCopyUrlListener = listener
+    }
+    
+    /**
+     * 设置静音监听器
+     */
+    fun setOnCardMuteListener(listener: (Int) -> Unit) {
+        onCardMuteListener = listener
+    }
+    
+    /**
+     * 设置添加到桌面监听器
+     */
+    fun setOnCardAddToDesktopListener(listener: (Int, String, String) -> Unit) {
+        onCardAddToDesktopListener = listener
+    }
+    
+    /**
+     * 检查是否点击了底部按钮
+     */
+    private fun isBottomButtonClicked(
+        x: Float, 
+        y: Float, 
+        isNew: Boolean, 
+        isFavorite: Boolean, 
+        isCopy: Boolean,
+        isMute: Boolean,
+        isDesktop: Boolean,
+        isClose: Boolean
+    ): Boolean {
+        if (webViewCards.isEmpty() || currentCardIndex < 0 || currentCardIndex >= webViewCards.size) {
+            return false
+        }
+        
+        val viewWidth = width.toFloat()
+        val viewHeight = height.toFloat()
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+        
+        // 计算当前中心卡片的位置
+        val cardWidth = baseCardWidth
+        val cardHeight = baseCardHeight
+        val cardLeft = centerX - cardWidth / 2f
+        val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
+        
+        // 计算按钮位置（与绘制时保持一致）
+        val buttonSize = 70f
+        val buttonSpacing = 15f
+        val buttonMargin = 25f
+        val textSpacing = 12f
+        val textHeight = 24f
+        
+        // 第一行按钮
+        val firstRowButtons = 3
+        val firstRowTotalWidth = buttonSize * firstRowButtons + buttonSpacing * (firstRowButtons - 1)
+        val firstRowStartX = cardLeft + (cardWidth - firstRowTotalWidth) / 2f
+        val firstRowButtonY = cardTop + cardHeight + buttonMargin + buttonSize / 2f
+        
+        // 第二行按钮
+        val secondRowButtons = 3
+        val secondRowTotalWidth = buttonSize * secondRowButtons + buttonSpacing * (secondRowButtons - 1)
+        val secondRowStartX = cardLeft + (cardWidth - secondRowTotalWidth) / 2f
+        val secondRowButtonY = firstRowButtonY + buttonSize / 2f + textSpacing + textHeight + buttonMargin
+        
+        val (buttonX, buttonY) = when {
+            isNew -> Pair(firstRowStartX, firstRowButtonY)
+            isFavorite -> Pair(firstRowStartX + buttonSize + buttonSpacing, firstRowButtonY)
+            isClose -> Pair(firstRowStartX + (buttonSize + buttonSpacing) * 2, firstRowButtonY)
+            isCopy -> Pair(secondRowStartX, secondRowButtonY)
+            isMute -> Pair(secondRowStartX + buttonSize + buttonSpacing, secondRowButtonY)
+            isDesktop -> Pair(secondRowStartX + (buttonSize + buttonSpacing) * 2, secondRowButtonY)
+            else -> return false
+        }
+        
+        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
+        return distance <= buttonSize / 2f
+    }
+    
     /**
      * 刷新当前中心卡片
      */

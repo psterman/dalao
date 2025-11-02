@@ -100,16 +100,23 @@ class EnhancedMenuManager(
             menuContent.scaleX = 0.8f
             menuContent.scaleY = 0.8f
             
-            // 设置触摸监听器
-            floatingMenuView!!.setOnTouchListener { _, event ->
+            // 设置触摸监听器 - 点击空白处关闭菜单
+            floatingMenuView!!.setOnTouchListener { view, event ->
                 if (event.action == MotionEvent.ACTION_DOWN) {
                     val contentRect = android.graphics.Rect()
                     menuContent.getGlobalVisibleRect(contentRect)
-                    if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                    // 获取触摸点的全局坐标
+                    val touchX = event.rawX.toInt()
+                    val touchY = event.rawY.toInt()
+                    
+                    // 如果触摸点不在菜单内容区域内，关闭菜单
+                    if (!contentRect.contains(touchX, touchY)) {
+                        Log.d(TAG, "点击菜单外部区域，关闭图片菜单")
                         hideMenu()
+                        return@setOnTouchListener true
                     }
                 }
-                false
+                false // 允许事件传递给菜单内容
             }
             
             // 设置菜单项
@@ -159,16 +166,23 @@ class EnhancedMenuManager(
             menuContent.scaleX = 0.8f
             menuContent.scaleY = 0.8f
             
-            // 设置触摸监听器
-            floatingMenuView!!.setOnTouchListener { _, event ->
+            // 设置触摸监听器 - 点击空白处关闭菜单
+            floatingMenuView!!.setOnTouchListener { view, event ->
                 if (event.action == MotionEvent.ACTION_DOWN) {
                     val contentRect = android.graphics.Rect()
                     menuContent.getGlobalVisibleRect(contentRect)
-                    if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                    // 获取触摸点的全局坐标
+                    val touchX = event.rawX.toInt()
+                    val touchY = event.rawY.toInt()
+                    
+                    // 如果触摸点不在菜单内容区域内，关闭菜单
+                    if (!contentRect.contains(touchX, touchY)) {
+                        Log.d(TAG, "点击菜单外部区域，关闭链接菜单")
                         hideMenu()
+                        return@setOnTouchListener true
                     }
                 }
-                false
+                false // 允许事件传递给菜单内容
             }
             
             // 设置菜单项
@@ -218,16 +232,23 @@ class EnhancedMenuManager(
             menuContent.scaleX = 0.8f
             menuContent.scaleY = 0.8f
             
-            // 设置触摸监听器
-            floatingMenuView!!.setOnTouchListener { _, event ->
+            // 设置触摸监听器 - 点击空白处关闭菜单
+            floatingMenuView!!.setOnTouchListener { view, event ->
                 if (event.action == MotionEvent.ACTION_DOWN) {
                     val contentRect = android.graphics.Rect()
                     menuContent.getGlobalVisibleRect(contentRect)
-                    if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                    // 获取触摸点的全局坐标
+                    val touchX = event.rawX.toInt()
+                    val touchY = event.rawY.toInt()
+                    
+                    // 如果触摸点不在菜单内容区域内，关闭菜单
+                    if (!contentRect.contains(touchX, touchY)) {
+                        Log.d(TAG, "点击菜单外部区域，关闭刷新菜单")
                         hideMenu()
+                        return@setOnTouchListener true
                     }
                 }
-                false
+                false // 允许事件传递给菜单内容
             }
             
             // 设置菜单项
@@ -251,8 +272,22 @@ class EnhancedMenuManager(
     private fun setupEnhancedImageMenuItems(menuView: View, webView: WebView, imageUrl: String) {
         // 全屏查看
         menuView.findViewById<View>(R.id.action_view_fullscreen)?.setOnClickListener {
-            onNewTabListener?.invoke(imageUrl, false)
-            hideMenu()
+            // 使用ImageViewerActivity全屏查看图片
+            try {
+                if (context is android.app.Activity) {
+                    com.example.aifloatingball.viewer.ImageViewerActivity.start(context, imageUrl)
+                    hideMenu()
+                } else {
+                    // 如果context不是Activity，使用新标签页打开
+                    onNewTabListener?.invoke(imageUrl, false)
+                    hideMenu()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "打开图片查看器失败", e)
+                // 备用方案：使用新标签页打开
+                onNewTabListener?.invoke(imageUrl, false)
+                hideMenu()
+            }
         }
         
         // 编辑图片

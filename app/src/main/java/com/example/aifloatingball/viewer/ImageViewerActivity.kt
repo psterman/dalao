@@ -163,7 +163,10 @@ class ImageViewerActivity : AppCompatActivity() {
                 
                 bitmap?.let {
                     imageView.setImageBitmap(it)
-                    centerImage()
+                    // 延迟居中，确保ImageView已经完成布局
+                    imageView.post {
+                        centerImage()
+                    }
                     Log.d(TAG, "图片加载成功")
                 } ?: run {
                     Toast.makeText(this@ImageViewerActivity, "图片加载失败", Toast.LENGTH_SHORT).show()
@@ -268,25 +271,33 @@ class ImageViewerActivity : AppCompatActivity() {
             }
             MotionEvent.ACTION_MOVE -> {
                 if (isZooming && event.pointerCount == 2) {
-                    // 双指缩放
+                    // 双指缩放 - 使用线性缩放算法
                     val currentDistance = getDistance(event)
-                    val scaleFactor = currentDistance / initialDistance
-                    val newScale = initialScale * scaleFactor
-                    
-                    // 限制缩放范围
-                    val clampedScale = newScale.coerceIn(minScale, maxScale)
-                    
-                    // 计算缩放中心点
-                    val currentFocusX = (event.getX(0) + event.getX(1)) / 2f
-                    val currentFocusY = (event.getY(0) + event.getY(1)) / 2f
-                    
-                    // 以手指中心为缩放点
-                    matrix.postScale(clampedScale / currentScale, clampedScale / currentScale, currentFocusX, currentFocusY)
-                    currentScale = clampedScale
-                    
-                    imageView.imageMatrix = matrix
-                } else if (!isZooming && event.pointerCount == 1) {
-                    // 单指拖拽
+                    if (initialDistance > 0) {
+                        val scaleFactor = currentDistance / initialDistance
+                        val newScale = initialScale * scaleFactor
+                        
+                        // 限制缩放范围
+                        val clampedScale = newScale.coerceIn(minScale, maxScale)
+                        
+                        // 计算缩放中心点（两指中心）
+                        val currentFocusX = (event.getX(0) + event.getX(1)) / 2f
+                        val currentFocusY = (event.getY(0) + event.getY(1)) / 2f
+                        
+                        // 计算当前的缩放增量
+                        val scaleDelta = clampedScale / currentScale
+                        
+                        // 应用缩放：先移动到缩放中心，缩放，再移回
+                        // 这样能确保缩放是线性的，且以两指中心为缩放点
+                        matrix.postScale(scaleDelta, scaleDelta, currentFocusX, currentFocusY)
+                        
+                        // 更新当前缩放值
+                        currentScale = clampedScale
+                        
+                        imageView.imageMatrix = matrix
+                    }
+                } else if (!isZooming && event.pointerCount == 1 && currentScale > minScale) {
+                    // 单指拖拽（只有在缩放后才可以拖拽）
                     val deltaX = event.x - lastTouchX
                     val deltaY = event.y - lastTouchY
                     
@@ -386,31 +397,50 @@ class ImageViewerActivity : AppCompatActivity() {
      */
     private fun centerImage() {
         val drawable = imageView.drawable
-        if (drawable == null) return
+        if (drawable == null) {
+            // 如果drawable还未加载，延迟执行
+            imageView.post { centerImage() }
+            return
+        }
         
-        val drawableWidth = drawable.intrinsicWidth
-        val drawableHeight = drawable.intrinsicHeight
-        val viewWidth = imageView.width
-        val viewHeight = imageView.height
+        val drawableWidth = drawable.intrinsicWidth.toFloat()
+        val drawableHeight = drawable.intrinsicHeight.toFloat()
+        val viewWidth = imageView.width.toFloat()
+        val viewHeight = imageView.height.toFloat()
         
-        if (drawableWidth <= 0 || drawableHeight <= 0 || viewWidth <= 0 || viewHeight <= 0) return
+        if (drawableWidth <= 0 || drawableHeight <= 0 || viewWidth <= 0 || viewHeight <= 0) {
+            // 如果尺寸无效，延迟执行
+            imageView.post { centerImage() }
+            return
+        }
         
-        val scaleX = viewWidth.toFloat() / drawableWidth
-        val scaleY = viewHeight.toFloat() / drawableHeight
-        val scale = minOf(scaleX, scaleY)
+        // 计算适合屏幕的缩放比例（保持宽高比）
+        val scaleX = viewWidth / drawableWidth
+        val scaleY = viewHeight / drawableHeight
+        val scale = minOf(scaleX, scaleY).coerceIn(0.5f, 1.0f) // 初始缩放范围0.5-1.0
         
+        // 计算缩放后的尺寸
         val scaledWidth = drawableWidth * scale
         val scaledHeight = drawableHeight * scale
         
+        // 计算居中偏移量
         val translateX = (viewWidth - scaledWidth) / 2f
         val translateY = (viewHeight - scaledHeight) / 2f
         
+        // 重置矩阵并应用变换：先平移再缩放（以图片中心为缩放点）
         matrix.reset()
+        // 先将图片中心移到视图中心
         matrix.postTranslate(translateX, translateY)
-        matrix.postScale(scale, scale, translateX + scaledWidth / 2f, translateY + scaledHeight / 2f)
+        // 然后以视图中心为缩放点进行缩放
+        matrix.postScale(scale, scale, viewWidth / 2f, viewHeight / 2f)
         
         imageView.imageMatrix = matrix
         currentScale = scale
+        
+        // 更新最小缩放比例（适应屏幕）
+        minScale = scale
+        
+        Log.d(TAG, "图片居中完成: scale=$scale, translateX=$translateX, translateY=$translateY")
     }
     
     /**

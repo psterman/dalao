@@ -139,7 +139,7 @@ class PaperStackWebViewManager(
                 val deltaX = e2.x - (e1?.x ?: 0f)
                 val deltaY = e2.y - (e1?.y ?: 0f)
                 
-                // 检测横向滑动
+                // 检测横向滑动 - 切换标签页
                 if (abs(deltaX) > abs(deltaY) && abs(deltaX) > SWIPE_THRESHOLD) {
                     if (deltaX > 0) {
                         // 右滑 - 切换到上一个标签页
@@ -869,6 +869,126 @@ class PaperStackWebViewManager(
     }
     
     /**
+     * 执行后退操作并添加动画
+     */
+    private fun goBackWithAnimation(webView: WebView) {
+        if (isAnimating || !webView.canGoBack()) {
+            Log.d(TAG, "无法后退: isAnimating=$isAnimating, canGoBack=${webView.canGoBack()}")
+            return
+        }
+        
+        isAnimating = true
+        val containerWidth = container.width.toFloat()
+        val swipeDistance = if (containerWidth > 0) containerWidth else 800f
+        
+        Log.d(TAG, "开始后退动画")
+        
+        // 后退：新页面从右侧滑入，模拟iOS后退效果
+        // 先将WebView移到右侧（上一页位置）
+        webView.translationX = swipeDistance
+        webView.alpha = 0.7f
+        
+        // 执行后退操作
+        webView.goBack()
+        
+        // 创建滑入动画：从右侧滑入到中心，同时透明度增加
+        val slideInAnimator = ObjectAnimator.ofFloat(webView, "translationX", swipeDistance, 0f).apply {
+            duration = ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+        }
+        
+        val alphaAnimator = ObjectAnimator.ofFloat(webView, "alpha", 0.7f, 1f).apply {
+            duration = ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+        }
+        
+        val animatorSet = AnimatorSet().apply {
+            playTogether(slideInAnimator, alphaAnimator)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    // 确保位置和透明度正确
+                    webView.translationX = 0f
+                    webView.alpha = 1f
+                    
+                    isAnimating = false
+                    Log.d(TAG, "后退动画完成")
+                }
+                
+                override fun onAnimationCancel(animation: Animator) {
+                    webView.translationX = 0f
+                    webView.alpha = 1f
+                    isAnimating = false
+                }
+            })
+        }
+        
+        // 延迟一小段时间再开始动画，让goBack()先执行
+        webView.postDelayed({
+            animatorSet.start()
+        }, 50)
+    }
+    
+    /**
+     * 执行前进操作并添加动画
+     */
+    private fun goForwardWithAnimation(webView: WebView) {
+        if (isAnimating || !webView.canGoForward()) {
+            Log.d(TAG, "无法前进: isAnimating=$isAnimating, canGoForward=${webView.canGoForward()}")
+            return
+        }
+        
+        isAnimating = true
+        val containerWidth = container.width.toFloat()
+        val swipeDistance = if (containerWidth > 0) containerWidth else 800f
+        
+        Log.d(TAG, "开始前进动画")
+        
+        // 前进：新页面从左侧滑入，模拟iOS前进效果
+        // 先将WebView移到左侧（下一页位置）
+        webView.translationX = -swipeDistance
+        webView.alpha = 0.7f
+        
+        // 执行前进操作
+        webView.goForward()
+        
+        // 创建滑入动画：从左侧滑入到中心，同时透明度增加
+        val slideInAnimator = ObjectAnimator.ofFloat(webView, "translationX", -swipeDistance, 0f).apply {
+            duration = ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+        }
+        
+        val alphaAnimator = ObjectAnimator.ofFloat(webView, "alpha", 0.7f, 1f).apply {
+            duration = ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+        }
+        
+        val animatorSet = AnimatorSet().apply {
+            playTogether(slideInAnimator, alphaAnimator)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    // 确保位置和透明度正确
+                    webView.translationX = 0f
+                    webView.alpha = 1f
+                    
+                    isAnimating = false
+                    Log.d(TAG, "前进动画完成")
+                }
+                
+                override fun onAnimationCancel(animation: Animator) {
+                    webView.translationX = 0f
+                    webView.alpha = 1f
+                    isAnimating = false
+                }
+            })
+        }
+        
+        // 延迟一小段时间再开始动画，让goForward()先执行
+        webView.postDelayed({
+            animatorSet.start()
+        }, 50)
+    }
+    
+    /**
      * 检查是否在文本选择区域
      */
     private fun isInTextSelectionArea(event: MotionEvent): Boolean {
@@ -1135,34 +1255,56 @@ class PaperStackWebViewManager(
                 val screenX = (this@PaperStackWebViewManager.lastTouchX + location[0]).toInt()
                 val screenY = (this@PaperStackWebViewManager.lastTouchY + location[1]).toInt()
                 
-                // 精准识别：优先判断图片，再判断链接
+                // 精准识别：通过URL和类型综合判断
+                val url = result.extra
+                
+                // 判断是否为图片URL（通过文件扩展名和MIME类型）
+                fun isImageUrl(urlString: String?): Boolean {
+                    if (urlString.isNullOrEmpty()) return false
+                    val lowerUrl = urlString.lowercase()
+                    val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".ico")
+                    val imageMimeTypes = listOf("image/", "data:image/")
+                    return imageExtensions.any { lowerUrl.contains(it) } || 
+                           imageMimeTypes.any { lowerUrl.contains(it) } ||
+                           lowerUrl.matches(Regex(".*/(img|image|photo|pic|picture).*"))
+                }
+                
+                // 精准识别逻辑
                 when (result.type) {
-                    // 纯图片（不包含链接）
+                    // 纯图片（不包含链接）- 肯定是图片
                     WebView.HitTestResult.IMAGE_TYPE -> {
-                        val imageUrl = result.extra
-                        if (!imageUrl.isNullOrEmpty()) {
-                            Log.d(TAG, "检测到纯图片，显示图片菜单: $imageUrl")
+                        if (!url.isNullOrEmpty() && isImageUrl(url)) {
+                            Log.d(TAG, "检测到纯图片，显示图片菜单: $url")
                             this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedImageMenu(
-                                webView, imageUrl, screenX, screenY
+                                webView, url, screenX, screenY
                             )
                         } else {
-                            Log.d(TAG, "图片URL为空，显示刷新菜单")
+                            Log.d(TAG, "图片URL无效，显示刷新菜单")
                             this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
                                 webView, screenX, screenY
                             )
                         }
                         true
                     }
-                    // 带链接的图片：优先显示图片菜单（因为用户长按的是图片）
+                    // SRC_IMAGE_ANCHOR_TYPE：可能是图片链接，也可能是链接的图片
+                    // 需要根据URL判断：如果是图片URL则显示图片菜单，否则显示链接菜单
                     WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
-                        val imageUrl = result.extra
-                        if (!imageUrl.isNullOrEmpty()) {
-                            Log.d(TAG, "检测到图片链接，显示图片菜单: $imageUrl")
-                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedImageMenu(
-                                webView, imageUrl, screenX, screenY
-                            )
+                        if (!url.isNullOrEmpty()) {
+                            if (isImageUrl(url)) {
+                                // URL指向图片文件，显示图片菜单
+                                Log.d(TAG, "检测到图片链接（URL指向图片），显示图片菜单: $url")
+                                this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedImageMenu(
+                                    webView, url, screenX, screenY
+                                )
+                            } else {
+                                // URL指向网页链接，显示链接菜单
+                                Log.d(TAG, "检测到链接（包含图片元素），显示链接菜单: $url")
+                                this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedLinkMenu(
+                                    webView, url, "", screenX, screenY
+                                )
+                            }
                         } else {
-                            Log.d(TAG, "图片链接URL为空，显示刷新菜单")
+                            Log.d(TAG, "SRC_IMAGE_ANCHOR_TYPE URL为空，显示刷新菜单")
                             this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
                                 webView, screenX, screenY
                             )
@@ -1172,7 +1314,6 @@ class PaperStackWebViewManager(
                     // 纯链接（不包含图片）
                     WebView.HitTestResult.ANCHOR_TYPE,
                     WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
-                        val url = result.extra
                         if (!url.isNullOrEmpty()) {
                             Log.d(TAG, "检测到纯链接，显示链接菜单: $url")
                             this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedLinkMenu(

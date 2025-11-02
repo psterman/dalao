@@ -135,6 +135,13 @@ class SearchActivity : AppCompatActivity() {
     private var lastTouchTime = 0L
     private val DOUBLE_TAP_TIMEOUT_TOUCH = 300L // 双指轻点的时间窗口
     
+    // 两指上滑关闭相关变量
+    private var twoFingerStartY = 0f
+    private var twoFingerStartTime = 0L
+    private var isTwoFingerSwipe = false
+    private val TWO_FINGER_SWIPE_THRESHOLD = 100f // 两指上滑距离阈值（dp转px）
+    private val TWO_FINGER_SWIPE_VELOCITY_THRESHOLD = 500f // 两指上滑速度阈值
+    
     private var searchLayout: FrameLayout? = null
     private var searchHistorySwitch: SwitchCompat? = null
     private var autoPasteSwitch: SwitchCompat? = null
@@ -584,6 +591,39 @@ class SearchActivity : AppCompatActivity() {
                 if (ev.pointerCount == 2) {
                     lastTapCount = 2
                     isTwoFingerTap = true
+                    // 记录两指起始位置和时间，用于检测上滑手势
+                    twoFingerStartY = (ev.getY(0) + ev.getY(1)) / 2f
+                    twoFingerStartTime = System.currentTimeMillis()
+                    isTwoFingerSwipe = false
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (ev.pointerCount == 2 && isTwoFingerSwipe) {
+                    // 两指上滑完成，关闭页面
+                    val endY = (ev.getY(0) + ev.getY(1)) / 2f
+                    val distance = twoFingerStartY - endY // 向上滑动，distance为正
+                    val time = System.currentTimeMillis() - twoFingerStartTime
+                    val velocity = if (time > 0) (distance / time) * 1000 else 0f
+                    
+                    // 转换为像素
+                    val density = resources.displayMetrics.density
+                    val thresholdPx = TWO_FINGER_SWIPE_THRESHOLD * density
+                    
+                    if (distance > thresholdPx && velocity > TWO_FINGER_SWIPE_VELOCITY_THRESHOLD) {
+                        showGestureHint("正在关闭页面...")
+                        // 添加淡出动画
+                        window.decorView.animate()
+                            .alpha(0f)
+                            .translationY(-window.decorView.height.toFloat())
+                            .setDuration(300)
+                            .withEndAction {
+                                finish()
+                                overridePendingTransition(0, 0)
+                            }
+                            .start()
+                        return true
+                    }
+                    isTwoFingerSwipe = false
                 }
             }
         }
@@ -597,6 +637,24 @@ class SearchActivity : AppCompatActivity() {
             }
         }
 
+        // 处理两指上滑手势（在缩放之前检测）
+        if (ev.pointerCount == 2 && ev.actionMasked == MotionEvent.ACTION_MOVE) {
+            val currentY = (ev.getY(0) + ev.getY(1)) / 2f
+            val distance = twoFingerStartY - currentY // 向上滑动，distance为正
+            val density = resources.displayMetrics.density
+            val thresholdPx = TWO_FINGER_SWIPE_THRESHOLD * density
+            
+            // 检测是否满足上滑条件（向上滑动且距离足够）
+            if (distance > thresholdPx * 0.3f && !isScaling) {
+                isTwoFingerSwipe = true
+                // 显示提示
+                val progress = (distance / (thresholdPx * 2f)).coerceIn(0f, 1f)
+                if (progress > 0.5f) {
+                    showGestureHint("继续上滑关闭页面")
+                }
+            }
+        }
+        
         // 处理缩放手势
         scaleGestureDetector.onTouchEvent(ev)
 
@@ -992,6 +1050,43 @@ class SearchActivity : AppCompatActivity() {
                 } else {
                     Log.w("SearchActivity", "关闭纸堆标签页失败: $url")
                 }
+            }
+            
+            // 设置卡片收藏监听器
+            stackedCardPreview?.setOnCardFavoriteListener { index, url ->
+                Log.d("SearchActivity", "⭐ StackedCardPreview 请求收藏卡片: index=$index, url=$url")
+                
+                // TODO: 实现收藏功能
+                // 可以在这里调用收藏管理器来保存URL
+                android.widget.Toast.makeText(this, "收藏功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            
+            // 设置复制网址监听器
+            stackedCardPreview?.setOnCardCopyUrlListener { index, url ->
+                Log.d("SearchActivity", "📋 StackedCardPreview 请求复制网址: index=$index, url=$url")
+                
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("URL", url)
+                clipboard.setPrimaryClip(clip)
+                android.widget.Toast.makeText(this, "网址已复制", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            
+            // 设置静音监听器
+            stackedCardPreview?.setOnCardMuteListener { index ->
+                Log.d("SearchActivity", "🔇 StackedCardPreview 请求静音卡片: index=$index")
+                
+                // TODO: 实现静音功能
+                // 可以在这里控制WebView的音量
+                android.widget.Toast.makeText(this, "静音功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            
+            // 设置添加到桌面监听器
+            stackedCardPreview?.setOnCardAddToDesktopListener { index, url, title ->
+                Log.d("SearchActivity", "🏠 StackedCardPreview 请求添加到桌面: index=$index, url=$url, title=$title")
+                
+                // TODO: 实现添加到桌面功能
+                // 可以在这里创建桌面快捷方式
+                android.widget.Toast.makeText(this, "添加到桌面功能开发中", android.widget.Toast.LENGTH_SHORT).show()
             }
             
             Toast.makeText(this, "显示 ${paperStackTabs.size} 张卡片", Toast.LENGTH_SHORT).show()
