@@ -26,6 +26,7 @@ import android.webkit.WebSettings
 import androidx.core.view.ViewCompat
 import androidx.core.view.children
 import com.example.aifloatingball.utils.WebViewConstants
+import android.view.WindowManager
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -45,7 +46,8 @@ private fun Float.pow(exponent: Int): Float {
  */
 class PaperStackWebViewManager(
     private val context: Context,
-    private val container: ViewGroup
+    private val container: ViewGroup,
+    private val windowManager: WindowManager? = null
 ) {
     companion object {
         private const val TAG = "PaperStackWebViewManager"
@@ -84,10 +86,38 @@ class PaperStackWebViewManager(
     private var isTextSelectionActive = false
     private var lastTouchTime = 0L
     private var touchDownTime = 0L
+    private var enhancedMenuManager: EnhancedMenuManager? = null
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
 
     init {
         setupGestureDetector()
         setupContainer()
+        setupEnhancedMenuManager()
+    }
+    
+    /**
+     * 设置增强菜单管理器
+     */
+    private fun setupEnhancedMenuManager() {
+        windowManager?.let {
+            enhancedMenuManager = EnhancedMenuManager(context, it)
+            // 设置新标签页监听器
+            enhancedMenuManager?.setOnNewTabListener { url, inBackground ->
+                if (!inBackground) {
+                    addTab(url)
+                } else {
+                    addTab(url)
+                    // 后台加载，不切换到新标签页
+                    val newTabIndex = tabs.size - 1
+                    if (newTabIndex > 0 && newTabIndex != currentTabIndex) {
+                        // 保持当前标签页，新标签页在后台加载
+                        updateTabPositions()
+                    }
+                }
+            }
+            Log.d(TAG, "增强菜单管理器已初始化")
+        }
     }
 
     /**
@@ -735,13 +765,21 @@ class PaperStackWebViewManager(
             MotionEvent.ACTION_DOWN -> {
                 swipeStartX = event.x
                 swipeStartY = event.y
+                lastTouchX = event.x
+                lastTouchY = event.y
                 isSwipeStarted = false
                 swipeDirection = SwipeDirection.NONE
                 touchDownTime = System.currentTimeMillis()
+                // 立即清除文本选择状态，防止误触发
+                isTextSelectionActive = false
                 Log.d(TAG, "触摸开始: x=${event.x}, y=${event.y}")
             }
             
             MotionEvent.ACTION_MOVE -> {
+                // 更新触摸坐标
+                lastTouchX = event.x
+                lastTouchY = event.y
+                
                 if (!isSwipeStarted) {
                     val deltaX = abs(event.x - swipeStartX)
                     val deltaY = abs(event.y - swipeStartY)
@@ -762,15 +800,19 @@ class PaperStackWebViewManager(
                         
                         // 如果是横向滑动，阻止WebView的滚动，并清除文本选择
                         if (swipeDirection == SwipeDirection.HORIZONTAL) {
-                            // 清除文本选择，防止文本选择菜单弹出
+                            // 立即清除文本选择，防止文本选择菜单弹出
                             clearTextSelection()
                             isTextSelectionActive = false
+                            // 取消所有WebView的长按事件
+                            tabs.forEach { it.webView.cancelLongPress() }
                             return true
                         }
                     }
                 } else if (swipeDirection == SwipeDirection.HORIZONTAL) {
                     // 横向滑动过程中，继续阻止WebView滚动，并保持清除文本选择状态
                     isTextSelectionActive = false
+                    // 持续取消长按事件
+                    tabs.forEach { it.webView.cancelLongPress() }
                     return true
                 }
             }
@@ -855,9 +897,9 @@ class PaperStackWebViewManager(
      */
     private fun clearTextSelection() {
         try {
-            // 获取当前标签页的WebView
-            val currentTab = getCurrentTab()
-            currentTab?.webView?.let { webView ->
+            // 获取所有标签页的WebView，不仅仅是当前标签页
+            tabs.forEach { tab ->
+                val webView = tab.webView
                 // 通过JavaScript清除文本选择
                 webView.evaluateJavascript("""
                     (function() {
@@ -871,14 +913,25 @@ class PaperStackWebViewManager(
                         if (activeElement && activeElement.blur) {
                             activeElement.blur();
                         }
+                        // 禁用文本选择
+                        if (document.body) {
+                            document.body.style.webkitUserSelect = 'none';
+                            document.body.style.userSelect = 'none';
+                        }
                     })();
                 """.trimIndent(), null)
                 
-                // 清除WebView的文本选择状态
+                // 清除WebView的文本选择状态和焦点
                 webView.clearFocus()
                 
-                Log.d(TAG, "已清除文本选择")
+                // 取消任何可能的长按事件
+                webView.cancelLongPress()
             }
+            
+            // 重置文本选择状态标志
+            isTextSelectionActive = false
+            
+            Log.d(TAG, "已清除所有WebView的文本选择")
         } catch (e: Exception) {
             Log.e(TAG, "清除文本选择失败", e)
         }
@@ -1058,6 +1111,91 @@ class PaperStackWebViewManager(
             setBackgroundColor(Color.TRANSPARENT)
             setBackground(null)
             setLayerType(LAYER_TYPE_HARDWARE, null)
+            
+            // 禁用系统默认的上下文菜单
+            setLongClickable(true)
+            setOnCreateContextMenuListener(null)
+            
+            // 设置长按监听器处理图片和链接
+            setOnLongClickListener { view ->
+                val webView = view as WebView
+                val result = webView.hitTestResult
+                
+                Log.d(TAG, "WebView长按检测: type=${result.type}, extra=${result.extra}")
+                
+                // 如果是横向滑动，不处理长按
+                if (this@PaperStackWebViewManager.swipeDirection == SwipeDirection.HORIZONTAL) {
+                    Log.d(TAG, "横向滑动中，忽略长按事件")
+                    return@setOnLongClickListener true
+                }
+                
+                // 获取触摸点在屏幕上的坐标
+                val location = IntArray(2)
+                webView.getLocationOnScreen(location)
+                val screenX = (this@PaperStackWebViewManager.lastTouchX + location[0]).toInt()
+                val screenY = (this@PaperStackWebViewManager.lastTouchY + location[1]).toInt()
+                
+                // 精准识别：优先判断图片，再判断链接
+                when (result.type) {
+                    // 纯图片（不包含链接）
+                    WebView.HitTestResult.IMAGE_TYPE -> {
+                        val imageUrl = result.extra
+                        if (!imageUrl.isNullOrEmpty()) {
+                            Log.d(TAG, "检测到纯图片，显示图片菜单: $imageUrl")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedImageMenu(
+                                webView, imageUrl, screenX, screenY
+                            )
+                        } else {
+                            Log.d(TAG, "图片URL为空，显示刷新菜单")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
+                                webView, screenX, screenY
+                            )
+                        }
+                        true
+                    }
+                    // 带链接的图片：优先显示图片菜单（因为用户长按的是图片）
+                    WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                        val imageUrl = result.extra
+                        if (!imageUrl.isNullOrEmpty()) {
+                            Log.d(TAG, "检测到图片链接，显示图片菜单: $imageUrl")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedImageMenu(
+                                webView, imageUrl, screenX, screenY
+                            )
+                        } else {
+                            Log.d(TAG, "图片链接URL为空，显示刷新菜单")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
+                                webView, screenX, screenY
+                            )
+                        }
+                        true
+                    }
+                    // 纯链接（不包含图片）
+                    WebView.HitTestResult.ANCHOR_TYPE,
+                    WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                        val url = result.extra
+                        if (!url.isNullOrEmpty()) {
+                            Log.d(TAG, "检测到纯链接，显示链接菜单: $url")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedLinkMenu(
+                                webView, url, "", screenX, screenY
+                            )
+                        } else {
+                            Log.d(TAG, "链接URL为空，显示刷新菜单")
+                            this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
+                                webView, screenX, screenY
+                            )
+                        }
+                        true
+                    }
+                    else -> {
+                        // 其他类型显示刷新菜单
+                        Log.d(TAG, "显示刷新菜单（其他类型: ${result.type}）")
+                        this@PaperStackWebViewManager.enhancedMenuManager?.showEnhancedRefreshMenu(
+                            webView, screenX, screenY
+                        )
+                        true
+                    }
+                }
+            }
             
             // 设置触摸监听器来检测文本选择
             setOnTouchListener { _, event ->

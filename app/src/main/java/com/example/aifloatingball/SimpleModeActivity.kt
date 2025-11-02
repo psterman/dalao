@@ -6065,9 +6065,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun setupBrowserWebView() {
         // 初始化纸张叠加WebView管理器
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         paperStackWebViewManager = PaperStackWebViewManager(
             context = this,
-            container = browserWebViewContainer
+            container = browserWebViewContainer,
+            windowManager = windowManager
         )
 
         // 设置标签页监听器

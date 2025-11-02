@@ -675,37 +675,117 @@ class EnhancedMenuManager(
             isMenuShowing.set(true)
             isMenuAnimating.set(true)
             
+            // 计算菜单位置和大小
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            val density = context.resources.displayMetrics.density
+            
+            // 设置菜单最大宽度（屏幕宽度的85%）
+            val maxMenuWidth = (screenWidth * 0.85f).toInt()
+            val minMenuWidth = (280 * density).toInt()
+            
+            // 测量菜单内容
+            menuContent.measure(
+                View.MeasureSpec.makeMeasureSpec(maxMenuWidth, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec((screenHeight * 0.7f).toInt(), View.MeasureSpec.AT_MOST)
+            )
+            
+            var menuWidth = menuContent.measuredWidth
+            var menuHeight = menuContent.measuredHeight
+            
+            // 确保菜单有合适的宽度
+            if (menuWidth < minMenuWidth) {
+                menuWidth = minMenuWidth
+            }
+            if (menuWidth > maxMenuWidth) {
+                menuWidth = maxMenuWidth
+            }
+            
+            // 确保菜单有合适的高度（根据内容自适应，但不超过屏幕高度的70%）
+            val maxMenuHeight = (screenHeight * 0.7f).toInt()
+            if (menuHeight > maxMenuHeight) {
+                menuHeight = maxMenuHeight
+            }
+            
+            // 计算菜单位置：优先在触摸点上方，如果空间不够则显示在下方
+            val margin = (16 * density).toInt()
+            var finalX = x
+            var finalY = y
+            
+            // 水平方向：确保不超出屏幕边界
+            when {
+                x + menuWidth > screenWidth - margin -> {
+                    // 右侧超出，调整到左侧
+                    finalX = screenWidth - menuWidth - margin
+                }
+                x < margin -> {
+                    // 左侧超出，调整到右侧
+                    finalX = margin
+                }
+                else -> {
+                    // 如果触摸点靠近屏幕边缘，稍微偏移
+                    if (x < menuWidth / 2) {
+                        finalX = margin
+                    } else if (x > screenWidth - menuWidth / 2) {
+                        finalX = screenWidth - menuWidth - margin
+                    } else {
+                        // 居中在触摸点
+                        finalX = x - menuWidth / 2
+                    }
+                }
+            }
+            
+            // 垂直方向：优先在触摸点上方显示
+            val verticalSpacing = (20 * density).toInt()
+            if (y - menuHeight > margin + verticalSpacing) {
+                // 触摸点上方有足够空间，显示在上方
+                finalY = y - menuHeight - verticalSpacing
+            } else if (y + menuHeight < screenHeight - margin - verticalSpacing) {
+                // 触摸点上方空间不够，显示在下方
+                finalY = y + (60 * density).toInt()
+            } else {
+                // 上下都不够，显示在屏幕中间
+                finalY = (screenHeight - menuHeight) / 2
+            }
+            
+            // 最终边界检查，确保菜单完全在屏幕内
+            if (finalY < margin) {
+                finalY = margin
+            }
+            if (finalY + menuHeight > screenHeight - margin) {
+                finalY = screenHeight - menuHeight - margin
+                // 如果仍然超出，限制高度并启用滚动
+                if (finalY < margin) {
+                    finalY = margin
+                    menuHeight = screenHeight - margin * 2
+                }
+            }
+            
+            // 最终确保水平位置也在边界内
+            if (finalX < margin) finalX = margin
+            if (finalX + menuWidth > screenWidth - margin) {
+                finalX = screenWidth - menuWidth - margin
+            }
+            
+            // 使用WRAP_CONTENT让ScrollView能够正确工作
+            // 但需要确保菜单不会超出屏幕
             val layoutParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                menuWidth,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 OVERLAY_WINDOW_TYPE,
                 MENU_WINDOW_FLAGS,
                 android.graphics.PixelFormat.TRANSLUCENT
             )
             
-            // 计算菜单位置
-            val screenWidth = context.resources.displayMetrics.widthPixels
-            val screenHeight = context.resources.displayMetrics.heightPixels
-            
-            menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-            val menuWidth = menuContent.measuredWidth
-            val menuHeight = menuContent.measuredHeight
-            
-            // 确保菜单不超出屏幕边界
-            val finalX = when {
-                x + menuWidth > screenWidth -> screenWidth - menuWidth - 20
-                x < 20 -> 20
-                else -> x
-            }
-            
-            val finalY = when {
-                y + menuHeight > screenHeight -> screenHeight - menuHeight - 20
-                y < 20 -> 20
-                else -> y
+            // 如果菜单高度超过限制，设置最大高度
+            if (menuHeight > maxMenuHeight) {
+                layoutParams.height = maxMenuHeight
             }
             
             layoutParams.x = finalX
             layoutParams.y = finalY
+            
+            Log.d(TAG, "显示菜单: 位置=($finalX, $finalY), 大小=($menuWidth, ${layoutParams.height})")
             
             windowManager.addView(floatingMenuView, layoutParams)
             
