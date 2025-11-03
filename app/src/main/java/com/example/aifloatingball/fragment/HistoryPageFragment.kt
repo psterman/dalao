@@ -54,17 +54,140 @@ class HistoryPageFragment : Fragment() {
     }
     
     private fun setupRecyclerView() {
+        val isLeftHanded = try {
+            com.example.aifloatingball.SettingsManager.getInstance(requireContext()).isLeftHandedModeEnabled()
+        } catch (_: Exception) { false }
+
         adapter = HistoryEntryAdapter(
             onItemClick = { entry ->
                 onHistoryItemClick?.invoke(entry)
             },
             onMoreClick = { entry ->
                 onHistoryMoreClick?.invoke(entry)
-            }
+            },
+            onSwipeFavorite = { entry ->
+                try {
+                    addToBookmarks(entry)
+                } catch (e: Exception) {
+                    android.util.Log.e("HistoryPageFragment", "收藏失败", e)
+                }
+            },
+            onSwipeDelete = { entry ->
+                try {
+                    deleteHistoryEntryFromSharedPreferences(entry)
+                } catch (e: Exception) {
+                    android.util.Log.e("HistoryPageFragment", "删除失败", e)
+                }
+            },
+            isLeftHandedMode = isLeftHanded
         )
         
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = adapter
+    }
+
+    /**
+     * 从 SharedPreferences 删除历史记录（与弹窗逻辑保持一致的精简版）
+     */
+    private fun deleteHistoryEntryFromSharedPreferences(entry: com.example.aifloatingball.model.HistoryEntry) {
+        try {
+            // 尝试识别搜索记录，通过 SearchHistoryManager 删除
+            run {
+                val isSearchItem = try {
+                    entry.id.startsWith("search_") || entry.title.startsWith("搜索:") || entry.url.contains("?q=") || entry.url.contains("&q=")
+                } catch (_: Exception) { false }
+                if (isSearchItem) {
+                    var query: String? = null
+                    if (entry.title.startsWith("搜索:")) query = entry.title.removePrefix("搜索:").trim()
+                    if (query.isNullOrEmpty()) {
+                        try {
+                            val uri = android.net.Uri.parse(entry.url)
+                            query = uri.getQueryParameter("q")
+                        } catch (_: Exception) {}
+                    }
+                    if (!query.isNullOrEmpty()) {
+                        com.example.aifloatingball.SearchHistoryManager.getInstance(requireContext())
+                            .removeSearchHistoryByQuery(query!!)
+                        android.widget.Toast.makeText(requireContext(), "搜索记录已删除", android.widget.Toast.LENGTH_SHORT).show()
+                        refreshAfterDataChanged()
+                        return
+                    }
+                }
+            }
+
+            val sharedPrefs = requireContext().getSharedPreferences("browser_history", android.content.Context.MODE_PRIVATE)
+            val historyJson = sharedPrefs.getString("history_data", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.HistoryEntry>>() {}.type
+            val historyList: MutableList<com.example.aifloatingball.model.HistoryEntry> = try {
+                gson.fromJson(historyJson, type) ?: mutableListOf()
+            } catch (_: Exception) { mutableListOf() }
+
+            val initialSize = historyList.size
+            var removed = false
+            if (entry.id.isNotEmpty()) {
+                removed = historyList.removeAll { it.id == entry.id }
+            }
+            if (!removed) {
+                removed = historyList.removeAll {
+                    (it.url.equals(entry.url, true)) && (it.title.equals(entry.title, true))
+                }
+            }
+
+            if (removed && historyList.size < initialSize) {
+                sharedPrefs.edit().putString("history_data", gson.toJson(historyList)).apply()
+                android.widget.Toast.makeText(requireContext(), "历史记录已删除", android.widget.Toast.LENGTH_SHORT).show()
+                refreshAfterDataChanged()
+            } else {
+                android.widget.Toast.makeText(requireContext(), "未找到该记录", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("HistoryPageFragment", "删除历史失败", e)
+            android.widget.Toast.makeText(requireContext(), "删除失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 添加到收藏（与弹窗逻辑保持一致的精简版）
+     */
+    private fun addToBookmarks(entry: com.example.aifloatingball.model.HistoryEntry) {
+        try {
+            val sharedPrefs = requireContext().getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
+            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
+            val list: MutableList<com.example.aifloatingball.model.BookmarkEntry> = try {
+                gson.fromJson(bookmarksJson, type) ?: mutableListOf()
+            } catch (_: Exception) { mutableListOf() }
+
+            val exists = list.indexOfFirst { it.url.equals(entry.url, true) } >= 0
+            if (exists) {
+                android.widget.Toast.makeText(requireContext(), "该网址已在收藏", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val bookmark = com.example.aifloatingball.model.BookmarkEntry(
+                id = "bookmark_${System.currentTimeMillis()}",
+                title = entry.title,
+                url = entry.url,
+                folder = "从历史添加",
+                createTime = java.util.Date()
+            )
+            list.add(0, bookmark)
+            sharedPrefs.edit().putString("bookmarks_data", gson.toJson(list)).apply()
+            android.widget.Toast.makeText(requireContext(), "已添加到收藏", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            android.util.Log.e("HistoryPageFragment", "添加收藏失败", e)
+            android.widget.Toast.makeText(requireContext(), "添加失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun refreshAfterDataChanged() {
+        try {
+            // 简单刷新：重新加载数据（如果正式数据源不同，可替换为实际加载）
+            loadHistoryData()
+            updateEmptyState()
+        } catch (_: Exception) {}
     }
     
     private fun setupSearch() {
