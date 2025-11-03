@@ -806,6 +806,19 @@ class GestureCardWebViewManager(
             webViewCards[currentCardIndex]
         } else null
     }
+    
+    /**
+     * 设置ViewPager用户输入是否启用
+     * 用于在遮罩层激活时禁用ViewPager的左右滑动，让遮罩层的手势优先处理
+     */
+    fun setViewPagerUserInputEnabled(enabled: Boolean) {
+        try {
+            viewPager?.isUserInputEnabled = enabled
+            Log.d(TAG, "设置ViewPager用户输入: $enabled")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置ViewPager用户输入失败", e)
+        }
+    }
 
     /**
      * 加载URL到当前卡片

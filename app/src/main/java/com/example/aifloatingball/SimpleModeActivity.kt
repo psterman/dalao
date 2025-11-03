@@ -747,6 +747,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var searchTabGestureOverlay: FrameLayout? = null
     private var isSearchTabGestureOverlayActive = false
     private var gestureDetectorForOverlay: GestureDetectorCompat? = null
+    
+    // 保存tab原始布局参数，用于恢复
+    private val originalTabLayoutParams = mutableMapOf<Int, ViewGroup.LayoutParams>()
+    private val originalTabTextViews = mutableMapOf<Int, TextView?>()
+    private var navBackButton: Button? = null
+    private var navForwardButton: Button? = null
 
 
 
@@ -19211,20 +19217,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun goBackInCurrentWebView() {
         try {
-            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                    Log.d(TAG, "WebView后退成功")
-                } else {
-                    Log.d(TAG, "WebView无法后退")
-                    Toast.makeText(this, "无法后退", Toast.LENGTH_SHORT).show()
+            var handled = false
+            
+            // 1. 优先检查纸堆模式WebView管理器
+            if (paperStackWebViewManager?.canGoBack() == true) {
+                paperStackWebViewManager?.goBack()
+                Log.d(TAG, "纸堆模式WebView后退成功")
+                handled = true
+            }
+            // 2. 检查手势卡片WebView管理器
+            if (!handled) {
+                gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                        Log.d(TAG, "手势卡片WebView后退成功")
+                        handled = true
+                    } else {
+                        Log.d(TAG, "手势卡片WebView无法后退")
+                    }
                 }
-            } ?: run {
-                Log.d(TAG, "没有活动的WebView")
-                Toast.makeText(this, "没有活动的网页", Toast.LENGTH_SHORT).show()
+            }
+            // 3. 检查手机卡片管理器
+            if (!handled) {
+                mobileCardManager?.getCurrentCard()?.webView?.let { webView ->
+                    if (webView.canGoBack()) {
+                        webView.goBack()
+                        Log.d(TAG, "手机卡片WebView后退成功")
+                        handled = true
+                    } else {
+                        Log.d(TAG, "手机卡片WebView无法后退")
+                    }
+                }
+            }
+            // 4. 使用统一WebView管理器
+            if (!handled) {
+                if (unifiedWebViewManager.canGoBack()) {
+                    unifiedWebViewManager.goBack()
+                    Log.d(TAG, "统一WebView管理器后退成功")
+                    handled = true
+                }
+            }
+            
+            if (!handled) {
+                Log.d(TAG, "没有可后退的WebView")
+                Toast.makeText(this, "无法后退", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "WebView后退失败", e)
+            Toast.makeText(this, "后退失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -19233,20 +19273,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun goForwardInCurrentWebView() {
         try {
-            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
-                if (webView.canGoForward()) {
-                    webView.goForward()
-                    Log.d(TAG, "WebView前进成功")
-                } else {
-                    Log.d(TAG, "WebView无法前进")
-                    Toast.makeText(this, "无法前进", Toast.LENGTH_SHORT).show()
+            var handled = false
+            
+            // 1. 优先检查纸堆模式WebView管理器
+            if (paperStackWebViewManager?.canGoForward() == true) {
+                paperStackWebViewManager?.goForward()
+                Log.d(TAG, "纸堆模式WebView前进成功")
+                handled = true
+            }
+            // 2. 检查手势卡片WebView管理器
+            if (!handled) {
+                gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                    if (webView.canGoForward()) {
+                        webView.goForward()
+                        Log.d(TAG, "手势卡片WebView前进成功")
+                        handled = true
+                    } else {
+                        Log.d(TAG, "手势卡片WebView无法前进")
+                    }
                 }
-            } ?: run {
-                Log.d(TAG, "没有活动的WebView")
-                Toast.makeText(this, "没有活动的网页", Toast.LENGTH_SHORT).show()
+            }
+            // 3. 检查手机卡片管理器
+            if (!handled) {
+                mobileCardManager?.getCurrentCard()?.webView?.let { webView ->
+                    if (webView.canGoForward()) {
+                        webView.goForward()
+                        Log.d(TAG, "手机卡片WebView前进成功")
+                        handled = true
+                    } else {
+                        Log.d(TAG, "手机卡片WebView无法前进")
+                    }
+                }
+            }
+            // 4. 使用统一WebView管理器
+            if (!handled) {
+                if (unifiedWebViewManager.canGoForward()) {
+                    unifiedWebViewManager.goForward()
+                    Log.d(TAG, "统一WebView管理器前进成功")
+                    handled = true
+                }
+            }
+            
+            if (!handled) {
+                Log.d(TAG, "没有可前进的WebView")
+                Toast.makeText(this, "无法前进", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "WebView前进失败", e)
+            Toast.makeText(this, "前进失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -19576,14 +19650,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (abs(deltaX) > abs(deltaY) && abs(deltaX) > 120) {
                     lastSearchTabSwipeTime = currentTime
 
-                    if (deltaX > 0) {
-                        // 向右滑动，切换到上一个页面
-                        switchToPreviousWebPage()
-                        showSearchTabSwipeIndicator("上一页")
+                    // 当“搜索tab手势遮罩层”激活时，左右滑动用于网页前进/后退；
+                    // 否则保持原有“切换页面卡片”的逻辑。
+                    if (isSearchTabGestureOverlayActive) {
+                        // 获取当前WebView（优先手机卡片管理器，其次手势卡片管理器）
+                        val currentWebView = try {
+                            mobileCardManager?.getCurrentCard()?.webView
+                                ?: gestureCardWebViewManager?.getCurrentCard()?.webView
+                        } catch (e: Exception) { null }
+
+                        if (deltaX > 0) {
+                            // 向右滑动 - 网页后退
+                            var handled = false
+                            try {
+                                // 先尝试纸堆管理器的后退
+                                paperStackWebViewManager?.goBack()
+                                handled = true
+                            } catch (_: Exception) {}
+
+                            if (!handled && currentWebView?.canGoBack() == true) {
+                                currentWebView.goBack()
+                                handled = true
+                            }
+
+                            showSearchTabSwipeIndicator("后退")
+                            Log.d(TAG, "搜索tab遮罩层：右滑 → 网页后退，handled=$handled")
+                        } else {
+                            // 向左滑动 - 网页前进
+                            var handled = false
+                            try {
+                                // 如果有统一/纸堆管理器前进，可在此补充；否则直接用当前WebView
+                                // paperStackWebViewManager?.goForward() // 若存在可启用
+                            } catch (_: Exception) {}
+
+                            if (!handled && currentWebView?.canGoForward() == true) {
+                                currentWebView.goForward()
+                                handled = true
+                            }
+
+                            showSearchTabSwipeIndicator("前进")
+                            Log.d(TAG, "搜索tab遮罩层：左滑 → 网页前进，handled=$handled")
+                        }
                     } else {
-                        // 向左滑动，切换到下一个页面
-                        switchToNextWebPage()
-                        showSearchTabSwipeIndicator("下一页")
+                        if (deltaX > 0) {
+                            // 向右滑动，切换到上一个页面
+                            switchToPreviousWebPage()
+                            showSearchTabSwipeIndicator("上一页")
+                        } else {
+                            // 向左滑动，切换到下一个页面
+                            switchToNextWebPage()
+                            showSearchTabSwipeIndicator("下一页")
+                        }
                     }
                     return true
                 }
@@ -19595,7 +19712,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
                 if (!isStackedPreviewVisible) {
                     // 只有在没有悬浮卡片时才显示手势提示
-                    showSearchTabSwipeIndicator("滑动切换")
+                    showSearchTabSwipeIndicator(if (isSearchTabGestureOverlayActive) "前进/后退" else "滑动切换")
                 }
                 return true
             }
@@ -21073,6 +21190,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 单击确认 - 检查是否点击tab区域
                     Log.d(TAG, "遮罩区单击确认: x=${e.x}, y=${e.y}")
 
+                    // 首先检查是否点击在前进/后退按钮上，如果是则不处理tab点击
+                    if (isTouchOnNavigationButtons(e)) {
+                        Log.d(TAG, "单击在前进/后退按钮上，不处理tab点击")
+                        return false
+                    }
+
                     // 检测点击的tab区域
                     val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
                     if (bottomNavigation != null) {
@@ -21218,8 +21341,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                 }
 
+                // 注意：前进和后退按钮不再添加到遮罩层
+                // 按钮会通过addNavigationButtons()方法直接添加到底部导航栏
             }
 
+            // 调整底部导航栏布局：缩小tab间距，隐藏文字
+            adjustBottomNavigationForOverlay(true)
+            
+            // 在对话tab左边添加前进和后退按钮
+            addNavigationButtons()
+            
             // 将遮罩层添加到根布局
             val rootLayout = findViewById<FrameLayout>(android.R.id.content)
             rootLayout.addView(searchTabGestureOverlay)
@@ -21243,6 +21374,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 记录遮罩层接收到的触摸事件
                         Log.d(TAG, "遮罩层接收到触摸事件: action=${event.action}, x=${event.x}, y=${event.y}")
 
+                        // 首先检查是否点击在前进/后退按钮上
+                        if (isTouchOnNavigationButtons(event)) {
+                            Log.d(TAG, "触摸在前进/后退按钮上，不处理，让按钮自己处理")
+                            return false // 让按钮自己处理点击事件
+                        }
+
                         // 检测点击的tab区域
                         var isSearchTabTouch = false
                         if (event.action == MotionEvent.ACTION_DOWN) {
@@ -21252,23 +21389,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 bottomNavigation.getLocationOnScreen(location)
                                 val relativeX = event.rawX - location[0]
 
-                                // 动态计算tab数量（考虑语音tab的可见性）
+                                // 动态计算tab数量（考虑语音tab的可见性和导航按钮）
                                 val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+                                val hasNavigationButtons = navBackButton != null && navForwardButton != null
+                                // 如果有导航按钮，需要从总宽度中减去按钮宽度
+                                val buttonAreaWidth = if (hasNavigationButtons) {
+                                    (navBackButton?.width ?: 0) + (navForwardButton?.width ?: 0) + (16 * resources.displayMetrics.density).toInt()
+                                } else 0
+                                val availableWidth = bottomNavigation.width - buttonAreaWidth
                                 val totalTabs = if (voiceTab?.visibility == View.VISIBLE) 6 else 5
-                                val tabWidth = bottomNavigation.width.toFloat() / totalTabs
-                                val tabIndex = (relativeX / tabWidth).toInt()
+                                val tabWidth = availableWidth.toFloat() / totalTabs
+                                // 调整relativeX，减去按钮区域的宽度
+                                val adjustedX = relativeX - buttonAreaWidth
+                                if (adjustedX >= 0) { // 确保在tab区域内
+                                    val tabIndex = (adjustedX / tabWidth).toInt().coerceIn(0, totalTabs - 1)
 
-                                Log.d(TAG, "遮罩层检测到tab触摸: tabIndex=$tabIndex, relativeX=$relativeX, totalTabs=$totalTabs")
+                                    Log.d(TAG, "遮罩层检测到tab触摸: tabIndex=$tabIndex, relativeX=$relativeX, adjustedX=$adjustedX, totalTabs=$totalTabs, buttonAreaWidth=$buttonAreaWidth")
 
-                                when (tabIndex) {
-                                    1 -> {
-                                        // 触摸搜索tab - 可能是单击或长按
-                                        isSearchTabTouch = true
-                                        Log.d(TAG, "遮罩层检测到搜索tab触摸，将穿透处理")
-                                    }
-                                    in 0..5 -> {
-                                        // 触摸其他tab - 将由手势检测器处理单击事件
-                                        Log.d(TAG, "遮罩层检测到其他tab触摸，将由手势检测器处理")
+                                    when (tabIndex) {
+                                        1 -> {
+                                            // 触摸搜索tab - 可能是单击或长按
+                                            isSearchTabTouch = true
+                                            Log.d(TAG, "遮罩层检测到搜索tab触摸，将穿透处理")
+                                        }
+                                        in 0..5 -> {
+                                            // 触摸其他tab - 将由手势检测器处理单击事件
+                                            Log.d(TAG, "遮罩层检测到其他tab触摸，将由手势检测器处理")
+                                        }
                                     }
                                 }
                             }
@@ -21321,6 +21468,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 显示退出提示
             showMaterialToast("手势区已关闭")
 
+            // 移除前进和后退按钮
+            removeNavigationButtons()
+            
+            // 恢复底部导航栏布局
+            adjustBottomNavigationForOverlay(false)
+            
             // 移除遮罩层
             searchTabGestureOverlay?.let { overlay ->
                 val rootLayout = findViewById<FrameLayout>(android.R.id.content)
@@ -21385,7 +21538,345 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "显示手势说明失败", e)
         }
     }
+    
+    /**
+     * 调整底部导航栏布局以适应遮罩层
+     * @param enable true=缩小间距隐藏文字，false=恢复原样
+     */
+    private fun adjustBottomNavigationForOverlay(enable: Boolean) {
+        try {
+            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+            val tabIds = listOf(R.id.tab_chat, R.id.tab_search, R.id.tab_home, R.id.tab_app_search, R.id.tab_settings)
+            
+            if (enable) {
+                // 保存原始布局参数和文字视图
+                tabIds.forEach { tabId ->
+                    val tab = findViewById<LinearLayout>(tabId) ?: return@forEach
+                    
+                    // 保存原始布局参数
+                    originalTabLayoutParams[tabId] = tab.layoutParams
+                    
+                    // 隐藏文字
+                    val textView = tab.getChildAt(1) as? TextView
+                    originalTabTextViews[tabId] = textView
+                    textView?.visibility = View.GONE
+                    
+                    // 缩小tab宽度（减少weight）
+                    val layoutParams = tab.layoutParams as? LinearLayout.LayoutParams
+                    layoutParams?.weight = 0.8f // 从1.0缩小到0.8，留出空间给按钮
+                    tab.layoutParams = layoutParams
+                    
+                    Log.d(TAG, "调整tab布局: ${resources.getResourceEntryName(tabId)}, weight=${layoutParams?.weight}")
+                }
+            } else {
+                // 恢复原始布局
+                tabIds.forEach { tabId ->
+                    val tab = findViewById<LinearLayout>(tabId) ?: return@forEach
+                    
+                    // 恢复布局参数
+                    originalTabLayoutParams[tabId]?.let {
+                        tab.layoutParams = it
+                    }
+                    
+                    // 显示文字
+                    originalTabTextViews[tabId]?.visibility = View.VISIBLE
+                    
+                    Log.d(TAG, "恢复tab布局: ${resources.getResourceEntryName(tabId)}")
+                }
+                
+                // 清空保存的数据
+                originalTabLayoutParams.clear()
+                originalTabTextViews.clear()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调整底部导航栏布局失败", e)
+        }
+    }
+    
+    /**
+     * 在对话tab左边添加前进和后退按钮
+     */
+    private fun addNavigationButtons() {
+        try {
+            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+            val tabChat = findViewById<LinearLayout>(R.id.tab_chat) ?: return
+            
+            // 如果按钮已存在，先移除
+            removeNavigationButtons()
+            
+            // 创建按钮容器
+            val buttonContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    setMargins((8 * resources.displayMetrics.density).toInt(), 0, 0, 0)
+                }
+                
+                // 设置容器可以点击，但阻止事件传播到底层
+                isClickable = false
+                isFocusable = false
+                
+                // 触摸事件拦截：阻止事件传播到遮罩层
+                setOnTouchListener { container, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 阻止所有父视图（包括遮罩层）拦截事件
+                            var parent = container.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(true)
+                                parent = (parent as? View)?.parent
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 恢复拦截权限
+                            var parent = container.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(false)
+                                parent = (parent as? View)?.parent
+                            }
+                        }
+                    }
+                    false // 不消费事件，让子按钮处理
+                }
+            }
+            
+            // 创建后退按钮
+            navBackButton = Button(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    (48 * resources.displayMetrics.density).toInt(),
+                    (48 * resources.displayMetrics.density).toInt()
+                ).apply {
+                    setMargins(0, 0, (4 * resources.displayMetrics.density).toInt(), 0)
+                }
+                
+                text = "◀"
+                textSize = 24f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                
+                // 设置背景为绿色圆形按钮
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(android.graphics.Color.GREEN)
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+                }
+                
+                minWidth = 0
+                minHeight = 0
+                
+                // 点击事件
+                setOnClickListener { view ->
+                    // 阻止事件传播，确保不会触发遮罩层退出
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                    Log.d(TAG, "导航栏后退按钮被点击")
+                    performGestureVibration("light")
+                    goBackInCurrentWebView()
+                    showSearchTabSwipeIndicator("后退")
+                }
+                
+                // 触摸事件：阻止事件传播到遮罩层，但允许onClick触发
+                setOnTouchListener { view, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 阻止所有父视图（包括遮罩层）拦截事件
+                            var parent = view.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(true)
+                                parent = (parent as? View)?.parent
+                            }
+                            // 标记触摸开始，不消费事件，让onClick能触发
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            // 不消费UP事件，让onClick能触发
+                            // 但之前已经阻止了拦截，所以不会传播到遮罩层
+                        }
+                        MotionEvent.ACTION_CANCEL -> {
+                            // 恢复拦截权限
+                            var parent = view.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(false)
+                                parent = (parent as? View)?.parent
+                            }
+                        }
+                    }
+                    false // 不消费事件，让onClick继续处理
+                }
+                
+                // 长按事件
+                setOnLongClickListener {
+                    showMaterialToast("网页后退")
+                    true
+                }
+                
+                isClickable = true
+                isFocusable = true
+            }
+            
+            // 创建前进按钮
+            navForwardButton = Button(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    (48 * resources.displayMetrics.density).toInt(),
+                    (48 * resources.displayMetrics.density).toInt()
+                )
+                
+                text = "▶"
+                textSize = 24f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                
+                // 设置背景为绿色圆形按钮
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(android.graphics.Color.GREEN)
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+                }
+                
+                minWidth = 0
+                minHeight = 0
+                
+                // 点击事件
+                setOnClickListener { view ->
+                    // 阻止事件传播，确保不会触发遮罩层退出
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                    Log.d(TAG, "导航栏前进按钮被点击")
+                    performGestureVibration("light")
+                    goForwardInCurrentWebView()
+                    showSearchTabSwipeIndicator("前进")
+                }
+                
+                // 触摸事件：阻止事件传播到遮罩层，但允许onClick触发
+                setOnTouchListener { view, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 阻止所有父视图（包括遮罩层）拦截事件
+                            var parent = view.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(true)
+                                parent = (parent as? View)?.parent
+                            }
+                            // 标记触摸开始，不消费事件，让onClick能触发
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            // 不消费UP事件，让onClick能触发
+                            // 但之前已经阻止了拦截，所以不会传播到遮罩层
+                        }
+                        MotionEvent.ACTION_CANCEL -> {
+                            // 恢复拦截权限
+                            var parent = view.parent
+                            while (parent != null) {
+                                parent.requestDisallowInterceptTouchEvent(false)
+                                parent = (parent as? View)?.parent
+                            }
+                        }
+                    }
+                    false // 不消费事件，让onClick继续处理
+                }
+                
+                // 长按事件
+                setOnLongClickListener {
+                    showMaterialToast("网页前进")
+                    true
+                }
+                
+                isClickable = true
+                isFocusable = true
+            }
+            
+            // 将按钮添加到容器
+            buttonContainer.addView(navBackButton)
+            buttonContainer.addView(navForwardButton)
+            
+            // 将容器插入到对话tab之前（左边）
+            val chatIndex = bottomNavigation.indexOfChild(tabChat)
+            bottomNavigation.addView(buttonContainer, chatIndex)
+            
+            Log.d(TAG, "前进和后退按钮已添加到底部导航栏")
+        } catch (e: Exception) {
+            Log.e(TAG, "添加导航按钮失败", e)
+        }
+    }
+    
+    /**
+     * 移除前进和后退按钮
+     */
+    private fun removeNavigationButtons() {
+        try {
+            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+            
+            // 查找并移除按钮容器
+            for (i in 0 until bottomNavigation.childCount) {
+                val child = bottomNavigation.getChildAt(i)
+                if (child is LinearLayout && child.childCount == 2) {
+                    // 检查是否包含我们的按钮（后退和前进按钮）
+                    val firstChild = child.getChildAt(0)
+                    val secondChild = child.getChildAt(1)
+                    if (firstChild is Button && secondChild is Button) {
+                        val backButton = firstChild as Button
+                        val forwardButton = secondChild as Button
+                        if (backButton.text == "◀" && forwardButton.text == "▶") {
+                            bottomNavigation.removeView(child)
+                            Log.d(TAG, "已移除导航按钮容器")
+                            break
+                        }
+                    }
+                }
+            }
+            
+            navBackButton = null
+            navForwardButton = null
+            
+            Log.d(TAG, "前进和后退按钮已移除")
+        } catch (e: Exception) {
+            Log.e(TAG, "移除导航按钮失败", e)
+        }
+    }
 
+    /**
+     * 检查触摸事件是否在前进/后退按钮上
+     */
+    private fun isTouchOnNavigationButtons(event: MotionEvent): Boolean {
+        try {
+            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return false
+            
+            // 获取按钮位置
+            navBackButton?.let { backButton ->
+                val backLocation = IntArray(2)
+                backButton.getLocationOnScreen(backLocation)
+                val backLeft = backLocation[0]
+                val backRight = backLeft + backButton.width
+                val backTop = backLocation[1]
+                val backBottom = backTop + backButton.height
+                
+                if (event.rawX >= backLeft && event.rawX <= backRight &&
+                    event.rawY >= backTop && event.rawY <= backBottom) {
+                    return true
+                }
+            }
+            
+            navForwardButton?.let { forwardButton ->
+                val forwardLocation = IntArray(2)
+                forwardButton.getLocationOnScreen(forwardLocation)
+                val forwardLeft = forwardLocation[0]
+                val forwardRight = forwardLeft + forwardButton.width
+                val forwardTop = forwardLocation[1]
+                val forwardBottom = forwardTop + forwardButton.height
+                
+                if (event.rawX >= forwardLeft && event.rawX <= forwardRight &&
+                    event.rawY >= forwardTop && event.rawY <= forwardBottom) {
+                    return true
+                }
+            }
+            
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "检查按钮触摸位置失败", e)
+            return false
+        }
+    }
+    
     /**
      * 处理搜索tab手势遮罩区的触摸事件（简化版本，主要逻辑已移到触摸监听器中）
      */
