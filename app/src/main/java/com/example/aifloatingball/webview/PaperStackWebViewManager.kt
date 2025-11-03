@@ -311,6 +311,19 @@ class PaperStackWebViewManager(
                 // 重新排序标签页数组（只更新视觉位置，不改变数组顺序）
                 reorderTabs(currentTabIndex, targetIndex)
                 
+                // 检查目标标签页的错误状态，确保背景正确设置
+                if (targetTab.webView is PaperWebView) {
+                    if (targetTab.webView.isErrorState) {
+                        // 如果目标标签页处于错误状态，确保背景是不透明的白色
+                        Log.d(TAG, "切换到错误状态的标签页，设置背景为白色: ${targetTab.title}")
+                        targetTab.webView.setBackgroundColor(Color.WHITE)
+                    } else {
+                        // 如果目标标签页正常，确保背景透明
+                        Log.d(TAG, "切换到正常标签页，设置背景为透明: ${targetTab.title}")
+                        targetTab.webView.setBackgroundColor(Color.TRANSPARENT)
+                    }
+                }
+                
                 // 通知监听器
                 onTabSwitchedListener?.invoke(targetTab, currentTabIndex)
                 
@@ -1261,6 +1274,7 @@ class PaperStackWebViewManager(
 
     private inner class PaperWebView(context: Context) : WebView(context) {
         var stackIndex = 0
+        var isErrorState = false // 标记是否处于错误状态
         
         init {
             setupTabStyle()
@@ -1465,8 +1479,26 @@ class PaperStackWebViewManager(
                     return false
                 }
                 
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    
+                    // 新页面开始加载：重置错误状态，恢复透明背景
+                    if (view is PaperWebView) {
+                        Log.d(TAG, "页面开始加载，重置错误状态并恢复透明背景: $url")
+                        view.isErrorState = false
+                        // 恢复透明背景，避免之前的错误状态影响
+                        view.setBackgroundColor(Color.TRANSPARENT)
+                    }
+                }
+                
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    
+                    // 页面加载完成：如果成功加载（非错误状态），确保背景透明
+                    if (view is PaperWebView && !view.isErrorState) {
+                        Log.d(TAG, "页面加载完成，确保透明背景: $url")
+                        view.setBackgroundColor(Color.TRANSPARENT)
+                    }
                     
                     // 保存历史访问记录（精准记录每次访问）
                     if (url != null && url.isNotEmpty() && !url.startsWith("javascript:") && url != "about:blank") {
@@ -1532,6 +1564,17 @@ class PaperStackWebViewManager(
                                 return
                             }
                         }
+                        
+                        // 主框架加载错误：设置WebView背景为不透明的白色，避免透视下方页面
+                        Log.d(TAG, "检测到主框架错误，设置WebView背景为白色，避免透明背景透视问题")
+                        if (view is PaperWebView) {
+                            view.setBackgroundColor(Color.WHITE)
+                            // 标记为错误状态
+                            view.isErrorState = true
+                        } else {
+                            // 如果不是PaperWebView，仍然设置背景，但无法标记状态
+                            view?.setBackgroundColor(Color.WHITE)
+                        }
                     }
                     
                     super.onReceivedError(view, request, error)
@@ -1557,6 +1600,21 @@ class PaperStackWebViewManager(
                                 handleSpecialSchemeUrl(failingUrl, view)
                                 // 不调用 super.onReceivedError，避免显示错误页面和可能的循环
                                 return
+                            }
+                        }
+                    }
+                    
+                    // 主框架加载错误：设置WebView背景为不透明的白色，避免透视下方页面
+                    if (failingUrl != null && errorCode != -2) {
+                        // 排除特殊scheme错误，只处理真正的网络错误
+                        val lower = failingUrl.lowercase()
+                        val isNetworkUrl = lower.startsWith("http://") || lower.startsWith("https://")
+                        if (isNetworkUrl) {
+                            Log.d(TAG, "检测到网络错误 (legacy)，设置WebView背景为白色，避免透明背景透视问题")
+                            view?.setBackgroundColor(Color.WHITE)
+                            // 标记为错误状态
+                            if (view is PaperWebView) {
+                                view.isErrorState = true
                             }
                         }
                     }

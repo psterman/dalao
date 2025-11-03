@@ -20668,7 +20668,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             message.append("1️⃣ 长按搜索tab图标 → 激活/退出遮罩层\n")
             message.append("2️⃣ 遮罩层中单击搜索tab → 激活多卡片系统\n")
             message.append("3️⃣ 遮罩层中单击其他tab → 退出遮罩层并切换页面\n")
-            message.append("4️⃣ 遮罩层中左右滑动 → 切换网页页面\n")
+            message.append("4️⃣ 遮罩层中左右滑动 → 前进/后退\n")
             message.append("5️⃣ 遮罩层中双击 → 关闭当前页面\n\n")
 
             // 检查当前状态
@@ -21359,7 +21359,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 ⚡ 快捷操作：
                 • 点击搜索tab → 多卡片管理
                 • 点击其他tab → 快速切换页面
-                • 左右滑动 → 切换网页
+                • 左右滑动 → 前进/后退
                 • 双击 → 关闭当前网页
 
                 💡 随时长按搜索tab可退出手势区
@@ -21415,25 +21415,50 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 判断手势方向和速度（优化识别逻辑）
             when {
-                // 水平滑动 - 页面卡片切换
+                // 水平滑动 - 页面卡片切换或前进后退
                 // 条件：水平距离大于垂直距离 且 (水平速度大于阈值 或 水平距离足够大)
                 absDeltaX > absDeltaY && (absVelocityX > 300 || absDeltaX > 80) -> {
-                    Log.d(TAG, "检测到水平滑动手势")
-                    if (deltaX > 30) { // 降低距离要求
-                        // 向右滑动 - 切换到下一个页面卡片
-                        Log.d(TAG, "向右滑动")
-                        performGestureVibration("swipe") // 滑动震动反馈
-                        handleNextPageCardGesture()
-                        return true
-                    } else if (deltaX < -30) {
-                        // 向左滑动 - 切换到上一个页面卡片
-                        Log.d(TAG, "向左滑动")
-                        performGestureVibration("swipe") // 滑动震动反馈
-                        handlePreviousPageCardGesture()
-                        return true
+                    Log.d(TAG, "检测到水平滑动手势，遮罩层激活状态: $isSearchTabGestureOverlayActive")
+                    
+                    // 如果遮罩层已激活，使用前进后退功能；否则使用页面切换功能
+                    if (isSearchTabGestureOverlayActive) {
+                        // 遮罩层激活时：左右滑动控制前进后退
+                        if (deltaX > 30) {
+                            // 向右滑动 - 网页后退
+                            Log.d(TAG, "向右滑动 - 网页后退")
+                            performGestureVibration("swipe") // 滑动震动反馈
+                            goBackInCurrentWebView()
+                            showSearchTabSwipeIndicator("后退")
+                            return true
+                        } else if (deltaX < -30) {
+                            // 向左滑动 - 网页前进
+                            Log.d(TAG, "向左滑动 - 网页前进")
+                            performGestureVibration("swipe") // 滑动震动反馈
+                            goForwardInCurrentWebView()
+                            showSearchTabSwipeIndicator("前进")
+                            return true
+                        } else {
+                            Log.d(TAG, "滑动距离不足: deltaX=$deltaX")
+                            return false
+                        }
                     } else {
-                        Log.d(TAG, "滑动距离不足: deltaX=$deltaX")
-                        return false
+                        // 遮罩层未激活时：左右滑动切换页面卡片（保持原有逻辑）
+                        if (deltaX > 30) {
+                            // 向右滑动 - 切换到下一个页面卡片
+                            Log.d(TAG, "向右滑动 - 切换到下一个页面卡片")
+                            performGestureVibration("swipe") // 滑动震动反馈
+                            handleNextPageCardGesture()
+                            return true
+                        } else if (deltaX < -30) {
+                            // 向左滑动 - 切换到上一个页面卡片
+                            Log.d(TAG, "向左滑动 - 切换到上一个页面卡片")
+                            performGestureVibration("swipe") // 滑动震动反馈
+                            handlePreviousPageCardGesture()
+                            return true
+                        } else {
+                            Log.d(TAG, "滑动距离不足: deltaX=$deltaX")
+                            return false
+                        }
                     }
                 }
                 else -> {
