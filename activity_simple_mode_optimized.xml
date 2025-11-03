@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    优化版本：借鉴微信的ViewStub延迟加载策略
+    只加载对话tab的布局，其他tab使用ViewStub延迟加载
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/simple_mode_main_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background_light">
+
+    <!-- ==================== 对话页面 ==================== -->
+    <!-- 保留内联，因为这是默认显示的tab，需要立即加载 -->
+    <LinearLayout
+        android:id="@+id/chat_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="visible"
+        android:background="@color/chat_background_light">
+
+        <!-- 搜索栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:background="@color/chat_header_background_light"
+            android:paddingHorizontal="16dp"
+            android:gravity="center_vertical">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/chat_search_background_light">
+
+                <EditText
+                    android:id="@+id/chat_search_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:hint="搜索"
+                    android:textColorHint="@color/chat_search_hint_light"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:textSize="14sp"
+                    android:paddingHorizontal="16dp"
+                    android:singleLine="true"
+                    android:imeOptions="actionSearch" />
+            </androidx.cardview.widget.CardView>
+
+            <ImageButton
+                android:id="@+id/chat_add_contact_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_add"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                app:tint="@color/simple_mode_accent_light" />
+        </LinearLayout>
+
+        <!-- 联系人列表 - 使用include复用布局 -->
+        <include
+            layout="@layout/layout_chat_contact_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <!-- ==================== 其他页面 - 使用ViewStub延迟加载 ==================== -->
+    
+    <!-- AI助手中心 -->
+    <ViewStub
+        android:id="@+id/ai_assistant_center_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_ai_assistant_center" />
+
+    <!-- 任务选择 -->
+    <ViewStub
+        android:id="@+id/task_selection_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_task_selection" />
+
+    <!-- 步骤引导 -->
+    <ViewStub
+        android:id="@+id/step_guidance_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_step_guidance" />
+
+    <!-- Prompt预览 -->
+    <ViewStub
+        android:id="@+id/prompt_preview_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_prompt_preview" />
+
+    <!-- 语音页面 -->
+    <ViewStub
+        android:id="@+id/voice_layout_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_voice_page" />
+
+    <!-- 应用搜索页面 -->
+    <ViewStub
+        android:id="@+id/app_search_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_app_search" />
+
+    <!-- 浏览器页面 -->
+    <ViewStub
+        android:id="@+id/browser_layout_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_browser_page" />
+
+    <!-- 设置页面 -->
+    <ViewStub
+        android:id="@+id/settings_layout_stub"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout="@layout/layout_settings_page" />
+
+    <!-- ==================== 底部导航栏 ==================== -->
+    <!-- 底部导航栏始终可见，保留内联 -->
+    <LinearLayout
+        android:id="@+id/bottom_navigation"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:background="@color/simple_mode_tab_background_light"
+        android:gravity="center"
+        android:elevation="8dp"
+        android:paddingVertical="8dp">
+
+        <!-- 对话tab -->
+        <LinearLayout
+            android:id="@+id/tab_chat"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_chat"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="对话"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- AI助手中心tab -->
+        <LinearLayout
+            android:id="@+id/tab_ai_assistant"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_assistant"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="助手"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- 浏览器tab -->
+        <LinearLayout
+            android:id="@+id/tab_browser"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_browser"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="浏览器"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- 应用搜索tab -->
+        <LinearLayout
+            android:id="@+id/tab_app_search"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_apps"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="软件"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- 设置tab -->
+        <LinearLayout
+            android:id="@+id/tab_settings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_settings"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="设置"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>
+

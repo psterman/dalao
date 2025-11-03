@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 语音页面布局 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/voice_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/simple_mode_background_light"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- 三段式胶囊布局容器 -->
+        <include
+            android:id="@+id/voice_capsule_container"
+            layout="@layout/voice_capsule_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- 原始语音布局 -->
+        <LinearLayout
+            android:id="@+id/voice_original_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- 顶部标题区域 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_marginBottom="32dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="语音助手"
+                    android:textSize="28sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/voice_hint_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="点击麦克风开始语音输入，或直接编辑文本"
+                    android:textSize="16sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:gravity="center"
+                    android:alpha="0.8" />
+            </LinearLayout>
+
+            <!-- 麦克风区域 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_marginBottom="32dp">
+
+                <!-- 麦克风按钮 -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/voice_mic_container"
+                    android:layout_width="140dp"
+                    android:layout_height="140dp"
+                    android:layout_marginBottom="16dp"
+                    app:cardBackgroundColor="@color/simple_mode_accent_light"
+                    app:cardCornerRadius="70dp"
+                    app:cardElevation="12dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:rippleColor="@android:color/white">
+
+                    <ImageView
+                        android:id="@+id/voice_mic_icon"
+                        android:layout_width="64dp"
+                        android:layout_height="64dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_mic"
+                        app:tint="@android:color/white" />
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 状态指示器 -->
+                <com.example.aifloatingball.ui.WaveformView
+                    android:id="@+id/voice_waveform"
+                    android:layout_width="200dp"
+                    android:layout_height="40dp"
+                    android:layout_marginBottom="16dp"
+                    android:visibility="gone" />
+
+                <!-- 状态文本 -->
+                <TextView
+                    android:id="@+id/voice_status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="准备就绪"
+                    android:textSize="18sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:textStyle="bold"
+                    android:gravity="center" />
+            </LinearLayout>
+
+            <!-- 文本输入区域 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/voice_text_input_layout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="16dp"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:hint="语音识别结果或手动输入"
+                    app:boxStrokeColor="@color/simple_mode_accent_light"
+                    app:hintTextColor="@color/simple_mode_accent_light"
+                    app:endIconMode="clear_text">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/voice_text_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minLines="4"
+                        android:maxLines="8"
+                        android:gravity="top|start"
+                        android:textSize="16sp"
+                        android:textColor="@color/simple_mode_input_text_light"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:scrollbars="vertical" />
+                </com.google.android.material.textfield.TextInputLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 功能选项区域 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/voice_settings_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="语音设置"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- 交互模式切换 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="8dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/voice_interaction_mode_icon"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_click"
+                            app:tint="@color/simple_mode_accent_light"
+                            android:layout_marginEnd="16dp" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="交互模式"
+                                android:textSize="16sp"
+                                android:textColor="@color/simple_mode_text_primary_light" />
+
+                            <TextView
+                                android:id="@+id/voice_interaction_mode_desc"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="点击模式：点击开始/停止录音"
+                                android:textSize="14sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <!-- 使用Material Design开关替代箭头按钮 -->
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/voice_interaction_mode_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            style="@style/SimpleModeSwitch" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 操作按钮区域 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="8dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/voice_clear_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:text="清空"
+                    android:textSize="16sp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:strokeColor="@color/simple_mode_accent_light"
+                    android:textColor="@color/simple_mode_accent_light"
+                    app:icon="@drawable/ic_clear"
+                    app:iconGravity="textStart" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/voice_search_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="开始搜索"
+                    android:textSize="16sp"
+                    android:backgroundTint="@color/simple_mode_accent_light"
+                    android:textColor="@color/simple_mode_button_text_light"
+                    app:icon="@drawable/ic_search"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

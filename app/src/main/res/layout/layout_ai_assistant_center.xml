@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AI助手中心页面布局 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/ai_assistant_center_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/ai_assistant_center_background_light">
+
+    <!-- 标签导航 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/ai_center_tab_layout"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/ai_assistant_tab_background"
+        app:tabTextColor="@color/ai_assistant_tab_unselected"
+        app:tabSelectedTextColor="@color/ai_assistant_primary"
+        app:tabIndicatorColor="@color/ai_assistant_primary"
+        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorGravity="bottom"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabTextAppearance="@style/AIAssistantTabTextAppearance"
+        app:tabRippleColor="@color/ai_assistant_primary_container_light">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="任务"
+            android:icon="@drawable/ic_home" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="基础信息"
+            android:icon="@drawable/ic_edit" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI指令"
+            android:icon="@drawable/ic_person" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="API设置"
+            android:icon="@drawable/ic_settings" />
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- 内容区域 -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/ai_center_view_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:nestedScrollingEnabled="true"
+        android:overScrollMode="never" />
+
+</LinearLayout>

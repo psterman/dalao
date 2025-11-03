@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Prompt预览页面布局 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/prompt_preview_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/simple_mode_background_light">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="生成的搜索指令"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="@color/simple_mode_text_primary_light"
+        android:layout_marginBottom="16dp" />
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/final_prompt_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="这里将显示最终生成的搜索指令..."
+                android:textSize="16sp"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:lineSpacingExtra="4dp" />
+        </ScrollView>
+    </androidx.cardview.widget.CardView>
+
+    <TextView
+        android:id="@+id/recommended_engines_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="推荐引擎：DeepSeek、ChatGPT"
+        android:textSize="14sp"
+        android:textColor="@color/simple_mode_text_secondary_light"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 执行按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/back_to_tasks_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="重新选择任务"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:textColor="@color/simple_mode_button_primary_light" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/execute_search_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="开始搜索"
+            android:backgroundTint="@color/simple_mode_button_primary_light"
+            android:textColor="@color/simple_mode_button_text_light" />
+    </LinearLayout>
+</LinearLayout>

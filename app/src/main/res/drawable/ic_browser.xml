@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 浏览器图标 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- 浏览器窗口轮廓 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M20,4L4,4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2L22,6c0,-1.1 -0.9,-2 -2,-2zM20,18L4,18L4,8h16v10z"/>
+    
+    <!-- 地址栏 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M6,6h12v2H6V6z"/>
+    
+    <!-- 浏览器内容 -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M6,10h6v2H6v-2zM6,13h10v2H6v-2z"/>
+</vector>

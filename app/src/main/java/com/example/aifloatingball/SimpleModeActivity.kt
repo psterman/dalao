@@ -739,8 +739,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var draggableEngineAdapter: com.example.aifloatingball.adapter.DraggableSearchEngineAdapter
     private lateinit var browserExitButton: Button
     private lateinit var browserLetterIndexBar: com.example.aifloatingball.view.LetterIndexBar
-    private lateinit var browserSearchEngineSelector: MaterialSearchEngineSelector
-    private lateinit var browserPreviewCardsButton: MaterialButton
     private lateinit var browserGestureOverlay: FrameLayout
     private lateinit var browserGestureHintClose: MaterialButton
     private lateinit var cardPreviewOverlay: CardPreviewOverlay
@@ -1785,8 +1783,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserPreviewEngineList = findViewById(R.id.browser_preview_engine_list)
         browserExitButton = findViewById(R.id.browser_exit_button)
         browserLetterIndexBar = findViewById(R.id.browser_letter_index_bar)
-        browserSearchEngineSelector = findViewById(R.id.browser_search_engine_selector)
-        browserPreviewCardsButton = findViewById(R.id.browser_preview_cards_button)
         browserGestureOverlay = findViewById(R.id.browser_gesture_overlay)
         browserGestureHintClose = findViewById(R.id.browser_gesture_hint_close)
 
@@ -6284,8 +6280,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化搜索引擎
         initializeBrowserSearchEngine()
 
-        // 设置搜索引擎选择器
-        setupBrowserSearchEngineSelector()
+        // 搜索引擎选择器已从布局中删除，不再需要设置
+        // setupBrowserSearchEngineSelector()
 
         // 设置卡片预览功能
         setupCardPreviewFeature()
@@ -7382,39 +7378,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 设置浏览器搜索引擎选择器
+     * 已从布局中删除，此方法不再使用
      */
     private fun setupBrowserSearchEngineSelector() {
-        Log.d(TAG, "开始设置浏览器搜索引擎选择器")
-
-        browserSearchEngineSelector.setOnEngineClickListener(object : MaterialSearchEngineSelector.OnEngineClickListener {
-            override fun onEngineClick(engine: MaterialSearchEngineSelector.SearchEngine) {
-                Log.d(TAG, "搜索引擎按钮被点击: ${engine.displayName}")
-
-                // 获取搜索框中的文本
-                val searchText = browserSearchInput.text.toString().trim()
-                Log.d(TAG, "搜索框文本: '$searchText'")
-
-                if (searchText.isNotEmpty()) {
-                    // 如果有搜索文本，执行搜索
-                    val searchUrl = engine.getSearchUrl(searchText)
-                    Log.d(TAG, "执行搜索，URL: $searchUrl")
-                    loadBrowserContent(searchUrl)
-
-                    // 高亮选中的搜索引擎
-                    browserSearchEngineSelector.highlightEngine(engine.name)
-
-                    Log.d(TAG, "使用${engine.displayName}搜索: $searchText")
-                } else {
-                    // 如果没有搜索文本，打开搜索引擎主页
-                    Log.d(TAG, "打开搜索引擎主页，URL: ${engine.url}")
-                    loadBrowserContent(engine.url)
-
-                    Log.d(TAG, "打开${engine.displayName}主页")
-                }
-            }
-        })
-
-        Log.d(TAG, "浏览器搜索引擎选择器设置完成")
+        // 搜索引擎选择器已从布局中删除，此方法不再需要
+        Log.d(TAG, "搜索引擎选择器已从布局中删除，跳过设置")
     }
 
     /**
@@ -7437,12 +7405,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         Log.d(TAG, "卡片预览覆盖层已添加到根布局")
 
-        // 设置卡片预览按钮点击事件
-		browserPreviewCardsButton.setOnClickListener {
-			// 需求变更：点击九宫格按钮不再激活后台卡片预览
-			Log.d(TAG, "左上角九宫格按钮被点击，但不触发卡片预览")
-			// 可在此放置其它期望行为，例如打开菜单或忽略点击
-		}
 
         // 设置卡片预览覆盖层监听器
         cardPreviewOverlay.setOnCardClickListener(object : CardPreviewOverlay.OnCardClickListener {
@@ -8448,13 +8410,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 检查Activity状态
             if (isFinishing || isDestroyed) {
-                Log.w(TAG, "Activity正在结束或已销毁，跳过显示新建卡片弹窗")
+                Log.w(TAG, "Activity正在结束或已销毁，跳过显示新建卡片弹窗，直接创建空白卡片")
+                createNewBlankCard()
                 return
             }
             
             // 检查FragmentManager状态
             if (supportFragmentManager.isStateSaved) {
-                Log.w(TAG, "FragmentManager状态已保存，跳过显示新建卡片弹窗")
+                Log.w(TAG, "FragmentManager状态已保存，跳过显示新建卡片弹窗，直接创建空白卡片")
+                createNewBlankCard()
                 return
             }
             
@@ -8570,6 +8534,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hideAllOverlays()
             clearAllOverlays()
 
+            // 如果是空白页面，显示主页而不是创建WebView
+            if (url == "about:blank" || url.isEmpty()) {
+                Log.d(TAG, "检测到空白URL，显示主页")
+                showBrowserHome()
+                return
+            }
+
             // 确保PaperStackWebViewManager已初始化
             if (paperStackWebViewManager == null) {
                 setupBrowserWebView()
@@ -8615,52 +8586,110 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun createNewBlankCard() {
         try {
-            Log.d(TAG, "创建空白卡片")
+            Log.d(TAG, "创建空白卡片 - 显示主页")
 
             // 先隐藏所有覆盖层
             hideAllOverlays()
             clearAllOverlays()
 
-            // 确保PaperStackWebViewManager已初始化
-            if (paperStackWebViewManager == null) {
-                setupBrowserWebView()
-            }
-
-            // 使用PaperStackWebViewManager统一创建空白标签页
-            val newTab = paperStackWebViewManager?.addTab("about:blank", "新标签页")
+            // 显示主页内容（带按钮的主页）
+            showBrowserHome()
             
-            if (newTab != null) {
-                Log.d(TAG, "空白标签页创建成功: ${newTab.id}")
-
-                // 检查标签页总数
-                val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
-                Log.d(TAG, "当前标签页数量: $tabCount")
-
-                // 显示成功提示
-                Toast.makeText(this, "空白标签页已创建 (总计: $tabCount)", Toast.LENGTH_SHORT).show()
-
-                // 隐藏主页内容，显示纸堆界面
-                browserHomeContent.visibility = View.GONE
-                browserTabContainer.visibility = View.GONE
-
-                // 同步所有卡片系统数据
-                syncAllCardSystems()
-
-                // 创建标签页后自动显示预览卡片系统
-                showNewCardPreview()
-
-                // 确保UI状态正确切换
-                browserLayout.post {
-                    forceRefreshUIState()
-                }
-            } else {
-                Log.e(TAG, "空白标签页创建失败")
-                Toast.makeText(this, "创建空白标签页失败", Toast.LENGTH_SHORT).show()
-            }
+            Log.d(TAG, "已显示主页内容，用户可以通过主页按钮进行操作")
 
         } catch (e: Exception) {
-            Log.e(TAG, "创建空白卡片时发生错误", e)
-            Toast.makeText(this, "创建空白标签页时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "显示主页时发生错误", e)
+            Toast.makeText(this, "显示主页时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在悬浮卡片场景中创建新的WebView卡片（备用方案）
+     */
+    private fun createNewWebViewCardForFloatingCard() {
+        try {
+            Log.d(TAG, "在悬浮卡片中创建新的WebView卡片")
+            
+            // 优先使用 gestureCardWebViewManager
+            val newCard = gestureCardWebViewManager?.addNewCard("about:blank")
+            if (newCard != null) {
+                Log.d(TAG, "通过 gestureCardWebViewManager 创建新卡片成功")
+                Toast.makeText(this, "已创建新卡片", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 如果 gestureCardWebViewManager 不可用，尝试使用 paperStackWebViewManager
+            val newTab = paperStackWebViewManager?.addTab("about:blank", "新标签页")
+            if (newTab != null) {
+                Log.d(TAG, "通过 paperStackWebViewManager 创建新标签页成功")
+                Toast.makeText(this, "已创建新标签页", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 如果都不可用，显示主页
+            Log.w(TAG, "无法创建WebView卡片，显示主页作为备用")
+            showBrowserHome()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "创建新WebView卡片时发生错误", e)
+            Toast.makeText(this, "创建卡片失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 从历史记录条目添加到收藏
+     */
+    private fun addBookmarkFromHistoryEntry(entry: com.example.aifloatingball.model.HistoryEntry) {
+        try {
+            val sharedPrefs = getSharedPreferences("browser_bookmarks", Context.MODE_PRIVATE)
+            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
+            
+            // 使用Gson解析现有收藏
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
+            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<com.example.aifloatingball.model.BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // 检查是否已存在相同URL的收藏（忽略大小写）
+            val existingIndex = bookmarksList.indexOfFirst { 
+                it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)
+            }
+            if (existingIndex >= 0) {
+                Toast.makeText(this, "该网址已在收藏中", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "收藏已存在: ${entry.url}")
+                return
+            }
+            
+            Log.d(TAG, "添加收藏: title=${entry.title}, url=${entry.url}")
+            
+            // 创建新的收藏条目
+            val bookmarkEntry = com.example.aifloatingball.model.BookmarkEntry(
+                id = "bookmark_${System.currentTimeMillis()}",
+                title = entry.title,
+                url = entry.url,
+                folder = "从历史添加",
+                createTime = java.util.Date()
+            )
+            
+            // 添加到列表开头
+            bookmarksList.add(0, bookmarkEntry)
+            
+            // 保存到SharedPreferences
+            val updatedJson = gson.toJson(bookmarksList)
+            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+            
+            Log.d(TAG, "收藏保存成功")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "添加到收藏失败", e)
+            throw e // 重新抛出异常，让调用者处理
         }
     }
 
@@ -8834,12 +8863,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 隐藏四分之一圆弧操作栏（在主页不需要）
         quarterArcOperationBar?.hide()
 
-        // 确保搜索引擎选择器完全可用
-        browserSearchEngineSelector.visibility = View.VISIBLE
-        browserSearchEngineSelector.isEnabled = true
-        browserSearchEngineSelector.isClickable = true
-        browserSearchEngineSelector.isFocusable = true
-        browserSearchEngineSelector.alpha = 1.0f
+        // 搜索引擎选择器已从布局中删除，无需设置
 
         // 确保底部按钮也可用
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { newBtn ->
@@ -8849,12 +8873,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             newBtn.alpha = 1.0f
         }
 
-        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_preview_cards_button)?.let { cardsBtn ->
-            cardsBtn.visibility = View.VISIBLE
-            cardsBtn.isEnabled = true
-            cardsBtn.isClickable = true
-            cardsBtn.alpha = 1.0f
-        }
 
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.let { gestureBtn ->
             gestureBtn.visibility = View.VISIBLE
@@ -8868,14 +8886,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 恢复默认搜索引擎图标
         updateSearchTabIcon()
 
-        Log.d(TAG, "显示浏览器主页，搜索引擎选择器已启用")
+        Log.d(TAG, "显示浏览器主页")
 
         // 调试信息：检查各组件的状态
         Log.d(TAG, "主页组件状态检查:")
         Log.d(TAG, "- browserHomeContent.visibility: ${browserHomeContent.visibility}")
-        Log.d(TAG, "- browserSearchEngineSelector.visibility: ${browserSearchEngineSelector.visibility}")
-        Log.d(TAG, "- browserSearchEngineSelector.isEnabled: ${browserSearchEngineSelector.isEnabled}")
-        Log.d(TAG, "- browserSearchEngineSelector.isClickable: ${browserSearchEngineSelector.isClickable}")
+        Log.d(TAG, "- browserSearchEngineSelector: 已从布局中删除")
 
         // 检查底部按钮状态
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { btn ->
@@ -8885,7 +8901,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
 
         // 确保手势提示覆盖层不会干扰
-        findViewById<FrameLayout>(R.id.browser_gesture_overlay)?.let { overlay ->
+        findViewById<FrameLayout >(R.id.browser_gesture_overlay)?.let { overlay ->
             overlay.visibility = View.GONE
             Log.d(TAG, "- 手势提示覆盖层已隐藏")
         }
@@ -8943,13 +8959,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun testTouchability() {
         Log.d(TAG, "开始测试触摸能力")
 
-        // 测试搜索引擎选择器
-        Log.d(TAG, "搜索引擎选择器状态:")
-        Log.d(TAG, "- visibility: ${browserSearchEngineSelector.visibility}")
-        Log.d(TAG, "- isEnabled: ${browserSearchEngineSelector.isEnabled}")
-        Log.d(TAG, "- isClickable: ${browserSearchEngineSelector.isClickable}")
-        Log.d(TAG, "- isFocusable: ${browserSearchEngineSelector.isFocusable}")
-        Log.d(TAG, "- alpha: ${browserSearchEngineSelector.alpha}")
+        // 测试搜索引擎选择器（已从布局中删除）
+        Log.d(TAG, "搜索引擎选择器状态: 已从布局中删除")
 
         // 测试底部按钮
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { btn ->
@@ -18338,8 +18349,99 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 设置新建卡片请求监听器
                 setOnNewCardRequestedListener {
-                    // 显示新建卡片选择弹窗
-                    showNewCardSelectionDialog()
+                    Log.d(TAG, "📱 悬浮卡片中的新建按钮被点击")
+                    try {
+                        // 显示新建卡片选择弹窗
+                        showNewCardSelectionDialog()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "显示新建卡片弹窗失败，尝试直接创建新WebView卡片", e)
+                        // 如果对话框无法显示，直接创建新的WebView卡片作为备用方案
+                        try {
+                            createNewWebViewCardForFloatingCard()
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "创建新卡片也失败", e2)
+                            Toast.makeText(this@SimpleModeActivity, "创建卡片失败，请重试", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                
+                // 设置卡片收藏监听器
+                setOnCardFavoriteListener { cardIndex, url ->
+                    Log.d(TAG, "⭐ 悬浮卡片中的收藏按钮被点击: index=$cardIndex, url=$url")
+                    try {
+                        if (url.isNullOrBlank()) {
+                            Toast.makeText(this@SimpleModeActivity, "无法收藏：URL为空", Toast.LENGTH_SHORT).show()
+                            return@setOnCardFavoriteListener
+                        }
+                        
+                        // 从统一卡片数据中获取卡片标题
+                        val allCards = getAllUnifiedCards()
+                        val cardTitle = try {
+                            // 优先从索引获取
+                            if (cardIndex >= 0 && cardIndex < allCards.size) {
+                                val card = allCards[cardIndex]
+                                val cardUrl = card.url ?: ""
+                                if (card.title.isNotEmpty() && card.title != "新标签页" && card.title != "加载中...") {
+                                    card.title
+                                } else {
+                                    cardUrl.ifEmpty { "未命名页面" }
+                                }
+                            } else {
+                                // 如果索引无效，从URL查找
+                                val foundCard = allCards.firstOrNull { 
+                                    val cardUrl = it.url ?: ""
+                                    cardUrl == url || cardUrl.equals(url, ignoreCase = true)
+                                }
+                                if (foundCard != null) {
+                                    val cardTitle = foundCard.title
+                                    if (cardTitle.isNotEmpty() && cardTitle != "新标签页" && cardTitle != "加载中...") {
+                                        cardTitle
+                                    } else {
+                                        url
+                                    }
+                                } else {
+                                    url
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "获取卡片标题失败，使用URL作为标题", e)
+                            url
+                        }
+                        
+                        // 创建历史记录条目用于收藏
+                        val historyEntry = com.example.aifloatingball.model.HistoryEntry(
+                            id = System.currentTimeMillis().toString(),
+                            title = cardTitle,
+                            url = url,
+                            visitTime = java.util.Date()
+                        )
+                        
+                        // 添加到收藏
+                        addBookmarkFromHistoryEntry(historyEntry)
+                        Toast.makeText(this@SimpleModeActivity, "已添加到收藏", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "收藏卡片失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                
+                // 设置复制网址监听器
+                setOnCardCopyUrlListener { cardIndex, url ->
+                    Log.d(TAG, "📋 悬浮卡片中的复制网址按钮被点击: index=$cardIndex, url=$url")
+                    try {
+                        if (url.isNullOrBlank()) {
+                            Toast.makeText(this@SimpleModeActivity, "无法复制：URL为空", Toast.LENGTH_SHORT).show()
+                            return@setOnCardCopyUrlListener
+                        }
+                        
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("URL", url)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this@SimpleModeActivity, "网址已复制", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "复制网址失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "复制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
 

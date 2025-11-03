@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+    对话页面布局 - 从activity_simple_mode.xml中提取
+    这是默认显示的tab，需要立即加载
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/chat_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/chat_background_light">
+
+    <!-- 搜索栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/chat_header_background_light"
+        android:paddingHorizontal="16dp"
+        android:gravity="center_vertical">
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/chat_search_background_light">
+
+            <EditText
+                android:id="@+id/chat_search_input"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@null"
+                android:hint="搜索"
+                android:textColorHint="@color/chat_search_hint_light"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:textSize="14sp"
+                android:paddingHorizontal="16dp"
+                android:singleLine="true"
+                android:imeOptions="actionSearch"
+                android:focusable="false"
+                android:focusableInTouchMode="false" />
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- TTS朗读开关按钮 -->
+        <ImageButton
+            android:id="@+id/simple_mode_tts_toggle_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:contentDescription="朗读开关"
+            android:scaleType="fitCenter"
+            app:tint="@color/chat_add_button_light" />
+
+        <!-- AI助手按钮 -->
+        <ImageButton
+            android:id="@+id/chat_ai_assistant_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_ai_assistant"
+            android:contentDescription="AI助手档案"
+            android:scaleType="fitCenter"
+            app:tint="@color/chat_add_button_light" />
+
+        <ImageButton
+            android:id="@+id/chat_add_contact_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_add_circle"
+            app:tint="@color/chat_add_button_light" />
+
+    </LinearLayout>
+
+    <!-- 分类标签 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/chat_tab_layout"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="@color/chat_tab_background_light"
+        app:tabTextColor="@color/chat_tab_unselected_light"
+        app:tabSelectedTextColor="@color/chat_tab_selected_light"
+        app:tabIndicatorColor="@color/chat_tab_selected_light"
+        app:tabIndicatorHeight="2dp"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabTextAppearance="@style/ChatTabTextAppearance" />
+
+    <!-- 联系人列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chat_contacts_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/chat_background_light"
+        android:clipToPadding="false"
+        android:paddingTop="1dp" />
+
+</LinearLayout>
+

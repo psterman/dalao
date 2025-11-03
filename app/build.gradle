@@ -20,12 +20,16 @@ android {
     
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true  // 启用代码压缩，减少APK大小30-50%
+            shrinkResources true  // 启用资源压缩，移除未使用的资源
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 启用资源压缩时可能会移除一些动态加载的资源，需要keep这些资源
+            resValue "string", "app_name", "AI助手"
         }
         debug {
             debuggable false  // 禁用调试模式，避免"Waiting For Debugger"问题
-            minifyEnabled false
+            minifyEnabled false  // Debug版本不压缩，便于调试
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
