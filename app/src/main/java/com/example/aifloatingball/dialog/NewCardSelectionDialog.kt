@@ -4,12 +4,14 @@ import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.FragmentManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
@@ -20,6 +22,10 @@ import com.example.aifloatingball.model.BookmarkEntry
 import com.example.aifloatingball.model.HistoryEntry
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
+import com.example.aifloatingball.SettingsManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlin.math.abs
 
 /**
  * 新建卡片选择弹窗
@@ -188,6 +194,9 @@ class NewCardSelectionDialog(
         // 获取真实的历史数据
         val historyData = getRealHistoryData()
         
+        val settingsManager = SettingsManager.getInstance(context)
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+        
         val adapter = HistoryEntryAdapter(
             entries = historyData,
             onItemClick = { entry ->
@@ -196,11 +205,23 @@ class NewCardSelectionDialog(
             },
             onMoreClick = { entry ->
                 showHistoryMoreMenu(entry)
-            }
+            },
+            onSwipeFavorite = { entry ->
+                // 收藏操作
+                addToBookmarks(entry)
+            },
+            onSwipeDelete = { entry ->
+                // 删除操作
+                deleteHistoryEntryFromSharedPreferences(entry)
+            },
+            isLeftHandedMode = isLeftHanded
         )
         
         recyclerView.layoutManager = LinearLayoutManager(context)
         recyclerView.adapter = adapter
+        
+        // 设置滑动功能
+        setupHistorySwipe(recyclerView, adapter)
         
         // 更新空状态
         if (adapter.itemCount == 0) {
@@ -247,6 +268,9 @@ class NewCardSelectionDialog(
         // 获取真实的收藏数据
         val bookmarkData = getRealBookmarkData()
         
+        val settingsManager = SettingsManager.getInstance(context)
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+        
         val adapter = BookmarkEntryAdapter(
             entries = bookmarkData,
             onItemClick = { entry ->
@@ -255,11 +279,23 @@ class NewCardSelectionDialog(
             },
             onMoreClick = { entry ->
                 showBookmarkMoreMenu(entry)
-            }
+            },
+            onSwipeEdit = { entry ->
+                // 编辑操作
+                editBookmarkEntry(entry)
+            },
+            onSwipeDelete = { entry ->
+                // 删除操作
+                deleteBookmarkEntry(entry)
+            },
+            isLeftHandedMode = isLeftHanded
         )
         
         recyclerView.layoutManager = LinearLayoutManager(context)
         recyclerView.adapter = adapter
+        
+        // 设置滑动功能
+        setupBookmarkSwipe(recyclerView, adapter)
         
         // 更新空状态
         if (adapter.itemCount == 0) {
@@ -615,6 +651,231 @@ class NewCardSelectionDialog(
     }
 
     /**
+     * 设置历史访问页面滑动功能
+     */
+    private fun setupHistorySwipe(recyclerView: RecyclerView, adapter: HistoryEntryAdapter) {
+        var swipeHistoryLastDx: Float = 0f
+        var swipeHistoryLastTime: Long = 0L
+        val settingsManager = SettingsManager.getInstance(context)
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+        
+        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            0, if (isLeftHanded) ItemTouchHelper.RIGHT else ItemTouchHelper.LEFT
+        ) {
+            override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+                val swipeFlags = if (isLeftHanded) ItemTouchHelper.RIGHT else ItemTouchHelper.LEFT
+                return makeMovementFlags(0, swipeFlags)
+            }
+
+            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
+                return false
+            }
+            
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                // 不删除，防止触发删除动画
+            }
+            
+            override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float {
+                return 0.5f
+            }
+            
+            override fun getSwipeEscapeVelocity(defaultValue: Float): Float {
+                return defaultValue * 2f
+            }
+            
+            /**
+             * 在开始滑动之前检查是否应该允许滑动
+             */
+            override fun isItemViewSwipeEnabled(): Boolean {
+                return true
+            }
+            
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                if (viewHolder is HistoryEntryAdapter.ViewHolder) {
+                    val velocityX = if (swipeHistoryLastTime > 0 && abs(swipeHistoryLastDx) > 0) {
+                        val timeDiff = System.currentTimeMillis() - swipeHistoryLastTime
+                        if (timeDiff > 0) abs(swipeHistoryLastDx) / timeDiff * 1000 else 0f
+                    } else 0f
+                    
+                    adapter.handleSwipeEnd(viewHolder, swipeHistoryLastDx, velocityX)
+                    swipeHistoryLastDx = 0f
+                    swipeHistoryLastTime = 0L
+                }
+            }
+            
+            override fun onChildDraw(
+                c: android.graphics.Canvas,
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                dX: Float,
+                dY: Float,
+                actionState: Int,
+                isCurrentlyActive: Boolean
+            ) {
+                if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE && viewHolder is HistoryEntryAdapter.ViewHolder) {
+                    swipeHistoryLastDx = dX
+                    swipeHistoryLastTime = System.currentTimeMillis()
+                    
+                    val maxSwipe = 120f * recyclerView.context.resources.displayMetrics.density
+                    // 限制滑动方向：普通模式只允许左滑（负数），左撇子模式只允许右滑（正数）
+                    val limitedDx = if (isLeftHanded) {
+                        dX.coerceIn(0f, maxSwipe) // 左撇子模式：只允许右滑
+                    } else {
+                        dX.coerceIn(-maxSwipe, 0f) // 普通模式：只允许左滑
+                    }
+                    adapter.handleSwipe(viewHolder, limitedDx, isCurrentlyActive)
+                    
+                    // 使用0作为dX传给super，因为我们已经手动处理了translationX
+                    super.onChildDraw(c, recyclerView, viewHolder, 0f, dY, actionState, isCurrentlyActive)
+                    return
+                }
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            }
+        })
+        
+        // 在 RecyclerView 上添加触摸监听器，检测按钮区域的触摸事件
+        recyclerView.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 检测触摸点是否在按钮区域内
+                    val x = event.x
+                    val y = event.y
+                    
+                    // 遍历所有可见的子视图，检查触摸点是否在已滑动项的按钮区域
+                    for (i in 0 until recyclerView.childCount) {
+                        val child = recyclerView.getChildAt(i)
+                        val viewHolder = recyclerView.getChildViewHolder(child)
+                        if (viewHolder is HistoryEntryAdapter.ViewHolder) {
+                            val translationX = viewHolder.cardContent.translationX
+                            if (abs(translationX) >= 10f) {
+                                // 卡片已经滑动，检查触摸点是否在按钮区域
+                                val buttonAreaWidth = 120f * view.context.resources.displayMetrics.density
+                                val itemLeft = child.left
+                                val itemRight = child.right
+                                val itemTop = child.top
+                                val itemBottom = child.bottom
+                                
+                                val isOnButton = if (isLeftHanded) {
+                                    val buttonLeft = itemLeft.toFloat()
+                                    val buttonRight = itemLeft + buttonAreaWidth
+                                    x >= buttonLeft && x <= buttonRight && y >= itemTop && y <= itemBottom
+                                } else {
+                                    val buttonLeft = itemRight - buttonAreaWidth
+                                    val buttonRight = itemRight.toFloat()
+                                    x >= buttonLeft && x <= buttonRight && y >= itemTop && y <= itemBottom
+                                }
+                                
+                                if (isOnButton) {
+                                    // 触摸点在按钮区域，禁止 RecyclerView 和 ItemTouchHelper 拦截事件
+                                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                                    recyclerView.requestDisallowInterceptTouchEvent(true)
+                                    // 暂时分离 ItemTouchHelper，让按钮可以接收事件
+                                    itemTouchHelper.attachToRecyclerView(null)
+                                    android.util.Log.d("NewCardSelectionDialog", "检测到按钮区域触摸，禁用滑动")
+                                    return@setOnTouchListener false // 让子视图处理事件
+                                }
+                            }
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    // 恢复事件拦截和 ItemTouchHelper
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                    recyclerView.requestDisallowInterceptTouchEvent(false)
+                    // 延迟重新附加 ItemTouchHelper，确保按钮点击事件完成
+                    recyclerView.post {
+                        itemTouchHelper.attachToRecyclerView(recyclerView)
+                    }
+                }
+            }
+            false // 不消费事件，让 RecyclerView 正常处理
+        }
+        
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+    }
+
+    /**
+     * 设置收藏页面滑动功能
+     */
+    private fun setupBookmarkSwipe(recyclerView: RecyclerView, adapter: BookmarkEntryAdapter) {
+        var swipeBookmarkLastDx: Float = 0f
+        var swipeBookmarkLastTime: Long = 0L
+        val settingsManager = SettingsManager.getInstance(context)
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+        
+        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            0, if (isLeftHanded) ItemTouchHelper.RIGHT else ItemTouchHelper.LEFT
+        ) {
+            override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+                val swipeFlags = if (isLeftHanded) ItemTouchHelper.RIGHT else ItemTouchHelper.LEFT
+                return makeMovementFlags(0, swipeFlags)
+            }
+
+            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
+                return false
+            }
+            
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                // 不删除，防止触发删除动画
+            }
+            
+            override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float {
+                return 0.5f
+            }
+            
+            override fun getSwipeEscapeVelocity(defaultValue: Float): Float {
+                return defaultValue * 2f
+            }
+            
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                if (viewHolder is BookmarkEntryAdapter.ViewHolder) {
+                    val velocityX = if (swipeBookmarkLastTime > 0 && abs(swipeBookmarkLastDx) > 0) {
+                        val timeDiff = System.currentTimeMillis() - swipeBookmarkLastTime
+                        if (timeDiff > 0) abs(swipeBookmarkLastDx) / timeDiff * 1000 else 0f
+                    } else 0f
+                    
+                    adapter.handleSwipeEnd(viewHolder, swipeBookmarkLastDx, velocityX)
+                    swipeBookmarkLastDx = 0f
+                    swipeBookmarkLastTime = 0L
+                }
+            }
+            
+            override fun onChildDraw(
+                c: android.graphics.Canvas,
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                dX: Float,
+                dY: Float,
+                actionState: Int,
+                isCurrentlyActive: Boolean
+            ) {
+                if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE && viewHolder is BookmarkEntryAdapter.ViewHolder) {
+                    swipeBookmarkLastDx = dX
+                    swipeBookmarkLastTime = System.currentTimeMillis()
+                    
+                    val maxSwipe = 120f * recyclerView.context.resources.displayMetrics.density
+                    // 限制滑动方向：普通模式只允许左滑（负数），左撇子模式只允许右滑（正数）
+                    val limitedDx = if (isLeftHanded) {
+                        dX.coerceIn(0f, maxSwipe) // 左撇子模式：只允许右滑
+                    } else {
+                        dX.coerceIn(-maxSwipe, 0f) // 普通模式：只允许左滑
+                    }
+                    adapter.handleSwipe(viewHolder, limitedDx, isCurrentlyActive)
+                    
+                    // 使用0作为dX传给super，因为我们已经手动处理了translationX
+                    super.onChildDraw(c, recyclerView, viewHolder, 0f, dY, actionState, isCurrentlyActive)
+                    return
+                }
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
+            }
+        })
+        
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+    }
+
+    /**
      * 复制到剪贴板
      */
     private fun copyToClipboard(text: String) {
@@ -628,28 +889,102 @@ class NewCardSelectionDialog(
     }
 
     /**
-     * 删除历史记录
+     * 删除历史记录（从SharedPreferences）
      */
-    private fun deleteHistoryEntry(entry: HistoryEntry) {
+    private fun deleteHistoryEntryFromSharedPreferences(entry: HistoryEntry) {
         try {
-            val searchHistoryManager = com.example.aifloatingball.SearchHistoryManager.getInstance(context)
+            // 如果是“搜索历史”项，优先从 SearchHistoryManager 中删除
+            run {
+                val isSearchItem = try {
+                    entry.id.startsWith("search_") || entry.title.startsWith("搜索:") || entry.url.contains("?q=") || entry.url.contains("&q=")
+                } catch (_: Exception) { false }
+                if (isSearchItem) {
+                    var query: String? = null
+                    if (entry.title.startsWith("搜索:")) {
+                        query = entry.title.removePrefix("搜索:").trim()
+                    }
+                    if (query.isNullOrEmpty()) {
+                        try {
+                            val uri = android.net.Uri.parse(entry.url)
+                            query = uri.getQueryParameter("q")
+                        } catch (_: Exception) {}
+                    }
+                    if (!query.isNullOrEmpty()) {
+                        com.example.aifloatingball.SearchHistoryManager.getInstance(context)
+                            .removeSearchHistoryByQuery(query!!)
+                        android.widget.Toast.makeText(context, "搜索记录已删除", android.widget.Toast.LENGTH_SHORT).show()
+                        refreshCurrentPage()
+                        return
+                    }
+                }
+            }
+            val sharedPrefs = context.getSharedPreferences("browser_history", android.content.Context.MODE_PRIVATE)
+            val historyJson = sharedPrefs.getString("history_data", "[]")
             
-            // 从标题中提取搜索关键词
-            val query = if (entry.title.startsWith("搜索: ")) {
-                entry.title.substring(4) // 移除"搜索: "前缀
+            // 使用Gson解析历史记录
+            val gson = Gson()
+            val type = object : TypeToken<MutableList<HistoryEntry>>() {}.type
+            val historyList = if (historyJson != null && historyJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<HistoryEntry>>(historyJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
             } else {
-                entry.title
+                mutableListOf()
             }
             
-            searchHistoryManager.removeSearchHistory(query, "com.example.aifloatingball")
-            android.widget.Toast.makeText(context, "历史记录已删除", android.widget.Toast.LENGTH_SHORT).show()
+            // 删除匹配的记录（优先匹配ID，如果ID为空则匹配URL和标题）
+            val initialSize = historyList.size
+            android.util.Log.d("NewCardSelectionDialog", "删除历史记录前: 总数=${initialSize}, 要删除的条目: id=${entry.id}, url=${entry.url}, title=${entry.title}")
             
-            // 刷新历史页面
-            showHistoryPage()
+            // 先尝试通过ID删除
+            var removed = false
+            if (entry.id.isNotEmpty()) {
+                val wasRemoved = historyList.removeAll { it.id == entry.id }
+                if (wasRemoved) {
+                    removed = true
+                    android.util.Log.d("NewCardSelectionDialog", "通过ID删除历史记录成功")
+                }
+            }
+            
+            // 如果通过ID没有删除成功，尝试通过URL和标题匹配
+            if (!removed) {
+                val wasRemoved = historyList.removeAll { 
+                    (it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)) && 
+                    (it.title == entry.title || it.title.equals(entry.title, ignoreCase = true))
+                }
+                if (wasRemoved) {
+                    removed = true
+                    android.util.Log.d("NewCardSelectionDialog", "通过URL和标题删除历史记录成功")
+                }
+            }
+            
+            if (removed && historyList.size < initialSize) {
+                // 保存更新后的历史记录
+                val updatedJson = gson.toJson(historyList)
+                sharedPrefs.edit().putString("history_data", updatedJson).apply()
+                
+                android.util.Log.d("NewCardSelectionDialog", "删除历史记录后: 总数=${historyList.size}")
+                android.widget.Toast.makeText(context, "历史记录已删除", android.widget.Toast.LENGTH_SHORT).show()
+                
+                // 刷新当前页面显示
+                refreshCurrentPage()
+            } else {
+                android.util.Log.w("NewCardSelectionDialog", "未找到要删除的历史记录: id=${entry.id}, url=${entry.url}, title=${entry.title}")
+                android.widget.Toast.makeText(context, "未找到该记录", android.widget.Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "删除历史记录失败", e)
             android.widget.Toast.makeText(context, "删除失败", android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    /**
+     * 删除历史记录（旧方法，保留兼容性）
+     */
+    private fun deleteHistoryEntry(entry: HistoryEntry) {
+        deleteHistoryEntryFromSharedPreferences(entry)
     }
 
     /**
@@ -660,6 +995,31 @@ class NewCardSelectionDialog(
             val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
             val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
             
+            // 使用Gson解析现有收藏
+            val gson = Gson()
+            val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
+            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // 检查是否已存在相同URL的收藏（忽略大小写）
+            val existingIndex = bookmarksList.indexOfFirst { 
+                it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)
+            }
+            if (existingIndex >= 0) {
+                android.widget.Toast.makeText(context, "该网址已在收藏中", android.widget.Toast.LENGTH_SHORT).show()
+                android.util.Log.d("NewCardSelectionDialog", "收藏已存在: ${entry.url}")
+                return
+            }
+            
+            android.util.Log.d("NewCardSelectionDialog", "添加收藏: title=${entry.title}, url=${entry.url}")
+            
             // 创建新的收藏条目
             val bookmarkEntry = BookmarkEntry(
                 id = "bookmark_${System.currentTimeMillis()}",
@@ -669,8 +1029,17 @@ class NewCardSelectionDialog(
                 createTime = java.util.Date()
             )
             
-            // 这里简化处理，实际应该用Gson等库
+            // 添加到列表开头
+            bookmarksList.add(0, bookmarkEntry)
+            
+            // 保存到SharedPreferences
+            val updatedJson = gson.toJson(bookmarksList)
+            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+            
             android.widget.Toast.makeText(context, "已添加到收藏", android.widget.Toast.LENGTH_SHORT).show()
+            
+            // 刷新当前页面显示（如果是历史页面，需要更新历史记录；如果是收藏页面，需要更新收藏列表）
+            refreshCurrentPage()
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "添加到收藏失败", e)
             android.widget.Toast.makeText(context, "添加失败", android.widget.Toast.LENGTH_SHORT).show()
@@ -685,11 +1054,59 @@ class NewCardSelectionDialog(
             val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
             val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
             
-            // 这里简化处理，实际应该用Gson等库
-            android.widget.Toast.makeText(context, "收藏已删除", android.widget.Toast.LENGTH_SHORT).show()
+            // 使用Gson解析收藏
+            val gson = Gson()
+            val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
+            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
             
-            // 刷新收藏页面
-            showBookmarksPage()
+            // 删除匹配的记录（优先匹配ID，如果ID为空则匹配URL和标题）
+            val initialSize = bookmarksList.size
+            android.util.Log.d("NewCardSelectionDialog", "删除收藏前: 总数=${initialSize}, 要删除的条目: id=${entry.id}, url=${entry.url}, title=${entry.title}")
+            
+            // 先尝试通过ID删除
+            var removed = false
+            if (entry.id.isNotEmpty()) {
+                val wasRemoved = bookmarksList.removeAll { it.id == entry.id }
+                if (wasRemoved) {
+                    removed = true
+                    android.util.Log.d("NewCardSelectionDialog", "通过ID删除成功")
+                }
+            }
+            
+            // 如果通过ID没有删除成功，尝试通过URL和标题匹配
+            if (!removed) {
+                val wasRemoved = bookmarksList.removeAll { 
+                    (it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)) && 
+                    (it.title == entry.title || it.title.equals(entry.title, ignoreCase = true))
+                }
+                if (wasRemoved) {
+                    removed = true
+                    android.util.Log.d("NewCardSelectionDialog", "通过URL和标题删除成功")
+                }
+            }
+            
+            if (removed && bookmarksList.size < initialSize) {
+                // 保存更新后的收藏
+                val updatedJson = gson.toJson(bookmarksList)
+                sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+                
+                android.util.Log.d("NewCardSelectionDialog", "删除收藏后: 总数=${bookmarksList.size}")
+                android.widget.Toast.makeText(context, "收藏已删除", android.widget.Toast.LENGTH_SHORT).show()
+                
+                // 刷新当前页面显示
+                refreshCurrentPage()
+            } else {
+                android.util.Log.w("NewCardSelectionDialog", "未找到要删除的收藏: id=${entry.id}, url=${entry.url}, title=${entry.title}")
+                android.widget.Toast.makeText(context, "未找到该收藏", android.widget.Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "删除收藏失败", e)
             android.widget.Toast.makeText(context, "删除失败", android.widget.Toast.LENGTH_SHORT).show()
@@ -704,16 +1121,15 @@ class NewCardSelectionDialog(
             val input = android.widget.EditText(context)
             input.setText(entry.title)
             input.setHint("输入新的标题")
+            input.setSingleLine(true)
             
             val builder = android.app.AlertDialog.Builder(context)
                 .setTitle("编辑收藏")
                 .setView(input)
                 .setPositiveButton("保存") { _, _ ->
                     val newTitle = input.text.toString().trim()
-                    if (newTitle.isNotEmpty()) {
-                        // 这里简化处理，实际应该更新数据库
-                        android.widget.Toast.makeText(context, "收藏已更新", android.widget.Toast.LENGTH_SHORT).show()
-                        showBookmarksPage()
+                    if (newTitle.isNotEmpty() && newTitle != entry.title) {
+                        updateBookmarkTitle(entry, newTitle)
                     }
                 }
                 .setNegativeButton("取消", null)
@@ -722,6 +1138,50 @@ class NewCardSelectionDialog(
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "编辑收藏失败", e)
             android.widget.Toast.makeText(context, "编辑失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 更新收藏标题
+     */
+    private fun updateBookmarkTitle(entry: BookmarkEntry, newTitle: String) {
+        try {
+            val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
+            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
+            
+            // 使用Gson解析收藏
+            val gson = Gson()
+            val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
+            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // 更新匹配的记录
+            val index = bookmarksList.indexOfFirst { it.id == entry.id || (it.url == entry.url && it.title == entry.title) }
+            if (index >= 0) {
+                val updatedEntry = bookmarksList[index].copy(title = newTitle)
+                bookmarksList[index] = updatedEntry
+                
+                // 保存更新后的收藏
+                val updatedJson = gson.toJson(bookmarksList)
+                sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+                
+                android.widget.Toast.makeText(context, "收藏已更新", android.widget.Toast.LENGTH_SHORT).show()
+                
+                // 刷新当前页面显示
+                refreshCurrentPage()
+            } else {
+                android.widget.Toast.makeText(context, "未找到该收藏", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NewCardSelectionDialog", "更新收藏失败", e)
+            android.widget.Toast.makeText(context, "更新失败", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -809,6 +1269,72 @@ class NewCardSelectionDialog(
     }
 
     /**
+     * 刷新当前页面显示
+     */
+    private fun refreshCurrentPage() {
+        try {
+            // 根据当前选中的Tab刷新对应的页面
+            val selectedTab = tabLayout.selectedTabPosition
+            
+            if (selectedTab == 0) {
+                // 历史页面
+                val recyclerView = contentContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rv_history)
+                val emptyLayout = contentContainer.findViewById<LinearLayout>(R.id.layout_empty_history)
+                
+                if (recyclerView != null) {
+                    val adapter = recyclerView.adapter as? com.example.aifloatingball.adapter.HistoryEntryAdapter
+                    if (adapter != null) {
+                        val historyData = getRealHistoryData()
+                        adapter.updateEntries(historyData)
+                        
+                        // 更新空状态显示
+                        if (emptyLayout != null) {
+                            emptyLayout.visibility = if (historyData.isEmpty()) {
+                                android.view.View.VISIBLE
+                            } else {
+                                android.view.View.GONE
+                            }
+                            recyclerView.visibility = if (historyData.isEmpty()) {
+                                android.view.View.GONE
+                            } else {
+                                android.view.View.VISIBLE
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 收藏页面
+                val recyclerView = contentContainer.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rv_bookmarks)
+                val emptyLayout = contentContainer.findViewById<LinearLayout>(R.id.layout_empty_bookmarks)
+                
+                if (recyclerView != null) {
+                    val adapter = recyclerView.adapter as? com.example.aifloatingball.adapter.BookmarkEntryAdapter
+                    if (adapter != null) {
+                        val bookmarkData = getRealBookmarkData()
+                        adapter.updateEntries(bookmarkData)
+                        
+                        // 更新空状态显示
+                        if (emptyLayout != null) {
+                            emptyLayout.visibility = if (bookmarkData.isEmpty()) {
+                                android.view.View.VISIBLE
+                            } else {
+                                android.view.View.GONE
+                            }
+                            recyclerView.visibility = if (bookmarkData.isEmpty()) {
+                                android.view.View.GONE
+                            } else {
+                                android.view.View.VISIBLE
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NewCardSelectionDialog", "刷新当前页面失败", e)
+        }
+    }
+    
+    /**
      * 更新历史记录显示
      */
     private fun updateHistoryDisplay(historyData: List<HistoryEntry>) {
@@ -841,39 +1367,26 @@ class NewCardSelectionDialog(
      */
     private fun getRealBookmarkData(): List<BookmarkEntry> {
         return try {
-            // 从SharedPreferences或数据库获取收藏数据
+            // 从SharedPreferences获取收藏数据
             val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
             val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
             
-            if (bookmarksJson.isNullOrEmpty()) {
-                // 如果没有收藏数据，返回一些默认的常用网站
-                listOf(
-                    BookmarkEntry(
-                        id = "default_1",
-                        title = "Google 搜索",
-                        url = "https://www.google.com",
-                        folder = "常用网站",
-                        createTime = java.util.Date()
-                    ),
-                    BookmarkEntry(
-                        id = "default_2",
-                        title = "百度搜索", 
-                        url = "https://www.baidu.com",
-                        folder = "常用网站",
-                        createTime = java.util.Date()
-                    )
-                )
+            if (bookmarksJson.isNullOrEmpty() || bookmarksJson == "[]") {
+                // 如果没有收藏数据，返回空列表
+                emptyList()
             } else {
-                // 解析JSON数据（这里简化处理，实际应该用Gson等库）
-                listOf(
-                    BookmarkEntry(
-                        id = "parsed_1",
-                        title = "收藏的网站",
-                        url = "https://www.google.com",
-                        folder = "默认文件夹",
-                        createTime = java.util.Date()
-                    )
-                )
+                // 使用Gson解析JSON数据
+                val gson = Gson()
+                val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
+                val bookmarksList = try {
+                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    android.util.Log.e("NewCardSelectionDialog", "解析收藏数据失败", e)
+                    mutableListOf()
+                }
+                
+                android.util.Log.d("NewCardSelectionDialog", "获取到 ${bookmarksList.size} 条收藏数据")
+                bookmarksList
             }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "获取收藏数据失败", e)

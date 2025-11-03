@@ -956,14 +956,7 @@ class SearchActivity : AppCompatActivity() {
                 return
             }
             
-            // 先同步数据，确保卡片内容加载完成后再显示（避免空白）
-            // 动态加载页面内容，确保卡片不显示白屏
-            ensureCardContentLoaded()
-            
-            // 同步数据
-            syncAllCardSystems()
-            
-            // 数据同步完成后，再显示StackedCardPreview（确保卡片可见，不出现空白）
+            // 立即显示StackedCardPreview（确保快速响应）
             stackedCardPreview?.visibility = View.VISIBLE
             
             // 立即建立触摸隔膜
@@ -974,6 +967,18 @@ class SearchActivity : AppCompatActivity() {
             
             // 立即强制刷新显示
             stackedCardPreview?.invalidate()
+            
+            // 在后台异步加载内容和同步数据（不阻塞显示）
+            handler.post {
+                // 动态加载页面内容，确保卡片不显示白屏
+                ensureCardContentLoaded()
+                
+                // 同步数据
+                syncAllCardSystems()
+                
+                // 数据同步完成后再次刷新
+                stackedCardPreview?.invalidate()
+            }
             
             Log.d("SearchActivity", "StackedCardPreview已立即激活并显示，隔膜已建立")
             

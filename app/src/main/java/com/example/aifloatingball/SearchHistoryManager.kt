@@ -101,6 +101,19 @@ class SearchHistoryManager private constructor(private val context: Context) {
         historyList.removeAll { it.query == query && it.packageName == packageName }
         saveSearchHistory(historyList)
     }
+
+    /**
+     * 按关键词删除搜索历史（不区分应用），用于弹窗里从“历史访问”删除搜索记录
+     */
+    fun removeSearchHistoryByQuery(query: String) {
+        val target = query.trim()
+        if (target.isEmpty()) return
+        val historyList = getSearchHistory().toMutableList()
+        val filtered = historyList.filterNot { it.query.equals(target, ignoreCase = true) }
+        if (filtered.size != historyList.size) {
+            saveSearchHistory(filtered)
+        }
+    }
     
     /**
      * 设置默认搜索选项
