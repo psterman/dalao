@@ -866,197 +866,246 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var appVersionText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val onCreateStartTime = System.currentTimeMillis()
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "onCreate called")
         
-        // 设置单例实例
+        // 设置单例实例（必须在主线程）
         INSTANCE = this
 
-        // 初始化SettingsManager
+        // ==================== 关键路径：只做必需的初始化 ====================
+        // 初始化SettingsManager（必须在主线程，但很快）
         settingsManager = SettingsManager.getInstance(this)
         
-        // 注册档案变更监听器
-        settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key, value ->
-            Log.d(TAG, "档案列表已更新，重新加载档案选择器")
-            // 如果当前有档案选择器显示，需要刷新
-            refreshProfileSelectorIfVisible()
-        }
-
-        // 初始化触摸冲突解决器
-        touchConflictResolver = TouchConflictResolver(this)
-
-        // 初始化统一群聊管理器
-        unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this)
-        
-        // 设置数据变更监听器
-        unifiedGroupChatManager.addDataChangeListener(this)
-
-        // 初始化语音提示分支管理器
-        promptBranchManager = VoicePromptBranchManager(this, this)
-        // 关键：从设置中读取并应用保存的交互模式
-        val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
-        promptBranchManager.interactionMode = if (savedMode == "DRAG") {
-            VoicePromptBranchManager.InteractionMode.DRAG
-        } else {
-            VoicePromptBranchManager.InteractionMode.CLICK
-        }
-        
-        // 初始化统一WebView管理器
-        unifiedWebViewManager = UnifiedWebViewManager()
-
-        // 确保 SimpleModeService 不在运行
-        if (SimpleModeService.isRunning(this)) {
-            Log.d(TAG, "SimpleModeService is running, stopping it")
-            stopService(Intent(this, SimpleModeService::class.java))
-        }
-
-        // 确保我们处于简易模式显示模式
-        val previousMode = settingsManager.getDisplayMode()
-        Log.d(TAG, "Previous display mode: $previousMode, setting to simple_mode")
-        settingsManager.setDisplayMode("simple_mode")
-
-        // 检查权限状态
-        checkOverlayPermission()
-
-        // 应用主题设置
+        // 应用主题设置（必须在 setContentView 之前）
         applyTheme()
 
         // 使用优化布局，实现秒启动
-        val startTime = System.currentTimeMillis()
+        val layoutStartTime = System.currentTimeMillis()
         setContentView(R.layout.activity_simple_mode_optimized)
-        Log.d(TAG, "布局加载耗时: ${System.currentTimeMillis() - startTime}ms")
+        Log.d(TAG, "布局加载耗时: ${System.currentTimeMillis() - layoutStartTime}ms")
 
-        // 立即显示界面，只初始化对话 tab
+        // 立即显示界面，只初始化对话 tab（关键路径）
+        val initStartTime = System.currentTimeMillis()
         initializeChatLayoutOnly()
+        Log.d(TAG, "对话布局初始化耗时: ${System.currentTimeMillis() - initStartTime}ms")
         
-        // 延迟初始化其他组件，不阻塞 UI 显示
-        handler.post {
-            // 应用UI颜色（只更新已加载的视图）
-            updateUIColorsOptimized()
-            
-            // 初始化震动管理器
-            initializeVibrator()
-            
-            // 延迟初始化其他 tab（使用 ViewStub）
-            initializeOtherTabsLazy()
-            
-            // 延迟初始化非关键功能
-            handler.postDelayed({
-                initializeNonCriticalComponents()
-            }, 300)
-        }
-        
-        // 立即显示对话 tab
+        // 立即显示对话 tab（关键路径）
         showChat()
         
-        // 初始化TTS管理器
-        initializeTTS()
-
-        // 注册API密钥同步广播接收器
-        setupApiKeySyncReceiver()
-
-        // 处理从小组件传入的参数
-        handleWidgetIntent(intent)
-
-        // 注册添加AI联系人广播接收器
-        setupAddAIContactReceiver()
+        // 记录关键路径耗时
+        Log.d(TAG, "关键路径总耗时: ${System.currentTimeMillis() - onCreateStartTime}ms")
         
-        // 注册AI对话更新广播接收器
-        setupAIChatUpdateReceiver()
-        
-        // 启动文件监听同步机制
-        startFileSyncMonitoring()
-        
-        // 启动定时强制同步机制
-        startPeriodicSync()
-        
-        // 注册广播接收器
-        registerBroadcastReceiver()
-        
-        // 注册链接操作广播接收器
-        setupLinkActionReceiver()
-        
-        // 注册群聊创建广播接收器
-        setupGroupChatCreatedReceiver()
-        
-        // 调试：检查所有AI的数据状态
-        debugAllAIData()
-        
-        // 添加测试按钮来手动刷新数据（已禁用）
-        // addTestRefreshButton()
-
-        // 检查是否需要恢复之前的状态
-        val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
-        if (savedState != null) {
-            Log.d(TAG, "Restoring saved state: $savedState")
-            restoreState(savedState)
-
-            // 恢复额外的状态信息
-            handler.postDelayed({
-                try {
-                    // 检查Activity状态
-                    if (isFinishing || isDestroyed) {
-                        Log.w(TAG, "Activity正在销毁，跳过状态恢复")
-                        return@postDelayed
-                    }
-
-                    // 恢复手势区状态
-                    val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
-                    if (gestureOverlayActive && currentState == UIState.BROWSER) {
-                        Log.d(TAG, "恢复手势区激活状态")
-                        activateSearchTabGestureOverlay()
-                    }
-
-                    // 恢复多卡片预览状态
-                    val stackedPreviewVisible = savedInstanceState.getBoolean("stacked_preview_visible", false)
-                    if (stackedPreviewVisible && currentState == UIState.BROWSER) {
-                        Log.d(TAG, "恢复多卡片预览状态")
-                        activateStackedCardPreview()
-                    }
-
-                    // 恢复WebView滚动位置
-                    val savedUrl = savedInstanceState.getString("current_webview_url")
-                    val scrollX = savedInstanceState.getInt("current_webview_scroll_x", 0)
-                    val scrollY = savedInstanceState.getInt("current_webview_scroll_y", 0)
-
-                    if (savedUrl != null && (scrollX != 0 || scrollY != 0)) {
-                        val currentCard = gestureCardWebViewManager?.getCurrentCard()
-                        val currentWebView = currentCard?.webView
-                        if (currentWebView?.url == savedUrl) {
-                            currentWebView.scrollTo(scrollX, scrollY)
-                            Log.d(TAG, "恢复WebView滚动位置: scrollX=$scrollX, scrollY=$scrollY")
-                        }
-                    }
-
-                } catch (e: Exception) {
-                    Log.e(TAG, "恢复额外状态失败", e)
+        // ==================== 后台初始化：在后台线程执行 ====================
+        // 使用后台线程初始化耗时组件，不阻塞 UI
+        Thread {
+            try {
+                val bgInitStartTime = System.currentTimeMillis()
+                
+                // 初始化统一群聊管理器（可能涉及数据库读取）
+                unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this@SimpleModeActivity)
+                
+                // 设置数据变更监听器（需要在主线程）
+                handler.post {
+                    unifiedGroupChatManager.addDataChangeListener(this@SimpleModeActivity)
                 }
-            }, 500) // 延迟确保UI完全初始化
+                
+                // 初始化统一WebView管理器
+                unifiedWebViewManager = UnifiedWebViewManager()
 
-        } else {
-            // 检查是否有保存的悬浮卡片状态
-            val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
-            val savedCardUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
-            
-            Log.d(TAG, "onCreate: 检查保存的悬浮卡片状态")
-            Log.d(TAG, "onCreate: savedCardUrls = $savedCardUrls")
-            Log.d(TAG, "onCreate: savedCardUrls?.size = ${savedCardUrls?.size}")
-            
-            if (savedCardUrls?.isNotEmpty() == true) {
-                Log.d(TAG, "Found saved cards, showing browser")
-                showBrowser()
-            } else {
-                Log.d(TAG, "No saved state or cards, showing chat")
-                showChat()
+                // 初始化触摸冲突解决器
+                touchConflictResolver = TouchConflictResolver(this@SimpleModeActivity)
+
+                // 初始化语音提示分支管理器
+                promptBranchManager = VoicePromptBranchManager(this@SimpleModeActivity, this@SimpleModeActivity)
+                
+                // 从设置中读取并应用保存的交互模式
+                val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
+                promptBranchManager.interactionMode = if (savedMode == "DRAG") {
+                    VoicePromptBranchManager.InteractionMode.DRAG
+                } else {
+                    VoicePromptBranchManager.InteractionMode.CLICK
+                }
+                
+                // 注册档案变更监听器（需要在主线程）
+                handler.post {
+                    settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key, value ->
+                        Log.d(TAG, "档案列表已更新，重新加载档案选择器")
+                        refreshProfileSelectorIfVisible()
+                    }
+                }
+
+                // 确保我们处于简易模式显示模式
+                val previousMode = settingsManager.getDisplayMode()
+                if (previousMode != "simple_mode") {
+                    settingsManager.setDisplayMode("simple_mode")
+                }
+
+                // 确保 SimpleModeService 不在运行
+                if (SimpleModeService.isRunning(this@SimpleModeActivity)) {
+                    Log.d(TAG, "SimpleModeService is running, stopping it")
+                    stopService(Intent(this@SimpleModeActivity, SimpleModeService::class.java))
+                }
+                
+                Log.d(TAG, "后台初始化耗时: ${System.currentTimeMillis() - bgInitStartTime}ms")
+                
+                // 在主线程执行 UI 相关初始化
+                handler.post {
+                    // 应用UI颜色（只更新已加载的视图）
+                    updateUIColorsOptimized()
+                    
+                    // 初始化震动管理器
+                    initializeVibrator()
+                    
+                    // 延迟初始化其他 tab（使用 ViewStub）
+                    initializeOtherTabsLazy()
+                    
+                    // 延迟初始化非关键功能
+                    handler.postDelayed({
+                        initializeNonCriticalComponents()
+                    }, 500)
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "后台初始化失败", e)
             }
-        }
+        }.start()
+        
+        // ==================== 延迟初始化：非关键功能 ====================
+        // 延迟到首次使用时再初始化（大幅提升启动速度）
+        handler.postDelayed({
+            try {
+                // 初始化TTS管理器（首次使用时再初始化）
+                // initializeTTS() // 延迟到首次使用 TTS 时再初始化
 
-        // 处理从其他地方传入的搜索内容
-        handleIntentData()
+                // 注册所有广播接收器（延迟执行）
+                setupApiKeySyncReceiver()
+                setupAddAIContactReceiver()
+                setupAIChatUpdateReceiver()
+                registerBroadcastReceiver()
+                setupLinkActionReceiver()
+                setupGroupChatCreatedReceiver()
 
-        // 初始化时应用左手模式布局方向
-        applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
+                // 启动文件监听同步机制（延迟执行）
+                startFileSyncMonitoring()
+                
+                // 启动定时强制同步机制（延迟执行）
+                startPeriodicSync()
+                
+                // 处理从小组件传入的参数（延迟执行）
+                handleWidgetIntent(intent)
+                
+                // 移除调试操作以提升性能（仅在 debug 版本启用）
+                // debugAllAIData()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "延迟初始化失败", e)
+            }
+        }, 1000) // 延迟 1 秒执行非关键初始化
+        
+        // ==================== 权限检查：延迟执行 ====================
+        // 检查权限状态（延迟执行，不阻塞启动）
+        handler.postDelayed({
+            checkOverlayPermission()
+        }, 200) // 延迟 200ms
+        
+        // ==================== 状态恢复：延迟执行 ====================
+        // 检查是否需要恢复之前的状态（延迟执行，不阻塞启动）
+        handler.postDelayed({
+            try {
+                val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
+                if (savedState != null) {
+                    Log.d(TAG, "Restoring saved state: $savedState")
+                    restoreState(savedState)
+
+                    // 恢复额外的状态信息
+                    handler.postDelayed({
+                        try {
+                            // 检查Activity状态
+                            if (isFinishing || isDestroyed) {
+                                Log.w(TAG, "Activity正在销毁，跳过状态恢复")
+                                return@postDelayed
+                            }
+
+                            // 恢复手势区状态
+                            val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
+                            if (gestureOverlayActive && currentState == UIState.BROWSER) {
+                                Log.d(TAG, "恢复手势区激活状态")
+                                activateSearchTabGestureOverlay()
+                            }
+
+                            // 恢复多卡片预览状态
+                            val stackedPreviewVisible = savedInstanceState.getBoolean("stacked_preview_visible", false)
+                            if (stackedPreviewVisible && currentState == UIState.BROWSER) {
+                                Log.d(TAG, "恢复多卡片预览状态")
+                                activateStackedCardPreview()
+                            }
+
+                            // 恢复WebView滚动位置
+                            val savedUrl = savedInstanceState.getString("current_webview_url")
+                            val scrollX = savedInstanceState.getInt("current_webview_scroll_x", 0)
+                            val scrollY = savedInstanceState.getInt("current_webview_scroll_y", 0)
+
+                            if (savedUrl != null && (scrollX != 0 || scrollY != 0)) {
+                                val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                                val currentWebView = currentCard?.webView
+                                if (currentWebView?.url == savedUrl) {
+                                    currentWebView.scrollTo(scrollX, scrollY)
+                                    Log.d(TAG, "恢复WebView滚动位置: scrollX=$scrollX, scrollY=$scrollY")
+                                }
+                            }
+
+                        } catch (e: Exception) {
+                            Log.e(TAG, "恢复额外状态失败", e)
+                        }
+                    }, 500) // 延迟确保UI完全初始化
+
+                } else {
+                    // 检查是否有保存的悬浮卡片状态（在后台线程读取）
+                    Thread {
+                        try {
+                            val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
+                            val savedCardUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
+                            
+                            handler.post {
+                                Log.d(TAG, "onCreate: 检查保存的悬浮卡片状态")
+                                Log.d(TAG, "onCreate: savedCardUrls = $savedCardUrls")
+                                Log.d(TAG, "onCreate: savedCardUrls?.size = ${savedCardUrls?.size}")
+                                
+                                if (savedCardUrls?.isNotEmpty() == true) {
+                                    Log.d(TAG, "Found saved cards, showing browser")
+                                    showBrowser()
+                                } else {
+                                    Log.d(TAG, "No saved state or cards, showing chat")
+                                    showChat()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "检查保存的悬浮卡片状态失败", e)
+                        }
+                    }.start()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "状态恢复失败", e)
+            }
+        }, 300) // 延迟 300ms 执行状态恢复
+        
+        // ==================== 其他初始化：延迟执行 ====================
+        // 处理从其他地方传入的搜索内容（延迟执行）
+        handler.postDelayed({
+            handleIntentData()
+        }, 800)
+
+        // 初始化时应用左手模式布局方向（延迟执行）
+        handler.postDelayed({
+            applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
+        }, 500)
+        
+        // 记录总启动耗时
+        handler.postDelayed({
+            Log.d(TAG, "onCreate 总耗时: ${System.currentTimeMillis() - onCreateStartTime}ms")
+        }, 2000)
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
