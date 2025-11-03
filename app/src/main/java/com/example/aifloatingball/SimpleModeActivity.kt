@@ -573,38 +573,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var lastRestoreCheckTime = 0L
     private val RESTORE_CHECK_INTERVAL = 3000L // 3秒间隔
 
-    // UI组件 - 支持延迟加载
+    // UI组件
     private lateinit var chatLayout: LinearLayout
-    // 其他布局改为可空类型，支持 ViewStub 延迟加载
-    private var aiAssistantCenterLayout: LinearLayout? = null
-    private var taskSelectionLayout: LinearLayout? = null
-    private var stepGuidanceLayout: LinearLayout? = null
-    private var promptPreviewLayout: LinearLayout? = null
-    private var voiceLayout: ScrollView? = null
-    private var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout? = null
-    private var browserLayout: androidx.drawerlayout.widget.DrawerLayout? = null
-    private var settingsLayout: ScrollView? = null
-    
-    // ViewStub 引用 - 用于延迟加载
-    private var aiAssistantCenterStub: android.view.ViewStub? = null
-    private var taskSelectionStub: android.view.ViewStub? = null
-    private var stepGuidanceStub: android.view.ViewStub? = null
-    private var promptPreviewStub: android.view.ViewStub? = null
-    private var voiceLayoutStub: android.view.ViewStub? = null
-    private var appSearchStub: android.view.ViewStub? = null
-    private var browserLayoutStub: android.view.ViewStub? = null
-    private var settingsLayoutStub: android.view.ViewStub? = null
-    
-    // 标记页面是否已初始化
-    private var isChatInitialized = false
-    private var isAIAssistantInitialized = false
-    private var isTaskSelectionInitialized = false
-    private var isStepGuidanceInitialized = false
-    private var isPromptPreviewInitialized = false
-    private var isVoiceInitialized = false
-    private var isAppSearchInitialized = false
-    private var isBrowserInitialized = false
-    private var isSettingsInitialized = false
+    private lateinit var aiAssistantCenterLayout: LinearLayout
+    private lateinit var taskSelectionLayout: LinearLayout
+    private lateinit var stepGuidanceLayout: LinearLayout
+    private lateinit var promptPreviewLayout: LinearLayout
+    private lateinit var voiceLayout: ScrollView
+    private lateinit var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
+    private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
+    private lateinit var settingsLayout: ScrollView
     // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
 
     // AI助手中心组件
@@ -866,246 +844,182 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var appVersionText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val onCreateStartTime = System.currentTimeMillis()
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "onCreate called")
         
-        // 设置单例实例（必须在主线程）
+        // 设置单例实例
         INSTANCE = this
 
-        // ==================== 关键路径：只做必需的初始化 ====================
-        // 初始化SettingsManager（必须在主线程，但很快）
+        // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
         
-        // 应用主题设置（必须在 setContentView 之前）
+        // 注册档案变更监听器
+        settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key, value ->
+            Log.d(TAG, "档案列表已更新，重新加载档案选择器")
+            // 如果当前有档案选择器显示，需要刷新
+            refreshProfileSelectorIfVisible()
+        }
+
+        // 初始化触摸冲突解决器
+        touchConflictResolver = TouchConflictResolver(this)
+
+        // 初始化统一群聊管理器
+        unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this)
+        
+        // 设置数据变更监听器
+        unifiedGroupChatManager.addDataChangeListener(this)
+
+        // 初始化语音提示分支管理器
+        promptBranchManager = VoicePromptBranchManager(this, this)
+        // 关键：从设置中读取并应用保存的交互模式
+        val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
+        promptBranchManager.interactionMode = if (savedMode == "DRAG") {
+            VoicePromptBranchManager.InteractionMode.DRAG
+        } else {
+            VoicePromptBranchManager.InteractionMode.CLICK
+        }
+        
+        // 初始化统一WebView管理器
+        unifiedWebViewManager = UnifiedWebViewManager()
+
+        // 确保 SimpleModeService 不在运行
+        if (SimpleModeService.isRunning(this)) {
+            Log.d(TAG, "SimpleModeService is running, stopping it")
+            stopService(Intent(this, SimpleModeService::class.java))
+        }
+
+        // 确保我们处于简易模式显示模式
+        val previousMode = settingsManager.getDisplayMode()
+        Log.d(TAG, "Previous display mode: $previousMode, setting to simple_mode")
+        settingsManager.setDisplayMode("simple_mode")
+
+        // 检查权限状态
+        checkOverlayPermission()
+
+        // 应用主题设置
         applyTheme()
 
-        // 使用优化布局，实现秒启动
-        val layoutStartTime = System.currentTimeMillis()
-        setContentView(R.layout.activity_simple_mode_optimized)
-        Log.d(TAG, "布局加载耗时: ${System.currentTimeMillis() - layoutStartTime}ms")
+        setContentView(R.layout.activity_simple_mode)
 
-        // 立即显示界面，只初始化对话 tab（关键路径）
-        val initStartTime = System.currentTimeMillis()
-        initializeChatLayoutOnly()
-        Log.d(TAG, "对话布局初始化耗时: ${System.currentTimeMillis() - initStartTime}ms")
-        
-        // 立即显示对话 tab（关键路径）
-        showChat()
-        
-        // 记录关键路径耗时
-        Log.d(TAG, "关键路径总耗时: ${System.currentTimeMillis() - onCreateStartTime}ms")
-        
-        // ==================== 后台初始化：在后台线程执行 ====================
-        // 使用后台线程初始化耗时组件，不阻塞 UI
-        Thread {
-            try {
-                val bgInitStartTime = System.currentTimeMillis()
-                
-                // 初始化统一群聊管理器（可能涉及数据库读取）
-                unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this@SimpleModeActivity)
-                
-                // 设置数据变更监听器（需要在主线程）
-                handler.post {
-                    unifiedGroupChatManager.addDataChangeListener(this@SimpleModeActivity)
-                }
-                
-                // 初始化统一WebView管理器
-                unifiedWebViewManager = UnifiedWebViewManager()
+        // 应用UI颜色
+        updateUIColors()
 
-                // 初始化触摸冲突解决器
-                touchConflictResolver = TouchConflictResolver(this@SimpleModeActivity)
+        // 初始化震动管理器
+        initializeVibrator()
 
-                // 初始化语音提示分支管理器
-                promptBranchManager = VoicePromptBranchManager(this@SimpleModeActivity, this@SimpleModeActivity)
-                
-                // 从设置中读取并应用保存的交互模式
-                val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
-                promptBranchManager.interactionMode = if (savedMode == "DRAG") {
-                    VoicePromptBranchManager.InteractionMode.DRAG
-                } else {
-                    VoicePromptBranchManager.InteractionMode.CLICK
-                }
-                
-                // 注册档案变更监听器（需要在主线程）
-                handler.post {
-                    settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key, value ->
-                        Log.d(TAG, "档案列表已更新，重新加载档案选择器")
-                        refreshProfileSelectorIfVisible()
+        initializeViews()
+        setupAIAssistantCenter()
+        setupTaskSelection()
+        setupChat()
+        
+        // 初始化TTS管理器
+        initializeTTS()
+
+        // 注册API密钥同步广播接收器
+        setupApiKeySyncReceiver()
+
+        // 处理从小组件传入的参数
+        handleWidgetIntent(intent)
+
+        // 注册添加AI联系人广播接收器
+        setupAddAIContactReceiver()
+        
+        // 注册AI对话更新广播接收器
+        setupAIChatUpdateReceiver()
+        
+        // 启动文件监听同步机制
+        startFileSyncMonitoring()
+        
+        // 启动定时强制同步机制
+        startPeriodicSync()
+        
+        // 注册广播接收器
+        registerBroadcastReceiver()
+        
+        // 注册链接操作广播接收器
+        setupLinkActionReceiver()
+        
+        // 注册群聊创建广播接收器
+        setupGroupChatCreatedReceiver()
+        
+        // 调试：检查所有AI的数据状态
+        debugAllAIData()
+        
+        // 添加测试按钮来手动刷新数据（已禁用）
+        // addTestRefreshButton()
+
+        // 检查是否需要恢复之前的状态
+        val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
+        if (savedState != null) {
+            Log.d(TAG, "Restoring saved state: $savedState")
+            restoreState(savedState)
+
+            // 恢复额外的状态信息
+            handler.postDelayed({
+                try {
+                    // 检查Activity状态
+                    if (isFinishing || isDestroyed) {
+                        Log.w(TAG, "Activity正在销毁，跳过状态恢复")
+                        return@postDelayed
                     }
-                }
 
-                // 确保我们处于简易模式显示模式
-                val previousMode = settingsManager.getDisplayMode()
-                if (previousMode != "simple_mode") {
-                    settingsManager.setDisplayMode("simple_mode")
-                }
+                    // 恢复手势区状态
+                    val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
+                    if (gestureOverlayActive && currentState == UIState.BROWSER) {
+                        Log.d(TAG, "恢复手势区激活状态")
+                        activateSearchTabGestureOverlay()
+                    }
 
-                // 确保 SimpleModeService 不在运行
-                if (SimpleModeService.isRunning(this@SimpleModeActivity)) {
-                    Log.d(TAG, "SimpleModeService is running, stopping it")
-                    stopService(Intent(this@SimpleModeActivity, SimpleModeService::class.java))
-                }
-                
-                Log.d(TAG, "后台初始化耗时: ${System.currentTimeMillis() - bgInitStartTime}ms")
-                
-                // 在主线程执行 UI 相关初始化
-                handler.post {
-                    // 应用UI颜色（只更新已加载的视图）
-                    updateUIColorsOptimized()
-                    
-                    // 初始化震动管理器
-                    initializeVibrator()
-                    
-                    // 延迟初始化其他 tab（使用 ViewStub）
-                    initializeOtherTabsLazy()
-                    
-                    // 延迟初始化非关键功能
-                    handler.postDelayed({
-                        initializeNonCriticalComponents()
-                    }, 500)
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "后台初始化失败", e)
-            }
-        }.start()
-        
-        // ==================== 延迟初始化：非关键功能 ====================
-        // 延迟到首次使用时再初始化（大幅提升启动速度）
-        handler.postDelayed({
-            try {
-                // 初始化TTS管理器（首次使用时再初始化）
-                // initializeTTS() // 延迟到首次使用 TTS 时再初始化
+                    // 恢复多卡片预览状态
+                    val stackedPreviewVisible = savedInstanceState.getBoolean("stacked_preview_visible", false)
+                    if (stackedPreviewVisible && currentState == UIState.BROWSER) {
+                        Log.d(TAG, "恢复多卡片预览状态")
+                        activateStackedCardPreview()
+                    }
 
-                // 注册所有广播接收器（延迟执行）
-                setupApiKeySyncReceiver()
-                setupAddAIContactReceiver()
-                setupAIChatUpdateReceiver()
-                registerBroadcastReceiver()
-                setupLinkActionReceiver()
-                setupGroupChatCreatedReceiver()
+                    // 恢复WebView滚动位置
+                    val savedUrl = savedInstanceState.getString("current_webview_url")
+                    val scrollX = savedInstanceState.getInt("current_webview_scroll_x", 0)
+                    val scrollY = savedInstanceState.getInt("current_webview_scroll_y", 0)
 
-                // 启动文件监听同步机制（延迟执行）
-                startFileSyncMonitoring()
-                
-                // 启动定时强制同步机制（延迟执行）
-                startPeriodicSync()
-                
-                // 处理从小组件传入的参数（延迟执行）
-                handleWidgetIntent(intent)
-                
-                // 移除调试操作以提升性能（仅在 debug 版本启用）
-                // debugAllAIData()
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "延迟初始化失败", e)
-            }
-        }, 1000) // 延迟 1 秒执行非关键初始化
-        
-        // ==================== 权限检查：延迟执行 ====================
-        // 检查权限状态（延迟执行，不阻塞启动）
-        handler.postDelayed({
-            checkOverlayPermission()
-        }, 200) // 延迟 200ms
-        
-        // ==================== 状态恢复：延迟执行 ====================
-        // 检查是否需要恢复之前的状态（延迟执行，不阻塞启动）
-        handler.postDelayed({
-            try {
-                val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
-                if (savedState != null) {
-                    Log.d(TAG, "Restoring saved state: $savedState")
-                    restoreState(savedState)
-
-                    // 恢复额外的状态信息
-                    handler.postDelayed({
-                        try {
-                            // 检查Activity状态
-                            if (isFinishing || isDestroyed) {
-                                Log.w(TAG, "Activity正在销毁，跳过状态恢复")
-                                return@postDelayed
-                            }
-
-                            // 恢复手势区状态
-                            val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
-                            if (gestureOverlayActive && currentState == UIState.BROWSER) {
-                                Log.d(TAG, "恢复手势区激活状态")
-                                activateSearchTabGestureOverlay()
-                            }
-
-                            // 恢复多卡片预览状态
-                            val stackedPreviewVisible = savedInstanceState.getBoolean("stacked_preview_visible", false)
-                            if (stackedPreviewVisible && currentState == UIState.BROWSER) {
-                                Log.d(TAG, "恢复多卡片预览状态")
-                                activateStackedCardPreview()
-                            }
-
-                            // 恢复WebView滚动位置
-                            val savedUrl = savedInstanceState.getString("current_webview_url")
-                            val scrollX = savedInstanceState.getInt("current_webview_scroll_x", 0)
-                            val scrollY = savedInstanceState.getInt("current_webview_scroll_y", 0)
-
-                            if (savedUrl != null && (scrollX != 0 || scrollY != 0)) {
-                                val currentCard = gestureCardWebViewManager?.getCurrentCard()
-                                val currentWebView = currentCard?.webView
-                                if (currentWebView?.url == savedUrl) {
-                                    currentWebView.scrollTo(scrollX, scrollY)
-                                    Log.d(TAG, "恢复WebView滚动位置: scrollX=$scrollX, scrollY=$scrollY")
-                                }
-                            }
-
-                        } catch (e: Exception) {
-                            Log.e(TAG, "恢复额外状态失败", e)
+                    if (savedUrl != null && (scrollX != 0 || scrollY != 0)) {
+                        val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                        val currentWebView = currentCard?.webView
+                        if (currentWebView?.url == savedUrl) {
+                            currentWebView.scrollTo(scrollX, scrollY)
+                            Log.d(TAG, "恢复WebView滚动位置: scrollX=$scrollX, scrollY=$scrollY")
                         }
-                    }, 500) // 延迟确保UI完全初始化
+                    }
 
-                } else {
-                    // 检查是否有保存的悬浮卡片状态（在后台线程读取）
-                    Thread {
-                        try {
-                            val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
-                            val savedCardUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
-                            
-                            handler.post {
-                                Log.d(TAG, "onCreate: 检查保存的悬浮卡片状态")
-                                Log.d(TAG, "onCreate: savedCardUrls = $savedCardUrls")
-                                Log.d(TAG, "onCreate: savedCardUrls?.size = ${savedCardUrls?.size}")
-                                
-                                if (savedCardUrls?.isNotEmpty() == true) {
-                                    Log.d(TAG, "Found saved cards, showing browser")
-                                    showBrowser()
-                                } else {
-                                    Log.d(TAG, "No saved state or cards, showing chat")
-                                    showChat()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "检查保存的悬浮卡片状态失败", e)
-                        }
-                    }.start()
+                } catch (e: Exception) {
+                    Log.e(TAG, "恢复额外状态失败", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "状态恢复失败", e)
-            }
-        }, 300) // 延迟 300ms 执行状态恢复
-        
-        // ==================== 其他初始化：延迟执行 ====================
-        // 处理从其他地方传入的搜索内容（延迟执行）
-        handler.postDelayed({
-            handleIntentData()
-        }, 800)
+            }, 500) // 延迟确保UI完全初始化
 
-        // 初始化时应用左手模式布局方向（延迟执行）
-        handler.postDelayed({
-            applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
-        }, 500)
-        
-        // 记录总启动耗时
-        handler.postDelayed({
-            Log.d(TAG, "onCreate 总耗时: ${System.currentTimeMillis() - onCreateStartTime}ms")
-        }, 2000)
+        } else {
+            // 检查是否有保存的悬浮卡片状态
+            val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
+            val savedCardUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
+            
+            Log.d(TAG, "onCreate: 检查保存的悬浮卡片状态")
+            Log.d(TAG, "onCreate: savedCardUrls = $savedCardUrls")
+            Log.d(TAG, "onCreate: savedCardUrls?.size = ${savedCardUrls?.size}")
+            
+            if (savedCardUrls?.isNotEmpty() == true) {
+                Log.d(TAG, "Found saved cards, showing browser")
+                showBrowser()
+            } else {
+                Log.d(TAG, "No saved state or cards, showing chat")
+                showChat()
+            }
+        }
+
+        // 处理从其他地方传入的搜索内容
+        handleIntentData()
+
+        // 初始化时应用左手模式布局方向
+        applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -1733,107 +1647,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 只初始化对话布局（默认显示的 tab），实现秒启动
-     */
-    private fun initializeChatLayoutOnly() {
-        try {
-            val startTime = System.currentTimeMillis()
-            chatLayout = findViewById<LinearLayout>(R.id.chat_layout)
-            
-            // 获取 ViewStub 引用（不会立即 inflate，不消耗资源）
-            aiAssistantCenterStub = findViewById(R.id.ai_assistant_center_stub)
-            taskSelectionStub = findViewById(R.id.task_selection_stub)
-            stepGuidanceStub = findViewById(R.id.step_guidance_stub)
-            promptPreviewStub = findViewById(R.id.prompt_preview_stub)
-            voiceLayoutStub = findViewById(R.id.voice_layout_stub)
-            appSearchStub = findViewById(R.id.app_search_stub)
-            browserLayoutStub = findViewById(R.id.browser_layout_stub)
-            settingsLayoutStub = findViewById(R.id.settings_layout_stub)
-            
-            // 只初始化对话 tab 必需的组件
-            setupChat()
-            isChatInitialized = true
-            
-            Log.d(TAG, "对话布局初始化完成，耗时: ${System.currentTimeMillis() - startTime}ms")
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化对话布局失败", e)
-            throw e
-        }
-    }
-    
-    /**
-     * 延迟初始化其他 tab（使用 ViewStub）
-     */
-    private fun initializeOtherTabsLazy() {
-        // 不立即初始化，只在用户切换到对应 tab 时才加载
-        // 这样可以大幅提升启动速度
-        Log.d(TAG, "其他 tab 使用延迟加载策略")
-    }
-    
-    /**
-     * 延迟初始化非关键组件
-     */
-    private fun initializeNonCriticalComponents() {
-        try {
-            // 这些操作不阻塞 UI 显示，可以延迟执行
-            setupApiKeySyncReceiver()
-            setupAddAIContactReceiver()
-            setupAIChatUpdateReceiver()
-            startFileSyncMonitoring()
-            startPeriodicSync()
-            registerBroadcastReceiver()
-            setupLinkActionReceiver()
-            setupGroupChatCreatedReceiver()
-            debugAllAIData()
-            handleWidgetIntent(intent)
-            
-            Log.d(TAG, "非关键组件初始化完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化非关键组件失败", e)
-        }
-    }
-    
-    /**
-     * 优化的 UI 颜色更新，只更新已加载的视图
-     */
-    private fun updateUIColorsOptimized() {
-        try {
-            // 只更新已初始化的视图
-            if (isChatInitialized) {
-                // 直接调用 updateUIColors，它会处理已加载的视图
-                updateUIColors()
-            }
-            // 其他 tab 在首次访问时才更新颜色
-            Log.d(TAG, "UI 颜色更新完成（仅已加载视图）")
-        } catch (e: Exception) {
-            Log.e(TAG, "更新 UI 颜色失败", e)
-        }
-    }
-    
-    /**
-     * 延迟加载布局的通用方法
-     */
-    private fun ensureLayoutInflated(stub: android.view.ViewStub?, layoutId: String): View? {
-        return try {
-            if (stub != null) {
-                stub.inflate()
-            } else {
-                Log.w(TAG, "$layoutId ViewStub 为 null")
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "加载 $layoutId 布局失败", e)
-            null
-        }
-    }
-
     private fun initializeViews() {
         try {
             // 主要布局 - 使用安全的findViewById
             chatLayout = findViewById<LinearLayout>(R.id.chat_layout)
-            
-            // 尝试从已加载的布局中查找（如果已通过 ViewStub inflate）
             aiAssistantCenterLayout = findViewById<LinearLayout>(R.id.ai_assistant_center_layout)
             taskSelectionLayout = findViewById<LinearLayout>(R.id.task_selection_layout)
             stepGuidanceLayout = findViewById<LinearLayout>(R.id.step_guidance_layout)
@@ -1843,25 +1660,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
             settingsLayout = findViewById<ScrollView>(R.id.settings_layout)
 
-            Log.d(TAG, "主要布局初始化完成（延迟加载模式）")
+            Log.d(TAG, "主要布局初始化完成")
         } catch (e: Exception) {
             Log.e(TAG, "初始化主要布局失败", e)
-            // 如果布局还未加载，这是正常的，不要抛出异常
+            throw e
         }
         // modeSwitchWidget = findViewById(R.id.mode_switch_widget)  // 暂时禁用
 
-        // AI助手中心（只有在布局已加载时才初始化）
+        // AI助手中心
         try {
-            val viewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
-            val tabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
-            if (viewPager != null && tabLayout != null) {
-                aiCenterViewPager = viewPager
-                aiCenterTabLayout = tabLayout
-                Log.d(TAG, "AI助手中心组件初始化完成")
-            }
+            aiCenterViewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
+            aiCenterTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
+            Log.d(TAG, "AI助手中心组件初始化完成")
         } catch (e: Exception) {
-            // 布局未加载时这是正常的，不记录错误
-            Log.d(TAG, "AI助手中心组件未加载（延迟加载模式）")
+            Log.e(TAG, "初始化AI助手中心组件失败", e)
         }
 
         // 任务选择页面
@@ -2856,26 +2668,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showVoice() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isVoiceInitialized) {
-            val inflated = ensureLayoutInflated(voiceLayoutStub, "语音页面")
-            if (inflated != null) {
-                voiceLayout = inflated as? ScrollView
-                initializeViews() // 重新初始化以获取语音页面相关的视图
-                isVoiceInitialized = true
-            }
-        }
-        
         currentState = UIState.VOICE
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.VISIBLE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.VISIBLE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         // 确保语音输入管理器已初始化
         if (!::voiceInputManager.isInitialized) {
@@ -2902,26 +2704,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showAppSearch() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isAppSearchInitialized) {
-            val inflated = ensureLayoutInflated(appSearchStub, "应用搜索")
-            if (inflated != null) {
-                appSearchLayout = inflated as? androidx.coordinatorlayout.widget.CoordinatorLayout
-                initializeViews() // 重新初始化以获取应用搜索相关的视图
-                isAppSearchInitialized = true
-            }
-        }
-        
         currentState = UIState.APP_SEARCH
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.VISIBLE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.VISIBLE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         // 初始化应用搜索页面
         setupAppSearchPage()
@@ -4499,26 +4291,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showSettings() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isSettingsInitialized) {
-            val inflated = ensureLayoutInflated(settingsLayoutStub, "设置页面")
-            if (inflated != null) {
-                settingsLayout = inflated as? ScrollView
-                initializeViews() // 重新初始化以获取设置相关的视图
-                isSettingsInitialized = true
-            }
-        }
-        
         currentState = UIState.SETTINGS
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.VISIBLE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.VISIBLE
 
         loadSettings() // 每次显示时重新加载设置
         updateFloatingBallSettingsVisibility() // 根据显示模式控制悬浮球设置可见性
@@ -4555,28 +4337,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 延迟加载：首次访问时才 inflate 布局
-            if (!isBrowserInitialized) {
-                val inflated = ensureLayoutInflated(browserLayoutStub, "浏览器页面")
-                if (inflated != null) {
-                    browserLayout = inflated as? androidx.drawerlayout.widget.DrawerLayout
-                    initializeViews() // 重新初始化以获取浏览器相关的视图
-                    isBrowserInitialized = true
-                }
-            }
-
             Log.d(TAG, "显示浏览器界面")
 
             currentState = UIState.BROWSER
             chatLayout.visibility = View.GONE
-            aiAssistantCenterLayout?.visibility = View.GONE
-            taskSelectionLayout?.visibility = View.GONE
-            stepGuidanceLayout?.visibility = View.GONE
-            promptPreviewLayout?.visibility = View.GONE
-            voiceLayout?.visibility = View.GONE
-            appSearchLayout?.visibility = View.GONE
-            settingsLayout?.visibility = View.GONE
-            browserLayout?.visibility = View.VISIBLE
+            aiAssistantCenterLayout.visibility = View.GONE
+            taskSelectionLayout.visibility = View.GONE
+            stepGuidanceLayout.visibility = View.GONE
+            promptPreviewLayout.visibility = View.GONE
+            voiceLayout.visibility = View.GONE
+            appSearchLayout.visibility = View.GONE
+            settingsLayout.visibility = View.GONE
+            browserLayout.visibility = View.VISIBLE
 
             // 确保纸堆WebView管理器已正确初始化
             if (paperStackWebViewManager == null) {
@@ -5073,21 +4845,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun setupAIAssistantCenter() {
         try {
-            // 延迟加载模式下，需要确保 ViewPager 已初始化
-            if (!::aiCenterViewPager.isInitialized || !::aiCenterTabLayout.isInitialized) {
-                // 尝试从已加载的布局中获取
-                val viewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
-                val tabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
-                
-                if (viewPager != null && tabLayout != null) {
-                    aiCenterViewPager = viewPager
-                    aiCenterTabLayout = tabLayout
-                } else {
-                    Log.w(TAG, "AI助手中心组件尚未加载，跳过设置")
-                    return
-                }
-            }
-            
             // 设置ViewPager2适配器
             aiCenterPagerAdapter = com.example.aifloatingball.adapter.AIAssistantCenterPagerAdapter(this)
             aiCenterViewPager.adapter = aiCenterPagerAdapter
@@ -5127,15 +4884,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             currentState = UIState.CHAT
             chatLayout.visibility = View.VISIBLE
-            // 使用安全的方式隐藏其他布局
-            aiAssistantCenterLayout?.visibility = View.GONE
-            taskSelectionLayout?.visibility = View.GONE
-            stepGuidanceLayout?.visibility = View.GONE
-            promptPreviewLayout?.visibility = View.GONE
-            voiceLayout?.visibility = View.GONE
-            appSearchLayout?.visibility = View.GONE
-            browserLayout?.visibility = View.GONE
-            settingsLayout?.visibility = View.GONE
+            aiAssistantCenterLayout.visibility = View.GONE
+            taskSelectionLayout.visibility = View.GONE
+            stepGuidanceLayout.visibility = View.GONE
+            promptPreviewLayout.visibility = View.GONE
+            voiceLayout.visibility = View.GONE
+            appSearchLayout.visibility = View.GONE
+            browserLayout.visibility = View.GONE
+            settingsLayout.visibility = View.GONE
 
             // 同步群聊数据，确保显示最新的群聊列表
             try {
@@ -5159,79 +4915,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showAIAssistantCenter() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isAIAssistantInitialized) {
-            val inflated = ensureLayoutInflated(aiAssistantCenterStub, "AI助手中心")
-            if (inflated != null) {
-                aiAssistantCenterLayout = inflated as? LinearLayout
-                setupAIAssistantCenter()
-                isAIAssistantInitialized = true
-            }
-        }
-        
         currentState = UIState.AI_ASSISTANT_CENTER
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.VISIBLE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.VISIBLE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         // 更新tab颜色
         updateTabColors()
     }
 
     private fun showTaskSelection() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isTaskSelectionInitialized) {
-            val inflated = ensureLayoutInflated(taskSelectionStub, "任务选择")
-            if (inflated != null) {
-                taskSelectionLayout = inflated as? LinearLayout
-                initializeViews() // 重新初始化以获取任务选择相关的视图
-                setupTaskSelection()
-                isTaskSelectionInitialized = true
-            }
-        }
-        
         currentState = UIState.TASK_SELECTION
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.VISIBLE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.VISIBLE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         // 更新Tab颜色状态
         updateTabColors()
     }
 
     private fun showStepGuidance() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isStepGuidanceInitialized) {
-            val inflated = ensureLayoutInflated(stepGuidanceStub, "步骤引导")
-            if (inflated != null) {
-                stepGuidanceLayout = inflated as? LinearLayout
-                initializeViews() // 重新初始化以获取步骤引导相关的视图
-                isStepGuidanceInitialized = true
-            }
-        }
-        
         currentState = UIState.STEP_GUIDANCE
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.VISIBLE
-        promptPreviewLayout?.visibility = View.GONE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.VISIBLE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         setupCurrentStep()
         // 更新Tab颜色状态
@@ -5239,26 +4964,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showPromptPreview() {
-        // 延迟加载：首次访问时才 inflate 布局
-        if (!isPromptPreviewInitialized) {
-            val inflated = ensureLayoutInflated(promptPreviewStub, "Prompt预览")
-            if (inflated != null) {
-                promptPreviewLayout = inflated as? LinearLayout
-                initializeViews() // 重新初始化以获取 Prompt 预览相关的视图
-                isPromptPreviewInitialized = true
-            }
-        }
-        
         currentState = UIState.PROMPT_PREVIEW
         chatLayout.visibility = View.GONE
-        aiAssistantCenterLayout?.visibility = View.GONE
-        taskSelectionLayout?.visibility = View.GONE
-        stepGuidanceLayout?.visibility = View.GONE
-        promptPreviewLayout?.visibility = View.VISIBLE
-        voiceLayout?.visibility = View.GONE
-        appSearchLayout?.visibility = View.GONE
-        browserLayout?.visibility = View.GONE
-        settingsLayout?.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.VISIBLE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
 
         generateFinalPrompt()
         // 更新Tab颜色状态
@@ -5505,11 +5220,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 如果抽屉打开，先关闭抽屉
-            browserLayout?.let { drawer ->
-                if (drawer.isDrawerOpen(GravityCompat.START)) {
-                    drawer.closeDrawer(GravityCompat.START)
-                    return
-                }
+            if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                browserLayout.closeDrawer(GravityCompat.START)
+                return
             }
 
             // 检查是否有可返回的页面
@@ -5604,7 +5317,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         if (blur) {
             // 应用模糊效果到整个布局
-            voiceLayout?.alpha = 0.7f
+            voiceLayout.alpha = 0.7f
 
             // 保持文本输入框清晰
             textInputLayout.alpha = 1.0f
@@ -5614,7 +5327,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             voiceMicContainer.animate().alpha(0.3f).setDuration(200).start()
         } else {
             // 恢复正常显示
-            voiceLayout?.alpha = 1.0f
+            voiceLayout.alpha = 1.0f
             textInputLayout.elevation = 0f
             voiceMicContainer.animate().alpha(1.0f).setDuration(200).start()
         }
@@ -7106,10 +6819,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 为WebView容器设置手势监听
         browserWebViewContainer.setOnTouchListener { _, event ->
             // 如果抽屉已经打开，不处理手势，让抽屉优先处理触摸事件
-            val drawerOpen = browserLayout?.let { drawer ->
-                drawer.isDrawerOpen(GravityCompat.START) || drawer.isDrawerOpen(GravityCompat.END)
-            } ?: false
-            if (drawerOpen) {
+            if (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END)) {
                 false
             } else {
                 // 检查是否有层叠卡片预览正在显示
@@ -7379,14 +7089,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showEnhancedTabManagerMenu()
             } else {
                 // 在普通模式下，打开抽屉
-                browserLayout?.let { drawer ->
-                    if (drawer.isDrawerOpen(GravityCompat.START)) {
-                        Log.d(TAG, "关闭抽屉")
-                        drawer.closeDrawer(GravityCompat.START)
-                    } else {
-                        Log.d(TAG, "打开抽屉")
-                        drawer.openDrawer(GravityCompat.START)
-                    }
+                if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                    Log.d(TAG, "关闭抽屉")
+                    browserLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    Log.d(TAG, "打开抽屉")
+                    browserLayout.openDrawer(GravityCompat.START)
                 }
             }
         }
@@ -7539,44 +7247,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置浏览器抽屉 - 完整功能版本
      */
     private fun setupBrowserDrawer() {
-        browserLayout?.let { drawer ->
-            // 设置抽屉监听器
-            drawer.addDrawerListener(object : DrawerLayout.DrawerListener {
-                override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                    // 更新透明度和动画
-                    drawerView.alpha = 0.3f + (0.7f * slideOffset)
-                    Log.d(TAG, "抽屉滑动，偏移量: $slideOffset")
-                }
-
-                override fun onDrawerOpened(drawerView: View) {
-                    drawerView.alpha = 1.0f
-                    Log.d(TAG, "抽屉已打开")
-                    // 打开抽屉时更新搜索引擎列表
-                    updateBrowserEngineList('#')
-                }
-
-                override fun onDrawerClosed(drawerView: View) {
-                    Log.d(TAG, "抽屉已关闭")
-                }
-
-                override fun onDrawerStateChanged(newState: Int) {
-                    Log.d(TAG, "抽屉状态改变: $newState")
-                }
-            })
-
-            // 设置退出按钮点击监听器
-            browserExitButton.setOnClickListener {
-                drawer.closeDrawer(GravityCompat.START)
+        // 设置抽屉监听器
+        browserLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                // 更新透明度和动画
+                drawerView.alpha = 0.3f + (0.7f * slideOffset)
+                Log.d(TAG, "抽屉滑动，偏移量: $slideOffset")
             }
 
-            // 确保抽屉可以被触摸和滑动
-            drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+            override fun onDrawerOpened(drawerView: View) {
+                drawerView.alpha = 1.0f
+                Log.d(TAG, "抽屉已打开")
+                // 打开抽屉时更新搜索引擎列表
+                updateBrowserEngineList('#')
+            }
 
-            // 启用抽屉边缘滑动手势
-            drawer.setScrimColor(0x99000000.toInt()) // 设置半透明遮罩
+            override fun onDrawerClosed(drawerView: View) {
+                Log.d(TAG, "抽屉已关闭")
+            }
 
-            Log.d(TAG, "浏览器抽屉设置完成，锁定模式: ${drawer.getDrawerLockMode(GravityCompat.START)}")
-        } ?: Log.w(TAG, "浏览器布局未加载，跳过抽屉设置")
+            override fun onDrawerStateChanged(newState: Int) {
+                Log.d(TAG, "抽屉状态改变: $newState")
+            }
+        })
+
+        // 设置退出按钮点击监听器
+        browserExitButton.setOnClickListener {
+            browserLayout.closeDrawer(GravityCompat.START)
+        }
+
+        // 确保抽屉可以被触摸和滑动
+        browserLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+
+        // 启用抽屉边缘滑动手势
+        browserLayout.setScrimColor(0x99000000.toInt()) // 设置半透明遮罩
+
+        Log.d(TAG, "浏览器抽屉设置完成，锁定模式: ${browserLayout.getDrawerLockMode(GravityCompat.START)}")
 
         // 设置字母索引栏
         setupBrowserLetterIndexBar()
@@ -7695,7 +7401,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 关键修复：将覆盖层添加到根布局而不是WebView容器
         // 这样可以避免与搜索引擎界面混合
-        browserLayout?.addView(cardPreviewOverlay) ?: Log.w(TAG, "浏览器布局未加载，无法添加卡片预览覆盖层")
+        browserLayout.addView(cardPreviewOverlay)
 
         Log.d(TAG, "卡片预览覆盖层已添加到根布局")
 
@@ -7710,11 +7416,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 gestureCardWebViewManager?.switchToCard(position)
 
                 // 确保UI状态正确
-                browserLayout?.let { drawer ->
-                    handler.postDelayed({
-                        forceRefreshUIState()
-                    }, 300) // 等待隐藏动画完成
-                }
+                browserLayout.postDelayed({
+                    forceRefreshUIState()
+                }, 300) // 等待隐藏动画完成
 
                 Log.d(TAG, "切换到卡片: ${cardData.title}")
             }
@@ -7732,12 +7436,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     cardPreviewOverlay.hide()
                     
                     // 切换到搜索tab
-                    browserLayout?.let {
-                        handler.postDelayed({
-                            switchToSearchTab()
-                            Log.d(TAG, "最后一个卡片已关闭，返回搜索tab")
-                        }, 300) // 等待隐藏动画完成
-                    }
+                    browserLayout.postDelayed({
+                        switchToSearchTab()
+                        Log.d(TAG, "最后一个卡片已关闭，返回搜索tab")
+                    }, 300) // 等待隐藏动画完成
                 }
 
                 Log.d(TAG, "关闭卡片: ${cardData.title}")
@@ -7749,11 +7451,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "关闭卡片预览")
 
                 // 确保返回到正确的状态
-                browserLayout?.let {
-                    handler.postDelayed({
-                        forceRefreshUIState()
-                    }, 100)
-                }
+                browserLayout.postDelayed({
+                    forceRefreshUIState()
+                }, 100)
             }
         })
 
@@ -7763,11 +7463,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 cardPreviewOverlay.hide()
 
                 // 创建新卡片
-                browserLayout?.let {
-                    handler.postDelayed({
-                        performCreateNewCard()
-                    }, 300) // 等待隐藏动画完成
-                }
+                browserLayout.postDelayed({
+                    performCreateNewCard()
+                }, 300) // 等待隐藏动画完成
 
                 Log.d(TAG, "从卡片预览创建新卡片")
             }
@@ -8869,7 +8567,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 syncAllCardSystems()
 
                 // 确保UI状态正确切换
-                browserLayout?.post {
+                browserLayout.post {
                     forceRefreshUIState()
                 }
             } else {
@@ -9432,7 +9130,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showViewPager2()
                 
                 // 使用post确保UI状态在下一个循环中同步
-                browserLayout?.post {
+                browserLayout.post {
                     // 再次确保ViewPager2可见（防止时序问题）
                     showViewPager2()
                     Log.d(TAG, "UI状态已同步，ViewPager2确保可见")
@@ -9595,7 +9293,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val baseUrl = engine.url.split("?")[0].replace("{query}", "")
                     .replace("search", "").replace("/s", "").replace("/search", "")
                 loadBrowserContent(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
-                browserLayout?.closeDrawer(GravityCompat.START)
+                browserLayout.closeDrawer(GravityCompat.START)
                 updateSearchTabIcon()
                 return@setOnClickListener
             }
@@ -9624,7 +9322,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "检测到特殊 scheme '$query'，当作搜索词处理")
                 val searchUrl = engine.getSearchUrl(query)
                 loadBrowserContent(searchUrl)
-                browserLayout?.closeDrawer(GravityCompat.START)
+                browserLayout.closeDrawer(GravityCompat.START)
                 updateSearchTabIcon()
                 return@setOnClickListener
             }
@@ -9649,7 +9347,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             loadBrowserContent(url)
-            browserLayout?.closeDrawer(GravityCompat.START)
+            browserLayout.closeDrawer(GravityCompat.START)
 
             // 更新搜索tab图标
             updateSearchTabIcon()
@@ -9791,10 +9489,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (ev == null) return super.dispatchTouchEvent(ev)
 
         // 如果浏览器抽屉已经打开，优先让抽屉处理触摸事件
-        val isDrawerOpen = browserLayout?.let { drawer ->
-            drawer.isDrawerOpen(GravityCompat.START) || drawer.isDrawerOpen(GravityCompat.END)
-        } ?: false
-        if (isDrawerOpen) {
+        if (::browserLayout.isInitialized &&
+            (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END))) {
             Log.d(TAG, "抽屉已打开，传递触摸事件给抽屉处理")
             return super.dispatchTouchEvent(ev)
         }
@@ -18421,7 +18117,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         swipePreviewTitle = titleText
 
         // 添加到主布局
-        browserLayout?.addView(swipePreviewIndicator) ?: Log.w(TAG, "浏览器布局未加载，无法添加滑动预览指示器")
+        browserLayout.addView(swipePreviewIndicator)
     }
 
     /**
@@ -18645,12 +18341,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置所有卡片移除监听器
                 setOnAllCardsRemovedListener {
                     // 所有卡片都被移除了，返回搜索tab
-                    browserLayout?.let {
-                        handler.postDelayed({
-                            switchToSearchTab()
-                            Log.d(TAG, "所有卡片已移除，返回搜索tab")
-                        }, 300)
-                    }
+                    browserLayout.postDelayed({
+                        switchToSearchTab()
+                        Log.d(TAG, "所有卡片已移除，返回搜索tab")
+                    }, 300)
                 }
 
                 // 设置新建卡片请求监听器
@@ -19143,11 +18837,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 // 错误恢复机制：延迟检查状态一致性
-                browserLayout?.let {
-                    handler.postDelayed({
-                        verifyCardStateConsistency(url)
-                    }, 500)
-                }
+                browserLayout.postDelayed({
+                    verifyCardStateConsistency(url)
+                }, 500)
 
                 // 立即从SharedPreferences中移除该URL
                 removeUrlFromSavedState(url)
