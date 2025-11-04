@@ -43,11 +43,12 @@ import android.os.Looper
 import android.net.Uri
 import android.webkit.URLUtil
 import android.app.AlertDialog
+import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.appbar.AppBarLayout
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.provider.Settings
 import android.graphics.Color
 import androidx.appcompat.widget.SwitchCompat
 import android.content.res.Resources
@@ -56,6 +57,11 @@ import android.view.WindowManager
 import android.graphics.PixelFormat
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.webview.PaperStackWebViewManager
+import com.example.aifloatingball.service.FloatingVideoPlayerService
+import com.example.aifloatingball.video.SystemOverlayVideoManager
+import com.example.aifloatingball.video.FloatingVideoPlayerManager
+import com.example.aifloatingball.webview.VideoDetectionBridge
+import com.example.aifloatingball.R
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -98,6 +104,51 @@ class SearchActivity : AppCompatActivity() {
     // 下载提示按钮相关
     private lateinit var downloadIndicatorContainer: FrameLayout
     private lateinit var downloadIndicatorButton: ImageButton
+    
+    // 悬浮视频播放器相关
+    private var isVideoPlayerActive = false
+    private val videoDetectionHandler = Handler(Looper.getMainLooper())
+    private var videoDetectionRunnable: Runnable? = null
+    private var pendingVideoUrl: String? = null
+    private var pendingPageUrl: String? = null
+    
+    // 视频接管相关
+    private lateinit var systemOverlayVideoManager: SystemOverlayVideoManager
+    private lateinit var floatingVideoManager: FloatingVideoPlayerManager
+    
+    // 悬浮窗权限请求结果处理器
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        // 检查权限是否已授予
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Settings.canDrawOverlays(this)) {
+                Log.d("SearchActivity", "悬浮窗权限已授予，启动悬浮播放器")
+                // 权限已授予，启动之前待启动的悬浮播放器
+                pendingVideoUrl?.let { videoUrl ->
+                    pendingPageUrl?.let { pageUrl ->
+                        // 获取当前WebView（可能是普通模式或纸堆模式）
+                        val currentWebView = if (isPaperStackMode && paperStackManager != null) {
+                            paperStackManager?.getCurrentTab()?.webView
+                        } else {
+                            webView
+                        }
+                        launchFloatingVideoPlayer(videoUrl, pageUrl, currentWebView)
+                    }
+                }
+            } else {
+                Log.w("SearchActivity", "用户拒绝了悬浮窗权限")
+                Toast.makeText(
+                    this,
+                    "需要悬浮窗权限才能显示悬浮视频播放器",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        // 清除待启动的信息
+        pendingVideoUrl = null
+        pendingPageUrl = null
+    }
     private lateinit var downloadProgressText: TextView
     private var activeDownloadCount = 0
     
@@ -1875,6 +1926,18 @@ class SearchActivity : AppCompatActivity() {
                 // 只显示进度条，不显示全屏加载视图
                 progressBar.visibility = View.VISIBLE
                 
+                // 页面开始加载时隐藏悬浮窗
+                try {
+                    if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
+                        floatingVideoManager.hide()
+                    }
+                    if (::systemOverlayVideoManager.isInitialized && systemOverlayVideoManager.isShowing()) {
+                        systemOverlayVideoManager.hide()
+                    }
+                } catch (e: Exception) {
+                    Log.w("SearchActivity", "隐藏悬浮窗失败（可能未初始化）", e)
+                }
+                
                 // 获取实际URL
                 val actualUrl = view?.url ?: url
                 Log.d("SearchActivity", "开始加载URL: url参数=$url, view.url=${view?.url}, actualUrl=$actualUrl")
@@ -1934,6 +1997,15 @@ class SearchActivity : AppCompatActivity() {
                 // 获取WebView的实际URL（优先使用view.url，因为url参数可能不准确）
                 val actualUrl = view?.url ?: url
                 Log.d("SearchActivity", "onPageFinished: url参数=$url, view.url=${view?.url}, actualUrl=$actualUrl, title=${view?.title}")
+                
+                // 页面加载完成后，重置视频播放器状态并重新检测
+                isVideoPlayerActive = false
+                if (view != null) {
+                    // 注入新的视频检测脚本
+                    injectVideoHookToWebView(view)
+                    // 保留旧的检测逻辑作为备用
+                    startVideoDetection(view)
+                }
                 
                 // 更新搜索框显示当前URL
                 if (actualUrl != null && actualUrl.isNotEmpty() && actualUrl != "about:blank") {
@@ -2274,6 +2346,12 @@ class SearchActivity : AppCompatActivity() {
                 if (newProgress == 100) {
                     // 加载完成，隐藏进度条
                     progressBar.visibility = View.GONE
+                    // 页面加载完成后，注入视频检测脚本
+                    if (view != null) {
+                        injectVideoHookToWebView(view)
+                    }
+                    // 保留旧的检测逻辑作为备用
+                    startVideoDetection(view)
                 } else {
                     // 更新加载进度
                     if (progressBar.visibility != View.VISIBLE) {
@@ -2313,6 +2391,99 @@ class SearchActivity : AppCompatActivity() {
 
         // 初始化时设置主题
         updateWebViewTheme()
+        
+        // 初始化视频管理器
+        ensureFloatingVideoManager()
+    }
+    
+    /**
+     * 确保视频管理器已初始化
+     */
+    private fun ensureFloatingVideoManager() {
+        if (!::systemOverlayVideoManager.isInitialized) {
+            systemOverlayVideoManager = SystemOverlayVideoManager(this)
+        }
+        if (!::floatingVideoManager.isInitialized) {
+            floatingVideoManager = FloatingVideoPlayerManager(this)
+            floatingVideoManager.attachIfNeeded()
+        }
+    }
+    
+    /**
+     * 注入视频检测脚本到WebView
+     */
+    private fun injectVideoHookToWebView(webView: WebView?) {
+        if (webView == null) return
+        ensureFloatingVideoManager()
+
+        try {
+            // 仅注入一次
+            val tag = webView.getTag(R.id.tag_video_bridge_injected)
+            if (tag != true) {
+                webView.addJavascriptInterface(
+                    VideoDetectionBridge { url ->
+                        runOnUiThread {
+                            try {
+                                // 停止页面内播放并隐藏原视频，避免双声道
+                                webView.evaluateJavascript("(function(){var v=document.querySelector('video'); if(v){try{v.pause();v.muted=true;v.style.opacity='0';v.style.pointerEvents='none';}catch(e){}}})()", null)
+                            } catch (_: Exception) {}
+
+                            // 优先使用系统级悬浮窗播放器
+                            if (systemOverlayVideoManager.canDrawOverlays()) {
+                                systemOverlayVideoManager.show(url)
+                            } else {
+                                // 无权限则提示并使用Activity内悬浮窗作为降级
+                                systemOverlayVideoManager.requestOverlayPermission()
+                                floatingVideoManager.show(url)
+                            }
+                        }
+                    },
+                    "FloatingVideoBridge"
+                )
+                webView.setTag(R.id.tag_video_bridge_injected, true)
+            }
+
+            val js = """
+                (function(){
+                  if(window.__fv_injected) return; window.__fv_injected=true;
+                  function getVideoUrl(v){
+                    try{
+                      var u = v.currentSrc || v.src || '';
+                      if(!u){
+                        var s = v.querySelector('source');
+                        if(s) u = s.src || '';
+                      }
+                      if(!u){
+                        var meta = document.querySelector('meta[property="og:video"],meta[property="og:video:url"],meta[name="og:video"],meta[name="og:video:url"]');
+                        if(meta) u = meta.getAttribute('content')||'';
+                      }
+                      return u;
+                    }catch(e){return ''}
+                  }
+                  function hook(v){
+                    if(!v || v.__fv_hooked) return; v.__fv_hooked=true;
+                    v.addEventListener('play', function(){
+                      try{ var u=getVideoUrl(v); FloatingVideoBridge.onVideoPlay(u); }catch(e){}
+                      try{ v.pause(); v.muted=true; v.style.opacity='0'; v.style.pointerEvents='none'; }catch(e){}
+                    }, {passive:true});
+                    // 拦截点击主动触发
+                    v.addEventListener('click', function(e){
+                      e.preventDefault(); e.stopPropagation();
+                      try{ var u=getVideoUrl(v); FloatingVideoBridge.onVideoPlay(u); }catch(err){}
+                    }, true);
+                  }
+                  var vids = document.querySelectorAll('video');
+                  vids.forEach(hook);
+                  var obs = new MutationObserver(function(){
+                     try{ document.querySelectorAll('video').forEach(hook); }catch(e){}
+                  });
+                  obs.observe(document.documentElement, {subtree:true, childList:true});
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "注入视频检测脚本失败", e)
+        }
     }
 
     private fun updateWebViewTheme() {
@@ -2850,8 +3021,490 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 开始视频检测
+     */
+    private fun startVideoDetection(view: WebView?) {
+        if (view == null) return
+        
+        // 停止之前的检测
+        stopVideoDetection()
+        
+        // 如果已经激活了悬浮播放器，不重复检测
+        if (isVideoPlayerActive) return
+        
+        // 延迟检测，给页面一些时间加载视频元素
+        // 使用多次检测，确保能捕获到视频元素
+        videoDetectionRunnable = Runnable {
+            Log.d("SearchActivity", "执行第一次视频检测")
+            detectAndLaunchVideoPlayer(view)
+            
+            // 如果第一次没检测到，延迟再检测多次（可能视频元素是动态加载的）
+            if (!isVideoPlayerActive) {
+                videoDetectionHandler.postDelayed({
+                    if (!isVideoPlayerActive) {
+                        Log.d("SearchActivity", "执行第二次视频检测（延迟2秒）")
+                        detectAndLaunchVideoPlayer(view)
+                        
+                        // 第三次检测（延迟5秒）
+                        if (!isVideoPlayerActive) {
+                            videoDetectionHandler.postDelayed({
+                                if (!isVideoPlayerActive) {
+                                    Log.d("SearchActivity", "执行第三次视频检测（延迟5秒）")
+                                    detectAndLaunchVideoPlayer(view)
+                                }
+                            }, 3000)
+                        }
+                    }
+                }, 2000)
+            }
+        }
+        Log.d("SearchActivity", "启动视频检测，延迟500ms")
+        videoDetectionHandler.postDelayed(videoDetectionRunnable!!, 500)
+    }
+    
+    /**
+     * 停止视频检测
+     */
+    private fun stopVideoDetection() {
+        videoDetectionRunnable?.let {
+            videoDetectionHandler.removeCallbacks(it)
+        }
+        videoDetectionRunnable = null
+    }
+    
+    /**
+     * 检测并启动视频播放器
+     * 参考Alook浏览器的模式：自动检测视频并替换内联播放器
+     */
+    private fun detectAndLaunchVideoPlayer(view: WebView) {
+        if (isVideoPlayerActive) {
+            Log.d("SearchActivity", "悬浮播放器已激活，跳过检测")
+            return
+        }
+        
+        Log.d("SearchActivity", "开始检测视频元素，URL: ${view.url}")
+        
+        try {
+            // 使用JavaScript检测页面中的视频元素
+            // 放宽检测条件：只要有video元素就尝试启动
+            view.evaluateJavascript("""
+                (function() {
+                    var videos = document.querySelectorAll('video');
+                    var videoInfo = null;
+                    
+                    console.log('检测到 ' + videos.length + ' 个video元素');
+                    
+                    if (videos.length > 0) {
+                        var video = videos[0];
+                        
+                        // 放宽条件：只要有video元素就尝试提取信息
+                        var hasSrc = (video.src && video.src.length > 0) || 
+                                   (video.currentSrc && video.currentSrc.length > 0);
+                        var hasPoster = video.poster && video.poster.length > 0;
+                        var hasSource = video.querySelectorAll('source').length > 0;
+                        var hasVideoTag = true; // 只要有video标签就认为有视频
+                        
+                        console.log('视频信息 - hasSrc: ' + hasSrc + ', hasPoster: ' + hasPoster + ', hasSource: ' + hasSource + ', readyState: ' + video.readyState);
+                        
+                        // 只要有video元素就尝试启动（不要求有src，因为可能通过source标签加载）
+                        if (hasVideoTag) {
+                            videoInfo = {
+                                src: video.src || video.currentSrc || '',
+                                poster: video.poster || '',
+                                currentSrc: video.currentSrc || video.src || '',
+                                isPlaying: !video.paused,
+                                duration: video.duration || 0,
+                                currentTime: video.currentTime || 0,
+                                readyState: video.readyState || 0,
+                                hasVideoTag: true
+                            };
+                            
+                            console.log('提取到视频信息: ' + JSON.stringify(videoInfo));
+                        }
+                    }
+                    
+                    // 也检查iframe中的视频
+                    var iframes = document.querySelectorAll('iframe');
+                    console.log('检测到 ' + iframes.length + ' 个iframe元素');
+                    
+                    for (var i = 0; i < iframes.length; i++) {
+                        var iframe = iframes[i];
+                        var src = iframe.src || '';
+                        
+                        // 检查是否是视频网站（包括360搜索等）
+                        if (src.includes('youtube.com') || 
+                            src.includes('youtu.be') ||
+                            src.includes('bilibili.com') ||
+                            src.includes('v.qq.com') ||
+                            src.includes('iqiyi.com') ||
+                            src.includes('youku.com') ||
+                            src.includes('douyin.com') ||
+                            src.includes('kuaishou.com') ||
+                            src.includes('qukanbbc') ||
+                            src.includes('360.com') ||
+                            src.includes('so.com')) {
+                            console.log('检测到视频iframe: ' + src);
+                            if (!videoInfo) {
+                                videoInfo = {
+                                    src: src,
+                                    poster: '',
+                                    currentSrc: src,
+                                    isPlaying: false,
+                                    duration: 0,
+                                    currentTime: 0,
+                                    isIframe: true
+                                };
+                            }
+                        }
+                    }
+                    
+                    var result = videoInfo ? JSON.stringify(videoInfo) : null;
+                    console.log('检测结果: ' + result);
+                    return result;
+                })();
+            """.trimIndent()) { result ->
+                Log.d("SearchActivity", "视频检测结果: $result")
+                
+                if (result != null && result != "null" && result.isNotEmpty()) {
+                    try {
+                        // 解析视频信息
+                        val videoInfoJson = result.removeSurrounding("\"")
+                            .replace("\\\"", "\"")
+                            .replace("\\n", "")
+                            .trim()
+                        
+                        Log.d("SearchActivity", "解析后的视频信息JSON: $videoInfoJson")
+                        
+                        if (videoInfoJson.isNotEmpty() && videoInfoJson != "null") {
+                            // 提取视频URL
+                            val videoUrl = extractVideoUrlFromJson(videoInfoJson, view.url)
+                            Log.d("SearchActivity", "提取的视频URL: $videoUrl, 页面URL: ${view.url}")
+                            
+                            if (videoUrl != null) {
+                                // 启动悬浮播放器并隐藏原始视频
+                                Log.d("SearchActivity", "准备启动悬浮播放器")
+                                launchFloatingVideoPlayer(videoUrl, view.url, view)
+                            } else {
+                                Log.w("SearchActivity", "无法提取视频URL，尝试使用页面URL")
+                                // 如果无法提取视频URL，使用页面URL
+                                launchFloatingVideoPlayer(view.url, view.url, view)
+                            }
+                        } else {
+                            Log.d("SearchActivity", "未检测到视频信息")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("SearchActivity", "解析视频信息失败", e)
+                        e.printStackTrace()
+                    }
+                } else {
+                    Log.d("SearchActivity", "JavaScript返回null或空结果")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "检测视频失败", e)
+            e.printStackTrace()
+        }
+    }
+    
+    /**
+     * 从JSON中提取视频URL
+     */
+    private fun extractVideoUrlFromJson(jsonStr: String, pageUrl: String?): String? {
+        return try {
+            Log.d("SearchActivity", "开始提取视频URL，JSON: $jsonStr, 页面URL: $pageUrl")
+            
+            // 简单解析JSON字符串
+            val srcMatch = Regex("\"src\"\\s*:\\s*\"([^\"]+)\"").find(jsonStr)
+            val currentSrcMatch = Regex("\"currentSrc\"\\s*:\\s*\"([^\"]+)\"").find(jsonStr)
+            
+            var videoUrl = srcMatch?.groupValues?.get(1) 
+                ?: currentSrcMatch?.groupValues?.get(1)
+            
+            Log.d("SearchActivity", "提取的原始videoUrl: $videoUrl")
+            
+            // 如果视频URL是相对路径，转换为绝对路径
+            if (videoUrl != null && videoUrl.isNotEmpty() && videoUrl != "null") {
+                if (videoUrl.startsWith("http://") || videoUrl.startsWith("https://")) {
+                    Log.d("SearchActivity", "使用绝对URL: $videoUrl")
+                    videoUrl
+                } else if (pageUrl != null) {
+                    // 尝试构建绝对URL
+                    val baseUrl = pageUrl.substringBeforeLast("/")
+                    val absoluteUrl = "$baseUrl/$videoUrl".replace("//", "/").replace(":/", "://")
+                    Log.d("SearchActivity", "构建的绝对URL: $absoluteUrl")
+                    absoluteUrl
+                } else {
+                    Log.w("SearchActivity", "无法构建绝对URL，videoUrl为空或pageUrl为空")
+                    null
+                }
+            } else {
+                // 如果没有找到视频URL，但检测到iframe或hasVideoTag，返回页面URL
+                if (jsonStr.contains("isIframe") || jsonStr.contains("hasVideoTag")) {
+                    Log.d("SearchActivity", "检测到iframe或video标签，使用页面URL: $pageUrl")
+                    pageUrl
+                } else {
+                    Log.w("SearchActivity", "未找到视频URL且未检测到iframe/video标签")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "提取视频URL失败", e)
+            e.printStackTrace()
+            null
+        }
+    }
+    
+    /**
+     * 启动悬浮视频播放器
+     * 在启动前会检查并申请悬浮窗权限，并隐藏原始页面的视频元素
+     * 参考Alook浏览器的模式：替换内联播放器
+     */
+    private fun launchFloatingVideoPlayer(videoUrl: String?, pageUrl: String?, webView: WebView? = null) {
+        if (isVideoPlayerActive) {
+            Log.d("SearchActivity", "悬浮播放器已激活，跳过重复启动")
+            return
+        }
+        
+        // 检查悬浮窗权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                Log.d("SearchActivity", "没有悬浮窗权限，请求权限")
+                // 保存待启动的视频信息
+                pendingVideoUrl = videoUrl
+                pendingPageUrl = pageUrl
+                
+                // 请求悬浮窗权限
+                requestOverlayPermission()
+                return
+            }
+        }
+        
+        // 有权限，先隐藏原始页面的视频元素（替换内联播放器）
+        webView?.let { view ->
+            hideOriginalVideoElements(view)
+        }
+        
+        // 启动悬浮播放器
+        try {
+            val intent = Intent(this, FloatingVideoPlayerService::class.java).apply {
+                action = FloatingVideoPlayerService.ACTION_START_PLAYER
+                putExtra(FloatingVideoPlayerService.EXTRA_VIDEO_URL, videoUrl)
+                putExtra(FloatingVideoPlayerService.EXTRA_PAGE_URL, pageUrl)
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            
+            isVideoPlayerActive = true
+            Log.d("SearchActivity", "已启动悬浮视频播放器: videoUrl=$videoUrl, pageUrl=$pageUrl")
+            Toast.makeText(this, "视频已切换到悬浮播放器", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "启动悬浮视频播放器失败", e)
+            Toast.makeText(this, "启动悬浮播放器失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 隐藏原始页面的视频元素
+     * 参考Alook模式：替换内联播放器，隐藏原始视频元素
+     */
+    private fun hideOriginalVideoElements(webView: WebView) {
+        try {
+            webView.evaluateJavascript("""
+                (function() {
+                    // 隐藏所有video元素
+                    var videos = document.querySelectorAll('video');
+                    videos.forEach(function(video) {
+                        video.style.display = 'none';
+                        video.style.visibility = 'hidden';
+                        video.style.opacity = '0';
+                        video.style.position = 'absolute';
+                        video.style.width = '0';
+                        video.style.height = '0';
+                        // 暂停原始视频（避免同时播放）
+                        if (!video.paused) {
+                            video.pause();
+                        }
+                    });
+                    
+                    // 隐藏包含视频的容器（如果可能识别的话）
+                    var videoContainers = document.querySelectorAll('[class*="video"], [id*="video"], [class*="player"], [id*="player"]');
+                    videoContainers.forEach(function(container) {
+                        // 检查容器内是否有video元素
+                        if (container.querySelector('video')) {
+                            container.style.display = 'none';
+                            container.style.visibility = 'hidden';
+                        }
+                    });
+                    
+                    // 隐藏iframe中的视频（部分网站）
+                    var iframes = document.querySelectorAll('iframe');
+                    iframes.forEach(function(iframe) {
+                        var src = iframe.src || '';
+                        if (src.includes('youtube.com') || 
+                            src.includes('youtu.be') ||
+                            src.includes('bilibili.com') ||
+                            src.includes('v.qq.com') ||
+                            src.includes('iqiyi.com') ||
+                            src.includes('youku.com') ||
+                            src.includes('douyin.com') ||
+                            src.includes('kuaishou.com') ||
+                            src.includes('qukanbbc')) {
+                            iframe.style.display = 'none';
+                            iframe.style.visibility = 'hidden';
+                        }
+                    });
+                    
+                    return 'hidden';
+                })();
+            """.trimIndent(), null)
+            
+            Log.d("SearchActivity", "已隐藏原始页面的视频元素")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "隐藏原始视频元素失败", e)
+        }
+    }
+    
+    /**
+     * 恢复原始页面的视频元素（当悬浮播放器关闭时）
+     */
+    private fun restoreOriginalVideoElements(webView: WebView) {
+        try {
+            webView.evaluateJavascript("""
+                (function() {
+                    // 恢复所有video元素
+                    var videos = document.querySelectorAll('video');
+                    videos.forEach(function(video) {
+                        video.style.display = '';
+                        video.style.visibility = '';
+                        video.style.opacity = '';
+                        video.style.position = '';
+                        video.style.width = '';
+                        video.style.height = '';
+                    });
+                    
+                    // 恢复视频容器
+                    var videoContainers = document.querySelectorAll('[class*="video"], [id*="video"], [class*="player"], [id*="player"]');
+                    videoContainers.forEach(function(container) {
+                        if (container.querySelector('video')) {
+                            container.style.display = '';
+                            container.style.visibility = '';
+                        }
+                    });
+                    
+                    // 恢复iframe
+                    var iframes = document.querySelectorAll('iframe');
+                    iframes.forEach(function(iframe) {
+                        var src = iframe.src || '';
+                        if (src.includes('youtube.com') || 
+                            src.includes('youtu.be') ||
+                            src.includes('bilibili.com') ||
+                            src.includes('v.qq.com') ||
+                            src.includes('iqiyi.com') ||
+                            src.includes('youku.com') ||
+                            src.includes('douyin.com') ||
+                            src.includes('kuaishou.com') ||
+                            src.includes('qukanbbc')) {
+                            iframe.style.display = '';
+                            iframe.style.visibility = '';
+                        }
+                    });
+                    
+                    return 'restored';
+                })();
+            """.trimIndent(), null)
+            
+            Log.d("SearchActivity", "已恢复原始页面的视频元素")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "恢复原始视频元素失败", e)
+        }
+    }
+    
+    /**
+     * 请求悬浮窗权限
+     */
+    private fun requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                // 显示说明对话框
+                AlertDialog.Builder(this)
+                    .setTitle("需要悬浮窗权限")
+                    .setMessage("为了在浏览页面时显示悬浮视频播放器，需要授予悬浮窗权限。\n\n请在设置页面中开启「显示在其他应用的上层」权限。")
+                    .setPositiveButton("去设置") { _, _ ->
+                        // 跳转到悬浮窗权限设置页面
+                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        overlayPermissionLauncher.launch(intent)
+                    }
+                    .setNegativeButton("取消") { _, _ ->
+                        pendingVideoUrl = null
+                        pendingPageUrl = null
+                        Toast.makeText(this, "已取消启动悬浮播放器", Toast.LENGTH_SHORT).show()
+                    }
+                    .setCancelable(true)
+                    .show()
+            }
+        }
+    }
+    
+    /**
+     * 停止悬浮视频播放器
+     * 停止时恢复原始页面的视频元素
+     */
+    private fun stopFloatingVideoPlayer() {
+        if (!isVideoPlayerActive) return
+        
+        try {
+            // 恢复原始页面的视频元素
+            val currentWebView = if (isPaperStackMode && paperStackManager != null) {
+                paperStackManager?.getCurrentTab()?.webView
+            } else {
+                webView
+            }
+            currentWebView?.let { view ->
+                restoreOriginalVideoElements(view)
+            }
+            
+            val intent = Intent(this, FloatingVideoPlayerService::class.java).apply {
+                action = FloatingVideoPlayerService.ACTION_STOP_PLAYER
+            }
+            stopService(intent)
+            isVideoPlayerActive = false
+            Log.d("SearchActivity", "已停止悬浮视频播放器")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "停止悬浮视频播放器失败", e)
+        }
+    }
+
     override fun onDestroy() {
         try {
+            // 停止视频检测和播放器
+            stopVideoDetection()
+            stopFloatingVideoPlayer()
+            
+            // 清理系统级悬浮窗播放器
+            try {
+                if (::systemOverlayVideoManager.isInitialized) {
+                    systemOverlayVideoManager.destroy()
+                }
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "清理系统级悬浮窗播放器失败", e)
+            }
+            
+            // 清理Activity内悬浮窗播放器
+            try {
+                if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
+                    floatingVideoManager.hide()
+                }
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "清理Activity内悬浮窗播放器失败", e)
+            }
+            
             // 清理纸堆管理器
             paperStackManager?.cleanup()
             

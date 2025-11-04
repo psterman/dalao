@@ -19,7 +19,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
 import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
@@ -44,6 +43,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import kotlin.math.abs
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -95,6 +95,9 @@ import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.adapter.AppSearchGridAdapter
 import com.example.aifloatingball.utils.FaviconLoader
 import com.example.aifloatingball.ui.TabSwitchAnimationManager
+import com.example.aifloatingball.video.FloatingVideoPlayerManager
+import com.example.aifloatingball.video.SystemOverlayVideoManager
+import com.example.aifloatingball.webview.VideoDetectionBridge
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import androidx.lifecycle.lifecycleScope
@@ -780,6 +783,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 触摸冲突解决器
     private var touchConflictResolver: TouchConflictResolver? = null
+
+    // 悬浮视频播放器（优先系统级覆盖，其次Activity内覆盖）
+    private lateinit var systemOverlayVideoManager: SystemOverlayVideoManager
+    private lateinit var floatingVideoManager: FloatingVideoPlayerManager
 
 
 
@@ -6007,6 +6014,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "清理应用搜索适配器资源失败", e)
         }
+        
+        // 清理系统级悬浮窗播放器
+        try {
+            if (::systemOverlayVideoManager.isInitialized) {
+                systemOverlayVideoManager.destroy()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理系统级悬浮窗播放器失败", e)
+        }
+        
+        // 清理Activity内悬浮窗播放器
+        try {
+            if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
+                floatingVideoManager.hide()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理Activity内悬浮窗播放器失败", e)
+        }
 
         // 清理搜索tab手势遮罩区
         deactivateSearchTabGestureOverlay()
@@ -6096,6 +6121,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserSearchInput.setText(tab.url)
             updateBrowserFaviconButtonForUrl(tab.url)
 
+            // 为当前标签页注入视频检测脚本
+            injectVideoHookToWebView(tab.webView)
+
             // 同步更新StackedCardPreview数据
             syncAllCardSystems()
 
@@ -6106,6 +6134,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 标签页创建时同步更新
             syncAllCardSystems()
             Log.d(TAG, "创建标签页: ${tab.title}")
+
+            // 新建标签页也注入视频检测
+            injectVideoHookToWebView(tab.webView)
         }
 
         // favicon 接收时，立即更新站点按钮的图标与可见性
@@ -6123,6 +6154,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
+        // 页面开始加载时隐藏悬浮窗
+        paperStackWebViewManager?.setOnPageStartedListener { tab, url ->
+            Log.d(TAG, "纸堆模式页面开始加载: $url")
+            // 隐藏悬浮播放器
+            if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
+                floatingVideoManager.hide()
+            }
+            if (::systemOverlayVideoManager.isInitialized && systemOverlayVideoManager.isShowing()) {
+                systemOverlayVideoManager.hide()
+            }
+        }
+        
+        // 页面加载完成时注入视频检测脚本
+        paperStackWebViewManager?.setOnPageFinishedListener { tab, url ->
+            Log.d(TAG, "纸堆模式页面加载完成: $url")
+            injectVideoHookToWebView(tab.webView)
+        }
+        
         // 页面标题变化时，优先用标题填充搜索框
         paperStackWebViewManager?.setOnTitleReceivedListener { tab, title ->
             try {
@@ -6198,6 +6247,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 页面加载状态变化时，同步地址栏与站点图标
                 browserSearchInput.setText(cardData.url)
                 updateBrowserFaviconButtonForUrl(cardData.url)
+
+                // 页面加载完成后注入视频检测脚本；加载中则收起悬浮播放器
+                if (!isLoading) {
+                    injectVideoHookToWebView(cardData.webView)
+                } else {
+                    if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
+                        floatingVideoManager.hide()
+                    }
+                    if (::systemOverlayVideoManager.isInitialized && systemOverlayVideoManager.isShowing()) {
+                        systemOverlayVideoManager.hide()
+                    }
+                }
 
                 Log.d(TAG, "卡片加载状态变化: ${cardData.title} - $isLoading")
             }
@@ -9574,6 +9635,90 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         quarterArcOperationBar?.show()
 
         Log.d(TAG, "已切换到WebView模式")
+    }
+
+    private fun ensureFloatingVideoManager() {
+        if (!::systemOverlayVideoManager.isInitialized) {
+            systemOverlayVideoManager = SystemOverlayVideoManager(this)
+        }
+        if (!::floatingVideoManager.isInitialized) {
+            floatingVideoManager = FloatingVideoPlayerManager(this)
+            floatingVideoManager.attachIfNeeded()
+        }
+    }
+
+    private fun injectVideoHookToWebView(webView: android.webkit.WebView?) {
+        if (webView == null) return
+        ensureFloatingVideoManager()
+
+        try {
+            // 仅注入一次
+            val tag = webView.getTag(R.id.tag_video_bridge_injected)
+            if (tag != true) {
+                webView.addJavascriptInterface(
+                    VideoDetectionBridge { url ->
+                        runOnUiThread {
+                            try {
+                                // 停止页面内播放并隐藏原视频，避免双声道
+                                webView.evaluateJavascript("(function(){var v=document.querySelector('video'); if(v){try{v.pause();v.muted=true;v.style.opacity='0';v.style.pointerEvents='none';}catch(e){}}})()", null)
+                            } catch (_: Exception) {}
+
+                            // 优先使用系统级悬浮窗播放器
+                            if (systemOverlayVideoManager.canDrawOverlays()) {
+                                systemOverlayVideoManager.show(url)
+                            } else {
+                                // 无权限则提示并使用Activity内悬浮窗作为降级
+                                systemOverlayVideoManager.requestOverlayPermission()
+                                floatingVideoManager.show(url)
+                            }
+                        }
+                    },
+                    "FloatingVideoBridge"
+                )
+                webView.setTag(R.id.tag_video_bridge_injected, true)
+            }
+
+            val js = """
+                (function(){
+                  if(window.__fv_injected) return; window.__fv_injected=true;
+                  function getVideoUrl(v){
+                    try{
+                      var u = v.currentSrc || v.src || '';
+                      if(!u){
+                        var s = v.querySelector('source');
+                        if(s) u = s.src || '';
+                      }
+                      if(!u){
+                        var meta = document.querySelector('meta[property="og:video"],meta[property="og:video:url"],meta[name="og:video"],meta[name="og:video:url"]');
+                        if(meta) u = meta.getAttribute('content')||'';
+                      }
+                      return u;
+                    }catch(e){return ''}
+                  }
+                  function hook(v){
+                    if(!v || v.__fv_hooked) return; v.__fv_hooked=true;
+                    v.addEventListener('play', function(){
+                      try{ var u=getVideoUrl(v); FloatingVideoBridge.onVideoPlay(u); }catch(e){}
+                      try{ v.pause(); v.muted=true; v.style.opacity='0'; v.style.pointerEvents='none'; }catch(e){}
+                    }, {passive:true});
+                    // 拦截点击主动触发
+                    v.addEventListener('click', function(e){
+                      e.preventDefault(); e.stopPropagation();
+                      try{ var u=getVideoUrl(v); FloatingVideoBridge.onVideoPlay(u); }catch(err){}
+                    }, true);
+                  }
+                  var vids = document.querySelectorAll('video');
+                  vids.forEach(hook);
+                  var obs = new MutationObserver(function(){
+                     try{ document.querySelectorAll('video').forEach(hook); }catch(e){}
+                  });
+                  obs.observe(document.documentElement, {subtree:true, childList:true});
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "注入视频检测脚本失败", e)
+        }
     }
 
     /**

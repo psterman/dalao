@@ -86,6 +86,8 @@ class PaperStackWebViewManager(
     private var onTabSwitchedListener: ((WebViewTab, Int) -> Unit)? = null
     private var onFaviconReceivedListener: ((WebViewTab, android.graphics.Bitmap?) -> Unit)? = null
     private var onTitleReceivedListener: ((WebViewTab, String?) -> Unit)? = null
+    private var onPageStartedListener: ((WebViewTab, String?) -> Unit)? = null
+    private var onPageFinishedListener: ((WebViewTab, String?) -> Unit)? = null
     private var swipeStartX = 0f
     private var swipeStartY = 0f
     private var isSwipeStarted = false
@@ -119,6 +121,20 @@ class PaperStackWebViewManager(
      */
     fun setOnTitleReceivedListener(listener: (WebViewTab, String?) -> Unit) {
         this.onTitleReceivedListener = listener
+    }
+    
+    /**
+     * 设置页面开始加载监听器
+     */
+    fun setOnPageStartedListener(listener: (WebViewTab, String?) -> Unit) {
+        this.onPageStartedListener = listener
+    }
+    
+    /**
+     * 设置页面加载完成监听器
+     */
+    fun setOnPageFinishedListener(listener: (WebViewTab, String?) -> Unit) {
+        this.onPageFinishedListener = listener
     }
     
     /**
@@ -1534,6 +1550,14 @@ class PaperStackWebViewManager(
                         // 恢复透明背景，避免之前的错误状态影响
                         view.setBackgroundColor(Color.TRANSPARENT)
                     }
+                    
+                    // 通知页面开始加载监听器
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            onPageStartedListener?.invoke(tab, url)
+                        }
+                    }
                 }
                 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -1581,6 +1605,14 @@ class PaperStackWebViewManager(
                             }
                         })();
                     """.trimIndent(), null)
+                    
+                    // 通知页面加载完成监听器（用于注入视频检测脚本）
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            onPageFinishedListener?.invoke(tab, url)
+                        }
+                    }
                 }
                 
                 override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
