@@ -24,17 +24,18 @@
                 app:layout_scrollFlags="scroll|enterAlways|snap">
 
                 <!-- 顶部工具栏 -->
-                <FrameLayout
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="8dp">
+                    android:padding="8dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
                     <!-- 左侧按钮容器 -->
                     <LinearLayout
                         android:id="@+id/left_buttons"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="start|center_vertical"
                         android:orientation="horizontal">
 
                         <ImageButton
@@ -46,15 +47,29 @@
                             android:src="@android:drawable/ic_menu_sort_by_size" />
                     </LinearLayout>
 
+                    <!-- Favicon按钮 - 显示网站图标（常驻在搜索框左侧之外） -->
+                    <ImageButton
+                        android:id="@+id/btn_favicon"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@android:drawable/ic_menu_search"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="网站信息"
+                        android:scaleType="fitCenter"
+                        android:visibility="visible"
+                        app:tint="?attr/colorControlNormal"/>
+
                     <!-- 搜索栏容器 -->
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="48dp"
-                        android:layout_marginStart="56dp"
-                        android:layout_marginEnd="152dp"
+                        android:layout_weight="1"
                         android:orientation="horizontal"
                         android:background="@drawable/search_bar_background"
-                        android:gravity="center_vertical">
+                        android:gravity="center_vertical"
+                        android:layout_marginEnd="8dp">
 
                         <ImageButton
                             android:id="@+id/btn_search_engine"
@@ -63,6 +78,18 @@
                             android:background="?android:attr/selectableItemBackgroundBorderless"
                             android:src="@android:drawable/ic_menu_search"
                             android:contentDescription="切换搜索引擎"/>
+
+                        <!-- 输入框内的图标（显示网站favicon或默认图标） -->
+                        <ImageView
+                            android:id="@+id/input_favicon"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="4dp"
+                            android:src="@android:drawable/ic_menu_search"
+                            android:scaleType="fitCenter"
+                            android:visibility="visible"
+                            android:contentDescription="网站图标"/>
 
                             <EditText
                                 android:id="@+id/search_input"
@@ -73,7 +100,7 @@
                                 android:hint="搜索或输入网址"
                                 android:imeOptions="actionSearch"
                             android:inputType="textUri"
-                            android:paddingStart="8dp"
+                            android:paddingStart="4dp"
                             android:paddingEnd="8dp"
                                 android:singleLine="true"
                             android:textSize="16sp"/>
@@ -93,7 +120,6 @@
                         android:id="@+id/right_buttons"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="end|center_vertical"
                         android:orientation="horizontal">
 
                         <!-- 下载提示按钮 -->
@@ -144,7 +170,7 @@
                             android:src="@android:drawable/ic_menu_close_clear_cancel"
                             android:tint="?android:attr/textColorPrimary" />
                     </LinearLayout>
-                </FrameLayout>
+                </LinearLayout>
 
                 <!-- 搜索引擎选择器 -->
                 <androidx.recyclerview.widget.RecyclerView

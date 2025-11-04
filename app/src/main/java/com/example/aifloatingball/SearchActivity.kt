@@ -86,6 +86,8 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
     private lateinit var searchEngineButton: ImageButton
     private lateinit var clearSearchButton: ImageButton
+    private lateinit var faviconButton: ImageButton
+    private lateinit var inputFavicon: ImageView
     private var currentSearchEngine: BaseSearchEngine? = null
     
     // 下载提示按钮相关
@@ -369,6 +371,8 @@ class SearchActivity : AppCompatActivity() {
         searchInput = findViewById(R.id.search_input)
         searchEngineButton = findViewById(R.id.btn_search_engine)
         clearSearchButton = findViewById(R.id.btn_clear_search)
+        faviconButton = findViewById(R.id.btn_favicon)
+        inputFavicon = findViewById(R.id.input_favicon)
 
         // Initialize download indicator views
         downloadIndicatorContainer = findViewById(R.id.download_indicator_container)
@@ -396,6 +400,9 @@ class SearchActivity : AppCompatActivity() {
 
         // 设置基本点击事件
         setupBasicClickListeners()
+        
+        // 设置favicon按钮点击事件
+        setupFaviconButton()
         
         // 设置搜索相关事件
         setupSearchViews()
@@ -725,6 +732,302 @@ class SearchActivity : AppCompatActivity() {
     }
     
     /**
+     * 设置favicon按钮
+     */
+    private fun setupFaviconButton() {
+        Log.d("SearchActivity", "setupFaviconButton: 初始化favicon按钮")
+        
+        // 添加调试：检查按钮是否在布局中
+        faviconButton.post {
+            Log.d("SearchActivity", "favicon按钮初始化完成, visibility=${faviconButton.visibility}, width=${faviconButton.width}, height=${faviconButton.height}, parent=${faviconButton.parent}")
+            Log.d("SearchActivity", "favicon按钮位置 - x: ${faviconButton.x}, y: ${faviconButton.y}")
+        }
+        
+        faviconButton.setOnClickListener {
+            Log.d("SearchActivity", "favicon按钮被点击")
+            showWebsiteInfoMenu()
+        }
+        
+        // 初始状态：显示favicon按钮（常驻显示）
+        faviconButton.visibility = View.VISIBLE
+        faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+        
+        // 初始状态：显示输入框内的图标（常驻显示）
+        inputFavicon.visibility = View.VISIBLE
+        inputFavicon.setImageResource(android.R.drawable.ic_menu_search)
+    }
+    
+    /**
+     * 更新favicon按钮图标
+     */
+    private fun updateFaviconButton(icon: Bitmap?, url: String?) {
+        // 确保按钮始终可见（常驻显示）
+        faviconButton.visibility = View.VISIBLE
+        
+        // 检查是否有有效URL
+        val hasValidUrl = url != null && url.isNotEmpty() && url != "about:blank"
+        
+        if (icon != null) {
+            // 有favicon，设置图标
+            faviconButton.setImageBitmap(icon)
+            // 同时更新输入框内的图标
+            inputFavicon.setImageBitmap(icon)
+            Log.d("SearchActivity", "更新favicon按钮: 使用Bitmap图标, URL: $url")
+        } else if (hasValidUrl && url != null) {
+            // 没有favicon但有效URL，显示默认图标并尝试加载
+            faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+            inputFavicon.setImageResource(android.R.drawable.ic_menu_search)
+            Log.d("SearchActivity", "更新favicon按钮: 显示默认图标, URL: $url")
+            // 尝试从URL加载favicon（异步加载，不会阻塞UI）
+            loadFaviconFromUrl(url)
+        } else {
+            // 没有有效URL，显示默认图标（按钮常驻）
+            faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+            inputFavicon.setImageResource(android.R.drawable.ic_menu_search)
+            Log.d("SearchActivity", "更新favicon按钮: 无URL，显示默认图标")
+        }
+    }
+    
+    /**
+     * 从URL加载favicon
+     */
+    private fun loadFaviconFromUrl(url: String) {
+        if (url.isEmpty() || url == "about:blank") {
+            Log.d("SearchActivity", "loadFaviconFromUrl: 无效URL，跳过加载")
+            return
+        }
+        
+        Log.d("SearchActivity", "loadFaviconFromUrl: 开始加载favicon, URL: $url")
+        
+        // 确保按钮可见（使用默认图标）
+        faviconButton.visibility = View.VISIBLE
+        if (faviconButton.drawable == null) {
+            faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+        }
+        
+        // 确保输入框内的图标可见（使用默认图标）
+        inputFavicon.visibility = View.VISIBLE
+        if (inputFavicon.drawable == null) {
+            inputFavicon.setImageResource(android.R.drawable.ic_menu_search)
+        }
+        
+        // 使用FaviconLoader加载favicon（异步加载）
+        com.example.aifloatingball.utils.FaviconLoader.loadFavicon(faviconButton, url)
+        
+        // 同时为输入框内的图标创建加载任务
+        com.example.aifloatingball.utils.FaviconLoader.loadFavicon(inputFavicon, url)
+    }
+    
+    /**
+     * 显示网站信息菜单（参考via和alook）
+     */
+    private fun showWebsiteInfoMenu() {
+        val currentUrl = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.url ?: webView.url
+        } else {
+            webView.url
+        }
+        
+        val currentTitle = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.title ?: webView.title
+        } else {
+            webView.title
+        }
+        
+        if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+            Toast.makeText(this, "当前没有加载网页", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 创建弹出菜单
+        val popupMenu = androidx.appcompat.widget.PopupMenu(this, faviconButton)
+        popupMenu.menuInflater.inflate(R.menu.website_info_menu, popupMenu.menu)
+        
+        // 设置菜单项标题（显示网站名称）
+        val titleItem = popupMenu.menu.findItem(R.id.menu_website_title)
+        titleItem?.title = currentTitle ?: extractDomain(currentUrl)
+        
+        // 设置页面缩放显示
+        val zoomItem = popupMenu.menu.findItem(R.id.menu_page_zoom)
+        val webViewToUse = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.webView ?: webView
+        } else {
+            webView
+        }
+        val currentZoom = webViewToUse.settings.textZoom
+        zoomItem?.title = "页面缩放: ${currentZoom}%"
+        
+        popupMenu.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.menu_copy_title -> {
+                    // 拷贝标题
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("标题", currentTitle ?: "")
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this, "标题已复制", Toast.LENGTH_SHORT).show()
+                    true
+                }
+                R.id.menu_website_settings -> {
+                    // 网站设置
+                    showWebsiteSettingsDialog(currentUrl)
+                    true
+                }
+                R.id.menu_page_zoom -> {
+                    // 页面缩放
+                    showPageZoomDialog()
+                    true
+                }
+                R.id.menu_add_to_desktop -> {
+                    // 添加到桌面
+                    addToDesktop(currentUrl, currentTitle ?: "")
+                    true
+                }
+                R.id.menu_get_full_text -> {
+                    // 获取网页全部文字
+                    extractFullText()
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        popupMenu.show()
+    }
+    
+    /**
+     * 提取域名
+     */
+    private fun extractDomain(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            uri.host ?: url
+        } catch (e: Exception) {
+            url
+        }
+    }
+    
+    /**
+     * 显示网站设置对话框
+     */
+    private fun showWebsiteSettingsDialog(url: String) {
+        val domain = extractDomain(url)
+        val message = "网站: $domain\n\n可以在这里设置网站权限、Cookie等设置"
+        
+        AlertDialog.Builder(this)
+            .setTitle("网站设置")
+            .setMessage(message)
+            .setPositiveButton("确定", null)
+            .show()
+    }
+    
+    /**
+     * 显示页面缩放对话框
+     */
+    private fun showPageZoomDialog() {
+        val zoomOptions = arrayOf("50%", "75%", "100%", "125%", "150%", "200%")
+        val webViewToUse = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.webView ?: webView
+        } else {
+            webView
+        }
+        val currentZoom = webViewToUse.settings.textZoom
+        val currentIndex = when {
+            currentZoom <= 50 -> 0
+            currentZoom <= 75 -> 1
+            currentZoom <= 100 -> 2
+            currentZoom <= 125 -> 3
+            currentZoom <= 150 -> 4
+            else -> 5
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("页面缩放")
+            .setSingleChoiceItems(zoomOptions, currentIndex) { dialog, which ->
+                val zoomPercent = when (which) {
+                    0 -> 50
+                    1 -> 75
+                    2 -> 100
+                    3 -> 125
+                    4 -> 150
+                    5 -> 200
+                    else -> 100
+                }
+                webViewToUse.settings.textZoom = zoomPercent
+                Toast.makeText(this, "缩放已设置为 $zoomPercent%", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 添加到桌面
+     */
+    private fun addToDesktop(url: String, title: String) {
+        Toast.makeText(this, "添加到桌面功能待实现", Toast.LENGTH_SHORT).show()
+        // TODO: 实现添加到桌面功能
+    }
+    
+    /**
+     * 提取网页全部文字
+     */
+    private fun extractFullText() {
+        val webViewToUse = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.webView ?: webView
+        } else {
+            webView
+        }
+        
+        webViewToUse.evaluateJavascript("(function() { return document.body.innerText; })()") { result ->
+            val text = result?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("网页文字", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@SearchActivity, "网页文字已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@SearchActivity, "无法获取网页文字", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    /**
+     * 从标签页更新favicon按钮
+     */
+    private fun updateFaviconFromTab(tab: PaperStackWebViewManager.WebViewTab) {
+        // 优先使用WebView的实际URL，因为它更准确反映当前加载的页面
+        val webViewUrl = tab.webView.url
+        val actualUrl = if (!webViewUrl.isNullOrEmpty() && webViewUrl != "about:blank") {
+            webViewUrl
+        } else if (tab.url.isNotEmpty() && tab.url != "about:blank") {
+            // 如果WebView的URL无效，使用tab.url（预设URL）
+            tab.url
+        } else {
+            null
+        }
+        
+        Log.d("SearchActivity", "updateFaviconFromTab: 更新favicon, tab.url=${tab.url}, webView.url=${webViewUrl}, actualUrl=${actualUrl}, Title=${tab.title}")
+        
+        // 确保按钮始终可见（常驻显示）
+        faviconButton.visibility = View.VISIBLE
+        
+        // 尝试从WebView获取favicon
+        val favicon = tab.webView.favicon
+        if (favicon != null && actualUrl != null) {
+            Log.d("SearchActivity", "updateFaviconFromTab: 使用WebView的favicon")
+            updateFaviconButton(favicon, actualUrl)
+        } else if (actualUrl != null) {
+            // 如果没有favicon，尝试从URL加载
+            Log.d("SearchActivity", "updateFaviconFromTab: WebView没有favicon，从URL加载: $actualUrl")
+            loadFaviconFromUrl(actualUrl)
+        } else {
+            // 没有有效URL，显示默认图标（按钮常驻）
+            faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+            Log.d("SearchActivity", "updateFaviconFromTab: 无有效URL，显示默认图标")
+        }
+    }
+    
+    /**
      * 初始化纸堆WebView管理器
      */
     private fun initializePaperStackManager() {
@@ -737,19 +1040,45 @@ class SearchActivity : AppCompatActivity() {
                 Log.d("SearchActivity", "标签页创建完成: ${tab.title}, URL: ${tab.url}")
                 // 同步更新StackedCardPreview数据
                 syncAllCardSystems()
+                // 如果是当前标签页，立即更新favicon按钮（即使WebView还没加载完，也显示默认图标）
+                val currentTab = paperStackManager?.getCurrentTab()
+                if (currentTab?.id == tab.id) {
+                    Log.d("SearchActivity", "标签页创建完成，更新favicon按钮")
+                    updateFaviconFromTab(tab)
+                }
             }
             
             paperStackManager?.setOnTabSwitchedListener { tab, index ->
                 updatePaperCountText()
-                // 更新搜索框URL
-                searchInput.setText(tab.url)
+                // 更新搜索框URL（优先使用WebView的实际URL）
+                val actualUrl = tab.webView.url ?: tab.url
+                searchInput.setText(actualUrl)
                 // 同步更新StackedCardPreview数据
                 syncAllCardSystems()
-                Log.d("SearchActivity", "切换到标签页: $index, 标题: ${tab.title}, URL: ${tab.url}")
+                // 更新favicon按钮
+                updateFaviconFromTab(tab)
+                Log.d("SearchActivity", "切换到标签页: $index, 标题: ${tab.title}, tab.url=${tab.url}, webView.url=${tab.webView.url}, actualUrl=$actualUrl")
+            }
+            
+            // 设置favicon监听器
+            paperStackManager?.setOnFaviconReceivedListener { tab, favicon ->
+                // 如果当前标签页是这个tab，更新favicon按钮
+                val currentTab = paperStackManager?.getCurrentTab()
+                if (currentTab?.id == tab.id) {
+                    // 优先使用WebView的实际URL
+                    val actualUrl = tab.webView.url ?: tab.url
+                    Log.d("SearchActivity", "收到favicon更新: tab=${tab.title}, URL=${actualUrl}")
+                    updateFaviconButton(favicon, actualUrl)
+                }
             }
             
             // 添加默认标签页（百度首页）
             addDefaultTab()
+            
+            // 添加标签页后，立即更新favicon按钮
+            paperStackManager?.getCurrentTab()?.let { tab ->
+                updateFaviconFromTab(tab)
+            }
         }
     }
     
@@ -768,6 +1097,11 @@ class SearchActivity : AppCompatActivity() {
             showPaperStackControls()
             hidePaperStackHint()
             Log.d("SearchActivity", "添加默认标签页成功，当前数量: ${paperStackManager?.getTabCount()}")
+            
+            // 延迟更新favicon按钮，确保WebView已经初始化
+            handler.postDelayed({
+                updateFaviconFromTab(newTab)
+            }, 500)
         } else {
             Log.e("SearchActivity", "添加默认标签页失败")
         }
@@ -1385,6 +1719,44 @@ class SearchActivity : AppCompatActivity() {
                 // 只显示进度条，不显示全屏加载视图
                 progressBar.visibility = View.VISIBLE
                 Log.d("SearchActivity", "开始加载URL: $url")
+                
+                // 页面开始加载时，如果有有效URL就显示favicon按钮
+                if (url != null && url.isNotEmpty() && url != "about:blank") {
+                    Log.d("SearchActivity", "onPageStarted: 检测到有效URL=$url，显示favicon按钮")
+                    runOnUiThread {
+                        // 先显示默认图标
+                        faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+                        faviconButton.visibility = View.VISIBLE
+                        Log.d("SearchActivity", "onPageStarted: favicon按钮已设置为可见")
+                        
+                        // 添加调试信息
+                        faviconButton.post {
+                            val isVisible = faviconButton.visibility == View.VISIBLE
+                            Log.d("SearchActivity", "favicon按钮状态 - visibility: ${faviconButton.visibility}, visible=$isVisible, width: ${faviconButton.width}, height: ${faviconButton.height}")
+                        }
+                    }
+                    
+                    // 如果有favicon，立即更新
+                    if (favicon != null) {
+                        Log.d("SearchActivity", "onPageStarted: 收到favicon，更新按钮")
+                        runOnUiThread {
+                            updateFaviconButton(favicon, url)
+                        }
+                    } else {
+                        // 尝试从URL加载favicon
+                        Log.d("SearchActivity", "onPageStarted: 没有favicon，从URL加载")
+                        runOnUiThread {
+                            loadFaviconFromUrl(url)
+                        }
+                    }
+                } else {
+                    // 无效URL，显示默认图标（按钮常驻）
+                    Log.d("SearchActivity", "onPageStarted: 无效URL，显示默认图标")
+                    runOnUiThread {
+                        faviconButton.visibility = View.VISIBLE
+                        faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+                    }
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -1395,6 +1767,36 @@ class SearchActivity : AppCompatActivity() {
                 
                 // 更新搜索框显示当前URL
                 updateSearchBoxWithCurrentUrl(url)
+                
+                Log.d("SearchActivity", "onPageFinished: URL=$url, favicon=${view?.favicon != null}")
+                
+                // 更新favicon按钮（如果没有收到favicon，尝试从URL加载）
+                if (url != null && url.isNotEmpty() && url != "about:blank") {
+                    Log.d("SearchActivity", "onPageFinished: URL=$url，更新favicon按钮")
+                    runOnUiThread {
+                        // 确保按钮可见
+                        if (faviconButton.visibility != View.VISIBLE) {
+                            Log.d("SearchActivity", "onPageFinished: 按钮不可见，设置为可见")
+                            faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+                            faviconButton.visibility = View.VISIBLE
+                        }
+                        
+                        if (view?.favicon != null) {
+                            Log.d("SearchActivity", "onPageFinished: 使用WebView的favicon")
+                            updateFaviconButton(view.favicon, url)
+                        } else {
+                            Log.d("SearchActivity", "onPageFinished: 从URL加载favicon")
+                            loadFaviconFromUrl(url)
+                        }
+                    }
+                } else {
+                    // 无效URL，显示默认图标（按钮常驻）
+                    Log.d("SearchActivity", "onPageFinished: 无效URL=$url，显示默认图标")
+                    runOnUiThread {
+                        faviconButton.visibility = View.VISIBLE
+                        faviconButton.setImageResource(android.R.drawable.ic_menu_search)
+                    }
+                }
                 
                 // 维护自定义历史栈
                 try {
@@ -1708,6 +2110,21 @@ class SearchActivity : AppCompatActivity() {
                         progressBar.visibility = View.VISIBLE
                     }
                     progressBar.progress = newProgress
+                }
+            }
+            
+            override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
+                super.onReceivedIcon(view, icon)
+                // 更新favicon按钮图标
+                updateFaviconButton(icon, view?.url)
+            }
+            
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                // 如果没有收到favicon，尝试从URL加载
+                val url = view?.url
+                if (view?.favicon == null && url != null) {
+                    loadFaviconFromUrl(url)
                 }
             }
         }

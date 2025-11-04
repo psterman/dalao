@@ -1982,6 +1982,19 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
+                    <!-- 站点信息/图标按钮（显示当前网页favicon） -->
+                    <ImageButton
+                        android:id="@+id/browser_btn_site"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="网站信息"
+                        android:src="@drawable/ic_web"
+                        android:scaleType="fitCenter"
+                        android:visibility="visible" />
+
                     <!-- 搜索输入框 -->
                     <EditText
                         android:id="@+id/browser_search_input"

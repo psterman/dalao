@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <!-- 网站标题 -->
+    <item
+        android:id="@+id/menu_website_title"
+        android:title="网站标题"
+        android:enabled="false"
+        app:showAsAction="never" />
+    
+    <!-- 分隔线 -->
+    <item
+        android:id="@+id/menu_separator1"
+        android:title=""
+        android:enabled="false"
+        app:showAsAction="never" />
+    
+    <!-- 拷贝标题 -->
+    <item
+        android:id="@+id/menu_copy_title"
+        android:title="拷贝标题"
+        app:showAsAction="never" />
+    
+    <!-- 网站设置 -->
+    <item
+        android:id="@+id/menu_website_settings"
+        android:title="网站设置"
+        app:showAsAction="never" />
+    
+    <!-- 页面缩放 -->
+    <item
+        android:id="@+id/menu_page_zoom"
+        android:title="页面缩放:100%"
+        app:showAsAction="never" />
+    
+    <!-- 分隔线 -->
+    <item
+        android:id="@+id/menu_separator2"
+        android:title=""
+        android:enabled="false"
+        app:showAsAction="never" />
+    
+    <!-- 添加到桌面 -->
+    <item
+        android:id="@+id/menu_add_to_desktop"
+        android:title="添加到桌面"
+        app:showAsAction="never" />
+    
+    <!-- 获取网页全部文字 -->
+    <item
+        android:id="@+id/menu_get_full_text"
+        android:title="获取网页全部文字"
+        app:showAsAction="never" />
+    
+</menu>
+

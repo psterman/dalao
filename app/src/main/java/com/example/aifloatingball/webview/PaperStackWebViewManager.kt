@@ -72,7 +72,7 @@ class PaperStackWebViewManager(
     data class WebViewTab(
         val id: String,
         val webView: WebView,
-        val title: String,
+        var title: String,
         val url: String,
         var isActive: Boolean = false,
         var stackIndex: Int = 0
@@ -84,6 +84,7 @@ class PaperStackWebViewManager(
     private var gestureDetector: GestureDetector? = null
     private var onTabCreatedListener: ((WebViewTab) -> Unit)? = null
     private var onTabSwitchedListener: ((WebViewTab, Int) -> Unit)? = null
+    private var onFaviconReceivedListener: ((WebViewTab, android.graphics.Bitmap?) -> Unit)? = null
     private var swipeStartX = 0f
     private var swipeStartY = 0f
     private var isSwipeStarted = false
@@ -103,6 +104,13 @@ class PaperStackWebViewManager(
         setupGestureDetector()
         setupContainer()
         setupEnhancedMenuManager()
+    }
+    
+    /**
+     * 设置favicon监听器
+     */
+    fun setOnFaviconReceivedListener(listener: (WebViewTab, android.graphics.Bitmap?) -> Unit) {
+        this.onFaviconReceivedListener = listener
     }
     
     /**
@@ -1457,6 +1465,31 @@ class PaperStackWebViewManager(
                 setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
             }
             
+            // 设置WebChromeClient监听favicon
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
+                    super.onReceivedIcon(view, icon)
+                    // 查找对应的标签页并通知监听器
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            onFaviconReceivedListener?.invoke(tab, icon)
+                        }
+                    }
+                }
+                
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    // 更新标签页标题
+                    if (view != null && title != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            tab.title = title
+                        }
+                    }
+                }
+            }
+            
             // 设置WebViewClient
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
@@ -1506,6 +1539,14 @@ class PaperStackWebViewManager(
                             saveHistoryEntry(url, view?.title ?: url, view?.url ?: url)
                         } catch (e: Exception) {
                             Log.e(TAG, "保存历史记录失败", e)
+                        }
+                    }
+                    
+                    // 查找对应的标签页并更新favicon
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null && view.favicon != null) {
+                            onFaviconReceivedListener?.invoke(tab, view.favicon)
                         }
                     }
                     

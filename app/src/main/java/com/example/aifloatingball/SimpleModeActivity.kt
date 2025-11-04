@@ -662,6 +662,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserSwipeRefresh: SwipeRefreshLayout
     private lateinit var browserBtnClear: ImageButton
     private lateinit var browserBtnAi: ImageButton
+    private lateinit var browserBtnSite: ImageButton
 
     // 震动反馈管理器
     private var vibrator: android.os.Vibrator? = null
@@ -1779,6 +1780,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserSwipeRefresh = findViewById<SwipeRefreshLayout>(R.id.browser_swipe_refresh)
         browserBtnClear = findViewById(R.id.browser_btn_clear)
         browserBtnAi = findViewById(R.id.browser_btn_ai)
+        browserBtnSite = findViewById(R.id.browser_btn_site)
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
 
         // 开始浏览按钮
@@ -1858,6 +1860,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化UI颜色
         updateUIColors()
         updateTabColors()
+
+        // 初始化站点信息按钮
+        setupBrowserSiteButton()
     }
 
     private fun setupVoicePage() {
@@ -6613,6 +6618,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 override fun afterTextChanged(s: android.text.Editable?) {
                     // 有文本时显示清空按钮，无文本时隐藏
                     browserBtnClear.visibility = if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
+                    // 同步更新左侧favicon按钮
+                    val text = s?.toString()?.trim() ?: ""
+                    val looksLikeUrl = text.startsWith("http://") || text.startsWith("https://") ||
+                            (text.contains('.') && !text.contains(' '))
+                    if (looksLikeUrl) {
+                        updateBrowserFaviconButtonForUrl(text)
+                    } else if (text.isEmpty()) {
+                        browserBtnSite.visibility = View.GONE
+                    }
                 }
             })
 
@@ -9117,6 +9131,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun loadBrowserContent(url: String) {
         try {
             Log.d(TAG, "开始加载URL: $url")
+
+            // 同步更新地址栏左侧站点图标
+            updateBrowserFaviconButtonForUrl(url)
 
             // 在纸堆模式下添加新标签页
             if (paperStackWebViewManager != null) {
@@ -25934,6 +25951,164 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             .setNegativeButton("取消", null)
             .show()
     }
-    
+
+    // =============== 浏览器站点按钮与菜单 ===============
+    private fun setupBrowserSiteButton() {
+        try {
+            browserBtnSite.visibility = View.GONE
+            browserBtnSite.setOnClickListener { showWebsiteInfoMenuForCurrentSite() }
+            // 初次同步当前页面的favicon
+            val currentUrl = gestureCardWebViewManager?.getCurrentCard()?.url
+                ?: unifiedWebViewManager.getCurrentActiveWebView()?.url
+            updateBrowserFaviconButtonForUrl(currentUrl)
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化站点信息按钮失败", e)
+        }
+    }
+
+    private fun updateBrowserFaviconButtonForUrl(url: String?) {
+        if (url.isNullOrBlank() || url == "about:blank") {
+            browserBtnSite.visibility = View.GONE
+            return
+        }
+        try {
+            // 使用候补Favicon加载器，根据域名获取网站图标
+            com.example.aifloatingball.utils.FaviconLoader.loadFavicon(browserBtnSite, url)
+            browserBtnSite.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            Log.w(TAG, "加载favicon失败: $url", e)
+            browserBtnSite.visibility = View.GONE
+        }
+    }
+
+    private fun showWebsiteInfoMenuForCurrentSite() {
+        try {
+            val currentWebView = unifiedWebViewManager.getCurrentActiveWebView()
+            val currentUrl = gestureCardWebViewManager?.getCurrentCard()?.url
+                ?: currentWebView?.url
+            val currentTitle = gestureCardWebViewManager?.getCurrentCard()?.title
+                ?: currentWebView?.title
+
+            if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+                Toast.makeText(this, "当前没有已加载的网页", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val popupMenu = androidx.appcompat.widget.PopupMenu(this, browserBtnSite)
+            popupMenu.menuInflater.inflate(R.menu.website_info_menu, popupMenu.menu)
+
+            // 标题
+            popupMenu.menu.findItem(R.id.menu_website_title)?.title = currentTitle ?: extractDomain(currentUrl)
+
+            // 页面缩放展示
+            val webViewToUse = currentWebView
+            val currentZoom = webViewToUse?.settings?.textZoom ?: 100
+            popupMenu.menu.findItem(R.id.menu_page_zoom)?.title = "页面缩放: ${currentZoom}%"
+
+            popupMenu.setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    R.id.menu_copy_title -> {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("标题", currentTitle ?: "")
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, "标题已复制", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.menu_website_settings -> {
+                        showWebsiteSettingsDialog(currentUrl)
+                        true
+                    }
+                    R.id.menu_page_zoom -> {
+                        showPageZoomDialogForCurrentWebView()
+                        true
+                    }
+                    R.id.menu_add_to_desktop -> {
+                        addToDesktop(currentUrl, currentTitle ?: extractDomain(currentUrl))
+                        true
+                    }
+                    R.id.menu_get_full_text -> {
+                        extractFullTextFromCurrentWebView()
+                        true
+                    }
+                    else -> false
+                }
+            }
+
+            popupMenu.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示网站信息菜单失败", e)
+        }
+    }
+
+    private fun extractDomain(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            uri.host ?: url
+        } catch (e: Exception) {
+            url
+        }
+    }
+
+    private fun showPageZoomDialogForCurrentWebView() {
+        val webViewToUse = unifiedWebViewManager.getCurrentActiveWebView() ?: return
+        val zoomOptions = arrayOf("50%", "75%", "100%", "125%", "150%", "200%")
+        val currentZoom = webViewToUse.settings.textZoom
+        val currentIndex = when {
+            currentZoom <= 50 -> 0
+            currentZoom <= 75 -> 1
+            currentZoom <= 100 -> 2
+            currentZoom <= 125 -> 3
+            currentZoom <= 150 -> 4
+            else -> 5
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("页面缩放")
+            .setSingleChoiceItems(zoomOptions, currentIndex) { dialog, which ->
+                val zoomPercent = when (which) {
+                    0 -> 50
+                    1 -> 75
+                    2 -> 100
+                    3 -> 125
+                    4 -> 150
+                    5 -> 200
+                    else -> 100
+                }
+                webViewToUse.settings.textZoom = zoomPercent
+                Toast.makeText(this, "已设置缩放为 $zoomPercent%", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showWebsiteSettingsDialog(url: String) {
+        val domain = extractDomain(url)
+        val message = "网站: $domain\n\n后续可在此集中管理站点权限、Cookie等。"
+        AlertDialog.Builder(this)
+            .setTitle("网站设置")
+            .setMessage(message)
+            .setPositiveButton("确定", null)
+            .show()
+    }
+
+    private fun addToDesktop(url: String, title: String) {
+        Toast.makeText(this, "添加到桌面功能待实现", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun extractFullTextFromCurrentWebView() {
+        val webViewToUse = unifiedWebViewManager.getCurrentActiveWebView() ?: return
+        webViewToUse.evaluateJavascript("(function() { return document.body.innerText; })()") { result ->
+            val text = result?.removeSurrounding("\"")?.replace("\\n", "\n") ?: ""
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("网页文本", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@SimpleModeActivity, "网页文字已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@SimpleModeActivity, "未获取到页面文本", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
 }
