@@ -6630,18 +6630,240 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 向下滚动：当累计滚动高度超过阈值时隐藏标题栏，显示快捷操作栏
             if (deltaY > 6 && isToolbarVisible && scrollY > toolbarHideThreshold) {
                 hideToolbar()
-                hideBottomNavigation()
-                showQuickActionsBar()
+                // 同步隐藏底部导航栏和显示快捷操作栏
+                hideBottomNavigationAndShowQuickActions()
             }
             // 向上滚动：轻阈值即显示标题栏，隐藏快捷操作栏
             else if (deltaY < -6 && !isToolbarVisible) {
                 showToolbar()
-                showBottomNavigation()
-                hideQuickActionsBar()
+                // 同步显示底部导航栏和隐藏快捷操作栏
+                showBottomNavigationAndHideQuickActions()
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "处理WebView滚动事件失败", e)
+        }
+    }
+    
+    /**
+     * 同步隐藏底部导航栏并显示快捷操作栏
+     */
+    private fun hideBottomNavigationAndShowQuickActions() {
+        try {
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+            if (bottomNav == null || !isBottomNavVisible) {
+                // 如果底部导航栏不存在或已隐藏，直接显示快捷操作栏
+                showQuickActionsBar()
+                return
+            }
+            
+            isBottomNavVisible = false
+            isQuickActionsBarVisible = true
+            
+            // 取消之前的动画
+            bottomNavAnimator?.cancel()
+            quickActionsBarAnimator?.cancel()
+            
+            val navHeight = bottomNav.height.toFloat()
+            if (navHeight <= 0f) {
+                bottomNav.visibility = View.GONE
+                showQuickActionsBar()
+                return
+            }
+            
+            // 确保快捷操作栏可见
+            if (browserQuickActionsBar.visibility != View.VISIBLE) {
+                browserQuickActionsBar.visibility = View.VISIBLE
+            }
+            
+            // 获取快捷操作栏高度（使用post确保布局已测量）
+            browserQuickActionsBar.post {
+                // 强制测量布局
+                browserQuickActionsBar.measure(
+                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                browserQuickActionsBar.layout(
+                    browserQuickActionsBar.left,
+                    browserQuickActionsBar.top,
+                    browserQuickActionsBar.right,
+                    browserQuickActionsBar.top + browserQuickActionsBar.measuredHeight
+                )
+                
+                val quickBarHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                if (quickBarHeight <= 0f) {
+                    Log.w(TAG, "快捷操作栏高度为0，使用默认值")
+                    showQuickActionsBar() // 回退到单独显示
+                    return@post
+                }
+                
+                // 创建同步动画
+                val animatorSet = android.animation.AnimatorSet()
+                
+                // 底部导航栏向下移动并淡出
+                val navAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    addUpdateListener { anim ->
+                        val progress = anim.animatedValue as Float
+                        bottomNav.translationY = navHeight * progress
+                        bottomNav.alpha = 1f - progress // 完全淡出，避免无效图形
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            bottomNav.translationY = navHeight
+                            bottomNav.alpha = 0f
+                            bottomNav.visibility = View.GONE
+                        }
+                    })
+                }
+                
+                // 快捷操作栏从下方上浮（起始位置在底部导航栏下方）
+                val startY = navHeight + quickBarHeight
+                browserQuickActionsBar.alpha = 0f
+                browserQuickActionsBar.translationY = startY
+                
+                val quickBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    addUpdateListener { anim ->
+                        val progress = anim.animatedValue as Float
+                        browserQuickActionsBar.alpha = progress
+                        // 从起始位置动画到屏幕底部（0）
+                        browserQuickActionsBar.translationY = startY * (1f - progress)
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终位置精确为0，避免偏差
+                            browserQuickActionsBar.translationY = 0f
+                            browserQuickActionsBar.alpha = 1f
+                        }
+                    })
+                }
+                
+                // 同步执行两个动画
+                animatorSet.playTogether(navAnimator, quickBarAnimator)
+                animatorSet.start()
+                
+                bottomNavAnimator = navAnimator
+                quickActionsBarAnimator = quickBarAnimator
+                
+                Log.d(TAG, "同步动画开始：navHeight=$navHeight, quickBarHeight=$quickBarHeight, startY=$startY")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "同步隐藏底部导航栏并显示快捷操作栏失败", e)
+        }
+    }
+    
+    /**
+     * 同步显示底部导航栏并隐藏快捷操作栏
+     */
+    private fun showBottomNavigationAndHideQuickActions() {
+        try {
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+            if (bottomNav == null || isBottomNavVisible) {
+                // 如果底部导航栏不存在或已显示，直接隐藏快捷操作栏
+                hideQuickActionsBar()
+                return
+            }
+            
+            if (!isQuickActionsBarVisible) {
+                // 如果快捷操作栏未显示，直接显示底部导航栏
+                showBottomNavigation()
+                return
+            }
+            
+            isBottomNavVisible = true
+            isQuickActionsBarVisible = false
+            
+            // 取消之前的动画
+            bottomNavAnimator?.cancel()
+            quickActionsBarAnimator?.cancel()
+            
+            // 重新参与布局
+            bottomNav.visibility = View.VISIBLE
+            
+            bottomNav.post {
+                // 强制测量布局
+                bottomNav.measure(
+                    View.MeasureSpec.makeMeasureSpec(bottomNav.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                
+                val navHeight = bottomNav.measuredHeight.toFloat()
+                if (navHeight <= 0f) {
+                    Log.w(TAG, "底部导航栏高度为0")
+                    hideQuickActionsBar()
+                    return@post
+                }
+                
+                // 强制测量快捷操作栏
+                browserQuickActionsBar.measure(
+                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                
+                // 获取当前位置（确保准确）
+                val quickBarStartY = browserQuickActionsBar.translationY.coerceAtLeast(0f)
+                val quickBarHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                val navStartY = navHeight // 总是从完全隐藏位置开始
+                
+                // 设置初始状态
+                bottomNav.translationY = navStartY
+                bottomNav.alpha = 0f // 初始完全透明，避免无效图形
+                
+                // 创建同步动画
+                val animatorSet = android.animation.AnimatorSet()
+                
+                // 底部导航栏从下方上浮
+                val navAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    addUpdateListener { anim ->
+                        val progress = anim.animatedValue as Float
+                        bottomNav.translationY = navStartY * (1f - progress)
+                        bottomNav.alpha = progress // 完全淡入，避免无效图形
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终位置精确为0
+                            bottomNav.translationY = 0f
+                            bottomNav.alpha = 1f
+                        }
+                    })
+                }
+                
+                // 快捷操作栏向下移动并淡出
+                val endY = navHeight + quickBarHeight
+                val quickBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.AccelerateInterpolator()
+                    addUpdateListener { anim ->
+                        val progress = anim.animatedValue as Float
+                        browserQuickActionsBar.alpha = 1f - progress // 完全淡出，避免无效图形
+                        browserQuickActionsBar.translationY = quickBarStartY + (endY - quickBarStartY) * progress
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终位置正确，并隐藏
+                            browserQuickActionsBar.translationY = endY
+                            browserQuickActionsBar.alpha = 0f
+                            browserQuickActionsBar.visibility = View.GONE
+                        }
+                    })
+                }
+                
+                // 同步执行两个动画
+                animatorSet.playTogether(navAnimator, quickBarAnimator)
+                animatorSet.start()
+                
+                bottomNavAnimator = navAnimator
+                quickActionsBarAnimator = quickBarAnimator
+                
+                Log.d(TAG, "同步动画开始：navHeight=$navHeight, quickBarHeight=$quickBarHeight, quickBarStartY=$quickBarStartY, endY=$endY")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "同步显示底部导航栏并隐藏快捷操作栏失败", e)
         }
     }
 
@@ -6933,7 +7155,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 显示快捷操作栏
+     * 显示快捷操作栏（独立显示，不依赖底部导航栏）
      */
     private fun showQuickActionsBar() {
         if (isQuickActionsBarVisible) return
@@ -6942,27 +7164,74 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isQuickActionsBarVisible = true
             quickActionsBarAnimator?.cancel()
             
+            // 确保快捷操作栏可见
             if (browserQuickActionsBar.visibility != View.VISIBLE) {
                 browserQuickActionsBar.visibility = View.VISIBLE
-                browserQuickActionsBar.alpha = 0f
-                browserQuickActionsBar.translationY = browserQuickActionsBar.height.toFloat()
             }
             
-            quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 250
-                interpolator = android.view.animation.DecelerateInterpolator()
+            // 确保布局已测量完成
+            browserQuickActionsBar.post {
+                // 强制测量布局，确保高度准确
+                browserQuickActionsBar.measure(
+                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
                 
-                addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
-                    browserQuickActionsBar.alpha = progress
-                    val startY = browserQuickActionsBar.height.toFloat()
-                    browserQuickActionsBar.translationY = startY * (1f - progress)
+                val actualHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                if (actualHeight <= 0f) {
+                    Log.w(TAG, "快捷操作栏高度为0，使用默认值")
+                    val defaultHeight = dpToPx(72f) // 默认高度72dp
+                    browserQuickActionsBar.translationY = defaultHeight
+                    browserQuickActionsBar.alpha = 0f
+                    
+                    quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 250
+                        interpolator = android.view.animation.DecelerateInterpolator()
+                        addUpdateListener { animator ->
+                            val progress = animator.animatedValue as Float
+                            browserQuickActionsBar.alpha = progress
+                            browserQuickActionsBar.translationY = defaultHeight * (1f - progress)
+                        }
+                        addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                browserQuickActionsBar.translationY = 0f
+                                browserQuickActionsBar.alpha = 1f
+                            }
+                        })
+                        start()
+                    }
+                    return@post
                 }
                 
-                start()
+                // 初始位置：完全隐藏在屏幕下方
+                val startY = actualHeight
+                browserQuickActionsBar.alpha = 0f
+                browserQuickActionsBar.translationY = startY
+                
+                quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    
+                    addUpdateListener { animator ->
+                        val progress = animator.animatedValue as Float
+                        browserQuickActionsBar.alpha = progress
+                        // 从起始位置动画到0（屏幕底部）
+                        browserQuickActionsBar.translationY = startY * (1f - progress)
+                    }
+                    
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终位置精确为0，避免偏差
+                            browserQuickActionsBar.translationY = 0f
+                            browserQuickActionsBar.alpha = 1f
+                        }
+                    })
+                    
+                    start()
+                }
+                
+                Log.d(TAG, "快捷操作栏显示动画开始，高度: $actualHeight, 起始位置: $startY")
             }
-            
-            Log.d(TAG, "快捷操作栏显示动画开始")
         } catch (e: Exception) {
             Log.e(TAG, "显示快捷操作栏失败", e)
         }
@@ -6978,7 +7247,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isQuickActionsBarVisible = false
             quickActionsBarAnimator?.cancel()
             
+            // 获取当前位置和高度
             val startY = browserQuickActionsBar.translationY
+            val barHeight = browserQuickActionsBar.height.toFloat()
+            
+            // 获取底部导航栏高度（如果即将显示）
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+            val bottomNavHeight = if (bottomNav?.visibility == View.VISIBLE && bottomNav.height > 0) {
+                bottomNav.height.toFloat()
+            } else {
+                0f
+            }
+            
+            // 目标位置：完全隐藏在屏幕下方（考虑底部导航栏）
+            val endY = barHeight + bottomNavHeight
             
             quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 200
@@ -6987,12 +7269,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 addUpdateListener { animator ->
                     val progress = animator.animatedValue as Float
                     browserQuickActionsBar.alpha = 1f - progress
-                    val endY = browserQuickActionsBar.height.toFloat()
+                    // 从当前位置动画到完全隐藏位置
                     browserQuickActionsBar.translationY = startY + (endY - startY) * progress
                 }
                 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // 确保最终位置正确，并隐藏
+                        browserQuickActionsBar.translationY = endY
+                        browserQuickActionsBar.alpha = 0f
                         browserQuickActionsBar.visibility = View.GONE
                     }
                 })
@@ -7000,7 +7285,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 start()
             }
             
-            Log.d(TAG, "快捷操作栏隐藏动画开始")
+            Log.d(TAG, "快捷操作栏隐藏动画开始，从 $startY 到 $endY")
         } catch (e: Exception) {
             Log.e(TAG, "隐藏快捷操作栏失败", e)
         }
@@ -7144,20 +7429,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isBottomNavVisible = false
             bottomNavAnimator?.cancel()
             val navHeight = bottomNav.height.toFloat()
-            if (navHeight <= 0f) return
+            if (navHeight <= 0f) {
+                // 如果高度为0，直接隐藏
+                bottomNav.visibility = View.GONE
+                return
+            }
 
-            bottomNavAnimator = android.animation.ValueAnimator.ofFloat(0f, navHeight).apply {
+            // 同步隐藏底部导航栏和显示快捷操作栏
+            bottomNavAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 250
                 interpolator = android.view.animation.DecelerateInterpolator()
                 addUpdateListener { anim ->
-                    val ty = anim.animatedValue as Float
-                    bottomNav.translationY = ty
-                    val progress = kotlin.math.min(1f, ty / navHeight)
+                    val progress = anim.animatedValue as Float
+                    // 底部导航栏向下移动并淡出
+                    bottomNav.translationY = navHeight * progress
                     bottomNav.alpha = 1f - 0.9f * progress
                 }
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        // 真正移除，释放测量高度
+                        // 确保最终状态正确
+                        bottomNav.translationY = navHeight
+                        bottomNav.alpha = 0f
                         bottomNav.visibility = View.GONE
                     }
                 })
@@ -7178,20 +7470,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             isBottomNavVisible = true
             bottomNavAnimator?.cancel()
-            // 重新参与布局，并从隐藏位置回到0
+            
+            // 重新参与布局
             bottomNav.visibility = View.VISIBLE
-            val currentTy = bottomNav.translationY
-            bottomNavAnimator = android.animation.ValueAnimator.ofFloat(currentTy, 0f).apply {
-                duration = 250
-                interpolator = android.view.animation.DecelerateInterpolator()
-                addUpdateListener { anim ->
-                    val ty = anim.animatedValue as Float
-                    bottomNav.translationY = ty
-                    val navHeight = kotlin.math.max(1f, bottomNav.height.toFloat())
-                    val progress = 1f - kotlin.math.min(1f, ty / navHeight)
-                    bottomNav.alpha = 0.1f + 0.9f * progress
+            
+            // 确保布局已测量
+            bottomNav.post {
+                val navHeight = bottomNav.height.toFloat()
+                if (navHeight <= 0f) {
+                    Log.w(TAG, "底部导航栏高度为0，无法显示")
+                    return@post
                 }
-                start()
+                
+                // 获取当前位置（可能在隐藏状态）
+                val currentTy = if (bottomNav.translationY > 0) bottomNav.translationY else navHeight
+                
+                // 设置初始状态
+                bottomNav.translationY = currentTy
+                bottomNav.alpha = if (currentTy > 0) 0.1f else 1f
+                
+                bottomNavAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 250
+                    interpolator = android.view.animation.DecelerateInterpolator()
+                    addUpdateListener { anim ->
+                        val progress = anim.animatedValue as Float
+                        // 从当前位置动画到0（屏幕底部）
+                        bottomNav.translationY = currentTy * (1f - progress)
+                        val alphaProgress = 1f - (currentTy / navHeight) * (1f - progress)
+                        bottomNav.alpha = 0.1f + 0.9f * alphaProgress
+                    }
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终状态正确
+                            bottomNav.translationY = 0f
+                            bottomNav.alpha = 1f
+                        }
+                    })
+                    start()
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "显示底部导航栏失败", e)
