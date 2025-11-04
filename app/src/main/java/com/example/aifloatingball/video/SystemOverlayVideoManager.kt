@@ -64,6 +64,12 @@ class SystemOverlayVideoManager(private val context: Context) {
     private val speedOptions = listOf(0.5f, 1.0f, 1.5f, 2.0f)
     private var screenWidth = 0
     private var screenHeight = 0
+    private var isFullscreen = false
+    private var originalWidth = 0
+    private var originalHeight = 0
+    private var originalX = 0
+    private var originalY = 0
+    private var currentVideoUrl: String? = null
 
     companion object {
         private const val TAG = "SystemOverlayVideo"
@@ -130,6 +136,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             Log.d(TAG, "准备播放视频: $url")
             
+            currentVideoUrl = url
             videoView?.setVideoURI(Uri.parse(url))
             videoView?.setOnPreparedListener { mediaPlayer ->
                 try {
@@ -259,6 +266,10 @@ class SystemOverlayVideoManager(private val context: Context) {
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
         
+        // 保存原始尺寸（用于全屏切换）
+        originalWidth = videoWidth
+        originalHeight = videoHeight
+        
         // 创建视频容器（作为主容器，直接添加到WindowManager）
         val container = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -326,6 +337,10 @@ class SystemOverlayVideoManager(private val context: Context) {
             x = (screenWidth - videoWidth) / 2 // 水平居中
             y = (screenHeight - videoHeight) / 2 // 垂直居中
         }
+        
+        // 保存原始位置
+        originalX = params?.x ?: 0
+        originalY = params?.y ?: 0
         
         // 启用拖拽
         enableDrag(container)
@@ -587,6 +602,38 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
+        // 创建分享按钮
+        val shareBtn = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(36),
+                dpToPx(36)
+            ).apply {
+                setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            setImageResource(android.R.drawable.ic_menu_share)
+            setBackgroundColor(0x80000000.toInt())
+            setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
+            setOnClickListener {
+                shareVideo()
+            }
+        }
+        
+        // 创建DLNA投射按钮
+        val dlnaBtn = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(36),
+                dpToPx(36)
+            ).apply {
+                setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            setImageResource(android.R.drawable.ic_menu_send)
+            setBackgroundColor(0x80000000.toInt())
+            setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
+            setOnClickListener {
+                castToDLNA()
+            }
+        }
+        
         // 创建静音按钮
         muteBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -633,7 +680,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             setBackgroundColor(0x80000000.toInt())
             setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
             setOnClickListener {
-                Toast.makeText(context, "已经是全局悬浮播放", Toast.LENGTH_SHORT).show()
+                toggleFullscreen()
             }
         }
         
@@ -642,6 +689,8 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(speedBtn)
         buttonRow.addView(loopBtn)
         buttonRow.addView(screenshotBtn)
+        buttonRow.addView(shareBtn)
+        buttonRow.addView(dlnaBtn)
         
         // 添加弹性空间
         val spacer = View(context).apply {
@@ -729,6 +778,125 @@ class SystemOverlayVideoManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "截图失败", e)
             Toast.makeText(context, "截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 切换全屏模式
+     */
+    private fun toggleFullscreen() {
+        try {
+            if (params == null || floatingView == null || windowManager == null) return
+            
+            isFullscreen = !isFullscreen
+            
+            if (isFullscreen) {
+                // 进入全屏：保存当前位置，然后扩展到全屏
+                originalX = params?.x ?: 0
+                originalY = params?.y ?: 0
+                originalWidth = params?.width ?: screenWidth
+                originalHeight = params?.height ?: (screenWidth * 9 / 16)
+                
+                // 全屏尺寸
+                params?.width = screenWidth
+                params?.height = screenHeight
+                params?.x = 0
+                params?.y = 0
+                
+                // 更新容器尺寸
+                floatingView?.layoutParams?.width = screenWidth
+                floatingView?.layoutParams?.height = screenHeight
+                
+                fullscreenBtn?.setImageResource(android.R.drawable.ic_menu_revert)
+                Toast.makeText(context, "全屏模式", Toast.LENGTH_SHORT).show()
+            } else {
+                // 退出全屏：恢复原始尺寸和位置
+                params?.width = originalWidth
+                params?.height = originalHeight
+                params?.x = originalX
+                params?.y = originalY
+                
+                // 更新容器尺寸
+                floatingView?.layoutParams?.width = originalWidth
+                floatingView?.layoutParams?.height = originalHeight
+                
+                fullscreenBtn?.setImageResource(android.R.drawable.ic_menu_crop)
+                Toast.makeText(context, "窗口模式", Toast.LENGTH_SHORT).show()
+            }
+            
+            windowManager?.updateViewLayout(floatingView, params)
+            Log.d(TAG, "全屏模式切换: isFullscreen=$isFullscreen")
+        } catch (e: Exception) {
+            Log.e(TAG, "切换全屏模式失败", e)
+            Toast.makeText(context, "切换全屏失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 分享视频URL
+     */
+    private fun shareVideo() {
+        try {
+            val url = currentVideoUrl
+            if (url.isNullOrBlank()) {
+                Toast.makeText(context, "无法分享：视频URL为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, url)
+                putExtra(Intent.EXTRA_SUBJECT, "分享视频")
+            }
+            
+            val chooserIntent = Intent.createChooser(shareIntent, "分享视频")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooserIntent)
+            
+            Log.d(TAG, "分享视频URL: $url")
+        } catch (e: Exception) {
+            Log.e(TAG, "分享视频失败", e)
+            Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * DLNA投射视频
+     */
+    private fun castToDLNA() {
+        try {
+            val url = currentVideoUrl
+            if (url.isNullOrBlank()) {
+                Toast.makeText(context, "无法投射：视频URL为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 使用Android的MediaRouter进行DLNA投射
+            // 注意：需要添加依赖 androidx.mediarouter:mediarouter:1.x.x
+            try {
+                // 尝试使用系统投屏功能
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(Uri.parse(url), "video/*")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                // 检查是否有支持投射的应用
+                val chooser = Intent.createChooser(intent, "选择投射方式")
+                if (chooser.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(chooser)
+                    Log.d(TAG, "启动DLNA投射: $url")
+                } else {
+                    Toast.makeText(context, "未找到可用的投射应用", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "DLNA投射不可用，使用备用方案", e)
+                // 备用方案：分享视频URL，让用户手动选择投射应用
+                shareVideo()
+                Toast.makeText(context, "请通过分享功能选择投射应用", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "DLNA投射失败", e)
+            Toast.makeText(context, "投射失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     

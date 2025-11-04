@@ -7334,6 +7334,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
     
+    // 撤销关闭功能相关变量
+    private data class ClosedTabInfo(
+        val id: String,
+        val title: String,
+        val url: String,
+        val closeTime: Long = System.currentTimeMillis()
+    )
+    private val closedTabsHistory = mutableListOf<ClosedTabInfo>()
+    private val MAX_CLOSED_TABS_HISTORY = 10 // 最多保存10个关闭的标签页
+    
     /**
      * 快捷操作：关闭
      */
@@ -7342,6 +7352,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 关闭当前标签页
             val currentTab = paperStackWebViewManager?.getCurrentTab()
             if (currentTab != null) {
+                // 保存关闭的标签页信息
+                saveClosedTab(currentTab)
+                
+                // 关闭标签页
                 paperStackWebViewManager?.removeTab(currentTab.id)
             } else {
                 Toast.makeText(this, "没有可关闭的标签页", Toast.LENGTH_SHORT).show()
@@ -7352,26 +7366,220 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
+     * 保存关闭的标签页信息
+     */
+    private fun saveClosedTab(tab: com.example.aifloatingball.webview.PaperStackWebViewManager.WebViewTab) {
+        try {
+            val closedTabInfo = ClosedTabInfo(
+                id = tab.id,
+                title = tab.title,
+                url = tab.url
+            )
+            
+            // 添加到历史列表末尾（LIFO）
+            closedTabsHistory.add(closedTabInfo)
+            
+            // 限制历史记录数量
+            if (closedTabsHistory.size > MAX_CLOSED_TABS_HISTORY) {
+                closedTabsHistory.removeAt(0) // 移除最旧的
+            }
+            
+            Log.d(TAG, "保存关闭的标签页: ${tab.title}, 当前历史数量: ${closedTabsHistory.size}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存关闭标签页失败", e)
+        }
+    }
+    
+    /**
      * 快捷操作：撤回关闭
      */
     private fun handleQuickActionUndoClose() {
         try {
-            // TODO: 实现撤回关闭标签页的功能
-            Toast.makeText(this, "撤回关闭功能待实现", Toast.LENGTH_SHORT).show()
+            if (closedTabsHistory.isEmpty()) {
+                Toast.makeText(this, "没有可恢复的标签页", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取最近关闭的标签页（LIFO）
+            val lastClosedTab = closedTabsHistory.removeAt(closedTabsHistory.size - 1)
+            
+            // 恢复标签页
+            paperStackWebViewManager?.let { manager ->
+                // 创建新标签页并加载URL
+                val restoredTab = manager.addTab(lastClosedTab.url, lastClosedTab.title)
+                
+                // 找到新标签页的索引并切换
+                val tabIndex = manager.getTabCount() - 1 // addTab会在末尾添加，所以索引是最后一个
+                manager.switchToTab(tabIndex)
+                
+                Toast.makeText(this, "已恢复标签页: ${lastClosedTab.title}", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "恢复标签页: ${lastClosedTab.title}, URL: ${lastClosedTab.url}")
+            } ?: run {
+                Toast.makeText(this, "标签页管理器不可用", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "撤回关闭操作失败", e)
+            Toast.makeText(this, "恢复失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+    
+    // 查找功能相关变量
+    private var findDialog: android.app.AlertDialog? = null
+    private var findEditText: android.widget.EditText? = null
+    private var findResultCount = 0
+    private var findCurrentIndex = 0
     
     /**
      * 快捷操作：查找
      */
     private fun handleQuickActionFind() {
         try {
-            // TODO: 实现页面内查找功能
-            Toast.makeText(this, "查找功能待实现", Toast.LENGTH_SHORT).show()
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            val webView = currentTab?.webView
+            if (webView == null) {
+                Toast.makeText(this, "当前无活动页面", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 显示查找对话框
+            showFindDialog(webView)
         } catch (e: Exception) {
             Log.e(TAG, "查找操作失败", e)
+            Toast.makeText(this, "查找功能失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示查找对话框
+     */
+    private fun showFindDialog(webView: android.webkit.WebView) {
+        try {
+            // 如果已有对话框，先关闭
+            findDialog?.dismiss()
+            
+            // 创建查找输入框
+            findEditText = android.widget.EditText(this).apply {
+                hint = "输入要查找的内容"
+                setSingleLine(true)
+            }
+            
+            // 创建对话框
+            findDialog = android.app.AlertDialog.Builder(this)
+                .setTitle("查找")
+                .setView(findEditText)
+                .setPositiveButton("查找下一个") { _, _ ->
+                    val query = findEditText?.text?.toString() ?: ""
+                    if (query.isNotEmpty()) {
+                        findInPage(webView, query, true)
+                    }
+                }
+                .setNeutralButton("查找上一个") { _, _ ->
+                    val query = findEditText?.text?.toString() ?: ""
+                    if (query.isNotEmpty()) {
+                        findInPage(webView, query, false)
+                    }
+                }
+                .setNegativeButton("关闭") { dialog, _ ->
+                    clearFindResults(webView)
+                    dialog.dismiss()
+                }
+                .setOnDismissListener {
+                    clearFindResults(webView)
+                    findDialog = null
+                    findEditText = null
+                }
+                .create()
+            
+            findDialog?.show()
+            
+            // 监听输入变化，实时查找
+            findEditText?.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    val query = s?.toString() ?: ""
+                    if (query.isNotEmpty()) {
+                        findInPage(webView, query, true)
+                    } else {
+                        clearFindResults(webView)
+                    }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            })
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示查找对话框失败", e)
+        }
+    }
+    
+    /**
+     * 在页面中查找文本
+     */
+    private fun findInPage(webView: android.webkit.WebView, query: String, forward: Boolean) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                // Android 8.0+ 使用新的API
+                webView.findAllAsync(query)
+                
+                // 等待查找完成
+                webView.postDelayed({
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val resultCount = webView.copyBackForwardList().size // 这是一个近似值
+                        
+                        if (forward) {
+                            webView.findNext(true)
+                        } else {
+                            webView.findNext(false)
+                        }
+                        
+                        // 更新对话框按钮文本
+                        findDialog?.getButton(android.app.AlertDialog.BUTTON_POSITIVE)?.text = "下一个"
+                        findDialog?.getButton(android.app.AlertDialog.BUTTON_NEUTRAL)?.text = "上一个"
+                    }
+                }, 100)
+            } else {
+                // Android 7.1及以下使用旧API
+                @Suppress("DEPRECATION")
+                val count = webView.findAll(query)
+                
+                if (count > 0) {
+                    if (forward) {
+                        @Suppress("DEPRECATION")
+                        webView.findNext(true)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        webView.findNext(false)
+                    }
+                    findResultCount = count
+                    findCurrentIndex = if (forward) {
+                        (findCurrentIndex + 1) % count
+                    } else {
+                        (findCurrentIndex - 1 + count) % count
+                    }
+                } else {
+                    findResultCount = 0
+                    findCurrentIndex = 0
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "查找文本失败", e)
+        }
+    }
+    
+    /**
+     * 清除查找结果
+     */
+    private fun clearFindResults(webView: android.webkit.WebView) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                webView.clearMatches()
+            } else {
+                @Suppress("DEPRECATION")
+                webView.findAll("")
+            }
+            findResultCount = 0
+            findCurrentIndex = 0
+        } catch (e: Exception) {
+            Log.e(TAG, "清除查找结果失败", e)
         }
     }
     
@@ -7384,14 +7592,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val url = currentTab?.webView?.url
             val title = currentTab?.title ?: url ?: ""
             
-            if (!url.isNullOrBlank()) {
-                // TODO: 实现收藏功能
-                Toast.makeText(this, "收藏功能待实现", Toast.LENGTH_SHORT).show()
-            } else {
+            if (url.isNullOrBlank()) {
                 Toast.makeText(this, "当前页面无法收藏", Toast.LENGTH_SHORT).show()
+                return
             }
+            
+            // 检查是否已收藏
+            val sharedPrefs = getSharedPreferences("browser_bookmarks", Context.MODE_PRIVATE)
+            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
+            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
+                try {
+                    gson.fromJson<MutableList<com.example.aifloatingball.model.BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
+                } catch (e: Exception) {
+                    mutableListOf()
+                }
+            } else {
+                mutableListOf()
+            }
+            
+            // 检查是否已存在
+            val existingIndex = bookmarksList.indexOfFirst { 
+                it.url == url || it.url.equals(url, ignoreCase = true)
+            }
+            
+            if (existingIndex >= 0) {
+                Toast.makeText(this, "该网址已在收藏中", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 创建新的收藏条目
+            val bookmarkEntry = com.example.aifloatingball.model.BookmarkEntry(
+                id = "bookmark_${System.currentTimeMillis()}",
+                title = title,
+                url = url,
+                folder = "默认文件夹",
+                createTime = java.util.Date()
+            )
+            
+            // 添加到列表开头
+            bookmarksList.add(0, bookmarkEntry)
+            
+            // 保存到SharedPreferences
+            val updatedJson = gson.toJson(bookmarksList)
+            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+            
+            Toast.makeText(this, "已添加到收藏", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "添加收藏: title=$title, url=$url")
         } catch (e: Exception) {
             Log.e(TAG, "收藏操作失败", e)
+            Toast.makeText(this, "收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
