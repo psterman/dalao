@@ -85,6 +85,7 @@ class PaperStackWebViewManager(
     private var onTabCreatedListener: ((WebViewTab) -> Unit)? = null
     private var onTabSwitchedListener: ((WebViewTab, Int) -> Unit)? = null
     private var onFaviconReceivedListener: ((WebViewTab, android.graphics.Bitmap?) -> Unit)? = null
+    private var onTitleReceivedListener: ((WebViewTab, String?) -> Unit)? = null
     private var swipeStartX = 0f
     private var swipeStartY = 0f
     private var isSwipeStarted = false
@@ -111,6 +112,13 @@ class PaperStackWebViewManager(
      */
     fun setOnFaviconReceivedListener(listener: (WebViewTab, android.graphics.Bitmap?) -> Unit) {
         this.onFaviconReceivedListener = listener
+    }
+    
+    /**
+     * 设置标题更新监听器
+     */
+    fun setOnTitleReceivedListener(listener: (WebViewTab, String?) -> Unit) {
+        this.onTitleReceivedListener = listener
     }
     
     /**
@@ -1481,10 +1489,14 @@ class PaperStackWebViewManager(
                 override fun onReceivedTitle(view: WebView?, title: String?) {
                     super.onReceivedTitle(view, title)
                     // 更新标签页标题
-                    if (view != null && title != null) {
+                    if (view != null) {
                         val tab = tabs.find { it.webView == view }
                         if (tab != null) {
-                            tab.title = title
+                            if (title != null) {
+                                tab.title = title
+                            }
+                            // 通知标题更新监听器
+                            onTitleReceivedListener?.invoke(tab, title)
                         }
                     }
                 }

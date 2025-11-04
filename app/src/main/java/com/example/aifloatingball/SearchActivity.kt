@@ -90,6 +90,11 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var inputFavicon: ImageView
     private var currentSearchEngine: BaseSearchEngine? = null
     
+    // 保存当前URL和标题，用于输入框显示
+    private var currentDisplayUrl: String? = null
+    private var currentDisplayTitle: String? = null
+    private var isInputFocused = false
+    
     // 下载提示按钮相关
     private lateinit var downloadIndicatorContainer: FrameLayout
     private lateinit var downloadIndicatorButton: ImageButton
@@ -1174,7 +1179,16 @@ class SearchActivity : AppCompatActivity() {
                 updatePaperCountText()
                 // 更新搜索框URL（优先使用WebView的实际URL）
                 val actualUrl = tab.webView.url ?: tab.url
-                searchInput.setText(actualUrl)
+                if (actualUrl != null && actualUrl.isNotEmpty() && actualUrl != "about:blank") {
+                    // 获取标题（优先使用WebView的title，然后是tab的title）
+                    val title = tab.webView.title ?: tab.title
+                    currentDisplayUrl = actualUrl
+                    currentDisplayTitle = title ?: extractDomain(actualUrl)
+                    // 更新显示
+                    runOnUiThread {
+                        updateSearchBoxDisplay()
+                    }
+                }
                 // 同步更新StackedCardPreview数据
                 syncAllCardSystems()
                 // 更新favicon按钮
@@ -1191,6 +1205,26 @@ class SearchActivity : AppCompatActivity() {
                     val actualUrl = tab.webView.url ?: tab.url
                     Log.d("SearchActivity", "收到favicon更新: tab=${tab.title}, URL=${actualUrl}")
                     updateFaviconButton(favicon, actualUrl)
+                }
+            }
+            
+            // 设置标题更新监听器
+            paperStackManager?.setOnTitleReceivedListener { tab, title ->
+                // 如果当前标签页是这个tab，更新输入框显示
+                val currentTab = paperStackManager?.getCurrentTab()
+                if (currentTab?.id == tab.id) {
+                    val actualUrl = tab.webView.url ?: tab.url
+                    if (actualUrl != null && actualUrl.isNotEmpty() && actualUrl != "about:blank") {
+                        currentDisplayUrl = actualUrl
+                        currentDisplayTitle = title ?: tab.title ?: extractDomain(actualUrl)
+                        // 如果输入框没有焦点，更新显示
+                        if (!isInputFocused) {
+                            runOnUiThread {
+                                updateSearchBoxDisplay()
+                            }
+                        }
+                        Log.d("SearchActivity", "收到标题更新: tab=${tab.title}, title=$title, URL=$actualUrl")
+                    }
                 }
             }
             
@@ -1840,35 +1874,45 @@ class SearchActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 // 只显示进度条，不显示全屏加载视图
                 progressBar.visibility = View.VISIBLE
-                Log.d("SearchActivity", "开始加载URL: $url")
                 
-                // 页面开始加载时，如果有有效URL就显示favicon按钮
-                if (url != null && url.isNotEmpty() && url != "about:blank") {
-                    Log.d("SearchActivity", "onPageStarted: 检测到有效URL=$url，显示favicon按钮")
+                // 获取实际URL
+                val actualUrl = view?.url ?: url
+                Log.d("SearchActivity", "开始加载URL: url参数=$url, view.url=${view?.url}, actualUrl=$actualUrl")
+                
+                // 页面开始加载时，如果有有效URL就更新搜索框并显示favicon按钮
+                if (actualUrl != null && actualUrl.isNotEmpty() && actualUrl != "about:blank") {
+                    // 立即更新搜索框（显示URL或域名，因为标题可能还没加载）
+                    runOnUiThread {
+                        currentDisplayUrl = actualUrl
+                        currentDisplayTitle = null // 标题稍后会更新
+                        if (!isInputFocused) {
+                            // 先显示域名，等标题加载后再显示标题
+                            val domain = extractDomain(actualUrl)
+                            searchInput.setText("")
+                            searchInput.hint = domain
+                            Log.d("SearchActivity", "onPageStarted: 更新搜索框显示域名=$domain")
+                        }
+                    }
+                    
+                    Log.d("SearchActivity", "onPageStarted: 检测到有效URL=$actualUrl，显示favicon按钮")
                     runOnUiThread {
                         // 先显示默认图标
                         faviconButton.setImageResource(android.R.drawable.ic_menu_search)
                         faviconButton.visibility = View.VISIBLE
                         Log.d("SearchActivity", "onPageStarted: favicon按钮已设置为可见")
-                        
-                        // 添加调试信息
-                        faviconButton.post {
-                            val isVisible = faviconButton.visibility == View.VISIBLE
-                            Log.d("SearchActivity", "favicon按钮状态 - visibility: ${faviconButton.visibility}, visible=$isVisible, width: ${faviconButton.width}, height: ${faviconButton.height}")
-                        }
                     }
                     
                     // 如果有favicon，立即更新
                     if (favicon != null) {
                         Log.d("SearchActivity", "onPageStarted: 收到favicon，更新按钮")
                         runOnUiThread {
-                            updateFaviconButton(favicon, url)
+                            updateFaviconButton(favicon, actualUrl)
                         }
                     } else {
                         // 尝试从URL加载favicon
                         Log.d("SearchActivity", "onPageStarted: 没有favicon，从URL加载")
                         runOnUiThread {
-                            loadFaviconFromUrl(url)
+                            loadFaviconFromUrl(actualUrl)
                         }
                     }
                 } else {
@@ -1887,10 +1931,14 @@ class SearchActivity : AppCompatActivity() {
                 progressBar.visibility = View.GONE
                 updateWebViewTheme()
                 
-                // 更新搜索框显示当前URL
-                updateSearchBoxWithCurrentUrl(url)
+                // 获取WebView的实际URL（优先使用view.url，因为url参数可能不准确）
+                val actualUrl = view?.url ?: url
+                Log.d("SearchActivity", "onPageFinished: url参数=$url, view.url=${view?.url}, actualUrl=$actualUrl, title=${view?.title}")
                 
-                Log.d("SearchActivity", "onPageFinished: URL=$url, favicon=${view?.favicon != null}")
+                // 更新搜索框显示当前URL
+                if (actualUrl != null && actualUrl.isNotEmpty() && actualUrl != "about:blank") {
+                    updateSearchBoxWithCurrentUrl(actualUrl)
+                }
                 
                 // 更新favicon按钮（如果没有收到favicon，尝试从URL加载）
                 if (url != null && url.isNotEmpty() && url != "about:blank") {
@@ -2243,8 +2291,20 @@ class SearchActivity : AppCompatActivity() {
             
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
-                // 如果没有收到favicon，尝试从URL加载
+                
+                // 更新标题显示
                 val url = view?.url
+                if (url != null && url.isNotEmpty() && url != "about:blank") {
+                    currentDisplayTitle = title ?: extractDomain(url)
+                    // 如果输入框没有焦点，更新显示
+                    if (!isInputFocused) {
+                        runOnUiThread {
+                            updateSearchBoxDisplay()
+                        }
+                    }
+                }
+                
+                // 如果没有收到favicon，尝试从URL加载
                 if (view?.favicon == null && url != null) {
                     loadFaviconFromUrl(url)
                 }
@@ -2544,22 +2604,84 @@ class SearchActivity : AppCompatActivity() {
     }
 
     /**
-     * 更新搜索框显示当前URL
+     * 更新搜索框显示当前URL和标题
      */
     private fun updateSearchBoxWithCurrentUrl(url: String?) {
-        if (url != null && ::searchInput.isInitialized) {
+        if (url != null && url.isNotEmpty() && url != "about:blank" && ::searchInput.isInitialized) {
             try {
-                // 始终显示当前URL，让用户可以编辑
-                searchInput.setText(url)
-                searchInput.hint = "当前页面: $url"
-                
-                // 选中URL文本，方便用户编辑
-                searchInput.setSelection(0, url.length)
-                
-                Log.d("SearchActivity", "搜索框已更新: $url")
+                runOnUiThread {
+                    currentDisplayUrl = url
+                    
+                    // 获取标题（优先从WebView获取，因为更准确）
+                    val currentWebView = if (isPaperStackMode) {
+                        paperStackManager?.getCurrentTab()?.webView ?: webView
+                    } else {
+                        webView
+                    }
+                    
+                    val title = currentWebView.title ?: if (isPaperStackMode) {
+                        paperStackManager?.getCurrentTab()?.title
+                    } else {
+                        null
+                    }
+                    
+                    currentDisplayTitle = title?.takeIf { it.isNotEmpty() } ?: extractDomain(url)
+                    
+                    // 更新显示
+                    updateSearchBoxDisplay()
+                    
+                    Log.d("SearchActivity", "搜索框已更新: URL=$url, Title=$currentDisplayTitle, isPaperStackMode=$isPaperStackMode")
+                }
             } catch (e: Exception) {
                 Log.e("SearchActivity", "更新搜索框失败", e)
             }
+        } else {
+            Log.d("SearchActivity", "updateSearchBoxWithCurrentUrl: 跳过更新，url=$url, isInitialized=${::searchInput.isInitialized}")
+        }
+    }
+    
+    /**
+     * 更新搜索框显示（根据焦点状态显示标题或URL）
+     */
+    private fun updateSearchBoxDisplay() {
+        if (!::searchInput.isInitialized) {
+            Log.w("SearchActivity", "updateSearchBoxDisplay: searchInput未初始化")
+            return
+        }
+        
+        try {
+            if (isInputFocused) {
+                // 有焦点时显示URL并选中
+                if (!currentDisplayUrl.isNullOrEmpty()) {
+                    searchInput.setText(currentDisplayUrl)
+                    searchInput.setSelection(0, currentDisplayUrl!!.length)
+                    searchInput.hint = ""
+                    Log.d("SearchActivity", "updateSearchBoxDisplay: 有焦点，显示URL=$currentDisplayUrl")
+                } else {
+                    searchInput.setText("")
+                    searchInput.hint = "搜索或输入网址"
+                    Log.d("SearchActivity", "updateSearchBoxDisplay: 有焦点，但URL为空")
+                }
+            } else {
+                // 无焦点时显示标题
+                if (!currentDisplayTitle.isNullOrEmpty()) {
+                    searchInput.setText("")
+                    searchInput.hint = currentDisplayTitle
+                    Log.d("SearchActivity", "updateSearchBoxDisplay: 无焦点，显示标题=$currentDisplayTitle")
+                } else if (!currentDisplayUrl.isNullOrEmpty()) {
+                    // 如果没有标题，显示URL（简化显示）
+                    val domain = extractDomain(currentDisplayUrl!!)
+                    searchInput.setText("")
+                    searchInput.hint = domain
+                    Log.d("SearchActivity", "updateSearchBoxDisplay: 无焦点，显示域名=$domain")
+                } else {
+                    searchInput.setText("")
+                    searchInput.hint = "搜索或输入网址"
+                    Log.d("SearchActivity", "updateSearchBoxDisplay: 无焦点，无URL和标题，显示默认提示")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "更新搜索框显示失败", e)
         }
     }
 
@@ -3026,6 +3148,31 @@ class SearchActivity : AppCompatActivity() {
         clearSearchButton.setOnClickListener {
             searchInput.setText("")
             clearSearchButton.visibility = View.GONE
+            // 清除后恢复显示标题
+            updateSearchBoxDisplay()
+        }
+
+        // 设置搜索框焦点监听
+        searchInput.setOnFocusChangeListener { _, hasFocus ->
+            isInputFocused = hasFocus
+            if (hasFocus) {
+                // 获得焦点时显示URL并选中
+                if (!currentDisplayUrl.isNullOrEmpty()) {
+                    searchInput.setText(currentDisplayUrl)
+                    searchInput.setSelection(0, currentDisplayUrl!!.length)
+                    searchInput.hint = ""
+                }
+            } else {
+                // 失去焦点时恢复显示标题
+                updateSearchBoxDisplay()
+            }
+        }
+        
+        // 设置点击事件（确保点击时也能触发焦点逻辑）
+        searchInput.setOnClickListener {
+            if (!isInputFocused) {
+                searchInput.requestFocus()
+            }
         }
 
         // 设置搜索框文本变化监听
@@ -3047,6 +3194,8 @@ class SearchActivity : AppCompatActivity() {
                     // 隐藏键盘
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                     imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
+                    // 失去焦点后恢复显示标题
+                    searchInput.clearFocus()
                     return@setOnEditorActionListener true
                     }
             }

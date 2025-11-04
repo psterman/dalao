@@ -6123,6 +6123,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
+        // 页面标题变化时，优先用标题填充搜索框
+        paperStackWebViewManager?.setOnTitleReceivedListener { tab, title ->
+            try {
+                val text = if (!title.isNullOrBlank()) title!! else tab.url
+                browserSearchInput.setText(text)
+                updateBrowserFaviconButtonForUrl(tab.url)
+            } catch (e: Exception) {
+                Log.w(TAG, "更新地址栏标题失败", e)
+            }
+        }
+
         // 设置页面变化监听器（保留原有的gestureCardWebViewManager监听器以兼容其他功能）
         gestureCardWebViewManager?.setOnPageChangeListener(object : GestureCardWebViewManager.OnPageChangeListener {
             override fun onCardAdded(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
@@ -6175,7 +6186,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onPageTitleChanged(cardData: GestureCardWebViewManager.WebViewCardData, title: String) {
-                // 更新页面标题
+                // 优先以标题更新地址栏，空则回退到URL
+                try {
+                    val text = if (!title.isNullOrBlank()) title else cardData.url
+                    browserSearchInput.setText(text)
+                } catch (_: Exception) {}
                 Log.d(TAG, "卡片标题变化: $title")
             }
 
@@ -6638,6 +6653,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 清空按钮功能已在之前实现
             // AI按钮功能已在之前实现
 
+            // 点击或获取焦点时：切换为真实URL并全选
+            browserSearchInput.setOnClickListener {
+                try {
+                    // 编辑地址栏时隐藏站点图标，腾出空间
+                    browserBtnSite.visibility = View.GONE
+                    updateAddressBarToCurrentUrlAndSelectAll()
+                } catch (_: Exception) {}
+            }
+            browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    try {
+                        browserBtnSite.visibility = View.GONE
+                        updateAddressBarToCurrentUrlAndSelectAll()
+                    } catch (_: Exception) {}
+                } else {
+                    // 失焦后根据当前URL恢复favicon按钮
+                    try {
+                        val url = gestureCardWebViewManager?.getCurrentCard()?.url
+                            ?: paperStackWebViewManager?.getCurrentTab()?.url
+                            ?: unifiedWebViewManager.getCurrentActiveWebView()?.url
+                        updateBrowserFaviconButtonForUrl(url)
+                    } catch (_: Exception) {}
+                }
+            }
+
             // 监听搜索框文本变化，控制清空按钮显示
             browserSearchInput.addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -6645,7 +6685,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 override fun afterTextChanged(s: android.text.Editable?) {
                     // 有文本时显示清空按钮，无文本时隐藏
                     browserBtnClear.visibility = if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
-                    // 同步更新左侧favicon按钮
+
+                    // 编辑态：保持隐藏favicon，避免编辑时占位
+                    if (browserSearchInput.hasFocus()) {
+                        browserBtnSite.visibility = View.GONE
+                        return
+                    }
+
+                    // 非编辑态：根据文本恢复favicon
                     val text = s?.toString()?.trim() ?: ""
                     val looksLikeUrl = text.startsWith("http://") || text.startsWith("https://") ||
                             (text.contains('.') && !text.contains(' '))
@@ -6662,6 +6709,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "设置搜索框按钮功能失败", e)
         }
+    }
+
+    /**
+     * 将地址栏立即切换为真实URL并全选，显示输入法
+     */
+    private fun updateAddressBarToCurrentUrlAndSelectAll() {
+        val currentUrl = try {
+            gestureCardWebViewManager?.getCurrentCard()?.url
+                ?: paperStackWebViewManager?.getCurrentTab()?.url
+                ?: unifiedWebViewManager.getCurrentActiveWebView()?.url
+        } catch (_: Exception) { null }
+
+        val finalUrl = if (!currentUrl.isNullOrBlank() && currentUrl != "about:blank") currentUrl else browserSearchInput.text?.toString() ?: ""
+        browserSearchInput.setText(finalUrl)
+        browserSearchInput.requestFocus()
+        try {
+            browserSearchInput.selectAll()
+        } catch (_: Exception) {
+            browserSearchInput.setSelection(0, browserSearchInput.text.length)
+        }
+
+        // 显示软键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(browserSearchInput, InputMethodManager.SHOW_IMPLICIT)
     }
 
     /**
@@ -9161,6 +9232,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 同步更新地址栏左侧站点图标
             updateBrowserFaviconButtonForUrl(url)
+
+            // 初始用URL填充地址栏（后续收到标题再覆盖）
+            try { browserSearchInput.setText(url) } catch (_: Exception) {}
 
             // 在纸堆模式下添加新标签页
             if (paperStackWebViewManager != null) {
