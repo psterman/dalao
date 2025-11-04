@@ -84,6 +84,15 @@
         <item name="textAllCaps">false</item>
     </style>
 
+    <!-- PopupMenu（亮色）文本可读性修复 -->
+    <style name="AppPopupMenuLight" parent="ThemeOverlay.AppCompat.Light">
+        <item name="android:textColor">@color/popup_text_light</item>
+        <item name="android:itemTextAppearance">@style/AppPopupMenuItemText</item>
+    </style>
+    <style name="AppPopupMenuItemText" parent="TextAppearance.AppCompat.Body1">
+        <item name="android:textColor">@color/popup_text_light</item>
+    </style>
+
     <!-- AI助手Tab文字样式 - Material Design风格 -->
     <style name="AIAssistantTabTextAppearance" parent="TextAppearance.Design.Tab">
         <item name="android:textSize">14sp</item>

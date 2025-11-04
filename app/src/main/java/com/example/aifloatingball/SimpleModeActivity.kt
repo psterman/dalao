@@ -768,8 +768,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var isToolbarVisible = true
     private var lastScrollY = 0
     private var toolbarAnimator: android.animation.ValueAnimator? = null
-    private val toolbarHideThreshold = 100 // 滚动多少像素后隐藏工具栏
-    private val toolbarShowThreshold = 50  // 向上滚动多少像素后显示工具栏
+    private val toolbarHideThreshold = 80  // 累计滚动高度阈值（更易触发）
+    private val toolbarShowThreshold = 20  // 反向滚动轻阈值
+
+    // 底部导航栏显隐控制
+    private var isBottomNavVisible = true
+    private var bottomNavAnimator: android.animation.ValueAnimator? = null
 
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
@@ -6527,6 +6531,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 为WebView容器中的所有WebView添加滚动监听
             setupWebViewScrollListener()
 
+            // 纸堆模式补充：对已有与后续标签附加滚动监听，确保顶部栏联动
+            try {
+                paperStackWebViewManager?.getAllTabs()?.forEach { tab ->
+                    addScrollListenerToWebView(tab.webView)
+                }
+                paperStackWebViewManager?.setOnTabCreatedListener { tab ->
+                    addScrollListenerToWebView(tab.webView)
+                }
+                paperStackWebViewManager?.setOnTabSwitchedListener { tab, _ ->
+                    addScrollListenerToWebView(tab.webView)
+                }
+            } catch (_: Exception) {}
+
             Log.d(TAG, "工具栏自动隐藏功能设置完成")
 
         } catch (e: Exception) {
@@ -6606,13 +6623,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleWebViewScroll(deltaY: Int, scrollY: Int) {
         try {
-            // 向下滚动且滚动距离超过阈值时隐藏工具栏
-            if (deltaY > toolbarHideThreshold && isToolbarVisible && scrollY > toolbarHideThreshold) {
+            // 向下滚动：当累计滚动高度超过阈值时隐藏
+            if (deltaY > 6 && isToolbarVisible && scrollY > toolbarHideThreshold) {
                 hideToolbar()
+                hideBottomNavigation()
             }
-            // 向上滚动且滚动距离超过阈值时显示工具栏
-            else if (deltaY < -toolbarShowThreshold && !isToolbarVisible) {
+            // 向上滚动：轻阈值即显示
+            else if (deltaY < -6 && !isToolbarVisible) {
                 showToolbar()
+                showBottomNavigation()
             }
 
         } catch (e: Exception) {
@@ -6639,7 +6658,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 创建隐藏动画 - 向上移动工具栏高度的距离
+            // 创建隐藏动画 - 向上移动并淡出
             toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, -toolbarHeight).apply {
                 duration = 300
                 interpolator = android.view.animation.DecelerateInterpolator()
@@ -6647,11 +6666,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 addUpdateListener { animator ->
                     val translationY = animator.animatedValue as Float
                     browserToolbar.translationY = translationY
+                    val progress = kotlin.math.min(1f, kotlin.math.abs(translationY) / toolbarHeight)
+                    browserToolbar.alpha = 1f - 0.9f * progress
                 }
 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
                         Log.d(TAG, "工具栏隐藏动画完成，translationY: ${browserToolbar.translationY}")
+                        // 完全隐藏后从布局移除，释放高度给内容区域
+                        browserToolbar.visibility = View.GONE
                     }
                 })
 
@@ -6677,17 +6700,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 取消之前的动画
             toolbarAnimator?.cancel()
 
+            // 让工具栏参与布局测量，避免顶部留白
+            if (browserToolbar.visibility != View.VISIBLE) {
+                browserToolbar.visibility = View.VISIBLE
+                if (browserToolbar.height == 0) {
+                    val density = resources.displayMetrics.density
+                    browserToolbar.translationY = -(56f * density)
+                }
+                browserToolbar.alpha = 0.1f
+            }
+
             // 获取当前位置
             val currentTranslationY = browserToolbar.translationY
 
-            // 创建显示动画 - 从当前位置移动到0
+            // 创建显示动画 - 从当前位置移动到0并淡入
             toolbarAnimator = android.animation.ValueAnimator.ofFloat(currentTranslationY, 0f).apply {
-                duration = 300
-                interpolator = android.view.animation.DecelerateInterpolator()
+                duration = 220
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
 
                 addUpdateListener { animator ->
                     val translationY = animator.animatedValue as Float
                     browserToolbar.translationY = translationY
+                    val progress = 1f - kotlin.math.min(1f, kotlin.math.abs(translationY) / kotlin.math.max(1f, browserToolbar.height.toFloat()))
+                    browserToolbar.alpha = 0.1f + 0.9f * progress
                 }
 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -6703,6 +6738,71 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "显示工具栏失败", e)
+        }
+    }
+
+    /**
+     * 隐藏底部导航栏（搜索/对话/AI/软件/设置）
+     */
+    private fun hideBottomNavigation() {
+        if (!isBottomNavVisible) return
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+
+        try {
+            isBottomNavVisible = false
+            bottomNavAnimator?.cancel()
+            val navHeight = bottomNav.height.toFloat()
+            if (navHeight <= 0f) return
+
+            bottomNavAnimator = android.animation.ValueAnimator.ofFloat(0f, navHeight).apply {
+                duration = 250
+                interpolator = android.view.animation.DecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val ty = anim.animatedValue as Float
+                    bottomNav.translationY = ty
+                    val progress = kotlin.math.min(1f, ty / navHeight)
+                    bottomNav.alpha = 1f - 0.9f * progress
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // 真正移除，释放测量高度
+                        bottomNav.visibility = View.GONE
+                    }
+                })
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏底部导航栏失败", e)
+        }
+    }
+
+    /**
+     * 显示底部导航栏
+     */
+    private fun showBottomNavigation() {
+        if (isBottomNavVisible) return
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+
+        try {
+            isBottomNavVisible = true
+            bottomNavAnimator?.cancel()
+            // 重新参与布局，并从隐藏位置回到0
+            bottomNav.visibility = View.VISIBLE
+            val currentTy = bottomNav.translationY
+            bottomNavAnimator = android.animation.ValueAnimator.ofFloat(currentTy, 0f).apply {
+                duration = 250
+                interpolator = android.view.animation.DecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val ty = anim.animatedValue as Float
+                    bottomNav.translationY = ty
+                    val navHeight = kotlin.math.max(1f, bottomNav.height.toFloat())
+                    val progress = 1f - kotlin.math.min(1f, ty / navHeight)
+                    bottomNav.alpha = 0.1f + 0.9f * progress
+                }
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示底部导航栏失败", e)
         }
     }
 
@@ -26244,7 +26344,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            val popupMenu = androidx.appcompat.widget.PopupMenu(this, browserBtnSite)
+            val popupMenu = androidx.appcompat.widget.PopupMenu(androidx.appcompat.view.ContextThemeWrapper(this, R.style.AppPopupMenuLight), browserBtnSite)
             popupMenu.menuInflater.inflate(R.menu.website_info_menu, popupMenu.menu)
 
             // 标题

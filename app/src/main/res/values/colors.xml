@@ -914,4 +914,5 @@
     <!-- Prompt社区红色强调色 -->
     <color name="primary_red">#F44336</color>
 
+    <color name="popup_text_light">#333333</color>
 </resources>
