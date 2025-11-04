@@ -770,6 +770,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var toolbarAnimator: android.animation.ValueAnimator? = null
     private val toolbarHideThreshold = 80  // 累计滚动高度阈值（更易触发）
     private val toolbarShowThreshold = 20  // 反向滚动轻阈值
+    
+    // 底部快捷操作栏
+    private lateinit var browserQuickActionsBar: LinearLayout
+    private var isQuickActionsBarVisible = false
+    private var quickActionsBarAnimator: android.animation.ValueAnimator? = null
 
     // 底部导航栏显隐控制
     private var isBottomNavVisible = true
@@ -1785,6 +1790,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserTabContainer = findViewById(R.id.browser_tab_container)
         browserTabBar = findViewById(R.id.browser_tab_bar)
         browserNewTabButton = findViewById(R.id.browser_new_tab_button)
+        
+        // 初始化底部快捷操作栏
+        browserQuickActionsBar = findViewById(R.id.browser_quick_actions_bar)
+        setupQuickActionsBar()
 
         // Safari风格功能组件初始化
         browserToolbar = findViewById(R.id.browser_toolbar)
@@ -4584,13 +4593,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 如果遮罩层已激活，长按退出遮罩层
                         Log.d(TAG, "长按搜索tab退出遮罩层")
                         deactivateSearchTabGestureOverlay()
-                    } else {
-                        // 如果遮罩层未激活，长按激活遮罩层
-                        Log.d(TAG, "长按搜索tab激活遮罩层")
-                        deactivateStackedCardPreview()
-                        showBrowser()
-                        activateSearchTabGestureOverlay()
                     }
+                    // 已移除：长按激活遮罩层功能，现在由下滑页面自动弹出悬浮快捷操作菜单替代
                 } catch (e: Exception) {
                     Log.e(TAG, "搜索tab长按处理异常", e)
                 }
@@ -6623,15 +6627,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleWebViewScroll(deltaY: Int, scrollY: Int) {
         try {
-            // 向下滚动：当累计滚动高度超过阈值时隐藏
+            // 向下滚动：当累计滚动高度超过阈值时隐藏标题栏，显示快捷操作栏
             if (deltaY > 6 && isToolbarVisible && scrollY > toolbarHideThreshold) {
                 hideToolbar()
                 hideBottomNavigation()
+                showQuickActionsBar()
             }
-            // 向上滚动：轻阈值即显示
+            // 向上滚动：轻阈值即显示标题栏，隐藏快捷操作栏
             else if (deltaY < -6 && !isToolbarVisible) {
                 showToolbar()
                 showBottomNavigation()
+                hideQuickActionsBar()
             }
 
         } catch (e: Exception) {
@@ -6640,7 +6646,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 隐藏工具栏
+     * 隐藏工具栏（同步动画：标题栏、tab栏、网页容器）
      */
     private fun hideToolbar() {
         if (!isToolbarVisible) return
@@ -6658,21 +6664,68 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 创建隐藏动画 - 向上移动并淡出
-            toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, -toolbarHeight).apply {
+            // 获取tab栏高度（如果可见）
+            val tabContainerHeight = if (browserTabContainer.visibility == View.VISIBLE) {
+                browserTabContainer.height.toFloat()
+            } else {
+                0f
+            }
+            val totalHeight = toolbarHeight + tabContainerHeight
+
+            // 缩进距离（左右各缩进）
+            val indentDistance = dpToPx(16f)
+
+            // 创建同步隐藏动画 - 标题栏、tab栏、网页容器同步移动和缩进
+            toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 300
                 interpolator = android.view.animation.DecelerateInterpolator()
 
                 addUpdateListener { animator ->
-                    val translationY = animator.animatedValue as Float
-                    browserToolbar.translationY = translationY
-                    val progress = kotlin.math.min(1f, kotlin.math.abs(translationY) / toolbarHeight)
+                    val progress = animator.animatedValue as Float
+                    
+                    // 标题栏：向上移动并淡出
+                    val toolbarTranslationY = -toolbarHeight * progress
+                    browserToolbar.translationY = toolbarTranslationY
                     browserToolbar.alpha = 1f - 0.9f * progress
+                    
+                    // Tab栏：向上移动并淡出（同步）
+                    if (browserTabContainer.visibility == View.VISIBLE) {
+                        browserTabContainer.translationY = toolbarTranslationY
+                        browserTabContainer.alpha = 1f - 0.9f * progress
+                    }
+                    
+                    // 网页容器：同步缩进/延伸动画
+                    val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+                    if (webViewContainer != null) {
+                        val margin = (indentDistance * (1f - progress)).toInt()
+                        val layoutParams = webViewContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                        layoutParams?.let {
+                            it.leftMargin = margin
+                            it.rightMargin = margin
+                            webViewContainer.layoutParams = it
+                        }
+                    }
+                    
+                    // 标题栏和tab栏同步缩进
+                    val toolbarMargin = (indentDistance * (1f - progress)).toInt()
+                    val toolbarLayoutParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
+                    toolbarLayoutParams?.let {
+                        it.leftMargin = toolbarMargin
+                        it.rightMargin = toolbarMargin
+                        browserToolbar.layoutParams = it
+                    }
+                    
+                    val tabLayoutParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                    tabLayoutParams?.let {
+                        it.leftMargin = toolbarMargin
+                        it.rightMargin = toolbarMargin
+                        browserTabContainer.layoutParams = it
+                    }
                 }
 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        Log.d(TAG, "工具栏隐藏动画完成，translationY: ${browserToolbar.translationY}")
+                        Log.d(TAG, "工具栏隐藏动画完成")
                         // 完全隐藏后从布局移除，释放高度给内容区域
                         browserToolbar.visibility = View.GONE
                     }
@@ -6687,9 +6740,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "隐藏工具栏失败", e)
         }
     }
+    
+    /**
+     * 将dp转换为px
+     */
+    private fun dpToPx(dp: Float): Float {
+        return dp * resources.displayMetrics.density
+    }
 
     /**
-     * 显示工具栏
+     * 显示工具栏（同步动画：标题栏、tab栏、网页容器）
      */
     private fun showToolbar() {
         if (isToolbarVisible) return
@@ -6711,36 +6771,368 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 获取当前位置
+            val toolbarHeight = browserToolbar.height.toFloat()
             val currentTranslationY = browserToolbar.translationY
+            val startTranslationY = if (currentTranslationY == 0f) -toolbarHeight else currentTranslationY
 
-            // 创建显示动画 - 从当前位置移动到0并淡入
-            toolbarAnimator = android.animation.ValueAnimator.ofFloat(currentTranslationY, 0f).apply {
+            // 缩进距离（左右各缩进）
+            val indentDistance = dpToPx(16f)
+
+            // 创建同步显示动画 - 标题栏、tab栏、网页容器同步移动和缩进
+            toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 220
                 interpolator = android.view.animation.AccelerateDecelerateInterpolator()
 
                 addUpdateListener { animator ->
-                    val translationY = animator.animatedValue as Float
-                    browserToolbar.translationY = translationY
-                    val progress = 1f - kotlin.math.min(1f, kotlin.math.abs(translationY) / kotlin.math.max(1f, browserToolbar.height.toFloat()))
-                    browserToolbar.alpha = 0.1f + 0.9f * progress
+                    val progress = animator.animatedValue as Float
+                    
+                    // 标题栏：从起始位置移动到0并淡入
+                    val toolbarTranslationY = startTranslationY + (-startTranslationY) * progress
+                    browserToolbar.translationY = toolbarTranslationY
+                    val toolbarAlpha = 0.1f + 0.9f * progress
+                    browserToolbar.alpha = toolbarAlpha
+                    
+                    // Tab栏：同步移动和淡入
+                    if (browserTabContainer.visibility == View.VISIBLE) {
+                        browserTabContainer.translationY = toolbarTranslationY
+                        browserTabContainer.alpha = toolbarAlpha
+                    }
+                    
+                    // 网页容器：同步缩进/延伸动画
+                    val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+                    if (webViewContainer != null) {
+                        val margin = (indentDistance * (1f - progress)).toInt()
+                        val layoutParams = webViewContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                        layoutParams?.let {
+                            it.leftMargin = margin
+                            it.rightMargin = margin
+                            webViewContainer.layoutParams = it
+                        }
+                    }
+                    
+                    // 标题栏和tab栏同步缩进
+                    val toolbarMargin = (indentDistance * (1f - progress)).toInt()
+                    val toolbarLayoutParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
+                    toolbarLayoutParams?.let {
+                        it.leftMargin = toolbarMargin
+                        it.rightMargin = toolbarMargin
+                        browserToolbar.layoutParams = it
+                    }
+                    
+                    val tabLayoutParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                    tabLayoutParams?.let {
+                        it.leftMargin = toolbarMargin
+                        it.rightMargin = toolbarMargin
+                        browserTabContainer.layoutParams = it
+                    }
                 }
 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        Log.d(TAG, "工具栏显示动画完成，translationY: ${browserToolbar.translationY}")
+                        Log.d(TAG, "工具栏显示动画完成")
                     }
                 })
 
                 start()
             }
 
-            Log.d(TAG, "开始显示工具栏，从位置: $currentTranslationY")
+            Log.d(TAG, "开始显示工具栏，从位置: $startTranslationY")
 
         } catch (e: Exception) {
             Log.e(TAG, "显示工具栏失败", e)
         }
     }
 
+    /**
+     * 设置底部快捷操作栏
+     */
+    private fun setupQuickActionsBar() {
+        try {
+            // 设置按钮点击监听器
+            findViewById<ImageButton>(R.id.quick_action_back)?.setOnClickListener {
+                handleQuickActionBack()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_forward)?.setOnClickListener {
+                handleQuickActionForward()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_refresh)?.setOnClickListener {
+                handleQuickActionRefresh()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_close)?.setOnClickListener {
+                handleQuickActionClose()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_undo_close)?.setOnClickListener {
+                handleQuickActionUndoClose()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_find)?.setOnClickListener {
+                handleQuickActionFind()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_bookmark)?.setOnClickListener {
+                handleQuickActionBookmark()
+            }
+            
+            findViewById<ImageButton>(R.id.quick_action_share)?.setOnClickListener {
+                handleQuickActionShare()
+            }
+            
+            // 根据主题设置背景
+            updateQuickActionsBarTheme()
+            
+            Log.d(TAG, "快捷操作栏初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置快捷操作栏失败", e)
+        }
+    }
+    
+    /**
+     * 更新快捷操作栏主题（暗色/亮色）
+     */
+    private fun updateQuickActionsBarTheme() {
+        try {
+            val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+                            android.content.res.Configuration.UI_MODE_NIGHT_YES
+            
+            // 创建半透明背景
+            val backgroundColor = if (isDarkMode) {
+                0xE0333333.toInt() // 暗色模式：深灰半透明
+            } else {
+                0xE0F5F5F5.toInt() // 亮色模式：浅灰半透明
+            }
+            
+            val backgroundDrawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(backgroundColor)
+                cornerRadius = dpToPx(16f) // 圆角
+            }
+            
+            browserQuickActionsBar.background = backgroundDrawable
+            
+            // 更新按钮颜色
+            val tintColor = if (isDarkMode) {
+                android.graphics.Color.WHITE
+            } else {
+                android.graphics.Color.BLACK
+            }
+            
+            for (i in 0 until browserQuickActionsBar.childCount) {
+                val child = browserQuickActionsBar.getChildAt(i)
+                if (child is ImageButton) {
+                    child.imageTintList = android.content.res.ColorStateList.valueOf(tintColor)
+                }
+            }
+            
+            Log.d(TAG, "快捷操作栏主题已更新：${if (isDarkMode) "暗色" else "亮色"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新快捷操作栏主题失败", e)
+        }
+    }
+    
+    /**
+     * 显示快捷操作栏
+     */
+    private fun showQuickActionsBar() {
+        if (isQuickActionsBarVisible) return
+        
+        try {
+            isQuickActionsBarVisible = true
+            quickActionsBarAnimator?.cancel()
+            
+            if (browserQuickActionsBar.visibility != View.VISIBLE) {
+                browserQuickActionsBar.visibility = View.VISIBLE
+                browserQuickActionsBar.alpha = 0f
+                browserQuickActionsBar.translationY = browserQuickActionsBar.height.toFloat()
+            }
+            
+            quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 250
+                interpolator = android.view.animation.DecelerateInterpolator()
+                
+                addUpdateListener { animator ->
+                    val progress = animator.animatedValue as Float
+                    browserQuickActionsBar.alpha = progress
+                    val startY = browserQuickActionsBar.height.toFloat()
+                    browserQuickActionsBar.translationY = startY * (1f - progress)
+                }
+                
+                start()
+            }
+            
+            Log.d(TAG, "快捷操作栏显示动画开始")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示快捷操作栏失败", e)
+        }
+    }
+    
+    /**
+     * 隐藏快捷操作栏
+     */
+    private fun hideQuickActionsBar() {
+        if (!isQuickActionsBarVisible) return
+        
+        try {
+            isQuickActionsBarVisible = false
+            quickActionsBarAnimator?.cancel()
+            
+            val startY = browserQuickActionsBar.translationY
+            
+            quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 200
+                interpolator = android.view.animation.AccelerateInterpolator()
+                
+                addUpdateListener { animator ->
+                    val progress = animator.animatedValue as Float
+                    browserQuickActionsBar.alpha = 1f - progress
+                    val endY = browserQuickActionsBar.height.toFloat()
+                    browserQuickActionsBar.translationY = startY + (endY - startY) * progress
+                }
+                
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        browserQuickActionsBar.visibility = View.GONE
+                    }
+                })
+                
+                start()
+            }
+            
+            Log.d(TAG, "快捷操作栏隐藏动画开始")
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏快捷操作栏失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：后退
+     */
+    private fun handleQuickActionBack() {
+        try {
+            val currentWebView = paperStackWebViewManager?.getCurrentTab()?.webView
+            if (currentWebView?.canGoBack() == true) {
+                currentWebView.goBack()
+            } else {
+                Toast.makeText(this, "无法后退", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "后退操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：前进
+     */
+    private fun handleQuickActionForward() {
+        try {
+            val currentWebView = paperStackWebViewManager?.getCurrentTab()?.webView
+            if (currentWebView?.canGoForward() == true) {
+                currentWebView.goForward()
+            } else {
+                Toast.makeText(this, "无法前进", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "前进操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：刷新
+     */
+    private fun handleQuickActionRefresh() {
+        try {
+            paperStackWebViewManager?.getCurrentTab()?.webView?.reload()
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：关闭
+     */
+    private fun handleQuickActionClose() {
+        try {
+            // 关闭当前标签页
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            if (currentTab != null) {
+                paperStackWebViewManager?.removeTab(currentTab.id)
+            } else {
+                Toast.makeText(this, "没有可关闭的标签页", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：撤回关闭
+     */
+    private fun handleQuickActionUndoClose() {
+        try {
+            // TODO: 实现撤回关闭标签页的功能
+            Toast.makeText(this, "撤回关闭功能待实现", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "撤回关闭操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：查找
+     */
+    private fun handleQuickActionFind() {
+        try {
+            // TODO: 实现页面内查找功能
+            Toast.makeText(this, "查找功能待实现", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "查找操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：收藏
+     */
+    private fun handleQuickActionBookmark() {
+        try {
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            val url = currentTab?.webView?.url
+            val title = currentTab?.title ?: url ?: ""
+            
+            if (!url.isNullOrBlank()) {
+                // TODO: 实现收藏功能
+                Toast.makeText(this, "收藏功能待实现", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "当前页面无法收藏", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "收藏操作失败", e)
+        }
+    }
+    
+    /**
+     * 快捷操作：分享
+     */
+    private fun handleQuickActionShare() {
+        try {
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            val url = currentTab?.webView?.url
+            
+            if (!url.isNullOrBlank()) {
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, url)
+                    putExtra(Intent.EXTRA_SUBJECT, currentTab?.title ?: "")
+                }
+                startActivity(Intent.createChooser(shareIntent, "分享网页"))
+            } else {
+                Toast.makeText(this, "当前页面无法分享", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "分享操作失败", e)
+        }
+    }
+    
     /**
      * 隐藏底部导航栏（搜索/对话/AI/软件/设置）
      */
@@ -21708,11 +22100,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 按钮会通过addNavigationButtons()方法直接添加到底部导航栏
             }
 
-            // 调整底部导航栏布局：缩小tab间距，隐藏文字
-            adjustBottomNavigationForOverlay(true)
-            
-            // 在对话tab左边添加前进和后退按钮
-            addNavigationButtons()
+            // 已移除：缩小tab间距和添加前进后退按钮功能，现在由下滑页面自动弹出悬浮快捷操作菜单替代
+            // adjustBottomNavigationForOverlay(true)
+            // addNavigationButtons()
             
             // 将遮罩层添加到根布局
             val rootLayout = findViewById<FrameLayout>(android.R.id.content)
@@ -21831,11 +22221,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 显示退出提示
             showMaterialToast("手势区已关闭")
 
-            // 移除前进和后退按钮
-            removeNavigationButtons()
-            
-            // 恢复底部导航栏布局
-            adjustBottomNavigationForOverlay(false)
+            // 已移除：移除前进后退按钮和恢复底部导航栏布局功能
+            // removeNavigationButtons()
+            // adjustBottomNavigationForOverlay(false)
             
             // 移除遮罩层
             searchTabGestureOverlay?.let { overlay ->
