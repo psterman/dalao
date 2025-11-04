@@ -598,9 +598,14 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         scrollOffset -= dampedDeltaX * sensitivity
 
-        // 限制滚动范围
+        // 限制滚动范围（确保maxOffset >= 0）
         val maxOffset = (webViewCards.size - 1) * cardSpacing
-        scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+        if (maxOffset >= 0f && webViewCards.size > 1) {
+            scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+        } else {
+            // 如果maxOffset为负数或只有一张卡片，直接限制为0
+            scrollOffset = scrollOffset.coerceAtLeast(0f)
+        }
 
         // 计算当前中心卡片
         val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()
@@ -1109,6 +1114,12 @@ class StackedCardPreview @JvmOverloads constructor(
      */
     private fun startInertiaScroll() {
         if (isInertiaScrolling) return
+        
+        // 安全检查：如果没有卡片或卡片数量不足，直接返回
+        if (webViewCards.isEmpty() || webViewCards.size <= 1) {
+            Log.d("StackedCardPreview", "启动惯性滚动失败：卡片数量不足 (${webViewCards.size})")
+            return
+        }
 
         isInertiaScrolling = true
         val initialVelocity = slideVelocity
@@ -1123,6 +1134,12 @@ class StackedCardPreview @JvmOverloads constructor(
         var currentVelocity = initialVelocity
 
         animator.addUpdateListener { animation ->
+            // 再次检查卡片数量，防止在动画过程中卡片被移除
+            if (webViewCards.isEmpty() || webViewCards.size <= 1) {
+                animation.cancel()
+                return@addUpdateListener
+            }
+            
             val currentTime = System.currentTimeMillis()
             val deltaTime = (currentTime - lastTime) / 1000f
             lastTime = currentTime
@@ -1141,9 +1158,14 @@ class StackedCardPreview @JvmOverloads constructor(
             val deltaOffset = -currentVelocity * deltaTime
             scrollOffset += deltaOffset
 
-            // 限制滚动范围
+            // 限制滚动范围（确保maxOffset >= 0）
             val maxOffset = (webViewCards.size - 1) * cardSpacing
-            scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+            if (maxOffset >= 0f) {
+                scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+            } else {
+                // 如果maxOffset为负数，直接限制为0
+                scrollOffset = scrollOffset.coerceAtLeast(0f)
+            }
 
             // 更新当前卡片索引
             val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()
@@ -1176,6 +1198,12 @@ class StackedCardPreview @JvmOverloads constructor(
      */
     private fun startInertiaScrollWithoutOpen() {
         if (isInertiaScrolling) return
+        
+        // 安全检查：如果没有卡片或卡片数量不足，直接返回
+        if (webViewCards.isEmpty() || webViewCards.size <= 1) {
+            Log.d("StackedCardPreview", "启动惯性滚动失败：卡片数量不足 (${webViewCards.size})")
+            return
+        }
 
         isInertiaScrolling = true
         val initialVelocity = slideVelocity
@@ -1191,6 +1219,12 @@ class StackedCardPreview @JvmOverloads constructor(
         var lastTime = System.currentTimeMillis()
 
         animator.addUpdateListener { animation ->
+            // 再次检查卡片数量，防止在动画过程中卡片被移除
+            if (webViewCards.isEmpty() || webViewCards.size <= 1) {
+                animation.cancel()
+                return@addUpdateListener
+            }
+            
             val currentTime = System.currentTimeMillis()
             val deltaTime = (currentTime - lastTime) / 1000f
             lastTime = currentTime
@@ -1209,9 +1243,14 @@ class StackedCardPreview @JvmOverloads constructor(
             val deltaOffset = -currentVelocity * deltaTime
             scrollOffset += deltaOffset
 
-            // 限制滚动范围
+            // 限制滚动范围（确保maxOffset >= 0）
             val maxOffset = (webViewCards.size - 1) * cardSpacing
-            scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+            if (maxOffset >= 0f) {
+                scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+            } else {
+                // 如果maxOffset为负数，直接限制为0
+                scrollOffset = scrollOffset.coerceAtLeast(0f)
+            }
 
             // 更新当前卡片索引
             val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()

@@ -819,79 +819,201 @@ class SearchActivity : AppCompatActivity() {
     }
     
     /**
-     * 显示网站信息菜单（参考via和alook）
+     * 显示网站信息菜单（参考Alook的实现）
      */
     private fun showWebsiteInfoMenu() {
-        val currentUrl = if (isPaperStackMode) {
-            paperStackManager?.getCurrentTab()?.url ?: webView.url
+        // 尝试多种方式获取URL - 优先从WebView获取，因为tab.url可能未更新
+        val currentWebView = if (isPaperStackMode) {
+            paperStackManager?.getCurrentTab()?.webView ?: webView
         } else {
-            webView.url
+            webView
+        }
+        
+        var currentUrl = currentWebView.url
+        
+        // 如果WebView的URL为空，尝试从搜索框获取
+        if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+            val searchText = searchInput.text.toString().trim()
+            if (searchText.isNotEmpty() && (searchText.startsWith("http://") || searchText.startsWith("https://"))) {
+                currentUrl = searchText
+            }
         }
         
         val currentTitle = if (isPaperStackMode) {
-            paperStackManager?.getCurrentTab()?.title ?: webView.title
+            paperStackManager?.getCurrentTab()?.title ?: currentWebView.title
         } else {
-            webView.title
+            currentWebView.title
         }
         
+        // 添加调试日志
+        Log.d("SearchActivity", "showWebsiteInfoMenu - URL: $currentUrl, Title: $currentTitle, isPaperStackMode: $isPaperStackMode")
+        
+        // 如果仍然没有URL，使用默认值或显示提示
         if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
-            Toast.makeText(this, "当前没有加载网页", Toast.LENGTH_SHORT).show()
+            // 即使没有URL，也显示对话框，但显示提示信息
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_website_info, null)
+            
+            val websiteUrl = dialogView.findViewById<TextView>(R.id.website_url)
+            val websiteName = dialogView.findViewById<TextView>(R.id.website_name)
+            val certificateInfo = dialogView.findViewById<LinearLayout>(R.id.certificate_info)
+            
+            websiteUrl.text = "当前没有已加载的网页"
+            websiteName.text = "请先加载网页"
+            certificateInfo.visibility = View.GONE
+            
+            // 禁用菜单项
+            dialogView.findViewById<LinearLayout>(R.id.menu_copy_title).isEnabled = false
+            dialogView.findViewById<LinearLayout>(R.id.menu_website_settings).isEnabled = false
+            dialogView.findViewById<LinearLayout>(R.id.menu_page_zoom).isEnabled = false
+            dialogView.findViewById<LinearLayout>(R.id.menu_active_extensions).isEnabled = false
+            dialogView.findViewById<LinearLayout>(R.id.menu_add_to_desktop).isEnabled = false
+            dialogView.findViewById<LinearLayout>(R.id.menu_get_full_text).isEnabled = false
+            
+            val dialog = AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create()
+            
+            dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+            dialog.show()
             return
         }
         
-        // 创建弹出菜单
-        val popupMenu = androidx.appcompat.widget.PopupMenu(this, faviconButton)
-        popupMenu.menuInflater.inflate(R.menu.website_info_menu, popupMenu.menu)
+        // 创建自定义对话框（参考Alook的样式）
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_website_info, null)
         
-        // 设置菜单项标题（显示网站名称）
-        val titleItem = popupMenu.menu.findItem(R.id.menu_website_title)
-        titleItem?.title = currentTitle ?: extractDomain(currentUrl)
+        // 设置网站信息
+        val websiteUrl = dialogView.findViewById<TextView>(R.id.website_url)
+        val websiteName = dialogView.findViewById<TextView>(R.id.website_name)
+        val certificateInfo = dialogView.findViewById<LinearLayout>(R.id.certificate_info)
+        val certIssuedTo = dialogView.findViewById<TextView>(R.id.cert_issued_to)
+        val certIssuedBy = dialogView.findViewById<TextView>(R.id.cert_issued_by)
+        val certExpiresOn = dialogView.findViewById<TextView>(R.id.cert_expires_on)
+        
+        websiteUrl.text = currentUrl
+        websiteName.text = currentTitle ?: extractDomain(currentUrl)
+        
+        // 获取证书信息（仅在HTTPS时显示）
+        if (currentUrl.startsWith("https://")) {
+            certificateInfo.visibility = View.VISIBLE
+            // 显示加载中
+            certIssuedTo.text = "Issued to: 正在获取..."
+            certIssuedBy.text = "Issued by: 正在获取..."
+            certExpiresOn.text = "Expires on: 正在获取..."
+            
+            getCertificateInfo(currentUrl) { issuedTo, issuedBy, expiresOn ->
+                runOnUiThread {
+                    certIssuedTo.text = "Issued to: $issuedTo"
+                    certIssuedBy.text = "Issued by: $issuedBy"
+                    certExpiresOn.text = "Expires on: $expiresOn"
+                }
+            }
+        } else {
+            certificateInfo.visibility = View.GONE
+        }
         
         // 设置页面缩放显示
-        val zoomItem = popupMenu.menu.findItem(R.id.menu_page_zoom)
         val webViewToUse = if (isPaperStackMode) {
             paperStackManager?.getCurrentTab()?.webView ?: webView
         } else {
             webView
         }
         val currentZoom = webViewToUse.settings.textZoom
-        zoomItem?.title = "页面缩放: ${currentZoom}%"
+        val zoomText = dialogView.findViewById<TextView>(R.id.zoom_text)
+        val zoomPercent = dialogView.findViewById<TextView>(R.id.zoom_percent)
+        zoomText.text = "页面缩放:${currentZoom}%"
+        zoomPercent.text = "${currentZoom}%"
         
-        popupMenu.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.menu_copy_title -> {
-                    // 拷贝标题
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("标题", currentTitle ?: "")
-                    clipboard.setPrimaryClip(clip)
-                    Toast.makeText(this, "标题已复制", Toast.LENGTH_SHORT).show()
-                    true
-                }
-                R.id.menu_website_settings -> {
-                    // 网站设置
-                    showWebsiteSettingsDialog(currentUrl)
-                    true
-                }
-                R.id.menu_page_zoom -> {
-                    // 页面缩放
-                    showPageZoomDialog()
-                    true
-                }
-                R.id.menu_add_to_desktop -> {
-                    // 添加到桌面
-                    addToDesktop(currentUrl, currentTitle ?: "")
-                    true
-                }
-                R.id.menu_get_full_text -> {
-                    // 获取网页全部文字
-                    extractFullText()
-                    true
-                }
-                else -> false
-            }
+        // 创建并显示对话框
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+        
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        
+        // 设置菜单项点击事件（点击后关闭对话框）
+        dialogView.findViewById<LinearLayout>(R.id.menu_copy_title).setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("标题", currentTitle ?: "")
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "标题已复制", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
         }
         
-        popupMenu.show()
+        dialogView.findViewById<LinearLayout>(R.id.menu_website_settings).setOnClickListener {
+            dialog.dismiss()
+            showWebsiteSettingsDialog(currentUrl)
+        }
+        
+        dialogView.findViewById<LinearLayout>(R.id.menu_page_zoom).setOnClickListener {
+            dialog.dismiss()
+            showPageZoomDialog()
+        }
+        
+        dialogView.findViewById<LinearLayout>(R.id.menu_active_extensions).setOnClickListener {
+            Toast.makeText(this, "主动扩展功能待实现", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<LinearLayout>(R.id.menu_add_to_desktop).setOnClickListener {
+            addToDesktop(currentUrl, currentTitle ?: "")
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<LinearLayout>(R.id.menu_get_full_text).setOnClickListener {
+            extractFullText()
+            dialog.dismiss()
+        }
+        
+        dialog.show()
+    }
+    
+    /**
+     * 获取SSL证书信息
+     */
+    private fun getCertificateInfo(url: String, callback: (String, String, String) -> Unit) {
+        // 在新线程中获取证书信息
+        Thread {
+            try {
+                val uri = java.net.URI(url)
+                val host = uri.host ?: run {
+                    callback("无法获取", "无法获取", "无法获取")
+                    return@Thread
+                }
+                val port = uri.port.takeIf { it > 0 } ?: 443
+                
+                try {
+                    val socketFactory = javax.net.ssl.SSLSocketFactory.getDefault()
+                    val socket = socketFactory.createSocket(host, port) as javax.net.ssl.SSLSocket
+                    socket.use {
+                        it.startHandshake()
+                        
+                        val session = it.session
+                        val certificates = session.peerCertificates
+                        
+                        if (certificates.isNotEmpty()) {
+                            val cert = certificates[0] as java.security.cert.X509Certificate
+                            
+                            val issuedTo = cert.subjectDN.name
+                            val issuedBy = cert.issuerDN.name
+                            val expiresOn = cert.notAfter
+                            
+                            val dateFormat = java.text.SimpleDateFormat("yyyy年M月d日", java.util.Locale.getDefault())
+                            val expiresOnStr = dateFormat.format(expiresOn)
+                            
+                            callback(issuedTo, issuedBy, expiresOnStr)
+                        } else {
+                            callback("未知", "未知", "未知")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("SearchActivity", "获取证书信息失败: ${e.message}", e)
+                    callback("无法获取", "无法获取", "无法获取")
+                }
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "解析URL失败: ${e.message}", e)
+                callback("无法获取", "无法获取", "无法获取")
+            }
+        }.start()
     }
     
     /**

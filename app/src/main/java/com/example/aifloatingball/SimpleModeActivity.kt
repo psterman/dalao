@@ -6092,12 +6092,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
-            // 更新搜索框URL
+            // 更新搜索框URL与站点图标
             browserSearchInput.setText(tab.url)
-            
+            updateBrowserFaviconButtonForUrl(tab.url)
+
             // 同步更新StackedCardPreview数据
             syncAllCardSystems()
-            
+
             Log.d(TAG, "切换到标签页: ${tab.title}")
         }
         
@@ -6105,6 +6106,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 标签页创建时同步更新
             syncAllCardSystems()
             Log.d(TAG, "创建标签页: ${tab.title}")
+        }
+
+        // favicon 接收时，立即更新站点按钮的图标与可见性
+        paperStackWebViewManager?.setOnFaviconReceivedListener { tab, icon ->
+            try {
+                if (icon != null) {
+                    browserBtnSite.setImageBitmap(icon)
+                    browserBtnSite.visibility = View.VISIBLE
+                } else {
+                    // 回退到通过URL加载favicon
+                    updateBrowserFaviconButtonForUrl(tab.url)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "更新favicon按钮失败", e)
+            }
         }
 
         // 设置页面变化监听器（保留原有的gestureCardWebViewManager监听器以兼容其他功能）
@@ -6146,8 +6162,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onCardSwitched(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
-                // 更新搜索框URL
+                // 更新搜索框URL与站点图标
                 browserSearchInput.setText(cardData.url)
+                updateBrowserFaviconButtonForUrl(cardData.url)
 
                 Log.d(TAG, "切换到卡片: ${cardData.title}")
             }
@@ -6163,7 +6180,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onPageLoadingStateChanged(cardData: GestureCardWebViewManager.WebViewCardData, isLoading: Boolean) {
-                // 更新加载状态
+                // 页面加载状态变化时，同步地址栏与站点图标
+                browserSearchInput.setText(cardData.url)
+                updateBrowserFaviconButtonForUrl(cardData.url)
+
                 Log.d(TAG, "卡片加载状态变化: ${cardData.title} - $isLoading")
             }
 
@@ -6322,6 +6342,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val adapter = WebViewManagerAdapter(manager, "GestureCardWebViewManager", unifiedWebViewManager)
             unifiedWebViewManager.registerManager(adapter)
             Log.d(TAG, "GestureCardWebViewManager已注册到统一WebView管理器")
+        }
+
+        // 将纸堆管理器也注册到统一管理器，供站点信息菜单与导航使用
+        paperStackWebViewManager?.let { manager ->
+            val adapter = WebViewManagerAdapter(manager, "PaperStackWebViewManager", unifiedWebViewManager)
+            unifiedWebViewManager.registerManager(adapter)
+            Log.d(TAG, "PaperStackWebViewManager已注册到统一WebView管理器")
         }
 
         // 初始显示主页内容
@@ -25959,6 +25986,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserBtnSite.setOnClickListener { showWebsiteInfoMenuForCurrentSite() }
             // 初次同步当前页面的favicon
             val currentUrl = gestureCardWebViewManager?.getCurrentCard()?.url
+                ?: paperStackWebViewManager?.getCurrentTab()?.url
                 ?: unifiedWebViewManager.getCurrentActiveWebView()?.url
             updateBrowserFaviconButtonForUrl(currentUrl)
         } catch (e: Exception) {
@@ -25983,11 +26011,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun showWebsiteInfoMenuForCurrentSite() {
         try {
-            val currentWebView = unifiedWebViewManager.getCurrentActiveWebView()
+            val currentWebViewFromUnified = unifiedWebViewManager.getCurrentActiveWebView()
+            val currentPaperTab = paperStackWebViewManager?.getCurrentTab()
             val currentUrl = gestureCardWebViewManager?.getCurrentCard()?.url
-                ?: currentWebView?.url
+                ?: currentPaperTab?.url
+                ?: currentWebViewFromUnified?.url
             val currentTitle = gestureCardWebViewManager?.getCurrentCard()?.title
-                ?: currentWebView?.title
+                ?: currentPaperTab?.title
+                ?: currentWebViewFromUnified?.title
 
             if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
                 Toast.makeText(this, "当前没有已加载的网页", Toast.LENGTH_SHORT).show()
@@ -26001,7 +26032,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             popupMenu.menu.findItem(R.id.menu_website_title)?.title = currentTitle ?: extractDomain(currentUrl)
 
             // 页面缩放展示
-            val webViewToUse = currentWebView
+            val webViewToUse = currentWebViewFromUnified ?: currentPaperTab?.webView
             val currentZoom = webViewToUse?.settings?.textZoom ?: 100
             popupMenu.menu.findItem(R.id.menu_page_zoom)?.title = "页面缩放: ${currentZoom}%"
 

@@ -25,6 +25,9 @@ class WebViewManagerAdapter(
             is GestureCardWebViewManager -> {
                 manager.getCurrentCard()?.webView
             }
+            is PaperStackWebViewManager -> {
+                manager.getCurrentTab()?.webView
+            }
             is MultiPageWebViewManager -> {
                 manager.getCurrentPage()?.webView
             }
@@ -42,6 +45,9 @@ class WebViewManagerAdapter(
             }
             is GestureCardWebViewManager -> {
                 manager.getCurrentCard()?.webView?.canGoBack() ?: false
+            }
+            is PaperStackWebViewManager -> {
+                manager.canGoBack()
             }
             is MultiPageWebViewManager -> {
                 manager.canGoBack()
@@ -69,6 +75,9 @@ class WebViewManagerAdapter(
                     true
                 } else false
             }
+            is PaperStackWebViewManager -> {
+                manager.goBack()
+            }
             is MultiPageWebViewManager -> {
                 val webView = manager.getCurrentPage()?.webView
                 if (webView?.canGoBack() == true) {
@@ -90,6 +99,9 @@ class WebViewManagerAdapter(
             }
             is GestureCardWebViewManager -> {
                 manager.getCurrentCard()?.webView?.canGoForward() ?: false
+            }
+            is PaperStackWebViewManager -> {
+                manager.canGoForward()
             }
             is MultiPageWebViewManager -> {
                 manager.canGoForward()
@@ -116,6 +128,9 @@ class WebViewManagerAdapter(
                     webView.goForward()
                     true
                 } else false
+            }
+            is PaperStackWebViewManager -> {
+                manager.goForward()
             }
             is MultiPageWebViewManager -> {
                 val webView = manager.getCurrentPage()?.webView
