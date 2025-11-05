@@ -3,10 +3,12 @@ package com.example.aifloatingball.video
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -77,10 +79,30 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var originalX = 0
     private var originalY = 0
     private var currentVideoUrl: String? = null
+    
+    // 手势控制相关
+    private var gestureDetector: GestureDetector? = null
+    private var brightnessControlView: android.widget.TextView? = null // 亮度控制提示视图
+    private var volumeControlView: android.widget.TextView? = null // 音量控制提示视图
+    private var seekControlView: android.widget.TextView? = null // 快进/后退提示视图
+    private var audioManager: AudioManager? = null
+    private var maxVolume = 0
+    private var currentVolume = 0
+    private var currentBrightness = 0f
+    private var isSeeking = false // 是否正在快进/后退
+    private var seekStartX = 0f // 快进/后退起始X坐标
+    private var seekStartY = 0f // 滑动起始Y坐标
+    private var seekStartTime = 0 // 快进/后退起始时间
+    private var gestureHandled = false // 手势是否已被处理
+    private var touchDownTime = 0L // 按下时间，用于区分拖拽和快速滑动
+    private var isDraggingWindow = false // 是否正在拖拽窗口
+    private val DRAG_DELAY_THRESHOLD = 200L // 拖拽延迟阈值（毫秒），按住超过这个时间才认为是拖拽
 
     companion object {
         private const val TAG = "SystemOverlayVideo"
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
+        private const val MIN_SWIPE_DISTANCE = 50 // 最小滑动距离（像素）
+        private const val SEEK_SPEED_FACTOR = 2.0f // 快进/后退速度因子
     }
 
     init {
@@ -335,8 +357,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         originalX = params?.x ?: 0
         originalY = params?.y ?: 0
         
-        // 启用拖拽
-        enableDrag(container)
+        // 拖拽功能已整合到手势控制中，不再单独调用enableDrag
         
         // 添加到 WindowManager
         try {
@@ -510,35 +531,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建投屏按钮（放在时间轴左侧，全屏按钮旁边）
-        val topDlnaBtn = ImageButton(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                dpToPx(28),
-                dpToPx(28)
-            ).apply {
-                setMargins(0, 0, dpToPx(4), 0)
-            }
-            // 使用投屏图标
-            try {
-                val resId = context.resources.getIdentifier(
-                    "ic_cast", "drawable", "android"
-                )
-                if (resId != 0) {
-                    setImageResource(resId)
-                } else {
-                    setImageResource(android.R.drawable.ic_menu_send)
-                }
-            } catch (e: Exception) {
-                setImageResource(android.R.drawable.ic_menu_send)
-            }
-            setBackgroundColor(0x802196F3.toInt()) // 半透明蓝色
-            setPadding(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
-            setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN)
-            setOnClickListener {
-                castToDLNA()
-            }
-        }
-        
         // 创建当前播放时间显示（左侧）
         currentTimeText = android.widget.TextView(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -630,9 +622,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             setTextColor(0xFFFFFFFF.toInt())
         }
         
-        // 将全屏按钮、投屏按钮、当前时间、进度条、总时长添加到顶部控制条（同一行）
+        // 将全屏按钮、当前时间、进度条、总时长添加到顶部控制条（同一行）
         topControlBarContainer.addView(topFullscreenBtn)
-        topControlBarContainer.addView(topDlnaBtn)
         topControlBarContainer.addView(currentTimeText)
         topControlBarContainer.addView(progressBar)
         topControlBarContainer.addView(totalTimeText)
@@ -795,69 +786,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建DLNA投屏按钮（更明显的设计，蓝色背景）
-        val dlnaBtn = ImageButton(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                dpToPx(40),
-                dpToPx(40)
-            ).apply {
-                setMargins(dpToPx(4), 0, dpToPx(4), 0)
-            }
-            // 使用投屏图标（如果没有，使用发送图标）
-            try {
-                // 尝试使用系统投屏图标
-                val resId = context.resources.getIdentifier(
-                    "ic_cast", "drawable", "android"
-                )
-                if (resId != 0) {
-                    setImageResource(resId)
-                } else {
-                    setImageResource(android.R.drawable.ic_menu_send)
-                }
-            } catch (e: Exception) {
-                setImageResource(android.R.drawable.ic_menu_send)
-            }
-            
-            // Material Design风格，但使用更明显的蓝色（Material Blue 500）
-            val rippleColor = android.content.res.ColorStateList.valueOf(0x33FFFFFF.toInt())
-            val backgroundDrawable = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                android.graphics.drawable.RippleDrawable(
-                    rippleColor,
-                    android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.OVAL
-                        setColor(0xFF2196F3.toInt()) // Material Blue 500，更明显的投屏按钮
-                    },
-                    null
-                )
-            } else {
-                android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(0xFF2196F3.toInt())
-                }
-            }
-            
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                background = backgroundDrawable
-                elevation = dpToPx(4).toFloat() // 更高的阴影，更突出
-            } else {
-                @Suppress("DEPRECATION")
-                setBackgroundDrawable(backgroundDrawable)
-            }
-            
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-            setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN)
-            
-            setOnClickListener {
-                castToDLNA()
-            }
-            
-            // 添加长按提示
-            setOnLongClickListener {
-                Toast.makeText(context, "投屏到电视或大屏设备", Toast.LENGTH_SHORT).show()
-                true
-            }
-        }
-        
         // 创建静音按钮（Material Design风格）
         muteBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -914,7 +842,6 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(loopBtn)
         buttonRow.addView(screenshotBtn)
         buttonRow.addView(shareBtn)
-        buttonRow.addView(dlnaBtn)
         
         // 添加弹性空间
         val spacer = View(context).apply {
@@ -939,14 +866,18 @@ class SystemOverlayVideoManager(private val context: Context) {
         controlBar = controlBarContainer
         this.topControlBarContainer = topControlBarContainer
         
-        // 为视频区域添加点击监听，用于显示/隐藏控制条
-        videoView.setOnClickListener {
-            toggleControls()
-        }
+        // 初始化手势检测和音亮度控制
+        initGestureControls(container, videoView)
         
-        // 初始化：控制条默认隐藏，3秒后自动隐藏
+        // 为视频区域添加点击监听，用于显示/隐藏控制条（已由手势检测处理）
+        // videoView.setOnClickListener {
+        //     toggleControls()
+        // }
+        
+        // 初始化：控制条默认显示，3秒后自动隐藏
         hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        scheduleHideControls()
+        showControls() // 默认显示控制条
+        scheduleHideControls() // 3秒后自动隐藏
         
         // 设置控制条的初始状态
         playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
@@ -1181,153 +1112,420 @@ class SystemOverlayVideoManager(private val context: Context) {
     }
     
     /**
-     * DLNA投屏推送视频（使用正确的DLNA/UPnP协议）
+     * 初始化手势控制
      */
-    private fun castToDLNA() {
+    private fun initGestureControls(container: FrameLayout, videoView: VideoView) {
         try {
-            val url = currentVideoUrl
-            if (url.isNullOrBlank()) {
-                Toast.makeText(context, "无法投射：视频URL为空", Toast.LENGTH_SHORT).show()
-                return
+            // 初始化音频管理器
+            audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.let {
+                maxVolume = it.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                currentVolume = it.getStreamVolume(AudioManager.STREAM_MUSIC)
             }
             
-            Log.d(TAG, "开始DLNA投屏，视频URL: $url")
-            
-            // 方法1：使用DLNA/UPnP协议专用的Intent动作
-            // 查找支持UPnP/DLNA协议的应用
-            val dlnaIntent = Intent().apply {
-                action = Intent.ACTION_VIEW
-                setDataAndType(Uri.parse(url), "video/*")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                // 使用DLNA/UPnP协议标识
-                addCategory(Intent.CATEGORY_BROWSABLE)
-                // 添加DLNA/UPnP相关参数
-                putExtra("dlna", true)
-                putExtra("upnp", true)
-                putExtra("media_url", url)
-                putExtra("media_type", "video")
-                putExtra("action", "play")  // DLNA播放动作
+            // 获取当前屏幕亮度
+            try {
+                val brightness = Settings.System.getInt(
+                    context.contentResolver,
+                    Settings.System.SCREEN_BRIGHTNESS
+                )
+                currentBrightness = brightness / 255f
+            } catch (e: Exception) {
+                currentBrightness = 0.5f // 默认亮度
             }
             
-            // 查询所有支持该Intent的应用
-            val pm = context.packageManager
-            val resolveList = pm.queryIntentActivities(
-                dlnaIntent,
-                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
-            )
-            
-            if (resolveList.isEmpty()) {
-                // 如果没有找到，尝试使用更通用的方式
-                Log.w(TAG, "未找到支持DLNA的应用，尝试通用方式")
-                throw Exception("未找到DLNA投屏应用")
-            }
-            
-            // 优先查找名称包含DLNA/投屏关键词的应用
-            val dlnaKeywords = listOf(
-                "投屏", "dlna", "upnp", "cast", "mirror", 
-                "screen", "smart", "tv", "推送", "播放器"
-            )
-            
-            val dlnaApps = resolveList.filter { info ->
-                val appName = info.loadLabel(pm).toString().lowercase()
-                val packageName = info.activityInfo.packageName.lowercase()
-                dlnaKeywords.any { keyword -> 
-                    appName.contains(keyword.lowercase()) || 
-                    packageName.contains(keyword.lowercase())
-                }
-            }
-            
-            // 如果找到DLNA专用应用，优先显示
-            if (dlnaApps.isNotEmpty()) {
-                val chooser = Intent.createChooser(dlnaIntent, "选择DLNA投屏应用")
-                // 如果只有一个DLNA应用，直接启动
-                if (dlnaApps.size == 1) {
-                    try {
-                        val targetIntent = Intent(dlnaIntent).apply {
-                            setClassName(
-                                dlnaApps[0].activityInfo.packageName,
-                                dlnaApps[0].activityInfo.name
-                            )
+            // 创建手势检测器
+            gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    // 双击暂停/播放
+                    gestureHandled = true
+                    val vv = videoView
+                    if (vv != null) {
+                        try {
+                            val isCurrentlyPlaying = vv.isPlaying
+                            if (isCurrentlyPlaying) {
+                                vv.pause()
+                                playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                                Log.d(TAG, "双击暂停视频")
+                            } else {
+                                vv.start()
+                                playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                                Log.d(TAG, "双击播放视频")
+                                
+                                // 如果进度更新任务没有运行，启动它
+                                if (updateRunnable == null) {
+                                    updateHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                                    updateRunnable = object : Runnable {
+                                        override fun run() {
+                                            try {
+                                                val vv = videoView
+                                                if (vv != null && vv.isPlaying && vv.duration > 0) {
+                                                    val current = vv.currentPosition
+                                                    val total = vv.duration
+                                                    val progressPercent = (current * 100 / total).coerceIn(0, 100)
+                                                    progressBar?.progress = progressPercent
+                                                    currentTimeText?.text = formatTime(current)
+                                                    totalTimeText?.text = formatTime(total)
+                                                }
+                                                updateHandler?.postDelayed(this, 500)
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "更新播放进度失败", e)
+                                            }
+                                        }
+                                    }
+                                    updateHandler?.post(updateRunnable!!)
+                                }
+                            }
+                            showControls() // 显示控制条
+                            scheduleHideControls() // 3秒后自动隐藏
+                        } catch (e: Exception) {
+                            Log.e(TAG, "双击控制失败", e)
                         }
-                        context.startActivity(targetIntent)
-                        Log.d(TAG, "直接启动DLNA应用: ${dlnaApps[0].loadLabel(pm)}")
-                        Toast.makeText(context, "正在启动DLNA投屏...", Toast.LENGTH_SHORT).show()
-                        return
-                    } catch (e: Exception) {
-                        Log.w(TAG, "直接启动失败，显示选择器", e)
                     }
+                    return true
                 }
-                // 多个应用，显示选择器
-                context.startActivity(chooser)
-                Log.d(TAG, "找到 ${dlnaApps.size} 个DLNA投屏应用")
-                Toast.makeText(context, "请选择DLNA投屏应用", Toast.LENGTH_SHORT).show()
-                return
-            }
-            
-            // 方法2：查找常见的DLNA投屏应用包名（通过PackageManager直接查找）
-            val commonDlnaPackages = listOf(
-                "com.xiaomi.smarthome",  // 小米投屏
-                "com.xiaomi.mitv.smarttv",  // 小米电视助手
-                "com.xiaomi.mitv.tvassistant",  // 小米电视助手
-                "com.rockchip.rockmedia",  // 乐播投屏
-                "com.lecast.lecast",  // 乐播投屏
-                "com.hpplay.happyplay.android",  // 乐播投屏
-                "com.tencent.qqlive",  // 腾讯视频
-                "com.youku.phone",  // 优酷
-                "com.iqiyi.hal",  // 爱奇艺
-                "com.qiyi.video",  // 爱奇艺
-                "com.oppo.video",  // OPPO视频
-                "com.vivo.video",  // vivo视频
-                "com.huawei.himovie",  // 华为视频
-                "com.samsung.android.video",  // 三星视频
-                "com.xiaomi.mitv.tv",  // 小米电视
-                "com.xiaomi.mitv.tvplayer",  // 小米电视播放器
-                "com.tencent.mm",  // 微信
-                "com.tencent.mobileqq"  // QQ
-            )
-            
-            for (packageName in commonDlnaPackages) {
-                try {
-                    pm.getPackageInfo(packageName, 0)  // 检查应用是否安装
-                    // 应用已安装，尝试启动
-                    val intent = Intent().apply {
-                        setPackage(packageName)
-                        action = Intent.ACTION_VIEW
-                        setDataAndType(Uri.parse(url), "video/*")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        putExtra("dlna", true)
-                        putExtra("upnp", true)
-                        putExtra("media_url", url)
-                        putExtra("action", "play")
+                
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    // 单击显示/隐藏控制条（只有在没有其他手势时才触发）
+                    if (!isSeeking && 
+                        brightnessControlView?.visibility != View.VISIBLE &&
+                        volumeControlView?.visibility != View.VISIBLE &&
+                        seekControlView?.visibility != View.VISIBLE) {
+                        gestureHandled = true
+                        toggleControls()
+                        return true
                     }
-                    
-                    if (intent.resolveActivity(pm) != null) {
-                        context.startActivity(intent)
-                        Log.d(TAG, "启动DLNA投屏应用: $packageName")
-                        Toast.makeText(context, "正在启动DLNA投屏...", Toast.LENGTH_SHORT).show()
-                        return
+                    return false
+                }
+            })
+            
+            // 创建控制提示视图
+            createControlHintViews(container)
+            
+            // 为视频容器设置触摸监听
+            container.setOnTouchListener { v, event ->
+                // 先让手势检测器处理双击和单击
+                val gestureResult = gestureDetector?.onTouchEvent(event) ?: false
+                
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        gestureHandled = false
+                        isDraggingWindow = false
+                        
+                        // 检查是否点击在控制条或按钮上
+                        val x = event.x.toInt()
+                        val y = event.y.toInt()
+                        var isOnControl = false
+                        
+                        controlBar?.let { bar ->
+                            val barLeft = bar.left
+                            val barRight = bar.right
+                            val barTop = bar.top
+                            val barBottom = bar.bottom
+                            if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
+                                isOnControl = true
+                            }
+                        }
+                        
+                        topControlBarContainer?.let { bar ->
+                            val barLeft = bar.left
+                            val barRight = bar.right
+                            val barTop = bar.top
+                            val barBottom = bar.bottom
+                            if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
+                                isOnControl = true
+                            }
+                        }
+                        
+                        if (isOnControl) {
+                            // 点击在控制条或按钮上，不处理手势，让按钮正常响应
+                            return@setOnTouchListener false
+                        }
+                        
+                        // 记录起始位置和时间
+                        seekStartX = event.x
+                        seekStartY = event.y
+                        seekStartTime = videoView.currentPosition
+                        touchDownTime = System.currentTimeMillis()
+                        isSeeking = false
+                        
+                        // 记录窗口初始位置（用于拖拽）
+                        params?.let {
+                            initialX = it.x
+                            initialY = it.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            dX = initialTouchX - initialX
+                            dY = initialTouchY - initialY
+                        }
+                        
+                        // 隐藏所有控制提示（等待滑动时再显示）
+                        brightnessControlView?.visibility = View.GONE
+                        volumeControlView?.visibility = View.GONE
+                        seekControlView?.visibility = View.GONE
+                        true
                     }
-                } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
-                    // 应用未安装，继续查找
-                    continue
-                } catch (e: Exception) {
-                    Log.d(TAG, "检查应用 $packageName 失败: ${e.message}")
+                    MotionEvent.ACTION_MOVE -> {
+                        // 如果手势检测器已经处理了（双击或单击），不处理滑动
+                        if (gestureHandled) {
+                            return@setOnTouchListener false
+                        }
+                        
+                        val x = event.x
+                        val y = event.y
+                        val containerWidth = container.width
+                        val containerHeight = container.height
+                        val leftRegion = containerWidth / 3
+                        val rightRegion = containerWidth * 2 / 3
+                        
+                        // 计算移动距离
+                        val deltaX = event.x - seekStartX
+                        val deltaY = event.y - seekStartY
+                        val elapsedTime = System.currentTimeMillis() - touchDownTime
+                        
+                        // 判断是否应该拖拽窗口：按住时间超过阈值，且是垂直滑动，且在中心区域
+                        val isCenterRegion = x >= leftRegion && x <= rightRegion
+                        val isVerticalSwipe = kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) && kotlin.math.abs(deltaY) > MIN_SWIPE_DISTANCE
+                        
+                        if (elapsedTime > DRAG_DELAY_THRESHOLD && isVerticalSwipe && isCenterRegion) {
+                            // 拖拽窗口：处理窗口移动
+                            isDraggingWindow = true
+                            // 使用原始触摸坐标计算窗口移动
+                            val rawDeltaY = event.rawY - initialTouchY
+                            handleWindowDrag(rawDeltaY)
+                            return@setOnTouchListener true
+                        }
+                        
+                        // 快速滑动：按住时间短，认为是快速手势
+                        if (elapsedTime <= DRAG_DELAY_THRESHOLD) {
+                            // 检查是水平滑动还是垂直滑动
+                            if (kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) && kotlin.math.abs(deltaX) > MIN_SWIPE_DISTANCE) {
+                                // 水平滑动：快进/后退
+                                isSeeking = true
+                                brightnessControlView?.visibility = View.GONE
+                                volumeControlView?.visibility = View.GONE
+                                handleSeek(deltaX, containerWidth)
+                            } else if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) && kotlin.math.abs(deltaY) > MIN_SWIPE_DISTANCE) {
+                                // 垂直滑动：亮度或音量控制
+                                isSeeking = false
+                                seekControlView?.visibility = View.GONE
+                                if (x < leftRegion) {
+                                    // 左侧上下滑动：调节亮度
+                                    brightnessControlView?.visibility = View.VISIBLE
+                                    volumeControlView?.visibility = View.GONE
+                                    handleBrightnessChange(y, containerHeight)
+                                } else if (x > rightRegion) {
+                                    // 右侧上下滑动：调节音量
+                                    volumeControlView?.visibility = View.VISIBLE
+                                    brightnessControlView?.visibility = View.GONE
+                                    handleVolumeChange(y, containerHeight)
+                                }
+                            }
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // 隐藏控制提示
+                        brightnessControlView?.visibility = View.GONE
+                        volumeControlView?.visibility = View.GONE
+                        seekControlView?.visibility = View.GONE
+                        isSeeking = false
+                        gestureHandled = false
+                        isDraggingWindow = false
+                        true
+                    }
+                    else -> false
                 }
             }
-            
-            // 方法3：显示所有支持视频的应用选择器，让用户选择
-            val chooser = Intent.createChooser(dlnaIntent, "选择DLNA投屏应用")
-            if (chooser.resolveActivity(pm) != null) {
-                context.startActivity(chooser)
-                Log.d(TAG, "显示应用选择器")
-                Toast.makeText(context, "请选择支持DLNA投屏的应用", Toast.LENGTH_SHORT).show()
-            } else {
-                throw Exception("未找到可用的投屏应用")
-            }
-            
         } catch (e: Exception) {
-            Log.e(TAG, "DLNA投屏失败", e)
-            Toast.makeText(context, "投屏失败: ${e.message}，请安装DLNA投屏应用", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "初始化手势控制失败", e)
+        }
+    }
+    
+    /**
+     * 创建控制提示视图
+     */
+    private fun createControlHintViews(container: FrameLayout) {
+        // 亮度控制提示视图
+        brightnessControlView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            textSize = 24f
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xCC000000.toInt())
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            visibility = View.GONE
+            gravity = Gravity.CENTER
+        }
+        container.addView(brightnessControlView)
+        
+        // 音量控制提示视图
+        volumeControlView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            textSize = 24f
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xCC000000.toInt())
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            visibility = View.GONE
+            gravity = Gravity.CENTER
+        }
+        container.addView(volumeControlView)
+        
+        // 快进/后退提示视图
+        seekControlView = android.widget.TextView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER
+            )
+            textSize = 20f
+            setTextColor(0xFFFFFFFF.toInt())
+            setBackgroundColor(0xCC000000.toInt())
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            visibility = View.GONE
+            gravity = Gravity.CENTER
+        }
+        container.addView(seekControlView)
+    }
+    
+    /**
+     * 处理快进/后退
+     */
+    private fun handleSeek(deltaX: Float, containerWidth: Int) {
+        try {
+            val vv = videoView ?: return
+            if (vv.duration <= 0) return
+            
+            // 计算快进/后退的时间（幅度越大，速度越快）
+            val seekRatio = deltaX / containerWidth // 滑动距离占屏幕宽度的比例
+            val seekTime = (seekRatio * vv.duration * SEEK_SPEED_FACTOR).toInt()
+            val targetTime = (seekStartTime + seekTime).coerceIn(0, vv.duration)
+            
+            // 跳转到目标时间
+            vv.seekTo(targetTime)
+            
+            // 更新进度条
+            val progressPercent = (targetTime * 100 / vv.duration).coerceIn(0, 100)
+            progressBar?.progress = progressPercent
+            currentTimeText?.text = formatTime(targetTime)
+            
+            // 显示提示信息
+            seekControlView?.visibility = View.VISIBLE
+            val timeText = if (seekTime > 0) {
+                "+${formatTime(seekTime)}"
+            } else {
+                formatTime(seekTime)
+            }
+            seekControlView?.text = timeText
+            
+            Log.d(TAG, "快进/后退: ${formatTime(seekTime)}, 目标时间: ${formatTime(targetTime)}")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理快进/后退失败", e)
+        }
+    }
+    
+    /**
+     * 处理亮度调节
+     */
+    private fun handleBrightnessChange(y: Float, containerHeight: Int) {
+        try {
+            // 计算亮度变化（向上滑动减少亮度，向下滑动增加亮度）
+            val ratio = 1.0f - (y / containerHeight) // 0在顶部，1在底部
+            val newBrightness = ratio.coerceIn(0.1f, 1.0f) // 亮度范围10%-100%
+            
+            // 设置系统亮度
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.System.canWrite(context)) {
+                    val brightnessValue = (newBrightness * 255).toInt().coerceIn(10, 255)
+                    Settings.System.putInt(
+                        context.contentResolver,
+                        Settings.System.SCREEN_BRIGHTNESS,
+                        brightnessValue
+                    )
+                    currentBrightness = newBrightness
+                } else {
+                    // 如果没有权限，尝试设置窗口亮度（仅对当前窗口有效）
+                    (context as? Activity)?.window?.attributes = (context as? Activity)?.window?.attributes?.apply {
+                        screenBrightness = newBrightness
+                    }
+                    currentBrightness = newBrightness
+                }
+            } else {
+                val brightnessValue = (newBrightness * 255).toInt().coerceIn(10, 255)
+                Settings.System.putInt(
+                    context.contentResolver,
+                    Settings.System.SCREEN_BRIGHTNESS,
+                    brightnessValue
+                )
+                currentBrightness = newBrightness
+            }
+            
+            // 显示亮度提示
+            brightnessControlView?.text = "${(newBrightness * 100).toInt()}%"
+            
+            Log.d(TAG, "亮度调节: ${(newBrightness * 100).toInt()}%")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理亮度调节失败", e)
+        }
+    }
+    
+    /**
+     * 处理音量调节
+     */
+    private fun handleVolumeChange(y: Float, containerHeight: Int) {
+        try {
+            val am = audioManager ?: return
+            
+            // 计算音量变化（向上滑动减少音量，向下滑动增加音量）
+            val ratio = 1.0f - (y / containerHeight) // 0在顶部，1在底部
+            val targetVolume = (ratio * maxVolume).toInt().coerceIn(0, maxVolume)
+            
+            // 设置音量
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, 0)
+            currentVolume = targetVolume
+            
+            // 显示音量提示
+            val volumePercent = (targetVolume * 100 / maxVolume)
+            volumeControlView?.text = "${volumePercent}%"
+            
+            Log.d(TAG, "音量调节: ${volumePercent}%")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理音量调节失败", e)
+        }
+    }
+    
+    /**
+     * 处理窗口拖拽
+     */
+    private fun handleWindowDrag(rawDeltaY: Float) {
+        try {
+            val p = params ?: return
+            val wm = windowManager ?: return
+            
+            // 计算新位置（使用原始触摸坐标）
+            val dampingFactor = 0.85f // 阻尼系数，0.85表示85%的移动量，产生阻尼感
+            val rawNewY = (initialTouchY + rawDeltaY - dY).toInt()
+            val deltaYFromInitial = rawNewY - initialY
+            val dampedDeltaY = (deltaYFromInitial * dampingFactor).toInt()
+            var newY = (initialY + dampedDeltaY).coerceIn(0, screenHeight - p.height)
+            
+            // 只允许垂直拖动，保持X坐标不变（居中）
+            p.x = originalX
+            p.y = newY
+            
+            // 更新窗口位置
+            wm.updateViewLayout(floatingView, p)
+            
+            Log.d(TAG, "窗口拖拽: y=${p.y}")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理窗口拖拽失败", e)
         }
     }
     
@@ -1379,6 +1577,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     /**
      * 启用拖拽功能（带阻尼感）
      * 注意：关闭按钮和控制条点击时不应触发拖拽
+     * 注意：手势控制优先于拖拽，如果检测到手势，不触发拖拽
      */
     private fun enableDrag(view: View) {
         var isDragging = false
@@ -1386,6 +1585,20 @@ class SystemOverlayVideoManager(private val context: Context) {
         var lastY = 0f
         
         view.setOnTouchListener { v, event ->
+            // 如果正在手势控制（快进/后退、亮度、音量），不处理拖拽
+            // 但如果正在拖拽窗口，继续处理拖拽
+            if (!isDraggingWindow && (isSeeking || 
+                brightnessControlView?.visibility == View.VISIBLE ||
+                volumeControlView?.visibility == View.VISIBLE ||
+                seekControlView?.visibility == View.VISIBLE)) {
+                return@setOnTouchListener false
+            }
+            
+            // 如果正在拖拽窗口，处理拖拽
+            if (isDraggingWindow) {
+                // 继续处理拖拽逻辑
+            }
+            
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     val x = event.x.toInt()
@@ -1511,6 +1724,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             updateRunnable?.let { updateHandler?.removeCallbacks(it) }
             updateHandler = null
             updateRunnable = null
+            // 清理手势相关资源
+            gestureDetector = null
+            brightnessControlView = null
+            volumeControlView = null
+            seekControlView = null
+            audioManager = null
+            topControlBarContainer = null
             params = null
             Log.d(TAG, "系统级悬浮窗播放器已销毁")
         } catch (e: Exception) {
