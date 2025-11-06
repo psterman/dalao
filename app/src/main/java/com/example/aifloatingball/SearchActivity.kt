@@ -1509,6 +1509,9 @@ class SearchActivity : AppCompatActivity() {
                 return
             }
             
+            // 重置StackedCardPreview状态（会自动激活四个按钮）
+            stackedCardPreview?.resetToStackedMode()
+            
             // 立即显示StackedCardPreview（确保快速响应）
             stackedCardPreview?.visibility = View.VISIBLE
             
@@ -4083,11 +4086,14 @@ class SearchActivity : AppCompatActivity() {
             imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
             searchInput.clearFocus()
             
-            // 重置StackedCardPreview状态
+            // 重置StackedCardPreview状态（会自动激活四个按钮）
             stackedCardPreview?.resetToStackedMode()
             
             // 同步数据
             syncAllCardSystems()
+            
+            // 确保按钮已激活（resetToStackedMode会自动设置，这里再次确认）
+            stackedCardPreview?.invalidate()
             
             // 设置初始状态：从下方滑入
             stackedCardPreview?.alpha = 0f

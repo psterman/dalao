@@ -741,12 +741,45 @@ class StackedCardPreview @JvmOverloads constructor(
             // 只有向上滑动超过阈值才关闭中心卡片
             Log.d(TAG, "🗑️ 上滑关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
             closeCurrentCard()
-        } else if (isSwipeDown && centerCardOffsetY > 20f) {
-            // 向下滑动（降低阈值，只要稍微下滑就激活）：立即激活按钮并标记为已激活
-            isButtonsActive = true
-            Log.d("StackedCardPreview", "下滑激活功能按钮，偏移: $centerCardOffsetY")
-            // 卡片必须回弹到原位置，但保留按钮显示（确保动画一定执行）
-            animateCenterCardReturnButKeepButtons()
+        } else if (isSwipeDown) {
+            // 向下滑动处理
+            val swipeDownThreshold = 100f // 下滑切换阈值（像素）
+            val swipeDownVelocityThreshold = 800f // 下滑速度阈值（px/s）
+            
+            // 判断是否应该切换到当前卡片（下滑距离足够或速度足够）
+            val shouldSwitchToCard = centerCardOffsetY > swipeDownThreshold || 
+                                     (centerCardOffsetY > 60f && velocity > swipeDownVelocityThreshold)
+            
+            if (shouldSwitchToCard && currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+                // 下滑距离足够，自动切换到当前卡片并关闭悬浮卡片模式
+                Log.d(TAG, "⬇️ 下滑切换到当前卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}), 偏移: $centerCardOffsetY, 速度: ${velocity.toInt()}px/s")
+                
+                // 提供触觉反馈
+                vibrate(VibrationType.IMPORTANT)
+                
+                // 执行平滑的下滑切换动画
+                animateSwipeDownToCard {
+                    // 动画完成后，切换到当前卡片
+                    onCardSelectedListener?.invoke(currentCardIndex)
+                    Log.d(TAG, "✅ 下滑切换完成，已切换到卡片: $currentCardIndex")
+                }
+            } else if (centerCardOffsetY > 20f) {
+                // 向下滑动但距离不够切换，只激活按钮
+                isButtonsActive = true
+                Log.d("StackedCardPreview", "下滑激活功能按钮，偏移: $centerCardOffsetY")
+                // 卡片必须回弹到原位置，但保留按钮显示（确保动画一定执行）
+                animateCenterCardReturnButKeepButtons()
+            } else {
+                // 下滑距离很小，回弹到原位置
+                if (centerCardOffsetY != 0f) {
+                    if (!isButtonsActive) {
+                        animateCenterCardReturn()
+                    } else {
+                        // 按钮已激活，但卡片仍需要回弹到原位置
+                        animateCenterCardReturnButKeepButtons()
+                    }
+                }
+            }
         } else {
             // 没有超过任何阈值，回弹到原位置（确保总是回弹）
             if (centerCardOffsetY != 0f) {
@@ -913,6 +946,67 @@ class StackedCardPreview @JvmOverloads constructor(
                     isButtonsActive = true
                     invalidate()
                     Log.d(TAG, "卡片已回弹，按钮保持激活状态")
+                }
+            })
+            start()
+        }
+    }
+    
+    /**
+     * 下滑切换到当前卡片的平滑动画
+     * 参考iOS Safari的动画效果，卡片向下滑出并淡出
+     */
+    private fun animateSwipeDownToCard(onComplete: () -> Unit) {
+        val startOffset = centerCardOffsetY
+        val endOffset = height.toFloat() // 向下滑出屏幕
+        val startAlpha = alpha
+        val endAlpha = 0f // 完全淡出
+        
+        Log.d(TAG, "🎬 开始下滑切换动画: startOffset=$startOffset, endOffset=$endOffset")
+        
+        // 创建组合动画：同时移动卡片和淡出视图
+        val offsetAnimator = ValueAnimator.ofFloat(startOffset, endOffset).apply {
+            duration = 350 // iOS Safari风格的动画时长
+            interpolator = DecelerateInterpolator() // 减速插值器，更自然
+            addUpdateListener { animator ->
+                centerCardOffsetY = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        
+        val alphaAnimator = ValueAnimator.ofFloat(startAlpha, endAlpha).apply {
+            duration = 350
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                alpha = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        
+        // 使用AnimatorSet同时执行两个动画
+        AnimatorSet().apply {
+            playTogether(offsetAnimator, alphaAnimator)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: android.animation.Animator) {
+                    Log.d(TAG, "下滑切换动画开始")
+                }
+                
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 动画完成后，重置状态并调用回调
+                    centerCardOffsetY = 0f
+                    alpha = 1f
+                    visibility = View.GONE
+                    isButtonsActive = false
+                    
+                    Log.d(TAG, "下滑切换动画完成，准备切换到卡片")
+                    onComplete()
+                }
+                
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    // 动画被取消，重置状态
+                    centerCardOffsetY = 0f
+                    alpha = 1f
+                    invalidate()
                 }
             })
             start()
@@ -1766,22 +1860,14 @@ class StackedCardPreview @JvmOverloads constructor(
         scale: Float,
         alpha: Float
     ) {
-        // 显示按钮的条件：下滑超过阈值 OR 按钮已激活（降低阈值，让用户稍微下滑就能看到）
-        val showButtonThreshold = 15f // 降低阈值，从30f降到15f
-        if (centerCardOffsetY < showButtonThreshold && !isButtonsActive) {
-            return // 未下滑且按钮未激活，不显示按钮
+        // 显示按钮的条件：按钮已激活（激活悬浮卡片时自动激活，无需下滑）
+        if (!isButtonsActive) {
+            return // 按钮未激活，不显示按钮
         }
         
         // 计算按钮显示透明度
-        val finalAlpha = if (isButtonsActive) {
-            // 按钮已激活，完全显示
-            alpha
-        } else {
-            // 根据下滑距离计算透明度（根据下滑距离，最大为1.0）
-            val maxOffset = 150f // 最大下滑距离
-            val buttonAlpha = ((centerCardOffsetY - showButtonThreshold) / (maxOffset - showButtonThreshold)).coerceIn(0f, 1f)
-            alpha * buttonAlpha
-        }
+        // 按钮已激活，完全显示
+        val finalAlpha = alpha
         
         // 更大的按钮尺寸（调大）
         val buttonWidth = 140f * scale // 进一步增大按钮宽度
@@ -2243,10 +2329,9 @@ class StackedCardPreview @JvmOverloads constructor(
         val cardLeft = centerX - cardWidth / 2f
         val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
         
-        // 只有下滑时才检测按钮点击（centerCardOffsetY > 30时）
-        val showButtonThreshold = 30f
-        if (centerCardOffsetY < showButtonThreshold) {
-            return false // 未下滑，按钮未显示，不检测点击
+        // 只有按钮已激活时才检测按钮点击（激活悬浮卡片时自动激活，无需下滑）
+        if (!isButtonsActive) {
+            return false // 按钮未激活，不检测点击
         }
         
         // 计算按钮位置（与绘制时保持一致）- Material Design版本
@@ -2566,6 +2651,11 @@ class StackedCardPreview @JvmOverloads constructor(
         scaleY = 1f
         alpha = 1f
         translationY = 0f
+        
+        // 自动激活四个按钮，不需要用户下滑
+        isButtonsActive = true
+        centerCardOffsetY = 0f // 确保卡片在正常位置
+        Log.d("StackedCardPreview", "自动激活四个按钮，无需下滑")
 
         Log.d("StackedCardPreview", "平行模式重置完成")
     }
@@ -2583,6 +2673,11 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 重置触摸状态
         resetActivationState()
+        
+        // 自动激活四个按钮，不需要用户下滑
+        isButtonsActive = true
+        centerCardOffsetY = 0f // 确保卡片在正常位置
+        Log.d(TAG, "自动激活四个按钮，无需下滑")
 
         Log.d(TAG, "平行预览模式交互已启用")
     }

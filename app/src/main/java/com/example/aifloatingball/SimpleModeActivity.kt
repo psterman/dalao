@@ -22290,7 +22290,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 显示层叠卡片预览
             stackedCardPreview?.apply {
-                // 确保重置为层叠模式（不是悬浮模式）
+                // 确保重置为层叠模式（不是悬浮模式，会自动激活四个按钮）
                 resetToStackedMode()
 
                 // 直接设置卡片数据，而不是调用updateWaveTrackerCards
