@@ -237,6 +237,11 @@ class PaperStackWebViewManager(
         // 通知监听器
         onTabCreatedListener?.invoke(tab)
         
+        // 如果是新创建的标签页且是当前标签页，触发切换监听器
+        if (currentTabIndex == newTabIndex) {
+            onTabSwitchedListener?.invoke(tab, currentTabIndex)
+        }
+        
         Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 已切换到新标签页")
         return tab
     }

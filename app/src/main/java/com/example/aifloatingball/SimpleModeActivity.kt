@@ -1186,7 +1186,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                 }
                 UIState.VOICE -> showVoice()
-                UIState.BROWSER -> showBrowser()
+                UIState.BROWSER -> switchToSearchTab()
                 UIState.APP_SEARCH -> showAppSearch()
                 UIState.SETTINGS -> showSettings()
             }
@@ -4546,8 +4546,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupBrowserWebView()
             }
 
-            // 自动进入纸堆模式
-            enterPaperStackMode()
+            // 默认隐藏原生功能主页，优先使用WebView卡片
+            browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
+
+            // 不在这里自动进入纸堆模式，让switchToSearchTab来决定
+            // enterPaperStackMode() 会在switchToSearchTab中根据标签页数量决定是否调用
 
             updateTabColors()
 
@@ -4574,12 +4578,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupBrowserWebView()
             }
             
-            // 如果还没有标签页，显示功能主页（不自动创建百度首页）
+            // 检查标签页数量
             val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
             if (tabCount == 0) {
-                Log.d(TAG, "没有标签页，显示功能主页")
-                // 显示功能主页内容
-                browserHomeContent.visibility = View.VISIBLE
+                Log.d(TAG, "进入纸堆模式：没有标签页，应该由switchToSearchTab或createFunctionalHomeTab创建")
+                // 不在这里创建，避免重复创建
+                // 隐藏原生功能主页，等待标签页创建
+                paperStackLayout?.visibility = View.GONE
+                browserHomeContent.visibility = View.GONE
                 browserTabContainer.visibility = View.GONE
                 browserSearchInput.setText("")
             } else {
@@ -4724,7 +4730,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
 
                     deactivateStackedCardPreview()
-                    showBrowser()
+                    // 使用switchToSearchTab()来确保自动创建功能主页
+                    switchToSearchTab()
 
                     // 单击搜索tab时，如果遮罩层已激活，则退出遮罩层
                     if (isSearchTabGestureOverlayActive) {
@@ -6306,9 +6313,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 设置标签页监听器
         paperStackWebViewManager?.setOnTabCreatedListener { tab ->
-            // 隐藏主页内容，显示纸堆界面
+            // 隐藏原生功能主页，显示纸堆界面
             browserHomeContent.visibility = View.GONE
             browserTabContainer.visibility = View.GONE
+            
+            // 如果是功能主页，确保显示纸堆布局
+            if (tab.url == "home://functional") {
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                paperStackLayout?.visibility = View.VISIBLE
+                browserSearchInput.setText("")
+                
+                // 确保WebView可见并正确显示
+                tab.webView.visibility = View.VISIBLE
+                tab.webView.bringToFront()
+                
+                // 延迟一点时间确保WebView完全加载
+                handler.postDelayed({
+                    tab.webView.visibility = View.VISIBLE
+                    paperStackLayout?.visibility = View.VISIBLE
+                    Log.d(TAG, "✅ 功能主页标签页创建完成: ${tab.title}, WebView已显示")
+                }, 100)
+                
+                Log.d(TAG, "功能主页标签页创建: ${tab.title}, 已显示纸堆布局")
+            }
             
             // 更新搜索tab徽标
             updateSearchTabBadge()
@@ -7977,10 +8004,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 点击或获取焦点时：切换为真实URL并全选
             browserSearchInput.setOnClickListener {
                 try {
+                    // 确保输入框可以获取焦点
+                    browserSearchInput.isFocusable = true
+                    browserSearchInput.isFocusableInTouchMode = true
+                    browserSearchInput.requestFocus()
+                    
                     // 编辑地址栏时隐藏站点图标，腾出空间
                     browserBtnSite.visibility = View.GONE
                     updateAddressBarToCurrentUrlAndSelectAll()
-                } catch (_: Exception) {}
+                    
+                    // 延迟显示输入法，确保焦点已设置
+                    handler.postDelayed({
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                        imm?.showSoftInput(browserSearchInput, InputMethodManager.SHOW_IMPLICIT)
+                    }, 100)
+                } catch (e: Exception) {
+                    Log.e(TAG, "搜索框点击处理失败", e)
+                }
             }
             browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
@@ -8538,7 +8578,60 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
-        // 开始浏览按钮 - 创建新卡片
+        // 初始化可拖动按钮网格
+        val draggableButtonGrid = findViewById<com.example.aifloatingball.views.DraggableButtonGrid>(R.id.draggable_button_grid)
+        draggableButtonGrid?.setOnButtonClickListener { buttonType ->
+            when (buttonType) {
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.NEW_TAB -> {
+                    performCreateNewCard()
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.GESTURE -> {
+                    try {
+                        if (!::browserGestureOverlay.isInitialized) {
+                            showMaterialToast("手势指南功能暂时不可用")
+                            return@setOnButtonClickListener
+                        }
+                        showGestureInstructions()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "手势指南按钮点击处理失败", e)
+                        showMaterialToast("❌ 手势指南功能出现错误")
+                    }
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.DOWNLOAD -> {
+                    try {
+                        val intent = android.content.Intent(this, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                        showMaterialToast("打开下载管理")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "下载管理按钮点击处理失败", e)
+                        showMaterialToast("打开下载管理失败")
+                    }
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.HISTORY -> {
+                    // TODO: 打开历史记录
+                    showMaterialToast("历史记录功能开发中")
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.BOOKMARKS -> {
+                    // TODO: 打开收藏夹
+                    showMaterialToast("收藏夹功能开发中")
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.SETTINGS -> {
+                    // TODO: 打开设置
+                    showMaterialToast("设置功能开发中")
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.SHARE -> {
+                    // TODO: 分享功能
+                    showMaterialToast("分享功能开发中")
+                }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.SCAN -> {
+                    // TODO: 扫码功能
+                    showMaterialToast("扫码功能开发中")
+                }
+            }
+        }
+        
+        // 开始浏览按钮 - 创建新卡片（保留兼容性，但主要使用DraggableButtonGrid）
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener { button ->
             // 添加点击动画
             button.animate()
@@ -10453,6 +10546,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 强制清除所有可能的覆盖层
         hideAllOverlays()
         clearAllOverlays()
+
+        // 隐藏纸堆布局，确保功能主页显示在最上层
+        val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+        paperStackLayout?.visibility = View.GONE
 
         // 显示主页内容
         browserHomeContent.visibility = View.VISIBLE
@@ -20898,11 +20995,92 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             deactivateStackedCardPreview()
             showBrowser()
-            // 确保显示搜索tab主页
-            showBrowserHome()
-            Log.d(TAG, "切换到搜索tab并显示主页")
+            
+            // 确保纸堆WebView管理器已初始化
+            if (paperStackWebViewManager == null) {
+                Log.d(TAG, "纸堆WebView管理器未初始化，重新初始化")
+                setupBrowserWebView()
+            }
+            
+            // 检查是否有标签页
+            val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+            if (tabCount == 0) {
+                // 没有标签页，自动创建功能主页卡片
+                Log.d(TAG, "切换到搜索tab：没有标签页，自动创建功能主页卡片")
+                createFunctionalHomeTab()
+            } else {
+                // 有标签页，进入纸堆模式
+                Log.d(TAG, "切换到搜索tab：有 $tabCount 个标签页，进入纸堆模式")
+                enterPaperStackMode()
+            }
+            
+            Log.d(TAG, "切换到搜索tab完成")
         } catch (e: Exception) {
             Log.e(TAG, "切换到搜索tab失败", e)
+        }
+    }
+    
+    /**
+     * 创建功能主页标签页
+     */
+    private fun createFunctionalHomeTab() {
+        try {
+            Log.d(TAG, "开始创建功能主页标签页")
+            
+            // 先隐藏原生功能主页，确保不会显示
+            browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
+            
+            // 创建功能主页卡片
+            val functionalHomeUrl = "home://functional"
+            
+            Log.d(TAG, "准备创建功能主页标签页，URL: $functionalHomeUrl")
+            
+            // 创建功能主页标签页
+            val functionalTab = paperStackWebViewManager?.addTab(
+                url = functionalHomeUrl,
+                title = "主页"
+            )
+            
+            if (functionalTab != null) {
+                Log.d(TAG, "✅ 功能主页卡片创建成功: ${functionalTab.url}")
+                
+                // 延迟一点时间确保标签页完全创建和加载
+                handler.postDelayed({
+                    // 立即显示纸堆布局
+                    val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                    paperStackLayout?.visibility = View.VISIBLE
+                    browserHomeContent.visibility = View.GONE
+                    browserTabContainer.visibility = View.GONE
+                    browserSearchInput.setText("")
+                    
+                    // 确保切换到新创建的标签页
+                    val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+                    val currentTab = paperStackWebViewManager?.getCurrentTab()
+                    
+                    Log.d(TAG, "标签页数量: $tabCount, 当前标签页URL: ${currentTab?.url}")
+                    
+                    if (currentTab != null && currentTab.url == functionalHomeUrl) {
+                        Log.d(TAG, "✅ 功能主页标签页已创建并切换，URL: ${currentTab.url}")
+                        // 确保WebView可见
+                        currentTab.webView.visibility = View.VISIBLE
+                        currentTab.webView.bringToFront()
+                        // 确保纸堆布局显示
+                        paperStackLayout?.visibility = View.VISIBLE
+                    } else {
+                        Log.w(TAG, "⚠️ 当前标签页不是功能主页，URL: ${currentTab?.url}")
+                    }
+                }, 150)
+            } else {
+                Log.e(TAG, "❌ 创建功能主页卡片失败，显示原生功能主页")
+                // 如果创建失败，显示原生功能主页作为后备
+                showBrowserHome()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 创建功能主页标签页失败", e)
+            e.printStackTrace()
+            // 如果创建失败，显示原生功能主页作为后备
+            showBrowserHome()
         }
     }
 

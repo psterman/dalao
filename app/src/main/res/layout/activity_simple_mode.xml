@@ -2124,124 +2124,13 @@
                             android:padding="24dp"
                             android:gravity="center">
 
-                        <!-- 欢迎标题 -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="欢迎使用浏览器"
-                            android:textSize="28sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/simple_mode_text_primary_light"
-                            android:layout_marginTop="32dp"
-                            android:layout_marginBottom="8dp" />
-
-                        <!-- 副标题 -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="快速开始浏览，管理您的标签页"
-                            android:textSize="14sp"
-                            android:textColor="@color/simple_mode_text_secondary_light"
-                            android:layout_marginBottom="40dp" />
-
-                        <!-- 主要功能按钮组 - 大按钮，垂直排列 -->
-                        <LinearLayout
+                        <!-- 可拖动的按钮网格布局 -->
+                        <com.example.aifloatingball.views.DraggableButtonGrid
+                            android:id="@+id/draggable_button_grid"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:layout_marginBottom="32dp">
-
-                            <!-- 创建新卡片按钮 - 主要操作 -->
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/browser_start_browsing_button"
-                                android:layout_width="match_parent"
-                                android:layout_height="72dp"
-                                android:layout_marginBottom="16dp"
-                                android:text="新建标签页"
-                                android:textSize="18sp"
-                                android:textStyle="bold"
-                                android:textColor="@android:color/white"
-                                android:backgroundTint="@color/simple_mode_accent_light"
-                                android:paddingStart="24dp"
-                                android:paddingEnd="24dp"
-                                app:icon="@drawable/ic_add"
-                                app:iconGravity="textStart"
-                                app:iconSize="28dp"
-                                app:iconPadding="12dp"
-                                app:cornerRadius="16dp"
-                                app:elevation="4dp"
-                                style="@style/Widget.Material3.Button" />
-
-                            <!-- 次要功能按钮组 - 水平排列 -->
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center"
-                                android:layout_marginTop="8dp">
-
-                                <!-- 手势指南按钮 -->
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/browser_gesture_guide_button"
-                                    android:layout_width="0dp"
-                                    android:layout_height="64dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginEnd="8dp"
-                                    android:text="手势"
-                                    android:textSize="16sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/simple_mode_text_primary_light"
-                                    android:backgroundTint="@android:color/transparent"
-                                    android:paddingStart="16dp"
-                                    android:paddingEnd="16dp"
-                                    app:icon="@drawable/ic_hand"
-                                    app:iconGravity="top"
-                                    app:iconSize="32dp"
-                                    app:iconTint="@color/simple_mode_accent_light"
-                                    app:iconPadding="8dp"
-                                    app:cornerRadius="12dp"
-                                    app:strokeColor="@color/simple_mode_accent_light"
-                                    app:strokeWidth="2dp"
-                                    style="@style/Widget.Material3.Button.OutlinedButton" />
-
-                                <!-- 下载管理按钮 -->
-                                <com.google.android.material.button.MaterialButton
-                                    android:id="@+id/browser_download_manager_button"
-                                    android:layout_width="0dp"
-                                    android:layout_height="64dp"
-                                    android:layout_weight="1"
-                                    android:layout_marginStart="8dp"
-                                    android:text="下载"
-                                    android:textSize="16sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/simple_mode_text_primary_light"
-                                    android:backgroundTint="@android:color/transparent"
-                                    android:paddingStart="16dp"
-                                    android:paddingEnd="16dp"
-                                    app:icon="@drawable/ic_download"
-                                    app:iconGravity="top"
-                                    app:iconSize="32dp"
-                                    app:iconTint="@color/simple_mode_accent_light"
-                                    app:iconPadding="8dp"
-                                    app:cornerRadius="12dp"
-                                    app:strokeColor="@color/simple_mode_accent_light"
-                                    app:strokeWidth="2dp"
-                                    style="@style/Widget.Material3.Button.OutlinedButton" />
-
-                            </LinearLayout>
-
-                        </LinearLayout>
-
-                        <!-- 提示信息 -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="💡 提示：上滑搜索栏可查看所有标签页"
-                            android:textSize="13sp"
-                            android:textColor="@color/simple_mode_text_secondary_light"
-                            android:layout_marginTop="24dp"
-                            android:gravity="center" />
+                            android:layout_marginTop="32dp"
+                            android:layout_marginBottom="32dp" />
 
 
 
@@ -2578,7 +2467,10 @@
                         android:textColorHint="@color/simple_mode_text_secondary_light"
                         android:imeOptions="actionSearch"
                         android:inputType="textUri"
-                        android:gravity="center_vertical" />
+                        android:gravity="center_vertical"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:clickable="true" />
 
                     <!-- 清空按钮 -->
                     <ImageButton
