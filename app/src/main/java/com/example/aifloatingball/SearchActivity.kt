@@ -200,6 +200,15 @@ class SearchActivity : AppCompatActivity() {
     private val TWO_FINGER_SWIPE_THRESHOLD = 100f // 两指上滑距离阈值（dp转px）
     private val TWO_FINGER_SWIPE_VELOCITY_THRESHOLD = 500f // 两指上滑速度阈值
     
+    // 上滑激活悬浮卡片相关变量
+    private var swipeUpStartY = 0f
+    private var swipeUpStartTime = 0L
+    private var isSwipeUpActivating = false
+    private val SWIPE_UP_THRESHOLD = 60f // 上滑距离阈值（dp转px）- 降低阈值，更容易触发
+    private val SWIPE_UP_VELOCITY_THRESHOLD = 600f // 上滑速度阈值（px/s）- 降低阈值
+    private var swipeUpProgress = 0f // 上滑进度（0-1）
+    private var swipeUpStartX = 0f // 记录起始X坐标，用于判断是否为垂直滑动
+    
     private var searchLayout: FrameLayout? = null
     private var searchHistorySwitch: SwitchCompat? = null
     private var autoPasteSwitch: SwitchCompat? = null
@@ -462,6 +471,9 @@ class SearchActivity : AppCompatActivity() {
         
         // 设置搜索相关事件
         setupSearchViews()
+        
+        // 设置上滑手势激活悬浮卡片
+        setupSwipeUpGesture()
 
         setupEngineList()
         
@@ -3855,6 +3867,337 @@ class SearchActivity : AppCompatActivity() {
                     false
                 }
             }
+    
+    /**
+     * 设置上滑手势激活悬浮卡片
+     * 参考iOS Safari的手势交互，从输入框或底部导航栏向上滑动激活悬浮卡片模式
+     */
+    private fun setupSwipeUpGesture() {
+        try {
+            // 为输入框添加上滑手势检测（使用自定义触摸监听器）
+            searchInput.setOnTouchListener { view, event ->
+                val handled = handleSwipeUpGesture(view, event)
+                Log.d("SearchActivity", "输入框触摸事件: action=${event.action}, handled=$handled, hasFocus=${searchInput.hasFocus()}")
+                
+                // 如果手势已处理，返回true；否则让输入框正常处理（如点击获取焦点）
+                if (handled) {
+                    true
+                } else {
+                    // 让输入框正常处理点击等事件
+                    false
+                }
+            }
+            
+            // 为输入框的父容器（搜索栏容器）也添加上滑手势
+            val searchBarContainer = searchInput.parent as? ViewGroup
+            searchBarContainer?.setOnTouchListener { view, event ->
+                // 检查触摸点是否在输入框内
+                val inputRect = android.graphics.Rect()
+                searchInput.getHitRect(inputRect)
+                val x = event.x.toInt()
+                val y = event.y.toInt()
+                
+                if (inputRect.contains(x, y)) {
+                    // 触摸点在输入框内，不处理（由输入框自己处理）
+                    false
+                } else {
+                    // 触摸点在输入框外，处理上滑手势
+                    val handled = handleSwipeUpGesture(view, event)
+                    Log.d("SearchActivity", "搜索栏容器触摸事件: action=${event.action}, handled=$handled")
+                    handled
+                }
+            }
+            
+            // 为整个AppBarLayout也添加上滑手势（确保能捕获到搜索栏区域）
+            appBarLayout.setOnTouchListener { view, event ->
+                // 检查触摸点是否在搜索栏区域（扩大范围以更容易触发）
+                val location = IntArray(2)
+                searchInput.getLocationOnScreen(location)
+                val viewLocation = IntArray(2)
+                view.getLocationOnScreen(viewLocation)
+                
+                val inputX = event.rawX.toInt() - location[0]
+                val inputY = event.rawY.toInt() - location[1]
+                val inputRect = android.graphics.Rect()
+                searchInput.getHitRect(inputRect)
+                
+                // 扩大触摸区域（上下各扩大100px，左右各扩大50px）
+                val expandedRect = android.graphics.Rect(inputRect)
+                expandedRect.inset(-50, -100)
+                
+                // 如果触摸点在搜索栏附近，处理上滑手势
+                if (expandedRect.contains(inputX, inputY)) {
+                    val handled = handleSwipeUpGesture(view, event)
+                    Log.d("SearchActivity", "AppBarLayout触摸事件: action=${event.action}, handled=$handled, x=$inputX, y=$inputY")
+                    handled
+                } else {
+                    false
+                }
+            }
+            
+            Log.d("SearchActivity", "上滑手势已设置 - 输入框、搜索栏容器、AppBarLayout")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "设置上滑手势失败", e)
+        }
+    }
+    
+    /**
+     * 处理上滑手势
+     * @return true表示已处理，false表示未处理（继续传递给其他监听器）
+     */
+    private fun handleSwipeUpGesture(view: View, event: MotionEvent): Boolean {
+        // 如果输入框有焦点且正在编辑，不处理上滑（避免与输入冲突）
+        // 但允许在ACTION_UP时检查，以便在松开时也能激活
+        if (searchInput.hasFocus() && event.action == MotionEvent.ACTION_DOWN) {
+            Log.d("SearchActivity", "输入框有焦点，跳过DOWN事件")
+            return false
+        }
+        
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                // 记录起始位置和时间
+                swipeUpStartY = event.rawY
+                swipeUpStartX = event.rawX
+                swipeUpStartTime = System.currentTimeMillis()
+                isSwipeUpActivating = false
+                swipeUpProgress = 0f
+                Log.d("SearchActivity", "上滑手势开始: startY=$swipeUpStartY, startX=$swipeUpStartX")
+                return true // 返回true以接收后续事件
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                // 如果输入框有焦点，不处理移动（避免与输入冲突）
+                if (searchInput.hasFocus()) {
+                    return false
+                }
+                
+                // 计算滑动距离
+                val currentY = event.rawY
+                val currentX = event.rawX
+                val deltaY = swipeUpStartY - currentY // 向上滑动，deltaY为正
+                val deltaX = kotlin.math.abs(currentX - swipeUpStartX)
+                val time = System.currentTimeMillis() - swipeUpStartTime
+                val velocity = if (time > 0) (deltaY / time) * 1000 else 0f
+                
+                // 判断是否为垂直滑动（垂直距离大于水平距离）
+                val isVerticalSwipe = deltaY > deltaX && deltaY > 20f
+                
+                // 只处理向上滑动（deltaY > 0）且是垂直滑动
+                if (deltaY <= 0 || !isVerticalSwipe) {
+                    return false
+                }
+                
+                // 转换为像素
+                val density = resources.displayMetrics.density
+                val thresholdPx = SWIPE_UP_THRESHOLD * density
+                
+                // 计算上滑进度（0-1）
+                swipeUpProgress = (deltaY / (thresholdPx * 1.5f)).coerceIn(0f, 1f)
+                
+                Log.d("SearchActivity", "上滑移动: deltaY=$deltaY, velocity=$velocity, progress=$swipeUpProgress, threshold=$thresholdPx")
+                
+                // 检查是否满足上滑条件
+                if (deltaY > thresholdPx * 0.3f && !isSwipeUpActivating) {
+                    // 显示视觉反馈
+                    if (swipeUpProgress > 0.4f) {
+                        showGestureHint("继续上滑查看所有标签页")
+                    }
+                }
+                
+                // 如果上滑距离足够且速度足够，激活悬浮卡片
+                if (deltaY > thresholdPx && velocity > SWIPE_UP_VELOCITY_THRESHOLD && !isSwipeUpActivating) {
+                    Log.d("SearchActivity", "快速上滑激活悬浮卡片: deltaY=$deltaY, velocity=$velocity")
+                    isSwipeUpActivating = true
+                    activateStackedCardPreviewWithAnimation()
+                    return true
+                }
+                
+                return true // 返回true以继续接收事件
+            }
+            
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // 如果已经激活，不处理
+                if (isSwipeUpActivating) {
+                    isSwipeUpActivating = false
+                    return true
+                }
+                
+                // 检查是否满足激活条件（即使速度不够，但距离足够）
+                val currentY = event.rawY
+                val deltaY = swipeUpStartY - currentY
+                
+                // 只处理向上滑动
+                if (deltaY <= 0) {
+                    Log.d("SearchActivity", "上滑手势取消: 不是向上滑动")
+                    isSwipeUpActivating = false
+                    swipeUpProgress = 0f
+                    return false
+                }
+                
+                val density = resources.displayMetrics.density
+                val thresholdPx = SWIPE_UP_THRESHOLD * density
+                
+                Log.d("SearchActivity", "上滑手势结束: deltaY=$deltaY, threshold=$thresholdPx, progress=$swipeUpProgress")
+                
+                // 降低激活阈值，更容易触发（距离超过60%阈值即可）
+                if (deltaY > thresholdPx * 0.6f) {
+                    Log.d("SearchActivity", "慢速上滑激活悬浮卡片: deltaY=$deltaY")
+                    activateStackedCardPreviewWithAnimation()
+                    return true
+                }
+                
+                // 重置状态
+                isSwipeUpActivating = false
+                swipeUpProgress = 0f
+                return false
+            }
+            
+            else -> return false
+        }
+    }
+    
+    /**
+     * 带动画激活悬浮卡片模式
+     * 参考iOS Safari的平滑动画效果
+     */
+    private fun activateStackedCardPreviewWithAnimation() {
+        try {
+            // 检查是否有标签页可以显示
+            val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+            if (paperStackTabs.isEmpty()) {
+                Log.d("SearchActivity", "没有标签页，无法激活悬浮卡片")
+                showGestureHint("暂无标签页")
+                return
+            }
+            
+            Log.d("SearchActivity", "上滑激活悬浮卡片，显示 ${paperStackTabs.size} 张卡片")
+            
+            // 确保StackedCardPreview已初始化
+            if (stackedCardPreview == null) {
+                Log.e("SearchActivity", "StackedCardPreview未初始化")
+                return
+            }
+            
+            // 先隐藏键盘（如果有）
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
+            searchInput.clearFocus()
+            
+            // 重置StackedCardPreview状态
+            stackedCardPreview?.resetToStackedMode()
+            
+            // 同步数据
+            syncAllCardSystems()
+            
+            // 设置初始状态：从下方滑入
+            stackedCardPreview?.alpha = 0f
+            val screenHeight = resources.displayMetrics.heightPixels
+            stackedCardPreview?.translationY = screenHeight.toFloat()
+            stackedCardPreview?.visibility = View.VISIBLE
+            
+            // 建立触摸隔膜
+            buildTouchBarrier()
+            ensureStackedCardPreviewOnTop()
+            
+            // 执行平滑的上滑动画（参考iOS Safari的动画效果）
+            stackedCardPreview?.animate()
+                ?.alpha(1f)
+                ?.translationY(0f)
+                ?.setDuration(350) // iOS Safari风格的动画时长
+                ?.setInterpolator(android.view.animation.DecelerateInterpolator()) // 减速插值器，更自然
+                ?.withStartAction {
+                    Log.d("SearchActivity", "开始上滑动画激活悬浮卡片")
+                }
+                ?.withEndAction {
+                    // 动画完成后，确保数据已同步
+                    handler.post {
+                        ensureCardContentLoaded()
+                        syncAllCardSystems()
+                        stackedCardPreview?.invalidate()
+                    }
+                    
+                    // 设置卡片选择监听器
+                    setupStackedCardPreviewListeners()
+                    
+                    Log.d("SearchActivity", "上滑动画完成，悬浮卡片已激活")
+                }
+                ?.start()
+            
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "激活悬浮卡片动画失败", e)
+            // 如果动画失败，直接激活
+            activateStackedCardPreview()
+        }
+    }
+    
+    /**
+     * 设置StackedCardPreview的监听器（如果尚未设置）
+     */
+    private fun setupStackedCardPreviewListeners() {
+        try {
+            stackedCardPreview?.setOnCardSelectedListener { cardIndex ->
+                Log.d("SearchActivity", "🎯 StackedCardPreview 选择卡片: $cardIndex")
+                
+                // 销毁触摸隔膜
+                destroyTouchBarrier()
+                
+                // 获取当前标签页列表
+                val paperStackTabs = paperStackManager?.getAllTabs() ?: emptyList()
+                if (cardIndex >= 0 && cardIndex < paperStackTabs.size) {
+                    val selectedCard = paperStackTabs[cardIndex]
+                    Log.d("SearchActivity", "选中卡片: ${selectedCard.title}, URL: ${selectedCard.url}")
+                    
+                    // 切换到选中的标签页
+                    paperStackManager?.switchToTab(cardIndex)
+                    
+                    // 切换完成后，延迟同步数据确保一致性
+                    runOnUiThread {
+                        handler.postDelayed({
+                            syncAllCardSystems()
+                        }, 100)
+                    }
+                } else {
+                    Log.w("SearchActivity", "无效的卡片索引: $cardIndex，标签页总数: ${paperStackTabs.size}")
+                }
+                
+                // 隐藏StackedCardPreview（带动画）
+                val screenHeight = resources.displayMetrics.heightPixels
+                stackedCardPreview?.animate()
+                    ?.alpha(0f)
+                    ?.translationY(screenHeight.toFloat())
+                    ?.setDuration(300)
+                    ?.setInterpolator(android.view.animation.AccelerateInterpolator())
+                    ?.withEndAction {
+                        stackedCardPreview?.visibility = View.GONE
+                    }
+                    ?.start()
+                
+                // 确保纸堆模式可见
+                if (!isPaperStackMode) {
+                    togglePaperStackMode()
+                }
+                
+                Log.d("SearchActivity", "已切换到纸堆标签页: $cardIndex")
+            }
+            
+            // 设置卡片关闭监听器
+            stackedCardPreview?.setOnCardCloseListener { url ->
+                Log.d("SearchActivity", "🔗 StackedCardPreview 请求关闭卡片: $url")
+                
+                val closed = paperStackManager?.closeTabByUrl(url) ?: false
+                
+                if (closed) {
+                    syncAllCardSystems()
+                    Log.d("SearchActivity", "成功关闭纸堆标签页: $url")
+                } else {
+                    Log.w("SearchActivity", "关闭纸堆标签页失败: $url")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "设置StackedCardPreview监听器失败", e)
+        }
+    }
 
     private fun showSearchEngineSelector() {
         val engines = NORMAL_SEARCH_ENGINES
