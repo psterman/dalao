@@ -648,6 +648,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 新的应用图标显示组件
     private lateinit var selectedAppIconContainer: com.google.android.material.card.MaterialCardView
     private lateinit var selectedAppIcon: ImageView
+    // 当前选中的app配置（用于自动执行搜索）
+    private var currentSelectedAppConfig: AppSearchConfig? = null
 
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
@@ -1641,13 +1643,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新搜索框提示文字
             findViewById<TextView>(R.id.app_search_hint)?.setTextColor(secondaryTextColor)
 
-            // 更新搜索输入框颜色
+            // 更新搜索输入框颜色（如果有TextInputLayout则更新，新布局使用CardView+EditText）
             findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)?.apply {
                 boxStrokeColor = accentColor
                 hintTextColor = ColorStateList.valueOf(secondaryTextColor)
                 setStartIconTintList(ColorStateList.valueOf(secondaryTextColor))
                 setEndIconTintList(ColorStateList.valueOf(secondaryTextColor))
             }
+            // 新布局的搜索框背景色已在CardView中设置，无需额外更新
 
             // 更新搜索输入框文字颜色
             findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.app_search_input)?.setTextColor(textColor)
@@ -3102,22 +3105,45 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置应用搜索输入框
      */
     private fun setupAppSearchInput() {
-        val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+        // 兼容旧布局（如果有TextInputLayout）
+        val textInputLayout = try {
+            findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+        } catch (e: Exception) {
+            null
+        }
+        // 新布局使用单独的 history button
+        val historyButton = findViewById<ImageButton>(R.id.app_search_history_button)
 
         // 设置搜索动作监听
         appSearchInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 val query = appSearchInput.text.toString().trim()
                 if (query.isNotEmpty()) {
-                    appSearchAdapter.updateSearchQuery(query)
-                    appSearchHint.text = "输入关键词：$query，点击应用图标进行搜索"
-                    // 显示清空按钮
-                    updateInputLayoutEndIcon(true)
+                    // 检查是否有选中的app（或沿用上一个app）
+                    val appToUse = getAppForSearch()
+                    if (appToUse != null) {
+                        // 有选中的app，直接执行搜索跳转
+                        Log.d(TAG, "执行搜索跳转: app=${appToUse.appName}, query=$query")
+                        handleAppSearch(appToUse, query)
+                        // 更新搜索适配器查询（用于高亮显示）
+                        appSearchAdapter.updateSearchQuery(query)
+                        // 显示清空按钮
+                        updateInputLayoutEndIcon(true)
+                        updateHistoryButtonIcon(true)
+                    } else {
+                        // 没有选中的app，只更新搜索查询
+                        appSearchAdapter.updateSearchQuery(query)
+                        appSearchHint.text = "输入关键词：$query，点击应用图标进行搜索"
+                        // 显示清空按钮
+                        updateInputLayoutEndIcon(true)
+                        updateHistoryButtonIcon(true)
+                    }
                 } else {
                     appSearchAdapter.updateSearchQuery("")
                     appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
                     // 显示历史按钮
                     updateInputLayoutEndIcon(false)
+                    updateHistoryButtonIcon(false)
                 }
                 true
             } else {
@@ -3132,17 +3158,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun afterTextChanged(s: android.text.Editable?) {
                 val hasText = !s.isNullOrEmpty()
                 updateInputLayoutEndIcon(hasText)
+                updateHistoryButtonIcon(hasText)
             }
         })
 
-        // 设置结束图标点击监听
+        // 设置历史/清空按钮点击监听（兼容新布局）
+        historyButton?.setOnClickListener {
+            val query = appSearchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                // 检查是否有选中的app（或沿用上一个app）
+                val appToUse = getAppForSearch()
+                if (appToUse != null) {
+                    // 有选中的app，执行搜索跳转
+                    Log.d(TAG, "点击历史图标执行搜索跳转: app=${appToUse.appName}, query=$query")
+                    handleAppSearch(appToUse, query)
+                    // 更新搜索适配器查询（用于高亮显示）
+                    appSearchAdapter.updateSearchQuery(query)
+                } else {
+                    // 没有选中的app，清空输入框
+                    appSearchInput.text?.clear()
+                    appSearchAdapter.updateSearchQuery("")
+                    resetSearchInputIcon()
+                }
+            } else {
+                // 显示搜索历史
+                showSearchHistory()
+            }
+        }
+
+        // 设置结束图标点击监听（兼容旧布局，如果TextInputLayout存在）
         textInputLayout?.setEndIconOnClickListener {
             val query = appSearchInput.text.toString().trim()
             if (query.isNotEmpty()) {
-                // 清空输入框
-                appSearchInput.text?.clear()
-                appSearchAdapter.updateSearchQuery("")
-                resetSearchInputIcon()
+                // 检查是否有选中的app（或沿用上一个app）
+                val appToUse = getAppForSearch()
+                if (appToUse != null) {
+                    // 有选中的app，执行搜索跳转
+                    Log.d(TAG, "点击endIcon执行搜索跳转: app=${appToUse.appName}, query=$query")
+                    handleAppSearch(appToUse, query)
+                    // 更新搜索适配器查询（用于高亮显示）
+                    appSearchAdapter.updateSearchQuery(query)
+                } else {
+                    // 没有选中的app，清空输入框
+                    appSearchInput.text?.clear()
+                    appSearchAdapter.updateSearchQuery("")
+                    resetSearchInputIcon()
+                }
             } else {
                 // 显示搜索历史
                 showSearchHistory()
@@ -3196,9 +3257,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                         // 更新提示文本
                         appSearchHint.text = "已选择 ${appConfig.appName}，输入关键词进行搜索"
+                        
+                        // 保存当前选中的app配置
+                        currentSelectedAppConfig = appConfig
                     } else {
                         Log.w(TAG, "无法获取应用图标")
                         hideSelectedAppDisplay()
+                        currentSelectedAppConfig = null
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "在UI线程中更新选中应用显示失败", e)
@@ -3215,6 +3280,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun hideSelectedAppDisplay() {
         selectedAppIconContainer.visibility = View.GONE
         appSearchHint.text = "选择全部应用进行搜索"
+        // 注意：不清空currentSelectedAppConfig，以便沿用上一个app
     }
 
     /**
@@ -3272,6 +3338,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             .setNeutralButton("取消", null)
             .show()
+    }
+
+    /**
+     * 获取用于搜索的app（优先使用当前选中的app，否则使用最近选择的app）
+     */
+    private fun getAppForSearch(): AppSearchConfig? {
+        // 优先使用当前选中的app
+        if (currentSelectedAppConfig != null) {
+            Log.d(TAG, "使用当前选中的app: ${currentSelectedAppConfig!!.appName}")
+            return currentSelectedAppConfig
+        }
+        
+        // 如果没有当前选中的app，尝试获取最近选择的app
+        try {
+            val recentApps = appSelectionHistoryManager.getRecentApps()
+            if (recentApps.isNotEmpty()) {
+                val lastSelectedItem = recentApps.first()
+                val appConfig = currentAppConfigs.find { it.packageName == lastSelectedItem.packageName }
+                if (appConfig != null) {
+                    Log.d(TAG, "沿用上一个app: ${appConfig.appName}")
+                    // 更新当前选中的app配置，但不显示图标（因为用户可能已经清空了图标显示）
+                    currentSelectedAppConfig = appConfig
+                    return appConfig
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取最近选择的app失败", e)
+        }
+        
+        return null
     }
 
     /**
@@ -3337,14 +3433,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun resetSearchInputIcon() {
         hideSelectedAppDisplay()
         appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
+        updateInputLayoutEndIcon(false)
+        updateHistoryButtonIcon(false)
     }
 
     /**
-     * 更新输入框结束图标
+     * 更新输入框结束图标（兼容旧布局，如果TextInputLayout存在）
      */
     private fun updateInputLayoutEndIcon(hasText: Boolean) {
         try {
-            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+            val textInputLayout = try {
+                findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+            } catch (e: Exception) {
+                null
+            }
 
             if (textInputLayout != null) {
                 if (hasText) {
@@ -3357,6 +3459,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e("SimpleModeActivity", "更新输入框结束图标失败", e)
+        }
+    }
+
+    /**
+     * 更新历史按钮图标（新布局）
+     */
+    private fun updateHistoryButtonIcon(hasText: Boolean) {
+        try {
+            val historyButton = findViewById<ImageButton>(R.id.app_search_history_button)
+
+            if (historyButton != null) {
+                if (hasText) {
+                    // 显示清空图标
+                    historyButton.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_clear))
+                    historyButton.contentDescription = "清空搜索"
+                } else {
+                    // 显示历史图标
+                    historyButton.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_history))
+                    historyButton.contentDescription = "搜索历史"
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "更新历史按钮图标失败", e)
         }
     }
 

@@ -19,7 +19,31 @@
         android:visibility="gone"
         android:background="@color/chat_background_light">
 
-        <!-- 搜索栏 -->
+        <!-- 分类标签 -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/chat_tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:background="@color/chat_tab_background_light"
+            app:tabTextColor="@color/chat_tab_unselected_light"
+            app:tabSelectedTextColor="@color/chat_tab_selected_light"
+            app:tabIndicatorColor="@color/chat_tab_selected_light"
+            app:tabIndicatorHeight="2dp"
+            app:tabMode="fixed"
+            app:tabGravity="fill"
+            app:tabTextAppearance="@style/ChatTabTextAppearance" />
+
+        <!-- 联系人列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/chat_contacts_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/chat_background_light"
+            android:clipToPadding="false"
+            android:paddingTop="1dp" />
+
+        <!-- 搜索栏 - 已移动到最底部，方便用户点击搜索和添加AI -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -87,30 +111,6 @@
                 app:tint="@color/chat_add_button_light" />
 
         </LinearLayout>
-
-        <!-- 分类标签 -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/chat_tab_layout"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:background="@color/chat_tab_background_light"
-            app:tabTextColor="@color/chat_tab_unselected_light"
-            app:tabSelectedTextColor="@color/chat_tab_selected_light"
-            app:tabIndicatorColor="@color/chat_tab_selected_light"
-            app:tabIndicatorHeight="2dp"
-            app:tabMode="fixed"
-            app:tabGravity="fill"
-            app:tabTextAppearance="@style/ChatTabTextAppearance" />
-
-        <!-- 联系人列表 -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/chat_contacts_recycler_view"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:background="@color/chat_background_light"
-            android:clipToPadding="false"
-            android:paddingTop="1dp" />
 
     </LinearLayout>
 

@@ -11,109 +11,6 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- 顶部搜索区域 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/simple_mode_card_background_light">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="20dp">
-
-                <!-- 搜索输入框容器 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
-
-                    <!-- 选中应用图标显示 -->
-                    <com.google.android.material.card.MaterialCardView
-                        android:id="@+id/selected_app_icon_container"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:layout_marginEnd="8dp"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="2dp"
-                        app:strokeWidth="1dp"
-                        app:strokeColor="@color/simple_mode_accent_light"
-                        android:visibility="gone">
-
-                        <ImageView
-                            android:id="@+id/selected_app_icon"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:layout_gravity="center"
-                            android:scaleType="centerInside"
-                            android:src="@drawable/ic_search" />
-
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <!-- 搜索输入框 -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/app_search_input_layout"
-                        android:layout_width="0dp"
-                        android:layout_height="56dp"
-                        android:layout_weight="1"
-                        app:boxStrokeColor="@color/simple_mode_accent_light"
-                        app:hintTextColor="@color/simple_mode_text_secondary_light"
-                        app:startIconDrawable="@drawable/ic_search"
-                        app:startIconTint="@color/simple_mode_text_secondary_light"
-                        app:endIconMode="custom"
-                        app:endIconDrawable="@drawable/ic_history"
-                        app:endIconTint="@color/simple_mode_text_secondary_light"
-                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/app_search_input"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="输入搜索关键词"
-                            android:textColor="@color/simple_mode_text_primary_light"
-                            android:textColorHint="@color/simple_mode_text_secondary_light"
-                            android:textSize="16sp"
-                            android:maxLines="1"
-                            android:imeOptions="actionSearch"
-                            android:inputType="text" />
-
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- AI助手按钮 -->
-                    <ImageButton
-                        android:id="@+id/ai_assistant_button"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="8dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:src="@drawable/ic_ai_assistant"
-                        android:contentDescription="AI助手档案"
-                        android:scaleType="fitCenter"
-                        app:tint="@color/simple_mode_accent_light" />
-
-                </LinearLayout>
-
-                <!-- 提示文本 -->
-                <TextView
-                    android:id="@+id/app_search_hint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="选择全部应用进行搜索"
-                    android:textColor="@color/simple_mode_text_secondary_light"
-                    android:textSize="14sp"
-                    android:gravity="center"
-                    android:alpha="0.8" />
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
         <!-- 分类和应用内容区域 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -459,6 +356,142 @@
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+        <!-- 搜索栏 - 已移动到最底部，参考对话tab的简洁样式，保留所有功能 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@color/chat_header_background_light"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <!-- 隐藏的TextInputLayout，用于保持资源ID存在，兼容代码 -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/app_search_input_layout"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- 搜索输入框和按钮行 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 选中应用图标显示（可选） -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/selected_app_icon_container"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    app:cardCornerRadius="8dp"
+                    app:cardElevation="0dp"
+                    app:strokeWidth="1dp"
+                    app:strokeColor="@color/simple_mode_accent_light"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/selected_app_icon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_search" />
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 搜索输入框（参考对话tab样式） -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="@color/chat_search_background_light">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="12dp">
+
+                        <!-- 搜索图标 -->
+                        <ImageView
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:src="@drawable/ic_search"
+                            android:scaleType="fitCenter"
+                            app:tint="@color/simple_mode_text_secondary_light"
+                            android:layout_marginEnd="8dp" />
+
+                        <!-- 搜索输入框 -->
+                        <EditText
+                            android:id="@+id/app_search_input"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:background="@null"
+                            android:hint="输入搜索关键词"
+                            android:textColorHint="@color/chat_search_hint_light"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:textSize="14sp"
+                            android:paddingHorizontal="0dp"
+                            android:singleLine="true"
+                            android:imeOptions="actionSearch"
+                            android:inputType="text" />
+
+                        <!-- 历史记录图标按钮 -->
+                        <ImageButton
+                            android:id="@+id/app_search_history_button"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_marginStart="4dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:src="@drawable/ic_history"
+                            android:contentDescription="搜索历史"
+                            android:scaleType="fitCenter"
+                            app:tint="@color/simple_mode_text_secondary_light"
+                            android:visibility="visible" />
+
+                    </LinearLayout>
+
+                </androidx.cardview.widget.CardView>
+
+                <!-- AI助手按钮 -->
+                <ImageButton
+                    android:id="@+id/ai_assistant_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_ai_assistant"
+                    android:contentDescription="AI助手档案"
+                    android:scaleType="fitCenter"
+                    app:tint="@color/chat_add_button_light" />
+
+            </LinearLayout>
+
+            <!-- 提示文本（可选，显示在搜索框下方） -->
+            <TextView
+                android:id="@+id/app_search_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="选择全部应用进行搜索"
+                android:textColor="@color/simple_mode_text_secondary_light"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:paddingTop="4dp"
+                android:alpha="0.7"
+                android:visibility="visible" />
 
         </LinearLayout>
 
