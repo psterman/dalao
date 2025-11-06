@@ -225,14 +225,85 @@ class PaperStackWebViewManager(
         // 更新标签页位置
         updateTabPositions()
         
-        // 加载URL
-        webView.loadUrl(tab.url)
+        // 加载URL（如果是功能主页，加载功能主页HTML并设置JavaScript接口）
+        if (url == "home://functional") {
+            // 为功能主页设置JavaScript接口
+            setupFunctionalHomeInterface(webView)
+            webView.loadUrl("file:///android_asset/functional_home.html")
+        } else {
+            webView.loadUrl(tab.url)
+        }
         
         // 通知监听器
         onTabCreatedListener?.invoke(tab)
         
         Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 已切换到新标签页")
         return tab
+    }
+    
+    /**
+     * 为功能主页设置JavaScript接口
+     */
+    private fun setupFunctionalHomeInterface(webView: WebView) {
+        try {
+            // 移除旧的接口（如果存在）
+            try {
+                webView.removeJavascriptInterface("AndroidInterface")
+            } catch (e: Exception) {
+                // 忽略接口不存在的异常
+            }
+            
+            // 添加新的JavaScript接口
+            webView.addJavascriptInterface(object {
+                @android.webkit.JavascriptInterface
+                fun createNewTab() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 创建新标签页
+                        addTab()
+                        Log.d(TAG, "功能主页：创建新标签页")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun showGestureGuide() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 显示手势指南（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onShowGestureGuide()
+                        Log.d(TAG, "功能主页：显示手势指南")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun openDownloadManager() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开下载管理（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenDownloadManager()
+                        Log.d(TAG, "功能主页：打开下载管理")
+                    }
+                }
+            }, "AndroidInterface")
+            
+            Log.d(TAG, "功能主页JavaScript接口已设置")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置功能主页JavaScript接口失败", e)
+        }
+    }
+    
+    /**
+     * 功能主页操作监听器
+     */
+    interface FunctionalHomeActionListener {
+        fun onShowGestureGuide()
+        fun onOpenDownloadManager()
+    }
+    
+    private var onFunctionalHomeActionListener: FunctionalHomeActionListener? = null
+    
+    /**
+     * 设置功能主页操作监听器
+     */
+    fun setOnFunctionalHomeActionListener(listener: FunctionalHomeActionListener) {
+        onFunctionalHomeActionListener = listener
     }
 
     /**
@@ -243,6 +314,13 @@ class PaperStackWebViewManager(
         if (tabIndex == -1) return false
         
         val tab = tabs[tabIndex]
+        
+        // 检查是否是功能主页，如果是则不允许删除
+        if (tab.url == "home://functional") {
+            Log.d(TAG, "⚠️ 功能主页不能被删除")
+            return false
+        }
+        
         container.removeView(tab.webView)
         tabs.removeAt(tabIndex)
         
@@ -262,6 +340,12 @@ class PaperStackWebViewManager(
      * 通过URL关闭标签页
      */
     fun closeTabByUrl(url: String): Boolean {
+        // 检查是否是功能主页，如果是则不允许关闭
+        if (url == "home://functional") {
+            Log.d(TAG, "⚠️ 功能主页不能被关闭")
+            return false
+        }
+        
         val tabIndex = tabs.indexOfFirst { it.url == url }
         if (tabIndex == -1) return false
         

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>功能主页</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 48px;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .button {
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            border: none;
+            border-radius: 16px;
+            padding: 20px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .button:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .button-icon {
+            font-size: 24px;
+        }
+        
+        .secondary-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .secondary-button {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .secondary-button:active {
+            transform: scale(0.98);
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .hint {
+            margin-top: 32px;
+            font-size: 14px;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">欢迎使用浏览器</h1>
+        <p class="subtitle">快速开始浏览，管理您的标签页</p>
+        
+        <div class="button-group">
+            <button class="button" onclick="createNewTab()">
+                <span class="button-icon">➕</span>
+                <span>新建标签页</span>
+            </button>
+            
+            <div class="secondary-buttons">
+                <button class="secondary-button" onclick="showGestureGuide()">
+                    <span>👆</span>
+                    <div>手势</div>
+                </button>
+                <button class="secondary-button" onclick="openDownloadManager()">
+                    <span>⬇️</span>
+                    <div>下载</div>
+                </button>
+            </div>
+        </div>
+        
+        <p class="hint">💡 提示：上滑搜索栏可查看所有标签页</p>
+    </div>
+    
+    <script>
+        function createNewTab() {
+            if (window.AndroidInterface && window.AndroidInterface.createNewTab) {
+                window.AndroidInterface.createNewTab();
+            } else {
+                alert('创建新标签页功能');
+            }
+        }
+        
+        function showGestureGuide() {
+            if (window.AndroidInterface && window.AndroidInterface.showGestureGuide) {
+                window.AndroidInterface.showGestureGuide();
+            } else {
+                alert('手势指南功能');
+            }
+        }
+        
+        function openDownloadManager() {
+            if (window.AndroidInterface && window.AndroidInterface.openDownloadManager) {
+                window.AndroidInterface.openDownloadManager();
+            } else {
+                alert('下载管理功能');
+            }
+        }
+    </script>
+</body>
+</html>
+

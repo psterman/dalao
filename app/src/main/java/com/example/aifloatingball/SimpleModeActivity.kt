@@ -4574,11 +4574,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupBrowserWebView()
             }
             
-            // 如果还没有标签页，不创建空白标签页，而是显示功能页面
+            // 如果还没有标签页，显示功能主页（不自动创建百度首页）
             val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
             if (tabCount == 0) {
-                Log.d(TAG, "没有标签页，显示功能页面作为主页")
-                // 显示浏览器主页内容，让用户可以看到功能页面
+                Log.d(TAG, "没有标签页，显示功能主页")
+                // 显示功能主页内容
                 browserHomeContent.visibility = View.VISIBLE
                 browserTabContainer.visibility = View.GONE
                 browserSearchInput.setText("")
@@ -6272,6 +6272,38 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             windowManager = windowManager
         )
 
+        // 设置功能主页操作监听器
+        paperStackWebViewManager?.setOnFunctionalHomeActionListener(object : PaperStackWebViewManager.FunctionalHomeActionListener {
+            override fun onShowGestureGuide() {
+                // 显示手势指南
+                try {
+                    if (!::browserGestureOverlay.isInitialized) {
+                        Log.e(TAG, "browserGestureOverlay未初始化，无法操作手势指南")
+                        showMaterialToast("手势指南功能暂时不可用")
+                        return
+                    }
+                    showGestureInstructions()
+                } catch (e: Exception) {
+                    Log.e(TAG, "手势指南按钮点击处理失败", e)
+                    showMaterialToast("❌ 手势指南功能出现错误")
+                }
+            }
+            
+            override fun onOpenDownloadManager() {
+                // 打开下载管理界面
+                try {
+                    val intent = android.content.Intent(this@SimpleModeActivity, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    Log.d(TAG, "成功打开下载管理界面")
+                    showMaterialToast("打开下载管理")
+                } catch (e: Exception) {
+                    Log.e(TAG, "下载管理按钮点击处理失败", e)
+                    showMaterialToast("打开下载管理失败")
+                }
+            }
+        })
+        
         // 设置标签页监听器
         paperStackWebViewManager?.setOnTabCreatedListener { tab ->
             // 隐藏主页内容，显示纸堆界面
@@ -6285,8 +6317,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
-            // 更新搜索框URL与站点图标
-            browserSearchInput.setText(tab.url)
+            // 更新搜索框URL与站点图标（功能主页显示空字符串）
+            if (tab.url == "home://functional") {
+                browserSearchInput.setText("")
+            } else {
+                browserSearchInput.setText(tab.url)
+            }
             updateBrowserFaviconButtonForUrl(tab.url)
 
             // 为当前标签页注入视频检测脚本
@@ -6343,8 +6379,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 页面标题变化时，优先用标题填充搜索框
         paperStackWebViewManager?.setOnTitleReceivedListener { tab, title ->
             try {
-                val text = if (!title.isNullOrBlank()) title!! else tab.url
-                browserSearchInput.setText(text)
+                // 功能主页显示空字符串
+                if (tab.url == "home://functional") {
+                    browserSearchInput.setText("")
+                } else {
+                    val text = if (!title.isNullOrBlank()) title!! else tab.url
+                    browserSearchInput.setText(text)
+                }
                 updateBrowserFaviconButtonForUrl(tab.url)
             } catch (e: Exception) {
                 Log.w(TAG, "更新地址栏标题失败", e)
@@ -20341,6 +20382,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "🔥 开始关闭卡片，URL: $url")
 
+            // 检查是否是功能主页，如果是则不允许关闭
+            if (url == "home://functional") {
+                Log.d(TAG, "⚠️ 功能主页不能被关闭")
+                Toast.makeText(this, "功能主页不能被关闭", Toast.LENGTH_SHORT).show()
+                return
+            }
+
             var cardClosed = false
 
             // 关键修复：同时从两个管理器中查找并删除卡片
@@ -22273,6 +22321,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "🎯 搜索tab激活层叠卡片预览")
 
+            // 确保纸堆WebView管理器已初始化
+            if (paperStackWebViewManager == null) {
+                Log.d(TAG, "纸堆WebView管理器未初始化，重新初始化")
+                setupBrowserWebView()
+            }
+
+            // 如果纸堆栈为空，自动创建功能主页卡片
+            val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+            if (tabCount == 0) {
+                Log.d(TAG, "纸堆栈为空，自动创建功能主页卡片")
+                
+                // 创建功能主页卡片（使用特殊URL标识，不能被关闭）
+                val functionalHomeUrl = "home://functional"
+                
+                // 创建功能主页标签页
+                val functionalTab = paperStackWebViewManager?.addTab(
+                    url = functionalHomeUrl,
+                    title = "主页"
+                )
+                
+                // 等待标签页创建完成后再继续
+                handler.postDelayed({
+                    // 重新获取卡片数据
+                    val allCards = getStackedCardPreviewCards()
+                    if (allCards.isEmpty()) {
+                        Toast.makeText(this, "创建功能主页卡片失败", Toast.LENGTH_SHORT).show()
+                        return@postDelayed
+                    }
+                    proceedWithActivateStackedCardPreview(allCards)
+                }, 300) // 延迟300ms，等待标签页创建完成
+                return
+            }
+
             // 使用StackedCardPreview专用的卡片数据获取方法，排除自动创建的baidu首页
             val allCards = getStackedCardPreviewCards()
 
@@ -22287,7 +22368,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
                 return
             }
-
+            
+            proceedWithActivateStackedCardPreview(allCards)
+        } catch (e: Exception) {
+            Log.e(TAG, "激活层叠卡片预览失败", e)
+            Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 继续激活层叠卡片预览（内部方法，用于处理卡片数据）
+     */
+    private fun proceedWithActivateStackedCardPreview(allCards: List<GestureCardWebViewManager.WebViewCardData>) {
+        try {
             // 显示层叠卡片预览
             stackedCardPreview?.apply {
                 // 确保重置为层叠模式（不是悬浮模式，会自动激活四个按钮）
@@ -22329,8 +22422,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 Log.d(TAG, "✅ 层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
             }
-
-            // 去掉激活提示弹窗
 
             // 确保搜索tab保持选中状态（绿色主题）
             updateTabColors()

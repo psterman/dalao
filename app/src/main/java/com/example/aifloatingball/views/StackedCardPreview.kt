@@ -810,6 +810,17 @@ class StackedCardPreview @JvmOverloads constructor(
         }
 
         val cardToClose = webViewCards[currentCardIndex]
+        
+        // 检查是否是功能主页，如果是则不允许关闭
+        if (cardToClose.url == "home://functional") {
+            Log.d(TAG, "⚠️ 功能主页不能被关闭")
+            // 提供轻微触觉反馈，提示用户
+            vibrate(VibrationType.LIGHT)
+            // 回弹卡片，不关闭
+            animateCenterCardReturnButKeepButtons()
+            return
+        }
+        
         Log.d(TAG, "🔥 开始关闭卡片：${cardToClose.title} (${cardToClose.url})")
 
         // 提供强烈的触觉反馈
