@@ -1533,9 +1533,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         for (i in 0 until bottomNav.childCount) {
             val tabView = bottomNav.getChildAt(i) as? LinearLayout ?: continue
-            val iconView = tabView.getChildAt(0) as? ImageView ?: continue
-            val textView = tabView.getChildAt(1) as? TextView ?: continue
-
+            
             // 由于底部导航栏始终保持LTR方向，tab顺序在左右手模式下都是一致的
             // 动态处理语音tab的隐藏情况
             val isSelected = when (tabView.id) {
@@ -1548,16 +1546,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 else -> false
             }
 
-            if (isSelected) {
-                // 选中状态
-                tabView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_selected_light))
-                iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_selected_light))
-                textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_selected_light))
+            // 搜索tab有特殊的布局结构（FrameLayout包含图标和徽标）
+            if (tabView.id == R.id.tab_search) {
+                // 搜索tab：图标在FrameLayout中，文字是第二个子视图
+                val frameLayout = tabView.getChildAt(0) as? FrameLayout
+                val iconView = frameLayout?.findViewById<ImageView>(R.id.search_tab_icon)
+                val textView = tabView.getChildAt(1) as? TextView
+                
+                if (iconView != null && textView != null) {
+                    if (isSelected) {
+                        // 选中状态
+                        tabView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_selected_light))
+                        iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_selected_light))
+                        textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_selected_light))
+                    } else {
+                        // 正常状态
+                        tabView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_normal_light))
+                        textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_normal_light))
+                    }
+                }
             } else {
-                // 正常状态
-                tabView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_normal_light))
-                textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_normal_light))
+                // 其他tab：图标是第一个子视图，文字是第二个子视图
+                val iconView = tabView.getChildAt(0) as? ImageView
+                val textView = tabView.getChildAt(1) as? TextView
+                
+                if (iconView != null && textView != null) {
+                    if (isSelected) {
+                        // 选中状态
+                        tabView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_selected_light))
+                        iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_selected_light))
+                        textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_selected_light))
+                    } else {
+                        // 正常状态
+                        tabView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_normal_light))
+                        textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_normal_light))
+                    }
+                }
             }
         }
     }

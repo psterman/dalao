@@ -196,6 +196,13 @@
     <color name="simple_mode_button_text_light">#E8E8ED</color>      <!-- 主按钮文字：浅灰白色 -->
     <color name="simple_mode_button_outline_light">#5C5C5E</color>   <!-- 边框按钮：淡灰色 -->
     <color name="simple_mode_button_surface_light">#2C2C2E</color>   <!-- 表面按钮：深灰色 -->
+    
+    <!-- 🔘 浏览器操作按钮色系 - 暗色模式 (深色背景风格) -->
+    <color name="browser_action_button_background_light">#2C2C2E</color>   <!-- 按钮背景：深灰色 -->
+    <color name="browser_action_button_text_light">#E8E8ED</color>      <!-- 按钮文字：浅灰白色 -->
+    <color name="browser_action_button_icon_light">#9AA0A6</color>      <!-- 按钮图标：淡灰蓝色 -->
+    <color name="browser_action_button_border_light">#3A3A3C</color>   <!-- 按钮边框：中灰色 -->
+    <color name="browser_action_button_pressed_light">#3A3A3C</color>   <!-- 按下背景：中灰色 -->
 
     <!-- 🎯 强调色系 - 暗色模式 (简约淡雅风格) -->
     <color name="simple_mode_accent_light">#9AA0A6</color>           <!-- 强调色：淡灰蓝色 -->
