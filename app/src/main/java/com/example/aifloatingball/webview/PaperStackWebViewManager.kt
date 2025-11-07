@@ -329,6 +329,15 @@ class PaperStackWebViewManager(
                 }
                 
                 @android.webkit.JavascriptInterface
+                fun createNewGroup() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 创建新组（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onCreateNewGroup()
+                        Log.d(TAG, "功能主页：创建新组")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
                 fun openGroupManager() {
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         // 打开组管理（通过回调通知外部）
@@ -350,6 +359,7 @@ class PaperStackWebViewManager(
     interface FunctionalHomeActionListener {
         fun onShowGestureGuide()
         fun onOpenDownloadManager()
+        fun onCreateNewGroup()
         fun onOpenGroupManager()
     }
     
@@ -430,25 +440,37 @@ class PaperStackWebViewManager(
     }
 
     /**
-     * 切换到下一个标签页
+     * 切换到下一个标签页（不循环，到达边界时停止）
      */
     fun switchToNextTab() {
         if (isAnimating || tabs.isEmpty()) return
         
-        val nextIndex = (currentTabIndex + 1) % tabs.size
-        if (nextIndex != currentTabIndex) {
+        // 不循环，如果已经是最后一个标签页，不切换
+        if (currentTabIndex >= tabs.size - 1) {
+            Log.d(TAG, "已经是最后一个标签页，不切换")
+            return
+        }
+        
+        val nextIndex = currentTabIndex + 1
+        if (nextIndex < tabs.size) {
             switchToTab(nextIndex)
         }
     }
 
     /**
-     * 切换到上一个标签页
+     * 切换到上一个标签页（不循环，到达边界时停止）
      */
     fun switchToPreviousTab() {
         if (isAnimating || tabs.isEmpty()) return
         
-        val prevIndex = if (currentTabIndex == 0) tabs.size - 1 else currentTabIndex - 1
-        if (prevIndex != currentTabIndex) {
+        // 不循环，如果已经是第一个标签页，不切换
+        if (currentTabIndex <= 0) {
+            Log.d(TAG, "已经是第一个标签页，不切换")
+            return
+        }
+        
+        val prevIndex = currentTabIndex - 1
+        if (prevIndex >= 0) {
             switchToTab(prevIndex)
         }
     }

@@ -86,7 +86,7 @@ class TabGroupManager private constructor(private val context: Context) {
      * 获取当前组
      */
     fun getCurrentGroup(): TabGroup? {
-        return currentGroupId?.let { getGroupById(it) } ?: groups.firstOrNull()
+        return currentGroupId?.let { getGroupById(it) }
     }
     
     /**
@@ -181,26 +181,36 @@ class TabGroupManager private constructor(private val context: Context) {
         try {
             val groupsJson = prefs.getString(KEY_GROUPS, null)
             if (groupsJson.isNullOrEmpty()) {
-                // 如果没有保存的组，创建默认组
+                // 如果没有保存的组，创建默认组（但不显示在UI中）
                 val defaultGroup = TabGroup.createDefault()
                 groups.add(defaultGroup)
                 currentGroupId = defaultGroup.id
                 saveGroups()
                 saveCurrentGroupId()
-                Log.d(TAG, "创建默认组")
+                Log.d(TAG, "创建默认组（不显示在UI中）")
             } else {
                 val type = object : TypeToken<List<TabGroup>>() {}.type
                 val loadedGroups = gson.fromJson<List<TabGroup>>(groupsJson, type) ?: emptyList()
                 groups.clear()
                 groups.addAll(loadedGroups)
                 
-                // 加载当前组ID
-                currentGroupId = prefs.getString(KEY_CURRENT_GROUP_ID, null)
-                
-                // 如果没有当前组或当前组不存在，使用第一个组
-                if (currentGroupId == null || groups.none { it.id == currentGroupId }) {
-                    currentGroupId = groups.firstOrNull()?.id
+                // 如果没有组，创建默认组
+                if (groups.isEmpty()) {
+                    val defaultGroup = TabGroup.createDefault()
+                    groups.add(defaultGroup)
+                    currentGroupId = defaultGroup.id
+                    saveGroups()
                     saveCurrentGroupId()
+                    Log.d(TAG, "加载后没有组，创建默认组")
+                } else {
+                    // 加载当前组ID
+                    currentGroupId = prefs.getString(KEY_CURRENT_GROUP_ID, null)
+                    
+                    // 如果没有当前组或当前组不存在，使用第一个组（如果有的话）
+                    if (currentGroupId == null || groups.none { it.id == currentGroupId }) {
+                        currentGroupId = groups.firstOrNull()?.id
+                        saveCurrentGroupId()
+                    }
                 }
                 
                 Log.d(TAG, "加载 ${groups.size} 个组，当前组: $currentGroupId")

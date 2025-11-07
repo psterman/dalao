@@ -683,6 +683,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserBtnClear: ImageButton
     private lateinit var browserBtnAi: ImageButton
     private lateinit var browserBtnSite: ImageButton
+    
+    // 组标签栏相关
+    private var groupTabsContainer: HorizontalScrollView? = null
+    private var groupTabsLayout: LinearLayout? = null
+    private val groupChips = mutableMapOf<String, com.google.android.material.chip.Chip>()
 
     // 震动反馈管理器
     private var vibrator: android.os.Vibrator? = null
@@ -1846,6 +1851,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserBtnAi = findViewById(R.id.browser_btn_ai)
         browserBtnSite = findViewById(R.id.browser_btn_site)
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
+        
+        // 初始化组标签栏
+        groupTabsContainer = findViewById(R.id.group_tabs_container)
+        groupTabsLayout = findViewById(R.id.group_tabs_layout)
+        
+        // 刷新组标签栏
+        refreshGroupTabs()
+        
+        // 监听组变化，自动刷新标签栏
+        val groupManager = TabGroupManager.getInstance(this)
+        groupManager.addGroupChangeListener {
+            refreshGroupTabs()
+        }
 
         // 开始浏览按钮
         val browserStartBrowsingButton = findViewById<MaterialButton>(R.id.browser_start_browsing_button)
@@ -6316,6 +6334,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
+            override fun onCreateNewGroup() {
+                // 打开组管理界面（包含创建、编辑、删除等功能）
+                try {
+                    showGroupManagerDialog()
+                    Log.d(TAG, "成功打开组管理界面")
+                } catch (e: Exception) {
+                    Log.e(TAG, "组管理按钮点击处理失败", e)
+                    showMaterialToast("打开组管理失败")
+                }
+            }
+            
             override fun onOpenGroupManager() {
                 // 打开组管理界面
                 try {
@@ -8803,15 +8832,47 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             // 为搜索输入框添加上滑手势检测
             browserSearchInput.setOnTouchListener { view, event ->
-                val handled = handleBrowserSwipeUpGesture(view, event)
-                Log.d(TAG, "搜索输入框触摸事件: action=${event.action}, handled=$handled, hasFocus=${browserSearchInput.hasFocus()}")
-                
-                // 如果手势已处理，返回true；否则让输入框正常处理（如点击获取焦点）
-                if (handled) {
-                    true
-                } else {
-                    // 让输入框正常处理点击等事件
-                    false
+                // 如果是点击事件（ACTION_DOWN后很快ACTION_UP），不处理手势，让输入框正常处理
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // 记录按下时间和位置，用于判断是否为点击
+                        val clickStartTime = System.currentTimeMillis()
+                        val clickStartX = event.x
+                        val clickStartY = event.y
+                        view.tag = android.util.Pair(clickStartTime, android.util.Pair(clickStartX, clickStartY))
+                        // 先让输入框处理DOWN事件，同时记录起始位置用于手势检测
+                        val handled = handleBrowserSwipeUpGesture(view, event)
+                        // 如果手势处理返回true，说明是上滑手势，消费事件；否则让输入框处理
+                        return@setOnTouchListener handled
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val tagData = view.tag as? android.util.Pair<*, *>
+                        val clickStartTime = tagData?.first as? Long ?: 0L
+                        val clickStartPos = tagData?.second as? android.util.Pair<*, *>
+                        val clickStartX = (clickStartPos?.first as? Float) ?: 0f
+                        val clickStartY = (clickStartPos?.second as? Float) ?: 0f
+                        val clickDuration = System.currentTimeMillis() - clickStartTime
+                        val moveDistance = kotlin.math.sqrt(
+                            (event.x - clickStartX) * (event.x - clickStartX) + 
+                            (event.y - clickStartY) * (event.y - clickStartY)
+                        )
+                        // 如果点击时间很短且移动距离很小，认为是点击，不处理手势
+                        if (clickDuration < 300 && moveDistance < 20) {
+                            return@setOnTouchListener false // 让输入框正常处理点击
+                        }
+                        // 否则处理手势
+                        val handled = handleBrowserSwipeUpGesture(view, event)
+                        return@setOnTouchListener handled
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // MOVE事件总是传递给手势处理
+                        val handled = handleBrowserSwipeUpGesture(view, event)
+                        return@setOnTouchListener handled
+                    }
+                    else -> {
+                        val handled = handleBrowserSwipeUpGesture(view, event)
+                        return@setOnTouchListener handled
+                    }
                 }
             }
             
@@ -9556,10 +9617,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getStackedCardPreviewCards(): List<GestureCardWebViewManager.WebViewCardData> {
         try {
+            // 获取当前组的标签页（只显示当前组的标签页，不混淆其他组）
+            val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
             val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
             val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
-            val paperStackTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
             val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+            
+            // 获取当前组ID，用于日志
+            val currentGroupId = paperStackWebViewManager?.getCurrentGroupId()
+            Log.d(TAG, "=== StackedCardPreview获取卡片数据 - 当前组ID: $currentGroupId ===")
 
             Log.d(TAG, "=== StackedCardPreview专用卡片数据获取开始 ===")
 
@@ -28032,7 +28098,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showGroupManagerDialog() {
         try {
             val groupManager = TabGroupManager.getInstance(this)
-            val groups = groupManager.getAllGroups()
+            val allGroups = groupManager.getAllGroups()
+            
+            // 过滤掉默认组，只显示用户创建的组
+            val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
             
             // 创建对话框，直接使用RecyclerView显示组列表
             val dialogView = LayoutInflater.from(this).inflate(R.layout.fragment_tab_group_manager, null)
@@ -28047,7 +28116,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 创建适配器（在 lambda 中可以引用已声明的 adapter 变量）
             adapter = TabGroupAdapter(
-                groups = groups.toMutableList(),
+                groups = userGroups.toMutableList(),
                 onGroupClick = { group ->
                     // 点击组，切换到该组
                     groupManager.setCurrentGroup(group.id)
@@ -28060,28 +28129,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 onGroupEdit = { group ->
                     // 编辑组名
                     showEditGroupDialog(group, groupManager) { 
-                        adapter.updateGroups(groupManager.getAllGroups())
+                        val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                        adapter.updateGroups(updatedGroups)
+                        refreshGroupTabs() // 同时刷新顶部标签栏
                     }
                 },
                 onGroupDelete = { group ->
                     // 删除组
                     showDeleteGroupDialog(group, groupManager) {
-                        adapter.updateGroups(groupManager.getAllGroups())
+                        val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                        adapter.updateGroups(updatedGroups)
+                        refreshGroupTabs() // 同时刷新顶部标签栏
                     }
                 },
                 onGroupPin = { group ->
                     // 置顶/取消置顶
                     groupManager.togglePinGroup(group.id)
-                    adapter.updateGroups(groupManager.getAllGroups())
+                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                    adapter.updateGroups(updatedGroups)
+                    refreshGroupTabs() // 同时刷新顶部标签栏
                 },
                 onGroupDrag = { fromPosition, toPosition ->
                     // 拖动排序
-                    val currentGroups = groupManager.getAllGroups()
+                    val currentGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
                     val groupIds = currentGroups.map { it.id }.toMutableList()
                     val fromId = groupIds.removeAt(fromPosition)
                     groupIds.add(toPosition, fromId)
                     groupManager.updateGroupOrder(groupIds)
-                    adapter.updateGroups(groupManager.getAllGroups())
+                    // 更新时也要过滤默认组
+                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                    adapter.updateGroups(updatedGroups)
                 }
             )
             
@@ -28094,7 +28171,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 新建组按钮
             btnAddGroup?.setOnClickListener {
                 showCreateGroupDialog(groupManager) {
-                    adapter.updateGroups(groupManager.getAllGroups())
+                    // 更新时也要过滤默认组
+                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                    adapter.updateGroups(updatedGroups)
+                    refreshGroupTabs() // 同时刷新顶部标签栏
                 }
             }
             
@@ -28177,6 +28257,194 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             .setPositiveButton("删除") { _, _ ->
                 if (groupManager.deleteGroup(group.id)) {
                     onGroupDeleted()
+                    showMaterialToast("组已删除")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 刷新组标签栏（显示所有已创建的组）
+     */
+    private fun refreshGroupTabs() {
+        try {
+            val groupManager = TabGroupManager.getInstance(this)
+            val allGroups = groupManager.getAllGroups()
+            val currentGroupId = groupManager.getCurrentGroup()?.id
+            
+            // 过滤掉默认组，只显示用户创建的组
+            val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+            
+            // 如果没有用户创建的组，隐藏标签栏
+            if (userGroups.isEmpty()) {
+                groupTabsContainer?.visibility = View.GONE
+                return
+            }
+            
+            // 有用户创建的组时显示标签栏
+            groupTabsContainer?.visibility = View.VISIBLE
+            
+            // 清除旧的组标签
+            groupChips.values.forEach { chip ->
+                groupTabsLayout?.removeView(chip)
+            }
+            groupChips.clear()
+            
+            // 添加所有用户创建的组标签（不包括默认组）
+            userGroups.forEach { group ->
+                val chip = com.google.android.material.chip.Chip(this).apply {
+                    text = group.name
+                    isClickable = true
+                    isFocusable = true
+                    isCheckable = true
+                    isChecked = (group.id == currentGroupId)
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        val margin8dp = (8 * resources.displayMetrics.density).toInt()
+                        marginEnd = margin8dp
+                    }
+                    setOnClickListener {
+                        switchToGroup(group.id, groupManager)
+                    }
+                    setOnLongClickListener {
+                        showGroupContextMenu(group, groupManager)
+                        true
+                    }
+                    // 设置样式
+                    textSize = 14f
+                    val minHeight36dp = (36 * resources.displayMetrics.density).toInt()
+                    minHeight = minHeight36dp
+                    val padding12dp = (12 * resources.displayMetrics.density).toInt()
+                    setPadding(padding12dp, 0, padding12dp, 0)
+                    chipBackgroundColor = resources.getColorStateList(R.color.chip_background_color_selector)
+                    chipStrokeColor = resources.getColorStateList(R.color.chip_stroke_color_selector)
+                    val strokeWidth1dp = (1 * resources.displayMetrics.density).toInt()
+                    chipStrokeWidth = strokeWidth1dp.toFloat()
+                    val cornerRadius18dp = (18 * resources.displayMetrics.density).toInt()
+                    chipCornerRadius = cornerRadius18dp.toFloat()
+                    setTextColor(resources.getColorStateList(R.color.chip_text_color_selector))
+                }
+                groupTabsLayout?.addView(chip)
+                groupChips[group.id] = chip
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新组标签栏失败", e)
+        }
+    }
+    
+    /**
+     * 切换到指定组
+     */
+    private fun switchToGroup(groupId: String, groupManager: TabGroupManager) {
+        try {
+            groupManager.setCurrentGroup(groupId)
+            
+            // 切换到该组
+            paperStackWebViewManager?.switchToGroup(groupId) { tabs ->
+                Log.d(TAG, "切换到组 ${groupManager.getCurrentGroup()?.name}，加载 ${tabs.size} 个标签页")
+                syncAllCardSystems()
+                refreshGroupTabs()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切换组失败", e)
+            showMaterialToast("切换组失败：${e.message}")
+        }
+    }
+    
+    /**
+     * 显示组上下文菜单（长按）
+     */
+    private fun showGroupContextMenu(group: TabGroup, groupManager: TabGroupManager) {
+        val items = arrayOf("编辑", "删除")
+        AlertDialog.Builder(this)
+            .setTitle(group.name)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> showEditGroupDialogInline(group, groupManager)
+                    1 -> showDeleteGroupDialogInline(group, groupManager)
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 内联创建组对话框
+     */
+    private fun showCreateGroupDialogInline(groupManager: TabGroupManager) {
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            hint = "请输入组名"
+            requestFocus()
+        }
+        
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("新建标签组")
+            .setMessage("为您的标签组起个名字")
+            .setView(input)
+            .setPositiveButton("创建") { _, _ ->
+                val groupName = input.text.toString().trim()
+                if (groupName.isNotEmpty()) {
+                    val newGroup = groupManager.createGroup(groupName)
+                    // 创建新组后自动设置为当前组
+                    groupManager.setCurrentGroup(newGroup.id)
+                    refreshGroupTabs()
+                    showMaterialToast("标签组「${groupName}」已创建")
+                } else {
+                    showMaterialToast("组名不能为空")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.show()
+        
+        // 显示键盘
+        val window = dialog.window
+        window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+    
+    /**
+     * 内联编辑组对话框
+     */
+    private fun showEditGroupDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setText(group.name)
+            hint = "请输入组名"
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("编辑组名")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val groupName = input.text.toString().trim()
+                if (groupName.isNotEmpty()) {
+                    groupManager.updateGroup(group.id, name = groupName)
+                    refreshGroupTabs()
+                    showMaterialToast("组名已更新")
+                } else {
+                    showMaterialToast("组名不能为空")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 内联删除组对话框
+     */
+    private fun showDeleteGroupDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        AlertDialog.Builder(this)
+            .setTitle("删除组")
+            .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
+            .setPositiveButton("删除") { _, _ ->
+                if (groupManager.deleteGroup(group.id)) {
+                    refreshGroupTabs()
                     showMaterialToast("组已删除")
                 }
             }

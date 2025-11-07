@@ -1951,6 +1951,31 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
+            <!-- 组标签栏（动态显示已创建的组） -->
+            <HorizontalScrollView
+                android:id="@+id/group_tabs_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:fadeScrollbars="true"
+                android:fillViewport="true"
+                android:background="?android:attr/colorBackground"
+                android:visibility="gone">
+                
+                <LinearLayout
+                    android:id="@+id/group_tabs_layout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp">
+                    
+                </LinearLayout>
+            </HorizontalScrollView>
+
             <!-- WebView容器 -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -2407,7 +2432,7 @@
                 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
             </LinearLayout>
-
+            
             <!-- 工具栏 - 移到底部 -->
             <LinearLayout
                 android:id="@+id/browser_toolbar"
