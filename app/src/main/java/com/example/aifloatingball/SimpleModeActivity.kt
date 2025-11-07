@@ -28100,8 +28100,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val groupManager = TabGroupManager.getInstance(this)
             val allGroups = groupManager.getAllGroups()
             
-            // 过滤掉默认组，只显示用户创建的组
+            // 分离默认组和用户创建的组
+            val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
             val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+            
+            // 如果有用户创建的组，则显示默认组（第一个）和所有用户创建的组；否则只显示用户创建的组（此时为空，不显示）
+            val groupsToShow = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                listOf(defaultGroup) + userGroups
+            } else {
+                userGroups
+            }
             
             // 创建对话框，直接使用RecyclerView显示组列表
             val dialogView = LayoutInflater.from(this).inflate(R.layout.fragment_tab_group_manager, null)
@@ -28116,7 +28124,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 创建适配器（在 lambda 中可以引用已声明的 adapter 变量）
             adapter = TabGroupAdapter(
-                groups = userGroups.toMutableList(),
+                groups = groupsToShow.toMutableList(),
                 onGroupClick = { group ->
                     // 点击组，切换到该组
                     groupManager.setCurrentGroup(group.id)
@@ -28129,7 +28137,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 onGroupEdit = { group ->
                     // 编辑组名
                     showEditGroupDialog(group, groupManager) { 
-                        val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                        val allGroups = groupManager.getAllGroups()
+                        val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                        val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                            listOf(defaultGroup) + userGroups
+                        } else {
+                            userGroups
+                        }
                         adapter.updateGroups(updatedGroups)
                         refreshGroupTabs() // 同时刷新顶部标签栏
                     }
@@ -28137,7 +28152,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 onGroupDelete = { group ->
                     // 删除组
                     showDeleteGroupDialog(group, groupManager) {
-                        val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                        val allGroups = groupManager.getAllGroups()
+                        val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                        val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                            listOf(defaultGroup) + userGroups
+                        } else {
+                            userGroups
+                        }
                         adapter.updateGroups(updatedGroups)
                         refreshGroupTabs() // 同时刷新顶部标签栏
                     }
@@ -28145,20 +28167,47 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 onGroupPin = { group ->
                     // 置顶/取消置顶
                     groupManager.togglePinGroup(group.id)
-                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                    val allGroups = groupManager.getAllGroups()
+                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                    val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                        listOf(defaultGroup) + userGroups
+                    } else {
+                        userGroups
+                    }
                     adapter.updateGroups(updatedGroups)
                     refreshGroupTabs() // 同时刷新顶部标签栏
                 },
                 onGroupDrag = { fromPosition, toPosition ->
-                    // 拖动排序
-                    val currentGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
-                    val groupIds = currentGroups.map { it.id }.toMutableList()
-                    val fromId = groupIds.removeAt(fromPosition)
-                    groupIds.add(toPosition, fromId)
-                    groupManager.updateGroupOrder(groupIds)
-                    // 更新时也要过滤默认组
-                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
-                    adapter.updateGroups(updatedGroups)
+                    // 拖动排序（注意：默认组应该始终在第一个位置，不能拖动）
+                    val allGroups = groupManager.getAllGroups()
+                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                    
+                    // 如果拖动的是默认组（位置0），不允许拖动
+                    if (defaultGroup != null && fromPosition == 0) {
+                        return@TabGroupAdapter
+                    }
+                    
+                    // 只对用户创建的组进行排序
+                    val groupIds = userGroups.map { it.id }.toMutableList()
+                    val adjustedFromPosition = if (defaultGroup != null) fromPosition - 1 else fromPosition
+                    val adjustedToPosition = if (defaultGroup != null) toPosition - 1 else toPosition
+                    
+                    if (adjustedFromPosition >= 0 && adjustedFromPosition < groupIds.size &&
+                        adjustedToPosition >= 0 && adjustedToPosition < groupIds.size) {
+                        val fromId = groupIds.removeAt(adjustedFromPosition)
+                        groupIds.add(adjustedToPosition, fromId)
+                        groupManager.updateGroupOrder(groupIds)
+                        
+                        // 更新适配器
+                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                            listOf(defaultGroup) + userGroups.sortedBy { groupIds.indexOf(it.id) }
+                        } else {
+                            userGroups.sortedBy { groupIds.indexOf(it.id) }
+                        }
+                        adapter.updateGroups(updatedGroups)
+                    }
                 }
             )
             
@@ -28171,8 +28220,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 新建组按钮
             btnAddGroup?.setOnClickListener {
                 showCreateGroupDialog(groupManager) {
-                    // 更新时也要过滤默认组
-                    val updatedGroups = groupManager.getAllGroups().filter { !it.id.startsWith("group_default_") }
+                    // 更新时包含默认组（如果有用户创建的组）
+                    val allGroups = groupManager.getAllGroups()
+                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                    val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
+                        listOf(defaultGroup) + userGroups
+                    } else {
+                        userGroups
+                    }
                     adapter.updateGroups(updatedGroups)
                     refreshGroupTabs() // 同时刷新顶部标签栏
                 }
@@ -28266,6 +28322,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     /**
      * 刷新组标签栏（显示所有已创建的组）
+     * 逻辑：如果没有用户创建的组，隐藏标签栏；如果有用户创建的组，显示默认组（第一个）和所有用户创建的组
      */
     private fun refreshGroupTabs() {
         try {
@@ -28273,10 +28330,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val allGroups = groupManager.getAllGroups()
             val currentGroupId = groupManager.getCurrentGroup()?.id
             
-            // 过滤掉默认组，只显示用户创建的组
+            // 分离默认组和用户创建的组
+            val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
             val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
             
-            // 如果没有用户创建的组，隐藏标签栏
+            // 如果没有用户创建的组，隐藏标签栏（包括默认组）
             if (userGroups.isEmpty()) {
                 groupTabsContainer?.visibility = View.GONE
                 return
@@ -28291,48 +28349,62 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             groupChips.clear()
             
-            // 添加所有用户创建的组标签（不包括默认组）
+            // 先添加默认组（如果有的话，作为第一个标签）
+            defaultGroup?.let { group ->
+                val chip = createGroupChip(group, currentGroupId, groupManager)
+                groupTabsLayout?.addView(chip)
+                groupChips[group.id] = chip
+            }
+            
+            // 再添加所有用户创建的组标签
             userGroups.forEach { group ->
-                val chip = com.google.android.material.chip.Chip(this).apply {
-                    text = group.name
-                    isClickable = true
-                    isFocusable = true
-                    isCheckable = true
-                    isChecked = (group.id == currentGroupId)
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply {
-                        val margin8dp = (8 * resources.displayMetrics.density).toInt()
-                        marginEnd = margin8dp
-                    }
-                    setOnClickListener {
-                        switchToGroup(group.id, groupManager)
-                    }
-                    setOnLongClickListener {
-                        showGroupContextMenu(group, groupManager)
-                        true
-                    }
-                    // 设置样式
-                    textSize = 14f
-                    val minHeight36dp = (36 * resources.displayMetrics.density).toInt()
-                    minHeight = minHeight36dp
-                    val padding12dp = (12 * resources.displayMetrics.density).toInt()
-                    setPadding(padding12dp, 0, padding12dp, 0)
-                    chipBackgroundColor = resources.getColorStateList(R.color.chip_background_color_selector)
-                    chipStrokeColor = resources.getColorStateList(R.color.chip_stroke_color_selector)
-                    val strokeWidth1dp = (1 * resources.displayMetrics.density).toInt()
-                    chipStrokeWidth = strokeWidth1dp.toFloat()
-                    val cornerRadius18dp = (18 * resources.displayMetrics.density).toInt()
-                    chipCornerRadius = cornerRadius18dp.toFloat()
-                    setTextColor(resources.getColorStateList(R.color.chip_text_color_selector))
-                }
+                val chip = createGroupChip(group, currentGroupId, groupManager)
                 groupTabsLayout?.addView(chip)
                 groupChips[group.id] = chip
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "刷新组标签栏失败", e)
+        }
+    }
+    
+    /**
+     * 创建组标签Chip
+     */
+    private fun createGroupChip(group: TabGroup, currentGroupId: String?, groupManager: TabGroupManager): com.google.android.material.chip.Chip {
+        return com.google.android.material.chip.Chip(this).apply {
+            text = group.name
+            isClickable = true
+            isFocusable = true
+            isCheckable = true
+            isChecked = (group.id == currentGroupId)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                val margin8dp = (8 * resources.displayMetrics.density).toInt()
+                marginEnd = margin8dp
+            }
+            setOnClickListener {
+                switchToGroup(group.id, groupManager)
+            }
+            setOnLongClickListener {
+                showGroupContextMenu(group, groupManager)
+                true
+            }
+            // 设置样式
+            textSize = 14f
+            val minHeight36dp = (36 * resources.displayMetrics.density).toInt()
+            minHeight = minHeight36dp
+            val padding12dp = (12 * resources.displayMetrics.density).toInt()
+            setPadding(padding12dp, 0, padding12dp, 0)
+            chipBackgroundColor = resources.getColorStateList(R.color.chip_background_color_selector)
+            chipStrokeColor = resources.getColorStateList(R.color.chip_stroke_color_selector)
+            val strokeWidth1dp = (1 * resources.displayMetrics.density).toInt()
+            chipStrokeWidth = strokeWidth1dp.toFloat()
+            val cornerRadius18dp = (18 * resources.displayMetrics.density).toInt()
+            chipCornerRadius = cornerRadius18dp.toFloat()
+            setTextColor(resources.getColorStateList(R.color.chip_text_color_selector))
         }
     }
     
