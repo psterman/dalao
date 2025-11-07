@@ -14,6 +14,19 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.graphics.PixelFormat
+import android.os.Build
+import android.view.Gravity
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebViewClient
+import android.webkit.URLUtil
+import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.webkit.WebView
 import android.widget.ImageView
 import android.widget.TextView
@@ -48,10 +61,19 @@ class EnhancedMenuManager(
     
     private var currentWebView: WebView? = null
     private var floatingMenuView: View? = null
+    private var previewWindowView: View? = null // 预览窗视图
+    private var previewWebView: WebView? = null // 预览WebView
     private val isMenuShowing = AtomicBoolean(false)
     private val isMenuAnimating = AtomicBoolean(false)
+    private val isPreviewShowing = AtomicBoolean(false) // 预览窗显示状态
     private val handler = Handler(Looper.getMainLooper())
     private var autoHideRunnable: Runnable? = null
+    private var previewWindowParams: WindowManager.LayoutParams? = null
+    private var previewInitialX = 0f
+    private var previewInitialY = 0f
+    private var previewInitialTouchX = 0f
+    private var previewInitialTouchY = 0f
+    private var isPreviewDragging = false
     
     // 增强下载管理器
     private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
@@ -136,19 +158,76 @@ class EnhancedMenuManager(
     
     /**
      * 显示增强版链接菜单
+     * 如果是网页链接，显示预览悬浮窗；否则显示普通菜单
      */
     fun showEnhancedLinkMenu(webView: WebView, url: String, title: String, x: Int, y: Int) {
         Log.d(TAG, "显示增强版链接菜单: $url")
         
-        if (isMenuShowing.get() || isMenuAnimating.get()) {
-            hideMenu(true)
-            handler.postDelayed({
-                doShowEnhancedLinkMenu(webView, url, title, x, y)
-            }, 160)
-            return
+        // 检测链接类型，判断是否为可预览的网页链接
+        if (isPreviewableUrl(url)) {
+            // 网页链接，显示预览悬浮窗
+            Log.d(TAG, "检测到网页链接，显示预览悬浮窗: $url")
+            if (isPreviewShowing.get() || isMenuShowing.get()) {
+                hidePreviewWindow(true)
+                hideMenu(true)
+                handler.postDelayed({
+                    showLinkPreviewWindow(webView, url, title, x, y)
+                }, 160)
+                return
+            }
+            showLinkPreviewWindow(webView, url, title, x, y)
+        } else {
+            // 非网页链接（如mailto:、tel:等），显示普通菜单
+            Log.d(TAG, "检测到非网页链接，显示普通菜单: $url")
+            if (isMenuShowing.get() || isMenuAnimating.get()) {
+                hideMenu(true)
+                handler.postDelayed({
+                    doShowEnhancedLinkMenu(webView, url, title, x, y)
+                }, 160)
+                return
+            }
+            doShowEnhancedLinkMenu(webView, url, title, x, y)
+        }
+    }
+    
+    /**
+     * 判断URL是否为可预览的网页链接
+     */
+    private fun isPreviewableUrl(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return false
+        
+        val lowerUrl = url.lowercase().trim()
+        
+        // 排除非网页链接协议
+        val nonPreviewableSchemes = listOf(
+            "mailto:", "tel:", "sms:", "smsto:", "geo:", "market:",
+            "intent:", "weixin:", "mqqapi:", "taobao:", "alipay:",
+            "snssdk1128:", "sinaweibo:", "bilibili:", "youtube:",
+            "wework:", "tim:", "xhsdiscover:", "douban:", "twitter:",
+            "zhihu:", "file:", "content:", "android.resource:"
+        )
+        
+        // 检查是否为非预览协议
+        if (nonPreviewableSchemes.any { lowerUrl.startsWith(it) }) {
+            return false
         }
         
-        doShowEnhancedLinkMenu(webView, url, title, x, y)
+        // 检查是否为HTTP/HTTPS链接
+        if (URLUtil.isHttpUrl(url) || URLUtil.isHttpsUrl(url)) {
+            return true
+        }
+        
+        // 检查是否为网络URL（包括其他协议如ftp:等，但这些通常也可以预览）
+        if (URLUtil.isNetworkUrl(url)) {
+            return true
+        }
+        
+        // 如果URL包含常见域名模式，也认为是可预览的
+        if (lowerUrl.matches(Regex(".*\\.(com|cn|net|org|gov|edu|io|co|me|tv|cc|so|tel|red|kim|xyz|ai|show|art|run|gold|fit|fan|ren|love|beer|luxe|yoga|fund|city|host|zone|cash|guru|pub|bid|plus|chat|law|tax|team|band|cab|tips|jobs|one|men|bet|fish|sale|game|help|gift|loan|cars|auto|care|cafe|pet|fit|hair|baby|toys|land|farm|food|wine|vote|voto|date|wed|sexy|sex|gay|porn|xxx|adult|sex|cam|xxx|porn|bet|tube|cam|pics|gay|sex|porn|xxx|loan)$", RegexOption.IGNORE_CASE))) {
+            return true
+        }
+        
+        return false
     }
     
     private fun doShowEnhancedLinkMenu(webView: WebView, url: String, title: String, x: Int, y: Int) {
@@ -897,6 +976,395 @@ class EnhancedMenuManager(
     }
     
     /**
+     * 显示链接预览悬浮窗
+     */
+    private fun showLinkPreviewWindow(webView: WebView, url: String, title: String, x: Int, y: Int) {
+        try {
+            currentWebView = webView
+            isPreviewShowing.set(true)
+            
+            val themedContext = android.view.ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+            previewWindowView = LayoutInflater.from(themedContext)
+                .inflate(R.layout.link_preview_window, null)
+            
+            val container = previewWindowView!!.findViewById<androidx.cardview.widget.CardView>(R.id.preview_window_container)!!
+            val previewWebView = previewWindowView!!.findViewById<WebView>(R.id.preview_webview)!!
+            val loadingIndicator = previewWindowView!!.findViewById<ProgressBar>(R.id.preview_loading)!!
+            val previewTitle = previewWindowView!!.findViewById<TextView>(R.id.preview_title)!!
+            val previewFavicon = previewWindowView!!.findViewById<ImageView>(R.id.preview_favicon)!!
+            val btnClose = previewWindowView!!.findViewById<ImageButton>(R.id.btn_close_preview)!!
+            
+            // 保存预览WebView引用
+            this.previewWebView = previewWebView
+            
+            // 设置标题
+            previewTitle.text = title.ifEmpty { "链接预览" }
+            
+            // 加载favicon
+            FaviconLoader.loadFavicon(previewFavicon, url)
+            
+            // 设置预览WebView
+            setupPreviewWebView(previewWebView, url, loadingIndicator)
+            
+            // 设置菜单按钮
+            setupPreviewMenuButtons(webView, url, title)
+            
+            // 设置关闭按钮
+            btnClose.setOnClickListener {
+                hidePreviewWindow()
+            }
+            
+            // 设置拖拽功能
+            setupPreviewDrag(container)
+            
+            // 设置点击外部关闭
+            previewWindowView!!.setOnTouchListener { view, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    val containerRect = android.graphics.Rect()
+                    container.getGlobalVisibleRect(containerRect)
+                    val touchX = event.rawX.toInt()
+                    val touchY = event.rawY.toInt()
+                    
+                    if (!containerRect.contains(touchX, touchY)) {
+                        Log.d(TAG, "点击预览窗外部区域，关闭预览")
+                        hidePreviewWindow()
+                        return@setOnTouchListener true
+                    }
+                }
+                false
+            }
+            
+            // 计算预览窗位置和大小
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            val density = context.resources.displayMetrics.density
+            
+            // 测量预览窗
+            container.measure(
+                View.MeasureSpec.makeMeasureSpec((screenWidth * 0.9f).toInt(), View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec((screenHeight * 0.8f).toInt(), View.MeasureSpec.AT_MOST)
+            )
+            
+            val previewWidth = container.measuredWidth.coerceAtMost((400 * density).toInt())
+            val previewHeight = container.measuredHeight.coerceAtMost((600 * density).toInt())
+            
+            // 计算位置：优先在触摸点附近，但确保不超出屏幕
+            val margin = (16 * density).toInt()
+            var finalX = (x - previewWidth / 2).coerceIn(margin, screenWidth - previewWidth - margin)
+            var finalY = (y - previewHeight / 2).coerceIn(margin, screenHeight - previewHeight - margin)
+            
+            // 如果触摸点太靠近边缘，居中显示
+            if (x < screenWidth / 4 || x > screenWidth * 3 / 4) {
+                finalX = (screenWidth - previewWidth) / 2
+            }
+            if (y < screenHeight / 4 || y > screenHeight * 3 / 4) {
+                finalY = (screenHeight - previewHeight) / 2
+            }
+            
+            // 创建窗口参数
+            previewWindowParams = WindowManager.LayoutParams(
+                previewWidth,
+                previewHeight,
+                OVERLAY_WINDOW_TYPE,
+                MENU_WINDOW_FLAGS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                this.x = finalX
+                this.y = finalY
+                gravity = Gravity.TOP or Gravity.START
+            }
+            
+            // 添加预览窗到窗口管理器
+            windowManager.addView(previewWindowView, previewWindowParams)
+            
+            // 显示动画
+            container.alpha = 0f
+            container.scaleX = 0.9f
+            container.scaleY = 0.9f
+            container.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(250)
+                .start()
+            
+            Log.d(TAG, "链接预览悬浮窗已显示: $url")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示链接预览悬浮窗失败", e)
+            cleanupPreviewState()
+        }
+    }
+    
+    /**
+     * 设置预览WebView
+     */
+    private fun setupPreviewWebView(webView: WebView, url: String, loadingIndicator: ProgressBar) {
+        webView.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            setSupportZoom(true)
+            builtInZoomControls = false
+            displayZoomControls = false
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            cacheMode = WebSettings.LOAD_DEFAULT
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            // 设置用户代理，确保网站正确识别
+            userAgentString = userAgentString
+            // 启用媒体播放
+            mediaPlaybackRequiresUserGesture = false
+            // 允许访问文件
+            allowFileAccess = true
+            allowContentAccess = true
+        }
+        
+        // 启用硬件加速，确保正确渲染
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+        
+        // 设置WebView背景为白色，避免黑框
+        webView.setBackgroundColor(0xFFFFFFFF.toInt())
+        webView.isHorizontalScrollBarEnabled = false
+        webView.isVerticalScrollBarEnabled = false
+        
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                loadingIndicator.visibility = View.VISIBLE
+                // 确保WebView可见
+                view?.visibility = View.VISIBLE
+            }
+            
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                loadingIndicator.visibility = View.GONE
+                // 页面加载完成后，注入JavaScript确保内容正确显示
+                view?.evaluateJavascript("""
+                    (function() {
+                        // 移除可能的全屏覆盖层
+                        var overlays = document.querySelectorAll('[style*="position: fixed"], [style*="position:absolute"]');
+                        overlays.forEach(function(el) {
+                            if (el.style.zIndex > 1000) {
+                                el.style.display = 'none';
+                            }
+                        });
+                        // 确保body可见
+                        document.body.style.visibility = 'visible';
+                        document.body.style.opacity = '1';
+                        // 移除可能的黑色背景
+                        var blackElements = document.querySelectorAll('body, html');
+                        blackElements.forEach(function(el) {
+                            if (el.style.backgroundColor === 'rgb(0, 0, 0)' || 
+                                el.style.backgroundColor === 'black') {
+                                el.style.backgroundColor = '#FFFFFF';
+                            }
+                        });
+                    })();
+                """.trimIndent(), null)
+            }
+            
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
+                super.onReceivedError(view, request, error)
+                loadingIndicator.visibility = View.GONE
+                Log.e(TAG, "预览WebView加载错误: ${error?.description}, URL: ${request?.url}")
+            }
+            
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                // 预览窗内不处理链接跳转，保持预览状态
+                return true
+            }
+            
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?
+            ) {
+                super.onReceivedHttpError(view, request, errorResponse)
+                Log.e(TAG, "预览WebView HTTP错误: ${errorResponse?.statusCode}, URL: ${request?.url}")
+            }
+        }
+        
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                if (newProgress >= 100) {
+                    loadingIndicator.visibility = View.GONE
+                }
+            }
+        }
+        
+        // 加载URL
+        webView.loadUrl(url)
+    }
+    
+    /**
+     * 设置预览窗菜单按钮
+     */
+    private fun setupPreviewMenuButtons(webView: WebView, url: String, title: String) {
+        // 当前标签打开
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_current)?.setOnClickListener {
+            webView.loadUrl(url)
+            hidePreviewWindow()
+        }
+        
+        // 新标签打开
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_new)?.setOnClickListener {
+            onNewTabListener?.invoke(url, false)
+            hidePreviewWindow()
+        }
+        
+        // 后台打开
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_background)?.setOnClickListener {
+            onNewTabListener?.invoke(url, true)
+            hidePreviewWindow()
+        }
+        
+        // 外部浏览器打开
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_browser)?.setOnClickListener {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "打开外部浏览器失败", e)
+                Toast.makeText(context, "打开外部浏览器失败", Toast.LENGTH_SHORT).show()
+            }
+            hidePreviewWindow()
+        }
+        
+        // 复制链接
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_copy_link)?.setOnClickListener {
+            copyToClipboard("链接", url)
+            hidePreviewWindow()
+        }
+        
+        // 分享链接
+        previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_share_link)?.setOnClickListener {
+            shareContent(title, url)
+            hidePreviewWindow()
+        }
+    }
+    
+    /**
+     * 设置预览窗拖拽功能
+     */
+    private fun setupPreviewDrag(container: View) {
+        container.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isPreviewDragging = false
+                    previewInitialTouchX = event.rawX
+                    previewInitialTouchY = event.rawY
+                    previewWindowParams?.let {
+                        previewInitialX = it.x.toFloat()
+                        previewInitialY = it.y.toFloat()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - previewInitialTouchX
+                    val deltaY = event.rawY - previewInitialTouchY
+                    
+                    // 如果移动距离超过阈值，开始拖拽
+                    if (!isPreviewDragging && (kotlin.math.abs(deltaX) > 10 || kotlin.math.abs(deltaY) > 10)) {
+                        isPreviewDragging = true
+                    }
+                    
+                    if (isPreviewDragging) {
+                        previewWindowParams?.let { params ->
+                            val screenWidth = context.resources.displayMetrics.widthPixels
+                            val screenHeight = context.resources.displayMetrics.heightPixels
+                            val density = context.resources.displayMetrics.density
+                            val margin = (16 * density).toInt()
+                            
+                            params.x = (previewInitialX + deltaX).toInt().coerceIn(
+                                margin,
+                                screenWidth - params.width - margin
+                            )
+                            params.y = (previewInitialY + deltaY).toInt().coerceIn(
+                                margin,
+                                screenHeight - params.height - margin
+                            )
+                            
+                            windowManager.updateViewLayout(previewWindowView, params)
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isPreviewDragging = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+    
+    /**
+     * 隐藏预览窗
+     */
+    fun hidePreviewWindow(immediate: Boolean = false) {
+        if (!isPreviewShowing.get()) return
+        
+        try {
+            isPreviewShowing.set(false)
+            
+            val container = previewWindowView?.findViewById<androidx.cardview.widget.CardView>(R.id.preview_window_container)
+            
+            if (container != null && !immediate) {
+                container.animate()
+                    .alpha(0f)
+                    .scaleX(0.9f)
+                    .scaleY(0.9f)
+                    .setDuration(200)
+                    .withEndAction {
+                        cleanupPreviewState()
+                    }
+                    .start()
+            } else {
+                cleanupPreviewState()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏预览窗失败", e)
+            cleanupPreviewState()
+        }
+    }
+    
+    /**
+     * 清理预览窗状态
+     */
+    private fun cleanupPreviewState() {
+        try {
+            // 销毁预览WebView
+            previewWebView?.let { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            }
+            previewWebView = null
+            
+            // 移除预览窗视图
+            previewWindowView?.let { view ->
+                windowManager.removeView(view)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理预览窗视图失败", e)
+        }
+        
+        previewWindowView = null
+        previewWindowParams = null
+        isPreviewShowing.set(false)
+        isPreviewDragging = false
+    }
+    
+    /**
      * 清理状态
      */
     private fun cleanupState() {
@@ -949,6 +1417,7 @@ class EnhancedMenuManager(
      */
     fun cleanup() {
         hideMenu(true)
+        hidePreviewWindow(true)
         onNewTabListener = null
     }
 }

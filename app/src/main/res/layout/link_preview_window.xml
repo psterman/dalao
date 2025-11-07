@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  链接预览悬浮窗 - iOS风格
+  包含WebView预览区域和操作菜单
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!-- 预览窗内容容器 -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/preview_window_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:minWidth="320dp"
+        android:maxWidth="400dp"
+        android:maxHeight="600dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="24dp"
+        app:cardBackgroundColor="#FFFFFF">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- 预览区域标题栏 -->
+            <LinearLayout
+                android:id="@+id/preview_header"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:background="#F5F5F7"
+                android:backgroundTint="#F5F5F7">
+
+                <ImageView
+                    android:id="@+id/preview_favicon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:scaleType="centerCrop"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:id="@+id/preview_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="链接预览"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <ImageButton
+                    android:id="@+id/btn_close_preview"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="关闭预览"
+                    app:tint="#666666" />
+
+            </LinearLayout>
+
+            <!-- WebView预览区域 -->
+            <FrameLayout
+                android:id="@+id/preview_webview_container"
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:background="#FFFFFF">
+
+                <WebView
+                    android:id="@+id/preview_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <!-- 加载指示器 -->
+                <ProgressBar
+                    android:id="@+id/preview_loading"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="#007AFF"
+                    android:visibility="visible" />
+
+            </FrameLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E5E5EA" />
+
+            <!-- 操作菜单区域 -->
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxHeight="200dp"
+                android:scrollbars="vertical"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:id="@+id/preview_menu_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <!-- 打开方式 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_open_current"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="当前标签"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginEnd="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_browser"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_open_new"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="新标签"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginStart="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_add"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                    </LinearLayout>
+
+                    <!-- 后台和浏览器 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_open_background"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="后台打开"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginEnd="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_open_in_background"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_open_browser"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="外部浏览器"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginStart="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_browser"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                    </LinearLayout>
+
+                    <!-- 复制和分享 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_copy_link"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="复制链接"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginEnd="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_copy"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/action_preview_share_link"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:text="分享链接"
+                            android:textSize="14sp"
+                            android:textColor="#212121"
+                            android:layout_marginStart="4dp"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            app:icon="@drawable/ic_share"
+                            app:iconGravity="start"
+                            app:iconTint="#212121"
+                            app:strokeColor="#E0E0E0" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </ScrollView>
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
+</FrameLayout>
+
+
