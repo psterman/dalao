@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 选中状态：绿色边框 -->
-    <item android:state_checked="true" android:color="@color/ai_assistant_primary" />
-    <!-- 未选中状态：绿色边框（作为未选中提示） -->
-    <item android:color="@color/ai_assistant_primary" />
+    <!-- 选中状态：蓝色边框 -->
+    <item android:state_checked="true" android:color="#007AFF" />
+    <!-- 未选中状态：浅灰色边框 -->
+    <item android:color="#E5E5EA" />
 </selector>
 
 

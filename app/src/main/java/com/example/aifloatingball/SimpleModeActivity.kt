@@ -28392,19 +28392,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showGroupContextMenu(group, groupManager)
                 true
             }
-            // 设置样式
-            textSize = 14f
-            val minHeight36dp = (36 * resources.displayMetrics.density).toInt()
-            minHeight = minHeight36dp
-            val padding12dp = (12 * resources.displayMetrics.density).toInt()
-            setPadding(padding12dp, 0, padding12dp, 0)
+            // 设置样式 - iOS风格（浅色背景，不遮挡内容）
+            textSize = 15f // iOS标准字体大小
+            val minHeight28dp = (28 * resources.displayMetrics.density).toInt()
+            minHeight = minHeight28dp
+            // 减少内边距，避免遮挡内容
+            val paddingHorizontal12dp = (12 * resources.displayMetrics.density).toInt()
+            val paddingVertical4dp = (4 * resources.displayMetrics.density).toInt()
+            setPadding(paddingHorizontal12dp, paddingVertical4dp, paddingHorizontal12dp, paddingVertical4dp)
+            
+            // 移除选中图标（勾和圈）
+            chipIcon = null
+            checkedIcon = null
+            closeIcon = null
+            
+            // iOS风格：选中时浅蓝色背景+蓝色边框+蓝色文字，未选中时透明背景+浅灰边框+黑色文字
             chipBackgroundColor = resources.getColorStateList(R.color.chip_background_color_selector)
             chipStrokeColor = resources.getColorStateList(R.color.chip_stroke_color_selector)
             val strokeWidth1dp = (1 * resources.displayMetrics.density).toInt()
             chipStrokeWidth = strokeWidth1dp.toFloat()
-            val cornerRadius18dp = (18 * resources.displayMetrics.density).toInt()
-            chipCornerRadius = cornerRadius18dp.toFloat()
+            
+            // iOS风格圆角（更圆润）
+            val cornerRadius14dp = (14 * resources.displayMetrics.density).toInt()
+            chipCornerRadius = cornerRadius14dp.toFloat()
+            
+            // iOS风格文字颜色（选中时蓝色，未选中时黑色）
             setTextColor(resources.getColorStateList(R.color.chip_text_color_selector))
+            
+            // 移除默认的Material动画，避免遮挡
+            stateListAnimator = null
+            
+            // 确保文字不会被遮挡
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
     }
     
