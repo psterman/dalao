@@ -99,11 +99,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="当前标签"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_web"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_open_new_tab"
@@ -111,11 +114,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="新标签"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_add"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -132,11 +138,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="后台打开"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_open_in_background"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_open_browser"
@@ -144,11 +153,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="外部浏览器"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_web"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -165,11 +177,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="复制链接"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_copy"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_share_link"
@@ -177,11 +192,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="分享链接"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_share"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -198,11 +216,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="复制文本"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_copy_text"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_free_copy"
@@ -210,11 +231,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="自由复制"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_free_copy"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -231,11 +255,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="下载链接"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_download"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_generate_qr"
@@ -243,11 +270,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="生成二维码"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_qr_code"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -264,11 +294,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="链接信息"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginEnd="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_info"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/action_download_manager"
@@ -276,11 +309,14 @@
                         android:layout_height="48dp"
                         android:layout_weight="1"
                         android:text="下载管理"
-                        android:textSize="14sp"
+                        android:textSize="12sp"
+                        android:textColor="@color/menu_button_text_light"
                         android:layout_marginStart="4dp"
                         style="@style/Widget.Material3.Button.OutlinedButton"
                         app:icon="@drawable/ic_download"
-                        app:iconGravity="start" />
+                        app:iconGravity="start"
+                        app:iconTint="@color/menu_button_icon_light"
+                        app:strokeColor="@color/menu_button_stroke_light" />
 
                 </LinearLayout>
 
@@ -290,10 +326,13 @@
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
                     android:text="屏蔽相关广告"
-                    android:textSize="14sp"
+                    android:textSize="12sp"
+                    android:textColor="@color/menu_button_text_light"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     app:icon="@drawable/ic_block_ads"
-                    app:iconGravity="start" />
+                    app:iconGravity="start"
+                    app:iconTint="@color/menu_button_icon_light"
+                    app:strokeColor="@color/menu_button_stroke_light" />
 
             </LinearLayout>
 

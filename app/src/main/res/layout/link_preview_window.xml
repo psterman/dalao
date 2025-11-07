@@ -20,7 +20,7 @@
         android:maxHeight="600dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="24dp"
-        app:cardBackgroundColor="#FFFFFF">
+        app:cardBackgroundColor="@color/menu_background_light">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -54,7 +54,7 @@
                     android:text="链接预览"
                     android:textSize="14sp"
                     android:textStyle="bold"
-                    android:textColor="#000000"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:maxLines="1"
                     android:ellipsize="end" />
 
@@ -74,7 +74,7 @@
                 android:id="@+id/preview_webview_container"
                 android:layout_width="match_parent"
                 android:layout_height="300dp"
-                android:background="#FFFFFF">
+                android:background="@color/menu_background_light">
 
                 <WebView
                     android:id="@+id/preview_webview"
@@ -126,14 +126,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="当前标签"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginEnd="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_browser"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/action_preview_open_new"
@@ -141,14 +141,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="新标签"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginStart="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_add"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                     </LinearLayout>
 
@@ -165,14 +165,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="后台打开"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginEnd="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_open_in_background"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/action_preview_open_browser"
@@ -180,14 +180,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="外部浏览器"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginStart="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_browser"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                     </LinearLayout>
 
@@ -203,14 +203,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="复制链接"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginEnd="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_copy"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/action_preview_share_link"
@@ -218,14 +218,14 @@
                             android:layout_height="48dp"
                             android:layout_weight="1"
                             android:text="分享链接"
-                            android:textSize="14sp"
-                            android:textColor="#212121"
+                            android:textSize="12sp"
+                            android:textColor="@color/menu_button_text_light"
                             android:layout_marginStart="4dp"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             app:icon="@drawable/ic_share"
                             app:iconGravity="start"
-                            app:iconTint="#212121"
-                            app:strokeColor="#E0E0E0" />
+                            app:iconTint="@color/menu_button_icon_light"
+                            app:strokeColor="@color/menu_button_stroke_light" />
 
                     </LinearLayout>
 

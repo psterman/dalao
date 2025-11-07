@@ -908,6 +908,12 @@
     <!-- 文本颜色 -->
     <color name="textColorPrimary">#1A1A1A</color>
     
+    <!-- 菜单按钮颜色 - 亮色模式 -->
+    <color name="menu_button_text_light">#212121</color>
+    <color name="menu_button_icon_light">#212121</color>
+    <color name="menu_button_stroke_light">#E0E0E0</color>
+    <color name="menu_background_light">#FFFFFF</color>
+    
     <!-- =============================================================== -->
     <!-- =============== Prompt社区专用颜色方案 ======================== -->
     <!-- =============================================================== -->
