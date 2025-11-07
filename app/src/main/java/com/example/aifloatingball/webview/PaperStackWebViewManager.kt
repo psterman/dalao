@@ -75,11 +75,13 @@ class PaperStackWebViewManager(
         var title: String,
         val url: String,
         var isActive: Boolean = false,
-        var stackIndex: Int = 0
+        var stackIndex: Int = 0,
+        var groupId: String? = null // 所属组ID
     )
 
     private val tabs = mutableListOf<WebViewTab>()
     private var currentTabIndex = 0
+    private var currentGroupId: String? = null // 当前组ID
     private var isAnimating = false
     private var gestureDetector: GestureDetector? = null
     private var onTabCreatedListener: ((WebViewTab) -> Unit)? = null
@@ -197,12 +199,47 @@ class PaperStackWebViewManager(
     }
 
     /**
+     * 设置当前组ID
+     */
+    fun setCurrentGroupId(groupId: String?) {
+        currentGroupId = groupId
+        Log.d(TAG, "设置当前组ID: $groupId")
+    }
+    
+    /**
+     * 获取当前组ID
+     */
+    fun getCurrentGroupId(): String? = currentGroupId
+    
+    /**
+     * 切换到指定组（加载该组的标签页）
+     */
+    fun switchToGroup(groupId: String?, onTabsLoaded: (List<WebViewTab>) -> Unit) {
+        // 保存当前组的标签页
+        if (currentGroupId != null) {
+            saveCurrentGroupTabs()
+        }
+        
+        // 清理当前标签页
+        cleanup()
+        
+        // 设置新组ID
+        currentGroupId = groupId
+        
+        // 加载新组的标签页
+        loadGroupTabs(groupId, onTabsLoaded)
+    }
+    
+    /**
      * 添加新的标签页
      */
-    fun addTab(url: String? = null, title: String? = null): WebViewTab {
+    fun addTab(url: String? = null, title: String? = null, groupId: String? = null): WebViewTab {
         val tabId = "tab_${System.currentTimeMillis()}"
         val webView = PaperWebView(context)
         webView.setupWebView()
+        
+        // 使用传入的groupId或当前组ID
+        val tabGroupId = groupId ?: currentGroupId
         
         // 创建标签页
         val tab = WebViewTab(
@@ -211,7 +248,8 @@ class PaperStackWebViewManager(
             title = title ?: "新标签页",
             url = url ?: "https://www.baidu.com",
             isActive = false,
-            stackIndex = tabs.size
+            stackIndex = tabs.size,
+            groupId = tabGroupId
         )
         
         // 添加到容器
@@ -234,6 +272,9 @@ class PaperStackWebViewManager(
             webView.loadUrl(tab.url)
         }
         
+        // 保存当前组的标签页数据
+        saveCurrentGroupTabs()
+        
         // 通知监听器
         onTabCreatedListener?.invoke(tab)
         
@@ -242,7 +283,7 @@ class PaperStackWebViewManager(
             onTabSwitchedListener?.invoke(tab, currentTabIndex)
         }
         
-        Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 已切换到新标签页")
+        Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 组ID: $tabGroupId, 已切换到新标签页")
         return tab
     }
     
@@ -286,6 +327,15 @@ class PaperStackWebViewManager(
                         Log.d(TAG, "功能主页：打开下载管理")
                     }
                 }
+                
+                @android.webkit.JavascriptInterface
+                fun openGroupManager() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开组管理（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenGroupManager()
+                        Log.d(TAG, "功能主页：打开组管理")
+                    }
+                }
             }, "AndroidInterface")
             
             Log.d(TAG, "功能主页JavaScript接口已设置")
@@ -300,6 +350,7 @@ class PaperStackWebViewManager(
     interface FunctionalHomeActionListener {
         fun onShowGestureGuide()
         fun onOpenDownloadManager()
+        fun onOpenGroupManager()
     }
     
     private var onFunctionalHomeActionListener: FunctionalHomeActionListener? = null
@@ -327,6 +378,7 @@ class PaperStackWebViewManager(
         }
         
         container.removeView(tab.webView)
+        tab.webView.destroy()
         tabs.removeAt(tabIndex)
         
         // 调整当前标签页索引
@@ -336,6 +388,9 @@ class PaperStackWebViewManager(
         
         // 更新标签页位置
         updateTabPositions()
+        
+        // 保存当前组的标签页数据
+        saveCurrentGroupTabs()
         
         Log.d(TAG, "移除标签页: ${tab.title}, 当前数量: ${tabs.size}")
         return true
@@ -356,6 +411,7 @@ class PaperStackWebViewManager(
         
         val tab = tabs[tabIndex]
         container.removeView(tab.webView)
+        tab.webView.destroy()
         tabs.removeAt(tabIndex)
         
         // 调整当前标签页索引
@@ -365,6 +421,9 @@ class PaperStackWebViewManager(
         
         // 更新标签页位置
         updateTabPositions()
+        
+        // 保存当前组的标签页数据
+        saveCurrentGroupTabs()
         
         Log.d(TAG, "通过URL关闭标签页: ${tab.title}, URL: $url, 当前数量: ${tabs.size}")
         return true
@@ -818,7 +877,76 @@ class PaperStackWebViewManager(
      * 获取所有标签页数据
      */
     fun getAllTabs(): List<WebViewTab> {
-        return tabs.toList()
+        // 只返回当前组的标签页
+        return if (currentGroupId != null) {
+            tabs.filter { it.groupId == currentGroupId }
+        } else {
+            tabs.toList()
+        }
+    }
+    
+    /**
+     * 获取指定组的所有标签页
+     */
+    fun getTabsByGroup(groupId: String?): List<WebViewTab> {
+        return tabs.filter { it.groupId == groupId }
+    }
+    
+    /**
+     * 保存当前组的标签页数据
+     */
+    private fun saveCurrentGroupTabs() {
+        if (currentGroupId == null) return
+        try {
+            val groupTabDataManager = com.example.aifloatingball.manager.GroupTabDataManager.getInstance(context)
+            val currentGroupTabs = tabs.filter { it.groupId == currentGroupId }
+            groupTabDataManager.saveGroupTabs(currentGroupId!!, currentGroupTabs)
+        } catch (e: Exception) {
+            Log.e(TAG, "保存当前组标签页失败", e)
+        }
+    }
+    
+    /**
+     * 加载组的标签页数据
+     */
+    private fun loadGroupTabs(groupId: String?, onTabsLoaded: (List<WebViewTab>) -> Unit) {
+        if (groupId == null) {
+            // 如果没有组ID，创建默认标签页
+            val defaultTab = addTab("https://www.baidu.com", "新标签页", null)
+            onTabsLoaded(listOf(defaultTab))
+            return
+        }
+        
+        try {
+            val groupTabDataManager = com.example.aifloatingball.manager.GroupTabDataManager.getInstance(context)
+            val tabDataList = groupTabDataManager.restoreGroupTabs(groupId)
+            
+            if (tabDataList.isEmpty()) {
+                // 如果没有保存的标签页，创建默认标签页
+                val defaultTab = addTab("https://www.baidu.com", "新标签页", groupId)
+                onTabsLoaded(listOf(defaultTab))
+            } else {
+                // 恢复标签页
+                val restoredTabs = mutableListOf<WebViewTab>()
+                tabDataList.forEach { tabData ->
+                    val restoredTab = addTab(tabData.url, tabData.title, groupId)
+                    restoredTabs.add(restoredTab)
+                }
+                
+                // 切换到第一个标签页
+                if (restoredTabs.isNotEmpty()) {
+                    switchToTab(0)
+                }
+                
+                onTabsLoaded(restoredTabs)
+                Log.d(TAG, "恢复组 $groupId 的 ${restoredTabs.size} 个标签页")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载组标签页失败", e)
+            // 加载失败，创建默认标签页
+            val defaultTab = addTab("https://www.baidu.com", "新标签页", groupId)
+            onTabsLoaded(listOf(defaultTab))
+        }
     }
 
     /**

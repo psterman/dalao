@@ -147,6 +147,10 @@
                     <span>⬇️</span>
                     <div>下载</div>
                 </button>
+                <button class="secondary-button" onclick="openGroupManager()">
+                    <span>📁</span>
+                    <div>组管理</div>
+                </button>
             </div>
         </div>
         
@@ -175,6 +179,14 @@
                 window.AndroidInterface.openDownloadManager();
             } else {
                 alert('下载管理功能');
+            }
+        }
+        
+        function openGroupManager() {
+            if (window.AndroidInterface && window.AndroidInterface.openGroupManager) {
+                window.AndroidInterface.openGroupManager();
+            } else {
+                alert('组管理功能');
             }
         }
     </script>

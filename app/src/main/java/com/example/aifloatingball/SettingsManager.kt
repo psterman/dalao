@@ -8,7 +8,6 @@ import com.google.gson.reflect.TypeToken
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.BaseSearchEngine
-import com.example.aifloatingball.SearchActivity
 import android.util.Log
 import android.content.Intent
 import com.example.aifloatingball.model.MenuItem

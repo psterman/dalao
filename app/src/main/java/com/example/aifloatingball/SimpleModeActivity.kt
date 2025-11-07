@@ -139,6 +139,12 @@ import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
 import com.example.aifloatingball.views.QuarterArcOperationBar
 import com.example.aifloatingball.service.AIAppOverlayService
+import com.example.aifloatingball.ui.TabGroupManagerFragment
+import com.example.aifloatingball.manager.TabGroupManager
+import com.example.aifloatingball.model.TabGroup
+import com.example.aifloatingball.adapter.TabGroupAdapter
+import com.example.aifloatingball.adapter.GroupItemTouchHelperCallback
+import androidx.recyclerview.widget.ItemTouchHelper
 
 import com.example.aifloatingball.engine.SearchEngineHandler
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -6307,6 +6313,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 } catch (e: Exception) {
                     Log.e(TAG, "下载管理按钮点击处理失败", e)
                     showMaterialToast("打开下载管理失败")
+                }
+            }
+            
+            override fun onOpenGroupManager() {
+                // 打开组管理界面
+                try {
+                    showGroupManagerDialog()
+                    Log.d(TAG, "成功打开组管理界面")
+                } catch (e: Exception) {
+                    Log.e(TAG, "组管理按钮点击处理失败", e)
+                    showMaterialToast("打开组管理失败")
                 }
             }
         })
@@ -28007,6 +28024,164 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Toast.makeText(this@SimpleModeActivity, "未获取到页面文本", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /**
+     * 显示组管理对话框
+     */
+    private fun showGroupManagerDialog() {
+        try {
+            val groupManager = TabGroupManager.getInstance(this)
+            val groups = groupManager.getAllGroups()
+            
+            // 创建对话框，直接使用RecyclerView显示组列表
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.fragment_tab_group_manager, null)
+            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.recycler_view_groups)
+            val btnAddGroup = dialogView.findViewById<View>(R.id.btn_add_group)
+            
+            // 设置RecyclerView
+            recyclerView?.layoutManager = LinearLayoutManager(this)
+            
+            // 先声明适配器变量（使用 lateinit 或者先创建一个临时变量）
+            lateinit var adapter: TabGroupAdapter
+            
+            // 创建适配器（在 lambda 中可以引用已声明的 adapter 变量）
+            adapter = TabGroupAdapter(
+                groups = groups.toMutableList(),
+                onGroupClick = { group ->
+                    // 点击组，切换到该组
+                    groupManager.setCurrentGroup(group.id)
+                    paperStackWebViewManager?.switchToGroup(group.id) { tabs ->
+                        Log.d(TAG, "切换到组 ${group.name}，加载 ${tabs.size} 个标签页")
+                        syncAllCardSystems()
+                        showMaterialToast("已切换到组：${group.name}")
+                    }
+                },
+                onGroupEdit = { group ->
+                    // 编辑组名
+                    showEditGroupDialog(group, groupManager) { 
+                        adapter.updateGroups(groupManager.getAllGroups())
+                    }
+                },
+                onGroupDelete = { group ->
+                    // 删除组
+                    showDeleteGroupDialog(group, groupManager) {
+                        adapter.updateGroups(groupManager.getAllGroups())
+                    }
+                },
+                onGroupPin = { group ->
+                    // 置顶/取消置顶
+                    groupManager.togglePinGroup(group.id)
+                    adapter.updateGroups(groupManager.getAllGroups())
+                },
+                onGroupDrag = { fromPosition, toPosition ->
+                    // 拖动排序
+                    val currentGroups = groupManager.getAllGroups()
+                    val groupIds = currentGroups.map { it.id }.toMutableList()
+                    val fromId = groupIds.removeAt(fromPosition)
+                    groupIds.add(toPosition, fromId)
+                    groupManager.updateGroupOrder(groupIds)
+                    adapter.updateGroups(groupManager.getAllGroups())
+                }
+            )
+            
+            recyclerView?.adapter = adapter
+            
+            // 设置拖动排序
+            val itemTouchHelper = ItemTouchHelper(GroupItemTouchHelperCallback(adapter))
+            itemTouchHelper.attachToRecyclerView(recyclerView)
+            
+            // 新建组按钮
+            btnAddGroup?.setOnClickListener {
+                showCreateGroupDialog(groupManager) {
+                    adapter.updateGroups(groupManager.getAllGroups())
+                }
+            }
+            
+            // 创建对话框
+            val dialog = AlertDialog.Builder(this)
+                .setTitle("标签页组管理")
+                .setView(dialogView)
+                .setPositiveButton("关闭", null)
+                .create()
+            
+            dialog.show()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "显示组管理对话框失败", e)
+            showMaterialToast("打开组管理失败：${e.message}")
+        }
+    }
+    
+    /**
+     * 显示创建组对话框
+     */
+    private fun showCreateGroupDialog(groupManager: TabGroupManager, onGroupCreated: () -> Unit) {
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            hint = "请输入组名"
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("创建新组")
+            .setView(input)
+            .setPositiveButton("创建") { _, _ ->
+                val groupName = input.text.toString().trim()
+                if (groupName.isNotEmpty()) {
+                    val newGroup = groupManager.createGroup(groupName)
+                    groupManager.setCurrentGroup(newGroup.id)
+                    onGroupCreated()
+                    showMaterialToast("组已创建")
+                } else {
+                    showMaterialToast("组名不能为空")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示编辑组对话框
+     */
+    private fun showEditGroupDialog(group: TabGroup, groupManager: TabGroupManager, onGroupUpdated: () -> Unit) {
+        val input = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setText(group.name)
+            hint = "请输入组名"
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("编辑组名")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val groupName = input.text.toString().trim()
+                if (groupName.isNotEmpty()) {
+                    groupManager.updateGroup(group.id, name = groupName)
+                    onGroupUpdated()
+                    showMaterialToast("组名已更新")
+                } else {
+                    showMaterialToast("组名不能为空")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示删除组对话框
+     */
+    private fun showDeleteGroupDialog(group: TabGroup, groupManager: TabGroupManager, onGroupDeleted: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("删除组")
+            .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
+            .setPositiveButton("删除") { _, _ ->
+                if (groupManager.deleteGroup(group.id)) {
+                    onGroupDeleted()
+                    showMaterialToast("组已删除")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
 }
