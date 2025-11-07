@@ -3,6 +3,7 @@ package com.example.aifloatingball.views
 import android.animation.ValueAnimator
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.content.Context
 import android.graphics.*
@@ -15,6 +16,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.VelocityTracker
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.PathInterpolator
+import android.view.animation.OvershootInterpolator
 import kotlin.math.*
 
 /**
@@ -36,7 +39,7 @@ class StackedCardPreview @JvmOverloads constructor(
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = Color.BLACK
-        alpha = 140 // 半透明黑色蒙版
+        alpha = 140 // 半透明黑色蒙版（基础值，会通过backgroundMaskAlpha动态调整）
     }
 
     // 卡片绘制画笔
@@ -129,6 +132,20 @@ class StackedCardPreview @JvmOverloads constructor(
     private val cardOffsets = mutableListOf<PointF>() // 改为PointF支持x,y偏移
     private val cardRotations = mutableListOf<Float>()
     private val cardScales = mutableListOf<Float>()
+    
+    // 卡片动画状态（用于依次弹出动画）
+    private val cardAnimationScales = mutableListOf<Float>() // 每个卡片的缩放状态
+    private val cardAnimationAlphas = mutableListOf<Float>() // 每个卡片的透明度状态
+    private val cardAnimationTranslationYs = mutableListOf<Float>() // 每个卡片的Y位移状态
+    
+    // 背景蒙版动画状态
+    private var backgroundMaskAlpha = 0f // 背景蒙版透明度（0-1）
+    
+    // 按钮显示状态
+    private var buttonsAlpha = 0f // 按钮透明度（0-1）
+    
+    // 动画起点位置（从标题栏弹出）
+    var animationStartY: Float = 0f // 动画起点Y坐标（标题栏位置）
 
     // 卡片参数 - 调整为屏幕的1/2大小
     private var baseCardWidth = 0f // 将在onSizeChanged中计算
@@ -307,6 +324,28 @@ class StackedCardPreview @JvmOverloads constructor(
 
         currentCardIndex = currentCardIndex.coerceIn(0, webViewCards.size - 1)
         scrollOffset = currentCardIndex * cardSpacing
+        
+        // 初始化动画状态（如果没有动画，使用默认值1.0，表示完全显示）
+        // 只有在调用animateCardsPopFromTitleBar时才会设置为动画初始状态
+        if (cardAnimationScales.size != webViewCards.size) {
+            cardAnimationScales.clear()
+            cardAnimationAlphas.clear()
+            cardAnimationTranslationYs.clear()
+            
+            for (i in webViewCards.indices) {
+                // 默认状态：完全显示
+                cardAnimationScales.add(1.0f)
+                cardAnimationAlphas.add(1.0f)
+                cardAnimationTranslationYs.add(0f)
+            }
+        }
+        
+        // 初始化背景蒙版和按钮状态（如果没有动画，使用默认值1.0）
+        if (backgroundMaskAlpha == 0f && buttonsAlpha == 0f && webViewCards.isNotEmpty()) {
+            // 只有在没有动画状态时才设置为默认值
+            backgroundMaskAlpha = 1f
+            buttonsAlpha = 1f
+        }
 
         Log.d(
             TAG,
@@ -585,17 +624,20 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         lastSlideTime = currentTime
 
-        // 添加阻尼效果：应用阻尼系数，让滑动更有阻力感
-        val dampingFactor = 0.65f // 增加阻尼系数到65%，显著增强阻力感，防止误滑
+        // iOS 风格的阻尼效果：更自然的阻力感
+        // 使用非线性阻尼，让滑动更丝滑、更有质感
+        val dampingFactor = 0.6f // 适度阻尼，保持响应性
         val dampedDeltaX = deltaX * (1f - dampingFactor)
         
-        // 更新滚动偏移，应用阻尼后的移动距离
+        // 根据速度动态调整灵敏度，让快速滑动更流畅
         val sensitivity = when {
-            abs(slideVelocity) > 3000f -> 2.0f // 极快滑动时降低灵敏度
-            abs(slideVelocity) > 2000f -> 1.6f // 快速滑动时适度降低灵敏度
-            abs(slideVelocity) > 1000f -> 1.3f // 中等速度时适度降低灵敏度
-            else -> 1.1f // 慢速滑动时轻微降低灵敏度
+            abs(slideVelocity) > 3000f -> 1.8f // 极快滑动，适度降低灵敏度
+            abs(slideVelocity) > 2000f -> 1.5f // 快速滑动，轻微降低灵敏度
+            abs(slideVelocity) > 1000f -> 1.2f // 中等速度，保持响应
+            else -> 1.0f // 慢速滑动，完全响应
         }
+        
+        // 应用平滑的滚动更新
         scrollOffset -= dampedDeltaX * sensitivity
 
         // 限制滚动范围（确保maxOffset >= 0）
@@ -613,8 +655,10 @@ class StackedCardPreview @JvmOverloads constructor(
             currentCardIndex = newCardIndex
             Log.d("StackedCardPreview", "滑动切换到卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}) 速度: ${slideVelocity.toInt()}px/s, 灵敏度: $sensitivity")
 
-            // 提供浏览操作的震动反馈
-            vibrate(VibrationType.BROWSING)
+            // iOS 风格的轻微触觉反馈：只在快速切换时提供，避免过度震动
+            if (abs(slideVelocity) > 800f) {
+                vibrate(VibrationType.BROWSING)
+            }
         }
 
         // 重新绘制
@@ -1120,29 +1164,48 @@ class StackedCardPreview @JvmOverloads constructor(
 
     /**
      * 对齐到最近的卡片并打开
+     * 使用 iOS 26 风格的丝滑动画
      */
     private fun snapToNearestCardAndOpen() {
         val targetOffset = currentCardIndex * cardSpacing
+        val distance = abs(scrollOffset - targetOffset)
 
-        if (abs(scrollOffset - targetOffset) > 5f) {
+        if (distance > 5f) {
+            // 根据距离动态调整动画时长
+            val baseDuration = 400L
+            val distanceFactor = (distance / cardSpacing).coerceIn(0.3f, 1.5f)
+            val dynamicDuration = (baseDuration * distanceFactor).toLong().coerceIn(300L, 600L)
+            
+            // iOS 风格的弹性插值器
+            val iosStyleInterpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            
             // 使用动画平滑对齐，然后打开卡片
             ValueAnimator.ofFloat(scrollOffset, targetOffset).apply {
-                duration = 200
+                duration = dynamicDuration
+                interpolator = iosStyleInterpolator
+                
                 addUpdateListener { animator ->
                     scrollOffset = animator.animatedValue as Float
                     invalidate()
                 }
+                
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // 确保最终位置精确对齐
+                        scrollOffset = targetOffset
+                        invalidate()
                         // 对齐完成后，打开中间卡片
                         Log.d("StackedCardPreview", "对齐完成，打开中间卡片: $currentCardIndex")
                         selectCurrentCard()
                     }
                 })
+                
                 start()
             }
         } else {
             // 已经对齐，直接打开卡片
+            scrollOffset = targetOffset
+            invalidate()
             Log.d("StackedCardPreview", "已对齐，直接打开中间卡片: $currentCardIndex")
             selectCurrentCard()
         }
@@ -1152,20 +1215,45 @@ class StackedCardPreview @JvmOverloads constructor(
 
     /**
      * 对齐到最近的卡片（不自动打开）
+     * 使用 iOS 26 风格的丝滑动画：弹性缓动 + 自然过渡
      */
     private fun snapToNearestCard() {
         val targetOffset = currentCardIndex * cardSpacing
+        val distance = abs(scrollOffset - targetOffset)
 
-        if (abs(scrollOffset - targetOffset) > 5f) {
-            // 使用动画平滑对齐
+        if (distance > 5f) {
+            // 根据距离动态调整动画时长，让动画更自然
+            val baseDuration = 400L // 基础时长增加，让动画更从容
+            val distanceFactor = (distance / cardSpacing).coerceIn(0.3f, 1.5f)
+            val dynamicDuration = (baseDuration * distanceFactor).toLong().coerceIn(300L, 600L)
+            
+            // 使用 iOS 风格的弹性插值器：轻微过冲 + 平滑减速
+            // PathInterpolator 创建自定义缓动曲线，模拟 iOS 的 spring 动画效果
+            val iosStyleInterpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f) // iOS 标准缓动曲线
+            
             ValueAnimator.ofFloat(scrollOffset, targetOffset).apply {
-                duration = 200
+                duration = dynamicDuration
+                interpolator = iosStyleInterpolator
+                
                 addUpdateListener { animator ->
                     scrollOffset = animator.animatedValue as Float
                     invalidate()
                 }
+                
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // 确保最终位置精确对齐
+                        scrollOffset = targetOffset
+                        invalidate()
+                    }
+                })
+                
                 start()
             }
+        } else {
+            // 距离很小，直接对齐
+            scrollOffset = targetOffset
+            invalidate()
         }
 
         Log.d("StackedCardPreview", "对齐到卡片 $currentCardIndex，目标偏移: $targetOffset，等待用户点击")
@@ -1173,42 +1261,84 @@ class StackedCardPreview @JvmOverloads constructor(
 
     /**
      * 选择当前中心卡片
+     * 使用 iOS 26 风格的丝滑切换动画：卡片放大淡出 + 背景蒙版淡出
      */
     private fun selectCurrentCard() {
         if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
-            Log.d("StackedCardPreview", "选择卡片: $currentCardIndex")
-
-            // 通知选择了卡片
-            onCardSelectedListener?.invoke(currentCardIndex)
+            Log.d("StackedCardPreview", "选择卡片: $currentCardIndex，开始iOS风格切换动画")
 
             // 重置激活状态
             resetActivationState()
 
-            // 隐藏预览
-            visibility = View.GONE
+            // iOS 26 风格的切换动画：卡片放大并淡出
+            // 使用 iOS 风格的弹性插值器
+            val iosInterpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            
+            // 创建组合动画：缩放 + 透明度 + 轻微位移
+            animate()
+                .scaleX(1.1f) // 轻微放大，增加质感
+                .scaleY(1.1f)
+                .alpha(0f)
+                .translationY(-height * 0.05f) // 轻微上移，增加层次感
+                .setDuration(350) // iOS 标准动画时长
+                .setInterpolator(iosInterpolator)
+                .withStartAction {
+                    Log.d("StackedCardPreview", "开始卡片切换动画")
+                }
+                .withEndAction {
+                    // 动画完成后，通知选择了卡片并隐藏
+                    visibility = View.GONE
+                    alpha = 1f // 重置透明度
+                    scaleX = 1f // 重置缩放
+                    scaleY = 1f
+                    translationY = 0f // 重置位移
+                    
+                    // 通知选择了卡片（在动画完成后通知，确保动画流畅）
+                    onCardSelectedListener?.invoke(currentCardIndex)
+                    
+                    Log.d("StackedCardPreview", "卡片切换动画完成")
+                }
+                .start()
         }
     }
 
     /**
-     * 选择当前中心卡片并使用淡入动画
+     * 选择当前中心卡片并使用 iOS 26 风格的淡入动画
+     * 点击卡片时的切换动画：卡片放大淡出 + 背景蒙版淡出
      */
     private fun selectCurrentCardWithFadeIn() {
         if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
-            Log.d("StackedCardPreview", "点击选择卡片: $currentCardIndex，使用淡入动画")
-
-            // 通知选择了卡片
-            onCardSelectedListener?.invoke(currentCardIndex)
+            Log.d("StackedCardPreview", "点击选择卡片: $currentCardIndex，使用iOS风格切换动画")
 
             // 重置激活状态
             resetActivationState()
 
-            // 使用淡出动画隐藏预览
+            // iOS 26 风格的切换动画：卡片放大并淡出
+            val iosInterpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            
+            // 创建组合动画：缩放 + 透明度 + 轻微位移
             animate()
+                .scaleX(1.08f) // 轻微放大，增加质感
+                .scaleY(1.08f)
                 .alpha(0f)
-                .setDuration(200)
+                .translationY(-height * 0.03f) // 轻微上移，增加层次感
+                .setDuration(350) // iOS 标准动画时长
+                .setInterpolator(iosInterpolator)
+                .withStartAction {
+                    Log.d("StackedCardPreview", "开始点击卡片切换动画")
+                }
                 .withEndAction {
+                    // 动画完成后，通知选择了卡片并隐藏
                     visibility = View.GONE
                     alpha = 1f // 重置透明度
+                    scaleX = 1f // 重置缩放
+                    scaleY = 1f
+                    translationY = 0f // 重置位移
+                    
+                    // 通知选择了卡片（在动画完成后通知，确保动画流畅）
+                    onCardSelectedListener?.invoke(currentCardIndex)
+                    
+                    Log.d("StackedCardPreview", "点击卡片切换动画完成")
                 }
                 .start()
         }
@@ -1277,6 +1407,11 @@ class StackedCardPreview @JvmOverloads constructor(
             if (newCardIndex != currentCardIndex && newCardIndex >= 0 && newCardIndex < webViewCards.size) {
                 currentCardIndex = newCardIndex
                 Log.d("StackedCardPreview", "惯性滚动切换到卡片: $currentCardIndex")
+                
+                // iOS 风格的轻微触觉反馈：惯性滚动时提供更轻微的反馈
+                if (abs(currentVelocity) > 500f) {
+                    vibrate(VibrationType.LIGHT)
+                }
             }
 
             invalidate()
@@ -1316,9 +1451,22 @@ class StackedCardPreview @JvmOverloads constructor(
 
         Log.d("StackedCardPreview", "启动惯性滚动（不自动打开），初始速度: ${initialVelocity.toInt()}px/s")
 
+        // 使用 iOS 风格的惯性滚动：更自然的减速曲线
+        // 根据初始速度动态调整动画时长，让惯性滚动更流畅
+        val velocityMagnitude = abs(initialVelocity)
+        val dynamicDuration = when {
+            velocityMagnitude > 3000f -> 1200L // 极快速度，较长惯性
+            velocityMagnitude > 2000f -> 1000L // 快速，中等惯性
+            velocityMagnitude > 1000f -> 800L  // 中等速度，较短惯性
+            else -> 600L // 慢速，短惯性
+        }
+        
+        // iOS 风格的减速插值器：使用更平滑的曲线
+        val iosDecelerateInterpolator = PathInterpolator(0.0f, 0.0f, 0.2f, 1.0f) // iOS 标准减速曲线
+        
         val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 2000 // 最大持续时间
-            interpolator = DecelerateInterpolator(2f)
+            duration = dynamicDuration
+            interpolator = iosDecelerateInterpolator
         }
 
         var lastTime = System.currentTimeMillis()
@@ -1362,6 +1510,11 @@ class StackedCardPreview @JvmOverloads constructor(
             if (newCardIndex != currentCardIndex && newCardIndex >= 0 && newCardIndex < webViewCards.size) {
                 currentCardIndex = newCardIndex
                 Log.d("StackedCardPreview", "惯性滚动切换到卡片: $currentCardIndex")
+                
+                // iOS 风格的轻微触觉反馈：惯性滚动时提供更轻微的反馈
+                if (abs(currentVelocity) > 500f) {
+                    vibrate(VibrationType.LIGHT)
+                }
             }
 
             invalidate()
@@ -1424,8 +1577,11 @@ class StackedCardPreview @JvmOverloads constructor(
             ?: (64 * resources.displayMetrics.density) // fallback to layout defined 64dp
         val maskHeight = viewHeight - bottomNavHeight
 
-        // 绘制半透明蒙版背景
-        canvas.drawRect(0f, 0f, viewWidth, maskHeight, maskPaint)
+        // 绘制半透明蒙版背景（使用动画状态控制透明度）
+        val maskPaintWithAlpha = Paint(maskPaint).apply {
+            alpha = (140 * backgroundMaskAlpha).toInt().coerceIn(0, 255)
+        }
+        canvas.drawRect(0f, 0f, viewWidth, maskHeight, maskPaintWithAlpha)
 
         // 如果正在显示进度，绘制圆形进度条
         if (isShowingProgress) {
@@ -1466,22 +1622,49 @@ class StackedCardPreview @JvmOverloads constructor(
             val cardCenterX = startX + i * cardSpacing
             val cardLeft = cardCenterX - cardWidth / 2f
 
-            // 计算卡片垂直位置（中心卡片可能有垂直偏移）
+            // 计算卡片垂直位置（中心卡片可能有垂直偏移，同时应用动画状态）
             val cardTopBase = centerY - baseCardHeight / 2f
             val cardTop = if (i == currentCardIndex) {
-                cardTopBase + centerCardOffsetY // 中心卡片应用垂直偏移
+                cardTopBase + centerCardOffsetY + cardAnimationTranslationYs.getOrElse(i) { 0f } // 中心卡片应用垂直偏移和动画位移
             } else {
-                cardTopBase // 其他卡片保持原位置
+                cardTopBase + cardAnimationTranslationYs.getOrElse(i) { 0f } // 其他卡片应用动画位移
             }
 
-            // 计算卡片与屏幕中心的距离，用于缩放和透明度
-            val distanceFromCenter = abs(cardCenterX - centerX)
-            val maxDistance = cardSpacing * 2f // 最大影响距离
-            val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
-
-            // 中心卡片最大，边缘卡片较小
-            val scale = 1.0f - normalizedDistance * 0.3f // 0.7 到 1.0
-            val alpha = 1.0f - normalizedDistance * 0.5f // 0.5 到 1.0
+            // 使用动画状态控制缩放和透明度（如果动画状态已设置）
+            val hasAnimationState = i < cardAnimationScales.size && i < cardAnimationAlphas.size
+            val scale = if (hasAnimationState) {
+                // 使用动画状态，但也要考虑距离中心的缩放
+                val distanceFromCenter = abs(cardCenterX - centerX)
+                val maxDistance = cardSpacing * 2.5f
+                val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
+                val easedDistance = 1f - (1f - normalizedDistance).pow(3f)
+                val distanceScale = 1.0f - easedDistance * 0.25f
+                cardAnimationScales[i] * distanceScale // 动画缩放 * 距离缩放
+            } else {
+                // 没有动画状态，使用原来的逻辑
+                val distanceFromCenter = abs(cardCenterX - centerX)
+                val maxDistance = cardSpacing * 2.5f
+                val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
+                val easedDistance = 1f - (1f - normalizedDistance).pow(3f)
+                1.0f - easedDistance * 0.25f
+            }
+            
+            val alpha = if (hasAnimationState) {
+                // 使用动画状态，但也要考虑距离中心的透明度
+                val distanceFromCenter = abs(cardCenterX - centerX)
+                val maxDistance = cardSpacing * 2.5f
+                val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
+                val easedDistance = 1f - (1f - normalizedDistance).pow(3f)
+                val distanceAlpha = 1.0f - easedDistance * 0.4f
+                cardAnimationAlphas[i] * distanceAlpha // 动画透明度 * 距离透明度
+            } else {
+                // 没有动画状态，使用原来的逻辑
+                val distanceFromCenter = abs(cardCenterX - centerX)
+                val maxDistance = cardSpacing * 2.5f
+                val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
+                val easedDistance = 1f - (1f - normalizedDistance).pow(3f)
+                1.0f - easedDistance * 0.4f
+            }
 
             // 只绘制在屏幕范围内的卡片
             if (cardLeft < viewWidth && cardLeft + cardWidth > 0) {
@@ -1876,9 +2059,8 @@ class StackedCardPreview @JvmOverloads constructor(
             return // 按钮未激活，不显示按钮
         }
         
-        // 计算按钮显示透明度
-        // 按钮已激活，完全显示
-        val finalAlpha = alpha
+        // 计算按钮显示透明度（使用动画状态）
+        val finalAlpha = alpha * buttonsAlpha // 按钮透明度 = 卡片透明度 * 按钮动画透明度
         
         // 更大的按钮尺寸（调大）
         val buttonWidth = 140f * scale // 进一步增大按钮宽度
@@ -2743,5 +2925,239 @@ class StackedCardPreview @JvmOverloads constructor(
         } catch (e: Exception) {
             Log.e(TAG, "检查保存状态失败", e)
         }
+    }
+    
+    /**
+     * 从标题栏弹出卡片的激活动画
+     * 卡片由小转大依次弹出，背景由透明到渐变，按钮随后出现
+     */
+    fun animateCardsPopFromTitleBar(startY: Float) {
+        if (webViewCards.isEmpty()) return
+        
+        // 确保视图已测量完成
+        if (width == 0 || height == 0) {
+            post { animateCardsPopFromTitleBar(startY) }
+            return
+        }
+        
+        animationStartY = startY
+        val centerY = height / 2f
+        val targetY = centerY - baseCardHeight / 2f
+        
+        // 计算从标题栏到目标位置的位移
+        val startTranslationY = startY - targetY
+        
+        Log.d(TAG, "动画参数: startY=$startY, centerY=$centerY, targetY=$targetY, startTranslationY=$startTranslationY")
+        
+        // 初始化动画状态：所有卡片在标题栏位置，很小且透明
+        cardAnimationScales.clear()
+        cardAnimationAlphas.clear()
+        cardAnimationTranslationYs.clear()
+        
+        for (i in webViewCards.indices) {
+            cardAnimationScales.add(0.3f) // 初始很小
+            cardAnimationAlphas.add(0f) // 初始透明
+            cardAnimationTranslationYs.add(startTranslationY) // 初始在标题栏位置
+        }
+        
+        backgroundMaskAlpha = 0f
+        buttonsAlpha = 0f
+        
+        // 立即刷新一次，显示初始状态
+        invalidate()
+        
+        // 创建动画集合
+        val animatorSet = AnimatorSet()
+        val animations = mutableListOf<Animator>()
+        
+        // 1. 背景蒙版淡入动画
+        val backgroundAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 400
+            interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            addUpdateListener { animator ->
+                backgroundMaskAlpha = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        animations.add(backgroundAnimator)
+        
+        // 2. 卡片依次弹出动画（错开时间）
+        for (i in webViewCards.indices) {
+            val cardIndex = i
+            val delay = i * 80L // 每个卡片延迟80ms，依次弹出
+            
+            // 缩放动画：从0.3到1.0
+            val scaleAnimator = ValueAnimator.ofFloat(0.3f, 1.0f).apply {
+                duration = 450
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationScales.size) {
+                        cardAnimationScales[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            // 透明度动画：从0到1
+            val alphaAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 400
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationAlphas.size) {
+                        cardAnimationAlphas[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            // 位移动画：从标题栏位置到目标位置
+            val translationAnimator = ValueAnimator.ofFloat(startTranslationY, 0f).apply {
+                duration = 450
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationTranslationYs.size) {
+                        cardAnimationTranslationYs[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            animations.add(scaleAnimator)
+            animations.add(alphaAnimator)
+            animations.add(translationAnimator)
+        }
+        
+        // 3. 按钮延迟出现动画（在所有卡片动画开始后延迟）
+        val maxCardDelay = (webViewCards.size - 1) * 80L
+        val buttonAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            startDelay = maxCardDelay + 200L // 卡片动画开始后200ms再显示按钮
+            interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            addUpdateListener { animator ->
+                buttonsAlpha = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        animations.add(buttonAnimator)
+        
+        animatorSet.playTogether(*animations.toTypedArray())
+        animatorSet.start()
+        
+        Log.d(TAG, "开始从标题栏弹出卡片动画，起点Y=$startY，目标Y=$targetY，卡片数=${webViewCards.size}")
+    }
+    
+    /**
+     * 卡片下滑消失动画
+     * 按钮先消失，所有卡片由大变小渐变消失，消失在标题栏里
+     */
+    fun animateCardsDismissToTitleBar(startY: Float, onComplete: () -> Unit) {
+        if (webViewCards.isEmpty()) {
+            onComplete()
+            return
+        }
+        
+        animationStartY = startY
+        val centerY = height / 2f
+        val targetY = centerY - baseCardHeight / 2f
+        
+        // 创建动画集合
+        val animatorSet = AnimatorSet()
+        val animations = mutableListOf<Animator>()
+        
+        // 1. 按钮先消失
+        val buttonAnimator = ValueAnimator.ofFloat(buttonsAlpha, 0f).apply {
+            duration = 200
+            interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            addUpdateListener { animator ->
+                buttonsAlpha = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        animations.add(buttonAnimator)
+        
+        // 2. 卡片依次缩小消失（错开时间，但间隔更短）
+        for (i in webViewCards.indices) {
+            val cardIndex = i
+            val delay = i * 50L // 每个卡片延迟50ms，依次消失
+            
+            // 缩放动画：从当前值到0.3
+            val currentScale = cardAnimationScales.getOrElse(cardIndex) { 1.0f }
+            val scaleAnimator = ValueAnimator.ofFloat(currentScale, 0.3f).apply {
+                duration = 350
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationScales.size) {
+                        cardAnimationScales[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            // 透明度动画：从当前值到0
+            val currentAlpha = cardAnimationAlphas.getOrElse(cardIndex) { 1.0f }
+            val alphaAnimator = ValueAnimator.ofFloat(currentAlpha, 0f).apply {
+                duration = 350
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationAlphas.size) {
+                        cardAnimationAlphas[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            // 位移动画：从当前位置回到标题栏位置
+            val currentTranslation = cardAnimationTranslationYs.getOrElse(cardIndex) { 0f }
+            val translationAnimator = ValueAnimator.ofFloat(currentTranslation, startY - targetY).apply {
+                duration = 350
+                startDelay = delay
+                interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    if (cardIndex < cardAnimationTranslationYs.size) {
+                        cardAnimationTranslationYs[cardIndex] = animator.animatedValue as Float
+                        invalidate()
+                    }
+                }
+            }
+            
+            animations.add(scaleAnimator)
+            animations.add(alphaAnimator)
+            animations.add(translationAnimator)
+        }
+        
+        // 3. 背景蒙版淡出动画（与卡片动画同时进行）
+        val backgroundAnimator = ValueAnimator.ofFloat(backgroundMaskAlpha, 0f).apply {
+            duration = 350
+            interpolator = PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+            addUpdateListener { animator ->
+                backgroundMaskAlpha = animator.animatedValue as Float
+                invalidate()
+            }
+        }
+        animations.add(backgroundAnimator)
+        
+        animatorSet.playTogether(*animations.toTypedArray())
+        animatorSet.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                // 重置所有动画状态
+                for (i in webViewCards.indices) {
+                    if (i < cardAnimationScales.size) cardAnimationScales[i] = 1.0f
+                    if (i < cardAnimationAlphas.size) cardAnimationAlphas[i] = 1.0f
+                    if (i < cardAnimationTranslationYs.size) cardAnimationTranslationYs[i] = 0f
+                }
+                backgroundMaskAlpha = 1f
+                buttonsAlpha = 1f
+                onComplete()
+                Log.d(TAG, "卡片消失动画完成")
+            }
+        })
+        animatorSet.start()
+        
+        Log.d(TAG, "开始卡片下滑消失动画，目标Y=$startY，卡片数=${webViewCards.size}")
     }
 }

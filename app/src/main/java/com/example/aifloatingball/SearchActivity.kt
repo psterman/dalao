@@ -4095,39 +4095,48 @@ class SearchActivity : AppCompatActivity() {
             // 确保按钮已激活（resetToStackedMode会自动设置，这里再次确认）
             stackedCardPreview?.invalidate()
             
-            // 设置初始状态：从下方滑入
-            stackedCardPreview?.alpha = 0f
-            val screenHeight = resources.displayMetrics.heightPixels
-            stackedCardPreview?.translationY = screenHeight.toFloat()
+            // 设置初始状态
+            stackedCardPreview?.alpha = 1f
+            stackedCardPreview?.scaleX = 1f
+            stackedCardPreview?.scaleY = 1f
+            stackedCardPreview?.translationY = 0f
             stackedCardPreview?.visibility = View.VISIBLE
             
             // 建立触摸隔膜
             buildTouchBarrier()
             ensureStackedCardPreviewOnTop()
             
-            // 执行平滑的上滑动画（参考iOS Safari的动画效果）
-            stackedCardPreview?.animate()
-                ?.alpha(1f)
-                ?.translationY(0f)
-                ?.setDuration(350) // iOS Safari风格的动画时长
-                ?.setInterpolator(android.view.animation.DecelerateInterpolator()) // 减速插值器，更自然
-                ?.withStartAction {
-                    Log.d("SearchActivity", "开始上滑动画激活悬浮卡片")
-                }
-                ?.withEndAction {
-                    // 动画完成后，确保数据已同步
-                    handler.post {
-                        ensureCardContentLoaded()
-                        syncAllCardSystems()
-                        stackedCardPreview?.invalidate()
-                    }
-                    
-                    // 设置卡片选择监听器
-                    setupStackedCardPreviewListeners()
-                    
-                    Log.d("SearchActivity", "上滑动画完成，悬浮卡片已激活")
-                }
-                ?.start()
+            // 获取AppBarLayout的位置作为动画起点（标题栏位置）
+            // 需要转换为StackedCardPreview的坐标系统
+            val titleBarY = appBarLayout.let { bar ->
+                val location = IntArray(2)
+                bar.getLocationOnScreen(location)
+                val stackedLocation = IntArray(2)
+                stackedCardPreview?.getLocationOnScreen(stackedLocation)
+                // 计算相对于StackedCardPreview的Y坐标
+                val relativeY = (location[1] + bar.height) - (stackedLocation?.get(1) ?: 0)
+                relativeY.toFloat() // 标题栏底部位置（相对于StackedCardPreview）
+            }
+            
+            Log.d("SearchActivity", "标题栏位置Y=$titleBarY（相对于StackedCardPreview），开始从标题栏弹出卡片动画")
+            
+            // 确保视图已准备好绘制
+            stackedCardPreview?.post {
+                // 使用新的从标题栏弹出动画
+                stackedCardPreview?.animateCardsPopFromTitleBar(titleBarY)
+            }
+            
+            // 动画完成后，确保数据已同步
+            handler.postDelayed({
+                ensureCardContentLoaded()
+                syncAllCardSystems()
+                stackedCardPreview?.invalidate()
+                
+                // 设置卡片选择监听器
+                setupStackedCardPreviewListeners()
+                
+                Log.d("SearchActivity", "从标题栏弹出动画完成，悬浮卡片已激活")
+            }, 800L) // 等待动画完成（最长动画时间约800ms）
             
         } catch (e: Exception) {
             Log.e("SearchActivity", "激活悬浮卡片动画失败", e)
@@ -4166,17 +4175,21 @@ class SearchActivity : AppCompatActivity() {
                     Log.w("SearchActivity", "无效的卡片索引: $cardIndex，标签页总数: ${paperStackTabs.size}")
                 }
                 
-                // 隐藏StackedCardPreview（带动画）
-                val screenHeight = resources.displayMetrics.heightPixels
-                stackedCardPreview?.animate()
-                    ?.alpha(0f)
-                    ?.translationY(screenHeight.toFloat())
-                    ?.setDuration(300)
-                    ?.setInterpolator(android.view.animation.AccelerateInterpolator())
-                    ?.withEndAction {
-                        stackedCardPreview?.visibility = View.GONE
-                    }
-                    ?.start()
+                // 获取AppBarLayout的位置作为动画终点（标题栏位置）
+                val titleBarY = appBarLayout.let { bar ->
+                    val location = IntArray(2)
+                    bar.getLocationOnScreen(location)
+                    location[1] + bar.height.toFloat() // 标题栏底部位置
+                }
+                
+                Log.d("SearchActivity", "标题栏位置Y=$titleBarY，开始卡片下滑消失动画")
+                
+                // 使用新的下滑消失动画（消失在标题栏）
+                stackedCardPreview?.animateCardsDismissToTitleBar(titleBarY) {
+                    // 动画完成后隐藏视图
+                    stackedCardPreview?.visibility = View.GONE
+                    Log.d("SearchActivity", "卡片下滑消失动画完成，已隐藏在标题栏")
+                }
                 
                 // 确保纸堆模式可见
                 if (!isPaperStackMode) {
