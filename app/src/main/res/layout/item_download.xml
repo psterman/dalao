@@ -147,6 +147,16 @@
                     android:textColor="@color/floating_text_hint" />
 
                 <TextView
+                    android:id="@+id/speed_text_view"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text=""
+                    android:textSize="12sp"
+                    android:textColor="@color/colorPrimary"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/size_text_view"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

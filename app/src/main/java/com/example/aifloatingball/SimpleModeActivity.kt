@@ -98,6 +98,8 @@ import com.example.aifloatingball.ui.TabSwitchAnimationManager
 import com.example.aifloatingball.video.FloatingVideoPlayerManager
 import com.example.aifloatingball.video.SystemOverlayVideoManager
 import com.example.aifloatingball.webview.VideoDetectionBridge
+import com.example.aifloatingball.download.DownloadManagerActivity
+import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import androidx.lifecycle.lifecycleScope
@@ -695,6 +697,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 防重复点击保护
     private var lastSearchTabClickTime = 0L
     private val SEARCH_TAB_CLICK_INTERVAL = 500L // 500ms防重复点击间隔
+    
+    // 双击检测
+    private var lastSearchTabDoubleClickTime = 0L
+    private val DOUBLE_CLICK_INTERVAL = 300L // 300ms双击间隔
 
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
@@ -4764,13 +4770,32 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 搜索tab (第二位)
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
             setOnClickListener {
-                // 防重复点击保护
                 val currentTime = System.currentTimeMillis()
+                
+                // 检测双击
+                val timeSinceLastClick = currentTime - lastSearchTabDoubleClickTime
+                if (lastSearchTabDoubleClickTime > 0 && timeSinceLastClick < DOUBLE_CLICK_INTERVAL) {
+                    // 双击事件 - 打开下载管理
+                    Log.d(TAG, "搜索tab双击，打开下载管理")
+                    lastSearchTabDoubleClickTime = 0L // 重置双击时间
+                    try {
+                        val intent = Intent(this@SimpleModeActivity, DownloadManagerActivity::class.java)
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "打开下载管理失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "打开下载管理失败", Toast.LENGTH_SHORT).show()
+                    }
+                    return@setOnClickListener
+                }
+                
+                // 防重复点击保护
                 if (currentTime - lastSearchTabClickTime < SEARCH_TAB_CLICK_INTERVAL) {
                     Log.d(TAG, "搜索tab点击过于频繁，忽略此次点击")
                     return@setOnClickListener
                 }
+                
                 lastSearchTabClickTime = currentTime
+                lastSearchTabDoubleClickTime = currentTime
 
                 Log.d(TAG, "搜索tab被点击，当前遮罩层状态: $isSearchTabGestureOverlayActive")
 
@@ -9861,6 +9886,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 显示软键盘
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
                 imm.showSoftInput(browserSearchInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+            }
+            
+            // 添加下载管理选项
+            menuItems.add("下载管理")
+            menuActions.add {
+                try {
+                    val intent = Intent(this, DownloadManagerActivity::class.java)
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "打开下载管理失败", e)
+                    Toast.makeText(this, "打开下载管理失败", Toast.LENGTH_SHORT).show()
+                }
             }
             
             // 添加设置选项

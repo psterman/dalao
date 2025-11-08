@@ -2,6 +2,7 @@ package com.example.aifloatingball.download
 
 import android.app.Activity
 import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -78,6 +79,11 @@ class DownloadManagerActivity : AppCompatActivity() {
             handler.postDelayed(this, REFRESH_INTERVAL)
         }
     }
+    
+    // 下载速度跟踪
+    private val downloadSpeedMap = mutableMapOf<Long, Pair<Long, Long>>() // downloadId -> (lastBytes, lastTime)
+    // 已尝试自动恢复的下载ID集合，避免重复恢复
+    private val autoResumedDownloads = mutableSetOf<Long>()
     
     /**
      * 文件类型过滤枚举
@@ -172,6 +178,9 @@ class DownloadManagerActivity : AppCompatActivity() {
             },
             onDeleteClick = { downloadInfo ->
                 deleteDownloadedFile(downloadInfo)
+            },
+            onResumeClick = { downloadInfo ->
+                resumeDownload(downloadInfo)
             }
         )
         
@@ -190,6 +199,65 @@ class DownloadManagerActivity : AppCompatActivity() {
     private fun refreshDownloads() {
         val allDownloads = enhancedDownloadManager.getAllDownloads()
         val filteredDownloads = filterAndSortDownloads(allDownloads)
+        
+        // 计算下载速度
+        val currentTime = System.currentTimeMillis()
+        filteredDownloads.forEach { download ->
+            if (download.status == DownloadManager.STATUS_RUNNING) {
+                val speedInfo = downloadSpeedMap[download.downloadId]
+                if (speedInfo != null) {
+                    val (lastBytes, lastTime) = speedInfo
+                    val timeDiff = (currentTime - lastTime) / 1000.0 // 秒
+                    if (timeDiff > 0) {
+                        val bytesDiff = download.bytesDownloaded - lastBytes
+                        val speed = (bytesDiff / timeDiff).toLong()
+                        downloadAdapter.updateDownloadSpeed(download.downloadId, speed)
+                    }
+                }
+                // 更新速度跟踪信息
+                downloadSpeedMap[download.downloadId] = Pair(download.bytesDownloaded, currentTime)
+            } else {
+                // 非运行中的下载，清除速度跟踪
+                downloadSpeedMap.remove(download.downloadId)
+                downloadAdapter.updateDownloadSpeed(download.downloadId, 0)
+            }
+        }
+        
+        // 自动恢复暂停的下载（除了等待WiFi的情况和已删除的下载）
+        val pausedDownloads = filteredDownloads.filter { 
+            it.status == DownloadManager.STATUS_PAUSED && 
+            !autoResumedDownloads.contains(it.downloadId) &&
+            !enhancedDownloadManager.isDownloadDeleted(it.downloadId)
+        }
+        pausedDownloads.forEach { download ->
+            // 检查暂停原因，如果不是等待WiFi，尝试自动恢复
+            val query = android.app.DownloadManager.Query().setFilterById(download.downloadId)
+            val cursor = (getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager).query(query)
+            try {
+                if (cursor.moveToFirst()) {
+                    val reason = cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON))
+                    // 如果不是等待WiFi，自动恢复
+                    if (reason != android.app.DownloadManager.PAUSED_QUEUED_FOR_WIFI) {
+                        Log.d(TAG, "🔄 检测到暂停的下载，自动恢复: downloadId=${download.downloadId}, reason=$reason")
+                        autoResumedDownloads.add(download.downloadId)
+                        resumeDownload(download)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "检查暂停原因失败", e)
+            } finally {
+                cursor.close()
+            }
+        }
+        
+        // 清理已完成的下载的恢复标记
+        val completedDownloads = filteredDownloads.filter { 
+            it.status == DownloadManager.STATUS_SUCCESSFUL || it.status == DownloadManager.STATUS_FAILED
+        }
+        completedDownloads.forEach { 
+            autoResumedDownloads.remove(it.downloadId)
+        }
+        
         downloadAdapter.updateDownloads(filteredDownloads)
         
         // 更新统计信息
@@ -386,11 +454,19 @@ class DownloadManagerActivity : AppCompatActivity() {
     private fun updateStatistics(downloads: List<EnhancedDownloadManager.DownloadInfo>) {
         val totalCount = downloads.size
         val completedCount = downloads.count { it.status == DownloadManager.STATUS_SUCCESSFUL }
-        val totalSize = downloads.sumOf { it.bytesTotal }
+        // 修复：过滤掉负数大小，避免显示"-2 B"
+        val totalSize = downloads
+            .map { it.bytesTotal }
+            .filter { it > 0 } // 只计算有效的大小
+            .sum()
         
         totalDownloadsText.text = totalCount.toString()
         completedDownloadsText.text = completedCount.toString()
-        totalSizeText.text = formatFileSize(totalSize)
+        totalSizeText.text = if (totalSize > 0) {
+            formatFileSize(totalSize)
+        } else {
+            "未知"
+        }
     }
     
     /**
@@ -484,9 +560,19 @@ class DownloadManagerActivity : AppCompatActivity() {
                 
                 Log.d(TAG, "尝试分享文件: $filename, URI: $uri, MIME: $mimeType")
                 
+                // Android 10+ 需要使用FileProvider转换URI，确保其他应用可以访问
+                val shareUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10+ 使用FileProvider或MediaStore
+                    convertToContentUri(uri, filename, mimeType) ?: uri
+                } else {
+                    uri
+                }
+                
+                Log.d(TAG, "分享URI: $shareUri")
+                
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                     type = mimeType
-                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_STREAM, shareUri)
                     putExtra(Intent.EXTRA_SUBJECT, filename)
                     putExtra(Intent.EXTRA_TEXT, "分享文件: $filename")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -495,6 +581,7 @@ class DownloadManagerActivity : AppCompatActivity() {
                 
                 val chooserIntent = Intent.createChooser(shareIntent, "分享文件")
                 chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                chooserIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 
                 if (chooserIntent.resolveActivity(packageManager) != null) {
                     startActivity(chooserIntent)
@@ -520,8 +607,14 @@ class DownloadManagerActivity : AppCompatActivity() {
             .setMessage("确定要删除文件 \"${downloadInfo.title}\" 吗？")
             .setPositiveButton("删除") { _, _ ->
                 try {
+                    // 标记为已删除，避免自动恢复
+                    enhancedDownloadManager.markAsDeleted(downloadInfo.downloadId)
+                    
                     // 取消下载任务
                     enhancedDownloadManager.cancelDownload(downloadInfo.downloadId)
+                    
+                    // 从自动恢复列表中移除
+                    autoResumedDownloads.remove(downloadInfo.downloadId)
                     
                     // 尝试删除物理文件
                     val localUri = downloadInfo.localUri
@@ -530,7 +623,8 @@ class DownloadManagerActivity : AppCompatActivity() {
                             val uri = Uri.parse(localUri)
                             val file = java.io.File(uri.path ?: "")
                             if (file.exists()) {
-                                file.delete()
+                                val deleted = file.delete()
+                                Log.d(TAG, "删除物理文件: ${file.absolutePath}, 结果: $deleted")
                             }
                         } catch (e: Exception) {
                             Log.w(TAG, "删除物理文件失败", e)
@@ -734,8 +828,29 @@ class DownloadManagerActivity : AppCompatActivity() {
                 Toast.makeText(this, "等待下载...", Toast.LENGTH_SHORT).show()
             }
             DownloadManager.STATUS_PAUSED -> {
-                Toast.makeText(this, "下载已暂停", Toast.LENGTH_SHORT).show()
+                // 已暂停状态，尝试恢复下载
+                resumeDownload(downloadInfo)
             }
+        }
+    }
+    
+    /**
+     * 恢复下载
+     */
+    private fun resumeDownload(downloadInfo: EnhancedDownloadManager.DownloadInfo) {
+        try {
+            val downloadId = enhancedDownloadManager.resumeDownload(downloadInfo)
+            if (downloadId != -1L) {
+                Toast.makeText(this, "正在恢复下载...", Toast.LENGTH_SHORT).show()
+                refreshDownloads()
+            } else {
+                // 如果无法恢复，显示失败原因
+                val reason = enhancedDownloadManager.getDownloadFailureReason(downloadInfo.downloadId)
+                Toast.makeText(this, "恢复下载失败: $reason", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复下载失败", e)
+            Toast.makeText(this, "恢复下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -775,9 +890,18 @@ class DownloadManagerActivity : AppCompatActivity() {
     }
     
     private fun installApkFile(downloadInfo: EnhancedDownloadManager.DownloadInfo) {
-        val apkPath = downloadInfo.localFilename
-        if (apkPath == null) {
-            Toast.makeText(this, "APK文件不存在", Toast.LENGTH_SHORT).show()
+        // 优先从localUri获取完整路径，如果失败则从description中提取
+        val apkPath = enhancedDownloadManager.getDownloadPath(downloadInfo) 
+            ?: downloadInfo.localFilename
+            ?: run {
+                // 从description中提取路径
+                val pathMatch = Regex("PATH:(.+)").find(downloadInfo.description ?: "")
+                pathMatch?.groupValues?.get(1)
+            }
+        
+        if (apkPath == null || apkPath.isEmpty()) {
+            Log.e(TAG, "无法获取APK文件路径")
+            Toast.makeText(this, "无法获取APK文件路径", Toast.LENGTH_SHORT).show()
             return
         }
         

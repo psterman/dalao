@@ -6,6 +6,12 @@
     <external-path name="pictures" path="Pictures/AIFloatingBall/" />
     <!-- 外部存储根目录 -->
     <external-path name="external_files" path="." />
+    <!-- 应用外部文件目录（Android/data/包名/files/） -->
+    <external-files-path name="external_files_dir" path="." />
+    <!-- 应用外部文件目录下的Download子目录 -->
+    <external-files-path name="external_download" path="Download/" />
+    <!-- 应用外部文件目录下的Download/AIFloatingBall子目录 -->
+    <external-files-path name="external_download_folder" path="Download/AIFloatingBall/" />
     <!-- 内部存储的缓存目录 -->
     <cache-path name="cache" path="." />
     <!-- 内部存储的文件目录 -->

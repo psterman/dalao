@@ -24,10 +24,19 @@ class EnhancedDownloadAdapter(
     private val onInstallClick: (EnhancedDownloadManager.DownloadInfo) -> Unit,
     private val onUninstallClick: (EnhancedDownloadManager.DownloadInfo) -> Unit,
     private val onShareClick: (EnhancedDownloadManager.DownloadInfo) -> Unit,
-    private val onDeleteClick: (EnhancedDownloadManager.DownloadInfo) -> Unit
+    private val onDeleteClick: (EnhancedDownloadManager.DownloadInfo) -> Unit,
+    private val onResumeClick: (EnhancedDownloadManager.DownloadInfo) -> Unit
 ) : RecyclerView.Adapter<EnhancedDownloadAdapter.DownloadViewHolder>() {
     
     private var downloads = listOf<EnhancedDownloadManager.DownloadInfo>()
+    private var downloadSpeeds = mutableMapOf<Long, Long>() // downloadId -> speed (bytes/s)
+    
+    /**
+     * 更新下载速度
+     */
+    fun updateDownloadSpeed(downloadId: Long, speed: Long) {
+        downloadSpeeds[downloadId] = speed
+    }
     
     fun updateDownloads(newDownloads: List<EnhancedDownloadManager.DownloadInfo>) {
         downloads = newDownloads
@@ -56,6 +65,7 @@ class EnhancedDownloadAdapter(
         private val sourceUrlTextView: TextView = itemView.findViewById(R.id.source_url_text_view)
         private val progressBar: ProgressBar = itemView.findViewById(R.id.progress_bar)
         private val progressTextView: TextView = itemView.findViewById(R.id.progress_text_view)
+        private val speedTextView: TextView = itemView.findViewById(R.id.speed_text_view)
         private val sizeTextView: TextView = itemView.findViewById(R.id.size_text_view)
         private val dateTextView: TextView = itemView.findViewById(R.id.date_text_view)
         private val openButton: MaterialButton = itemView.findViewById(R.id.open_button)
@@ -77,11 +87,33 @@ class EnhancedDownloadAdapter(
             }
             titleTextView.text = displayName
             
-            // 设置文件路径
-            val filePath = if (filename.isNotEmpty()) {
-                filename.substringBeforeLast("/") // 获取目录路径
-            } else {
-                "未知路径"
+            // 设置文件路径 - 显示完整下载路径
+            val filePath = try {
+                val enhancedManager = EnhancedDownloadManager(itemView.context)
+                val downloadPath = enhancedManager.getDownloadPath(download)
+                if (downloadPath != null) {
+                    // 显示相对路径（相对于存储根目录）
+                    val storageRoot = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        itemView.context.getExternalFilesDir(null)?.parent ?: ""
+                    } else {
+                        android.os.Environment.getExternalStorageDirectory().absolutePath
+                    }
+                    if (downloadPath.startsWith(storageRoot)) {
+                        downloadPath.substring(storageRoot.length).trimStart('/')
+                    } else {
+                        downloadPath
+                    }
+                } else if (filename.isNotEmpty() && filename.contains("/")) {
+                    filename.substringBeforeLast("/")
+                } else {
+                    "下载目录"
+                }
+            } catch (e: Exception) {
+                if (filename.isNotEmpty() && filename.contains("/")) {
+                    filename.substringBeforeLast("/")
+                } else {
+                    "下载目录"
+                }
             }
             filePathTextView.text = filePath
             
@@ -113,15 +145,18 @@ class EnhancedDownloadAdapter(
                     openButton.visibility = View.VISIBLE
                     shareButton.visibility = View.VISIBLE
                     deleteButton.visibility = View.VISIBLE
+                    deleteButton.text = "删除"
                 }
                 DownloadManager.STATUS_FAILED -> {
                     statusTextView.text = "下载失败"
                     statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_red_dark))
                     progressBar.progress = 0
                     progressTextView.text = "0%"
+                    speedTextView.visibility = View.GONE
                     openButton.visibility = View.GONE
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
+                    deleteButton.text = "重试"
                 }
                 DownloadManager.STATUS_RUNNING -> {
                     statusTextView.text = "正在下载"
@@ -131,18 +166,31 @@ class EnhancedDownloadAdapter(
                     } else 0
                     progressBar.progress = progress
                     progressTextView.text = "$progress%"
+                    
+                    // 显示下载速度
+                    val speed = downloadSpeeds[download.downloadId] ?: 0L
+                    if (speed > 0) {
+                        speedTextView.text = formatSpeed(speed)
+                        speedTextView.visibility = View.VISIBLE
+                    } else {
+                        speedTextView.visibility = View.GONE
+                    }
+                    
                     openButton.visibility = View.GONE
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
+                    deleteButton.text = "删除"
                 }
                 DownloadManager.STATUS_PENDING -> {
                     statusTextView.text = "等待下载"
                     statusTextView.setTextColor(itemView.context.getColor(android.R.color.darker_gray))
                     progressBar.progress = 0
                     progressTextView.text = "0%"
+                    speedTextView.visibility = View.GONE
                     openButton.visibility = View.GONE
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
+                    deleteButton.text = "删除"
                 }
                 DownloadManager.STATUS_PAUSED -> {
                     statusTextView.text = "已暂停"
@@ -152,16 +200,27 @@ class EnhancedDownloadAdapter(
                     } else 0
                     progressBar.progress = progress
                     progressTextView.text = "$progress%"
+                    speedTextView.visibility = View.GONE
                     openButton.visibility = View.GONE
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
+                    deleteButton.text = "恢复"
                 }
             }
             
-            // 设置文件大小
+            // 设置文件大小 - 处理-1的情况
             val downloadedSize = formatFileSize(download.bytesDownloaded)
-            val totalSize = formatFileSize(download.bytesTotal)
+            val totalSize = if (download.bytesTotal > 0) {
+                formatFileSize(download.bytesTotal)
+            } else {
+                "未知大小"
+            }
             sizeTextView.text = "$downloadedSize / $totalSize"
+            
+            // 对于非运行中的下载，隐藏速度显示
+            if (download.status != DownloadManager.STATUS_RUNNING) {
+                speedTextView.visibility = View.GONE
+            }
             
             // 设置日期
             val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
@@ -185,7 +244,15 @@ class EnhancedDownloadAdapter(
             }
             
             deleteButton.setOnClickListener {
-                onDeleteClick(download)
+                // 根据下载状态决定是删除还是恢复
+                when (download.status) {
+                    DownloadManager.STATUS_PAUSED, DownloadManager.STATUS_FAILED -> {
+                        onResumeClick(download)
+                    }
+                    else -> {
+                        onDeleteClick(download)
+                    }
+                }
             }
         }
         
@@ -215,6 +282,14 @@ class EnhancedDownloadAdapter(
                 bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
                 bytes >= 1024 -> String.format("%.1f KB", bytes / 1024.0)
                 else -> "$bytes B"
+            }
+        }
+        
+        private fun formatSpeed(bytesPerSecond: Long): String {
+            return when {
+                bytesPerSecond >= 1024 * 1024 -> String.format("%.1f MB/s", bytesPerSecond / (1024.0 * 1024.0))
+                bytesPerSecond >= 1024 -> String.format("%.1f KB/s", bytesPerSecond / 1024.0)
+                else -> "$bytesPerSecond B/s"
             }
         }
     }

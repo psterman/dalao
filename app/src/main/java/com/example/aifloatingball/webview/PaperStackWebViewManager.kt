@@ -31,6 +31,9 @@ import android.view.WindowManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.aifloatingball.model.HistoryEntry
+import com.example.aifloatingball.download.EnhancedDownloadManager
+import android.webkit.URLUtil
+import android.widget.Toast
 import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
@@ -101,6 +104,11 @@ class PaperStackWebViewManager(
     private var enhancedMenuManager: EnhancedMenuManager? = null
     private var lastTouchX = 0f
     private var lastTouchY = 0f
+    
+    // 增强下载管理器
+    private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
+        EnhancedDownloadManager(context)
+    }
 
     private val historyPrefs: SharedPreferences = context.getSharedPreferences("browser_history", Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -1631,6 +1639,93 @@ class PaperStackWebViewManager(
      * 标签页WebView类
      */
     /**
+     * 检测是否为下载链接
+     */
+    private fun isDownloadUrl(url: String, contentType: String?): Boolean {
+        if (url.isBlank()) return false
+        
+        val lowerUrl = url.lowercase()
+        
+        // 检测文件扩展名
+        val downloadExtensions = listOf(
+            ".apk", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2",
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
+            ".mp3", ".wav", ".flac", ".aac", ".ogg",
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"
+        )
+        
+        if (downloadExtensions.any { lowerUrl.endsWith(it) }) {
+            return true
+        }
+        
+        // 检测Content-Type
+        contentType?.let {
+            val lowerContentType = it.lowercase()
+            if (lowerContentType.contains("application/octet-stream") ||
+                lowerContentType.contains("application/zip") ||
+                lowerContentType.contains("application/x-rar-compressed") ||
+                lowerContentType.contains("application/pdf") ||
+                lowerContentType.startsWith("application/vnd.android.package-archive") ||
+                lowerContentType.startsWith("video/") ||
+                lowerContentType.startsWith("audio/")) {
+                return true
+            }
+        }
+        
+        // 检测URL参数中的下载标识
+        if (lowerUrl.contains("download=true") ||
+            lowerUrl.contains("action=download") ||
+            lowerUrl.contains("/download/") ||
+            lowerUrl.contains("/file/")) {
+            return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * 处理下载请求
+     */
+    private fun handleDownloadRequest(
+        url: String,
+        userAgent: String,
+        contentDisposition: String,
+        mimeType: String,
+        contentLength: Long
+    ) {
+        Log.d(TAG, "🔽 处理下载请求: url=$url")
+        Log.d(TAG, "🔽 MIME类型: $mimeType")
+        Log.d(TAG, "🔽 文件大小: $contentLength bytes")
+        
+        try {
+            // 检查URL是否有效
+            if (!URLUtil.isValidUrl(url)) {
+                Log.e(TAG, "❌ 无效的下载URL: $url")
+                Toast.makeText(context, "无效的下载链接", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 使用智能下载功能，自动根据文件类型选择合适的目录
+            Log.d(TAG, "🔽 使用智能下载功能")
+            enhancedDownloadManager.downloadSmart(url, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d(TAG, "✅ 文件下载成功: $fileName")
+                    Toast.makeText(context, "文件下载完成", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    Log.e(TAG, "❌ 文件下载失败: $reason")
+                    Toast.makeText(context, "文件下载失败", Toast.LENGTH_SHORT).show()
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 下载处理失败", e)
+            Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
      * 处理特殊 scheme URL（如 intent://、douban://、clash:// 等）
      * 直接启动Intent，让系统显示应用选择对话框（类似 Chrome）
      * @param url URL 字符串
@@ -1984,6 +2079,12 @@ class PaperStackWebViewManager(
                 }
             }
             
+            // 设置下载监听器 - 这是处理下载的正确方式
+            setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+                Log.d(TAG, "🔽 WebView下载请求: url=$url, mimeType=$mimeType, contentLength=$contentLength")
+                handleDownloadRequest(url, userAgent, contentDisposition, mimeType, contentLength)
+            }
+            
             // 设置WebViewClient
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
@@ -1991,6 +2092,12 @@ class PaperStackWebViewManager(
                     Log.d(TAG, "PaperWebView URL加载拦截: $url")
                     
                     if (url != null) {
+                        // 检测是否为下载链接
+                        if (isDownloadUrl(url, request?.requestHeaders?.get("Content-Type"))) {
+                            Log.d(TAG, "🔽 检测到下载链接，拦截并下载: $url")
+                            handleDownloadRequest(url, "", "", "", 0)
+                            return true
+                        }
                         return handleSpecialSchemeUrl(url, view)
                     }
                     return false
@@ -2001,6 +2108,12 @@ class PaperStackWebViewManager(
                     Log.d(TAG, "PaperWebView URL加载拦截 (legacy): $url")
                     
                     if (url != null) {
+                        // 检测是否为下载链接
+                        if (isDownloadUrl(url, null)) {
+                            Log.d(TAG, "🔽 检测到下载链接，拦截并下载: $url")
+                            handleDownloadRequest(url, "", "", "", 0)
+                            return true
+                        }
                         return handleSpecialSchemeUrl(url, view)
                     }
                     return false
@@ -2068,6 +2181,50 @@ class PaperStackWebViewManager(
                                 document.documentElement.style.setProperty('--mobile-viewport', '1');
                             } catch (e) {
                                 console.error('Failed to inject viewport meta tag:', e);
+                            }
+                        })();
+                    """.trimIndent(), null)
+                    
+                    // 注入下载拦截脚本
+                    view?.evaluateJavascript("""
+                        (function() {
+                            try {
+                                // 拦截所有下载按钮和链接的点击
+                                document.addEventListener('click', function(e) {
+                                    var target = e.target;
+                                    // 检查按钮文本是否包含"下载"、"立即下载"等关键词
+                                    var buttonText = target.textContent || target.innerText || '';
+                                    if (buttonText.includes('下载') || buttonText.includes('Download')) {
+                                        // 查找最近的链接或按钮
+                                        var link = target.closest('a') || target;
+                                        if (link.href) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // 触发下载
+                                            window.location.href = link.href;
+                                            return false;
+                                        }
+                                    }
+                                }, true);
+                                
+                                // 拦截所有a标签的点击，检测下载链接
+                                var links = document.querySelectorAll('a[href]');
+                                links.forEach(function(link) {
+                                    link.addEventListener('click', function(e) {
+                                        var href = this.href;
+                                        // 检测是否为下载链接
+                                        if (href.match(/\.(apk|zip|rar|7z|tar|gz|pdf|doc|docx|xls|xlsx|ppt|pptx|mp4|avi|mkv|mov|mp3|wav|flac)$/i) ||
+                                            this.download ||
+                                            this.getAttribute('download')) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            window.location.href = href;
+                                            return false;
+                                        }
+                                    });
+                                });
+                            } catch (e) {
+                                console.error('Failed to inject download interceptor:', e);
                             }
                         })();
                     """.trimIndent(), null)

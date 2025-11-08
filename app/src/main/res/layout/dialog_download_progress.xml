@@ -112,6 +112,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="取消"
+            android:textColor="?attr/colorPrimary"
             android:layout_marginEnd="8dp"
             style="@style/Widget.Material3.Button.TextButton" />
 
@@ -120,6 +121,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="管理"
+            android:textColor="?attr/colorPrimary"
             style="@style/Widget.Material3.Button.TextButton" />
 
     </LinearLayout>
