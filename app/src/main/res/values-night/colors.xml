@@ -534,7 +534,7 @@
     
     <!-- Prompt社区卡片背景颜色 - 暗色模式 -->
     <color name="ai_assistant_card_background_light">#1E1E1E</color>
-    
+
     <!-- 菜单按钮颜色 - 暗色模式 -->
     <color name="menu_button_text_light">#E0E0E0</color>
     <color name="menu_button_icon_light">#E0E0E0</color>

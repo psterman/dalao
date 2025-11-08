@@ -657,7 +657,7 @@ class StackedCardPreview @JvmOverloads constructor(
 
             // iOS 风格的轻微触觉反馈：只在快速切换时提供，避免过度震动
             if (abs(slideVelocity) > 800f) {
-                vibrate(VibrationType.BROWSING)
+            vibrate(VibrationType.BROWSING)
             }
         }
 
@@ -1287,7 +1287,7 @@ class StackedCardPreview @JvmOverloads constructor(
                 }
                 .withEndAction {
                     // 动画完成后，通知选择了卡片并隐藏
-                    visibility = View.GONE
+            visibility = View.GONE
                     alpha = 1f // 重置透明度
                     scaleX = 1f // 重置缩放
                     scaleY = 1f
@@ -1463,7 +1463,7 @@ class StackedCardPreview @JvmOverloads constructor(
         
         // iOS 风格的减速插值器：使用更平滑的曲线
         val iosDecelerateInterpolator = PathInterpolator(0.0f, 0.0f, 0.2f, 1.0f) // iOS 标准减速曲线
-        
+
         val animator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = dynamicDuration
             interpolator = iosDecelerateInterpolator
@@ -1634,9 +1634,9 @@ class StackedCardPreview @JvmOverloads constructor(
             val hasAnimationState = i < cardAnimationScales.size && i < cardAnimationAlphas.size
             val scale = if (hasAnimationState) {
                 // 使用动画状态，但也要考虑距离中心的缩放
-                val distanceFromCenter = abs(cardCenterX - centerX)
+            val distanceFromCenter = abs(cardCenterX - centerX)
                 val maxDistance = cardSpacing * 2.5f
-                val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
+            val normalizedDistance = (distanceFromCenter / maxDistance).coerceIn(0f, 1f)
                 val easedDistance = 1f - (1f - normalizedDistance).pow(3f)
                 val distanceScale = 1.0f - easedDistance * 0.25f
                 cardAnimationScales[i] * distanceScale // 动画缩放 * 距离缩放

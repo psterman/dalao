@@ -134,20 +134,35 @@
     <div class="container">
         <div class="button-group" id="buttonGroup">
             <div style="display: flex; gap: 12px; width: 100%;">
-                <button class="button" onclick="createNewTab()" style="flex: 1;">
-                    <span class="button-icon">➕</span>
-                    <span>新建标签页</span>
-                </button>
-                <button class="secondary-button" onclick="createNewGroup()" style="flex: 0 0 auto; min-width: 100px;">
+                <button id="btn_new_tab" class="button" onclick="createNewTab()" style="flex: 1;" data-button-id="new_tab">
+                <span class="button-icon">➕</span>
+                <span>新建标签页</span>
+            </button>
+                <button id="btn_new_group" class="secondary-button" onclick="createNewGroup()" style="flex: 0 0 auto; min-width: 100px;" data-button-id="new_group">
                     <span>📁</span>
                     <div>新建标签组</div>
                 </button>
             </div>
             
             <div class="secondary-buttons">
-                <button class="secondary-button" onclick="openDownloadManager()">
+                <button id="btn_history" class="secondary-button" onclick="openHistory()" data-button-id="history">
+                    <span>🕐</span>
+                    <div>历史记录</div>
+                </button>
+                <button id="btn_bookmarks" class="secondary-button" onclick="openBookmarks()" data-button-id="bookmarks">
+                    <span>⭐</span>
+                    <div>收藏夹</div>
+                </button>
+            </div>
+            
+            <div class="secondary-buttons">
+                <button id="btn_download" class="secondary-button" onclick="openDownloadManager()" data-button-id="download">
                     <span>⬇️</span>
                     <div>下载</div>
+                </button>
+                <button id="btn_restore_buttons" class="secondary-button" onclick="showRestoreButtonsDialog()" data-button-id="restore_buttons" style="display: none;">
+                    <span>➕</span>
+                    <div>恢复按钮</div>
                 </button>
             </div>
         </div>
@@ -161,6 +176,22 @@
                 window.AndroidInterface.createNewTab();
             } else {
                 alert('创建新标签页功能');
+            }
+        }
+        
+        function openHistory() {
+            if (window.AndroidInterface && window.AndroidInterface.openHistory) {
+                window.AndroidInterface.openHistory();
+            } else {
+                alert('历史记录功能');
+            }
+        }
+        
+        function openBookmarks() {
+            if (window.AndroidInterface && window.AndroidInterface.openBookmarks) {
+                window.AndroidInterface.openBookmarks();
+            } else {
+                alert('收藏夹功能');
             }
         }
         
@@ -186,6 +217,175 @@
             } else {
                 alert('组管理功能');
             }
+        }
+        
+        // 按钮配置信息
+        const buttonConfigs = {
+            'new_tab': { name: '新建标签页', icon: '➕' },
+            'new_group': { name: '新建标签组', icon: '📁' },
+            'history': { name: '历史记录', icon: '🕐' },
+            'bookmarks': { name: '收藏夹', icon: '⭐' },
+            'download': { name: '下载', icon: '⬇️' }
+        };
+        
+        // 长按隐藏按钮
+        let longPressTimer = null;
+        let longPressButton = null;
+        
+        function setupButtonLongPress() {
+            Object.keys(buttonConfigs).forEach(buttonId => {
+                const button = document.getElementById('btn_' + buttonId);
+                if (button) {
+                    // 阻止默认的长按菜单
+                    button.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        return false;
+                    });
+                    
+                    let touchStartTime = 0;
+                    let touchStartX = 0;
+                    let touchStartY = 0;
+                    
+                    // 触摸开始
+                    button.addEventListener('touchstart', function(e) {
+                        longPressButton = buttonId;
+                        touchStartTime = Date.now();
+                        touchStartX = e.touches[0].clientX;
+                        touchStartY = e.touches[0].clientY;
+                        longPressTimer = setTimeout(function() {
+                            // 长按成功，隐藏按钮
+                            hideButton(buttonId);
+                            longPressTimer = null;
+                        }, 500); // 500ms长按
+                    }, { passive: true });
+                    
+                    // 触摸结束
+                    button.addEventListener('touchend', function(e) {
+                        if (longPressTimer) {
+                            // 如果长按定时器还在，说明是短按，取消长按
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
+                        longPressButton = null;
+                    }, { passive: true });
+                    
+                    // 触摸移动时取消长按
+                    button.addEventListener('touchmove', function(e) {
+                        if (longPressTimer) {
+                            const moveX = Math.abs(e.touches[0].clientX - touchStartX);
+                            const moveY = Math.abs(e.touches[0].clientY - touchStartY);
+                            // 如果移动超过10px，取消长按
+                            if (moveX > 10 || moveY > 10) {
+                                clearTimeout(longPressTimer);
+                                longPressTimer = null;
+                                longPressButton = null;
+                            }
+                        }
+                    }, { passive: true });
+                }
+            });
+        }
+        
+        // 隐藏按钮
+        function hideButton(buttonId) {
+            if (window.AndroidInterface && window.AndroidInterface.hideButton) {
+                window.AndroidInterface.hideButton(buttonId);
+                const button = document.getElementById('btn_' + buttonId);
+                if (button) {
+                    button.style.display = 'none';
+                }
+                updateButtonGroupsVisibility();
+                checkAndShowRestoreButton();
+            }
+        }
+        
+        // 显示恢复按钮对话框
+        function showRestoreButtonsDialog() {
+            if (window.AndroidInterface && window.AndroidInterface.showRestoreButtonsDialog) {
+                window.AndroidInterface.showRestoreButtonsDialog();
+            }
+        }
+        
+        // 检查并显示恢复按钮
+        function checkAndShowRestoreButton() {
+            const visibility = getButtonVisibility();
+            const hasHiddenButtons = Object.values(visibility).some(visible => !visible);
+            const restoreButton = document.getElementById('btn_restore_buttons');
+            if (restoreButton) {
+                restoreButton.style.display = hasHiddenButtons ? 'flex' : 'none';
+            }
+            updateButtonGroupsVisibility();
+        }
+        
+        // 获取按钮显示状态
+        function getButtonVisibility() {
+            if (window.AndroidInterface && window.AndroidInterface.getButtonVisibility) {
+                try {
+                    const visibilityJson = window.AndroidInterface.getButtonVisibility();
+                    if (visibilityJson) {
+                        return JSON.parse(visibilityJson);
+                    }
+                } catch (e) {
+                    console.error('获取按钮显示状态失败:', e);
+                }
+            }
+            return {};
+        }
+        
+        // 根据设置显示/隐藏按钮
+        function updateButtonVisibility() {
+            if (window.AndroidInterface && window.AndroidInterface.getButtonVisibility) {
+                try {
+                    const visibilityJson = window.AndroidInterface.getButtonVisibility();
+                    if (visibilityJson) {
+                        const visibility = JSON.parse(visibilityJson);
+                        Object.keys(buttonConfigs).forEach(buttonId => {
+                            const button = document.getElementById('btn_' + buttonId);
+                            if (button) {
+                                const isVisible = visibility[buttonId] !== false; // 默认显示
+                                button.style.display = isVisible ? 'flex' : 'none';
+                            }
+                        });
+                        
+                        // 隐藏空的按钮组
+                        updateButtonGroupsVisibility();
+                        // 检查并显示恢复按钮
+                        checkAndShowRestoreButton();
+                    }
+                } catch (e) {
+                    console.error('更新按钮显示状态失败:', e);
+                }
+            }
+        }
+        
+        // 更新按钮组的显示状态（隐藏空的按钮组）
+        function updateButtonGroupsVisibility() {
+            const buttonGroups = document.querySelectorAll('.secondary-buttons');
+            buttonGroups.forEach(group => {
+                const visibleButtons = group.querySelectorAll('button[style*="display: flex"], button:not([style*="display: none"])');
+                if (visibleButtons.length === 0) {
+                    group.style.display = 'none';
+                } else {
+                    group.style.display = 'flex';
+                }
+            });
+        }
+        
+        // 页面加载时更新按钮显示状态并设置长按事件
+        window.addEventListener('load', function() {
+            updateButtonVisibility();
+            setupButtonLongPress();
+        });
+        
+        // 如果页面已经加载完成，立即更新
+        if (document.readyState === 'complete') {
+            updateButtonVisibility();
+            setupButtonLongPress();
+        } else {
+            document.addEventListener('DOMContentLoaded', function() {
+                updateButtonVisibility();
+                setupButtonLongPress();
+            });
         }
     </script>
 </body>

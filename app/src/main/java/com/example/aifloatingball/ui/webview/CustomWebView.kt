@@ -267,6 +267,13 @@ class CustomWebView @JvmOverloads constructor(
 
                 longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                 longPressRunnable = Runnable {
+                    // 如果是功能主页，屏蔽长按菜单
+                    val currentUrl = url
+                    if (currentUrl == "home://functional" || currentUrl == "file:///android_asset/functional_home.html") {
+                        Log.d(TAG, "功能主页长按，屏蔽菜单")
+                        return@Runnable
+                    }
+                    
                     isLongPress = true
                     // 长按发生时，直接尝试处理长按逻辑，包括选择和显示菜单/选择柄
                     // 修复：在这里统一处理长按事件，首先检查是否为链接。

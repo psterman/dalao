@@ -9,4 +9,9 @@
         android:id="@+id/action_delete_folder"
         android:title="删除文件夹"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_batch_operations"
+        android:title="批量操作"
+        android:icon="@android:drawable/ic_menu_more"
+        app:showAsAction="ifRoom" />
 </menu> 

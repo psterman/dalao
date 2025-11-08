@@ -992,27 +992,11 @@ class NewCardSelectionDialog(
      */
     private fun addToBookmarks(entry: HistoryEntry) {
         try {
-            val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
-            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
-            
-            // 使用Gson解析现有收藏
-            val gson = Gson()
-            val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
-            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
-                try {
-                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
-                } catch (e: Exception) {
-                    mutableListOf()
-                }
-            } else {
-                mutableListOf()
-            }
+            // 使用BookmarkManager统一管理
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(context)
             
             // 检查是否已存在相同URL的收藏（忽略大小写）
-            val existingIndex = bookmarksList.indexOfFirst { 
-                it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)
-            }
-            if (existingIndex >= 0) {
+            if (bookmarkManager.isBookmarkExist(entry.url)) {
                 android.widget.Toast.makeText(context, "该网址已在收藏中", android.widget.Toast.LENGTH_SHORT).show()
                 android.util.Log.d("NewCardSelectionDialog", "收藏已存在: ${entry.url}")
                 return
@@ -1020,21 +1004,16 @@ class NewCardSelectionDialog(
             
             android.util.Log.d("NewCardSelectionDialog", "添加收藏: title=${entry.title}, url=${entry.url}")
             
-            // 创建新的收藏条目
-            val bookmarkEntry = BookmarkEntry(
-                id = "bookmark_${System.currentTimeMillis()}",
+            // 创建新的书签
+            val bookmark = com.example.aifloatingball.model.Bookmark(
                 title = entry.title,
                 url = entry.url,
                 folder = "从历史添加",
-                createTime = java.util.Date()
+                addTime = System.currentTimeMillis()
             )
             
-            // 添加到列表开头
-            bookmarksList.add(0, bookmarkEntry)
-            
-            // 保存到SharedPreferences
-            val updatedJson = gson.toJson(bookmarksList)
-            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+            // 添加到收藏
+            bookmarkManager.addBookmark(bookmark, null)
             
             android.widget.Toast.makeText(context, "已添加到收藏", android.widget.Toast.LENGTH_SHORT).show()
             
@@ -1363,30 +1342,26 @@ class NewCardSelectionDialog(
     }
 
     /**
-     * 获取真实的收藏数据
+     * 获取真实的收藏数据（兼容旧接口，返回BookmarkEntry列表）
+     * 注意：此方法用于向后兼容，新代码应直接使用BookmarkManager
      */
     private fun getRealBookmarkData(): List<BookmarkEntry> {
         return try {
-            // 从SharedPreferences获取收藏数据
-            val sharedPrefs = context.getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
-            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
+            // 使用BookmarkManager获取书签
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(context)
+            val bookmarks = bookmarkManager.getAllBookmarks()
             
-            if (bookmarksJson.isNullOrEmpty() || bookmarksJson == "[]") {
-                // 如果没有收藏数据，返回空列表
-                emptyList()
-            } else {
-                // 使用Gson解析JSON数据
-                val gson = Gson()
-                val type = object : TypeToken<MutableList<BookmarkEntry>>() {}.type
-                val bookmarksList = try {
-                    gson.fromJson<MutableList<BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
-                } catch (e: Exception) {
-                    android.util.Log.e("NewCardSelectionDialog", "解析收藏数据失败", e)
-                    mutableListOf()
-                }
-                
-                android.util.Log.d("NewCardSelectionDialog", "获取到 ${bookmarksList.size} 条收藏数据")
-                bookmarksList
+            // 转换为BookmarkEntry（向后兼容）
+            bookmarks.map { bookmark ->
+                BookmarkEntry(
+                    id = bookmark.id,
+                    title = bookmark.title,
+                    url = bookmark.url,
+                    favicon = bookmark.faviconPath,
+                    folder = bookmark.folder,
+                    createTime = java.util.Date(bookmark.addTime),
+                    tags = bookmark.tags
+                )
             }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "获取收藏数据失败", e)

@@ -94,6 +94,12 @@ class EnhancedMenuManager(
      * 显示增强版图片菜单
      */
     fun showEnhancedImageMenu(webView: WebView, imageUrl: String, x: Int, y: Int) {
+        // 如果是功能主页，屏蔽菜单
+        val currentUrl = webView.url
+        if (currentUrl == "home://functional" || currentUrl == "file:///android_asset/functional_home.html") {
+            Log.d(TAG, "功能主页，屏蔽图片菜单")
+            return
+        }
         Log.d(TAG, "显示增强版图片菜单: $imageUrl")
         
         if (isMenuShowing.get() || isMenuAnimating.get()) {
@@ -161,6 +167,12 @@ class EnhancedMenuManager(
      * 如果是网页链接，显示预览悬浮窗；否则显示普通菜单
      */
     fun showEnhancedLinkMenu(webView: WebView, url: String, title: String, x: Int, y: Int) {
+        // 如果是功能主页，屏蔽菜单
+        val currentUrl = webView.url
+        if (currentUrl == "home://functional" || currentUrl == "file:///android_asset/functional_home.html") {
+            Log.d(TAG, "功能主页，屏蔽链接菜单")
+            return
+        }
         Log.d(TAG, "显示增强版链接菜单: $url")
         
         // 检测链接类型，判断是否为可预览的网页链接
@@ -179,14 +191,14 @@ class EnhancedMenuManager(
         } else {
             // 非网页链接（如mailto:、tel:等），显示普通菜单
             Log.d(TAG, "检测到非网页链接，显示普通菜单: $url")
-            if (isMenuShowing.get() || isMenuAnimating.get()) {
-                hideMenu(true)
-                handler.postDelayed({
-                    doShowEnhancedLinkMenu(webView, url, title, x, y)
-                }, 160)
-                return
-            }
-            doShowEnhancedLinkMenu(webView, url, title, x, y)
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideMenu(true)
+            handler.postDelayed({
+                doShowEnhancedLinkMenu(webView, url, title, x, y)
+            }, 160)
+            return
+        }
+        doShowEnhancedLinkMenu(webView, url, title, x, y)
         }
     }
     
@@ -283,6 +295,12 @@ class EnhancedMenuManager(
      * 显示增强版刷新菜单
      */
     fun showEnhancedRefreshMenu(webView: WebView, x: Int, y: Int) {
+        // 如果是功能主页，屏蔽菜单
+        val currentUrl = webView.url
+        if (currentUrl == "home://functional" || currentUrl == "file:///android_asset/functional_home.html") {
+            Log.d(TAG, "功能主页，屏蔽刷新菜单")
+            return
+        }
         Log.d(TAG, "显示增强版刷新菜单")
         
         if (isMenuShowing.get() || isMenuAnimating.get()) {

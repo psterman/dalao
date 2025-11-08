@@ -148,33 +148,30 @@ class HistoryPageFragment : Fragment() {
     }
 
     /**
-     * 添加到收藏（与弹窗逻辑保持一致的精简版）
+     * 添加到收藏（使用BookmarkManager统一管理）
      */
     private fun addToBookmarks(entry: com.example.aifloatingball.model.HistoryEntry) {
         try {
-            val sharedPrefs = requireContext().getSharedPreferences("browser_bookmarks", android.content.Context.MODE_PRIVATE)
-            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
-            val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
-            val list: MutableList<com.example.aifloatingball.model.BookmarkEntry> = try {
-                gson.fromJson(bookmarksJson, type) ?: mutableListOf()
-            } catch (_: Exception) { mutableListOf() }
-
-            val exists = list.indexOfFirst { it.url.equals(entry.url, true) } >= 0
-            if (exists) {
+            // 使用BookmarkManager统一管理
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(requireContext())
+            
+            // 检查是否已存在相同URL的收藏（忽略大小写）
+            if (bookmarkManager.isBookmarkExist(entry.url)) {
                 android.widget.Toast.makeText(requireContext(), "该网址已在收藏", android.widget.Toast.LENGTH_SHORT).show()
                 return
             }
-
-            val bookmark = com.example.aifloatingball.model.BookmarkEntry(
-                id = "bookmark_${System.currentTimeMillis()}",
+            
+            // 创建新的书签
+            val bookmark = com.example.aifloatingball.model.Bookmark(
                 title = entry.title,
                 url = entry.url,
                 folder = "从历史添加",
-                createTime = java.util.Date()
+                addTime = System.currentTimeMillis()
             )
-            list.add(0, bookmark)
-            sharedPrefs.edit().putString("bookmarks_data", gson.toJson(list)).apply()
+            
+            // 添加到收藏
+            bookmarkManager.addBookmark(bookmark, null)
+            
             android.widget.Toast.makeText(requireContext(), "已添加到收藏", android.widget.Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             android.util.Log.e("HistoryPageFragment", "添加收藏失败", e)

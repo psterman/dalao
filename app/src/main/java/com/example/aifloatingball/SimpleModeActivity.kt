@@ -922,6 +922,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 如果当前有档案选择器显示，需要刷新
             refreshProfileSelectorIfVisible()
         }
+        
+        // 初始化BookmarkManager并执行数据迁移
+        try {
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(this)
+            val migratedCount = bookmarkManager.migrateFromBookmarkEntry()
+            if (migratedCount > 0) {
+                Log.d(TAG, "书签数据迁移完成: $migratedCount 条")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "书签数据迁移失败", e)
+        }
 
         // 初始化触摸冲突解决器
         touchConflictResolver = TouchConflictResolver(this)
@@ -6391,6 +6402,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     showMaterialToast("打开组管理失败")
                 }
             }
+            
+            override fun onOpenBookmarks() {
+                // 打开收藏夹界面
+                try {
+                    val intent = android.content.Intent(this@SimpleModeActivity, com.example.aifloatingball.BookmarkActivity::class.java)
+                    startActivity(intent)
+                    Log.d(TAG, "成功打开收藏夹界面")
+                } catch (e: Exception) {
+                    Log.e(TAG, "收藏夹按钮点击处理失败", e)
+                    showMaterialToast("打开收藏夹失败")
+                }
+            }
+            
+            override fun onOpenHistory() {
+                // 打开历史记录对话框
+                try {
+                    showHistoryDialog()
+                    Log.d(TAG, "成功打开历史记录对话框")
+                } catch (e: Exception) {
+                    Log.e(TAG, "历史记录按钮点击处理失败", e)
+                    showMaterialToast("打开历史记录失败")
+                }
+            }
+            
+        override fun onHideButton(buttonId: String) {
+            // 隐藏按钮
+            try {
+                val key = "home_button_${buttonId}_visible"
+                settingsManager.putBoolean(key, false)
+                refreshHomeButtonVisibility()
+                showMaterialToast("已隐藏按钮")
+                Log.d(TAG, "隐藏按钮: $buttonId")
+            } catch (e: Exception) {
+                Log.e(TAG, "隐藏按钮失败", e)
+            }
+        }
+        
+        override fun onShowRestoreButtonsDialog() {
+            // 显示恢复按钮对话框
+            try {
+                showRestoreButtonsDialog()
+                Log.d(TAG, "成功打开恢复按钮对话框")
+            } catch (e: Exception) {
+                Log.e(TAG, "恢复按钮对话框打开失败", e)
+                showMaterialToast("打开恢复按钮失败")
+            }
+        }
+            
+            override fun getButtonVisibility(): String {
+                // 获取按钮显示状态
+                return try {
+                    val visibility = getHomeButtonVisibility()
+                    com.google.gson.Gson().toJson(visibility)
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取按钮显示状态失败", e)
+                    "{}"
+                }
+            }
         })
         
         // 设置标签页监听器
@@ -7907,46 +7976,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
+            // 使用BookmarkManager统一管理
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(this)
+            
             // 检查是否已收藏
-            val sharedPrefs = getSharedPreferences("browser_bookmarks", Context.MODE_PRIVATE)
-            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
-            val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
-            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
-                try {
-                    gson.fromJson<MutableList<com.example.aifloatingball.model.BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
-                } catch (e: Exception) {
-                    mutableListOf()
-                }
-            } else {
-                mutableListOf()
-            }
-            
-            // 检查是否已存在
-            val existingIndex = bookmarksList.indexOfFirst { 
-                it.url == url || it.url.equals(url, ignoreCase = true)
-            }
-            
-            if (existingIndex >= 0) {
+            if (bookmarkManager.isBookmarkExist(url)) {
                 Toast.makeText(this, "该网址已在收藏中", Toast.LENGTH_SHORT).show()
                 return
             }
             
-            // 创建新的收藏条目
-            val bookmarkEntry = com.example.aifloatingball.model.BookmarkEntry(
-                id = "bookmark_${System.currentTimeMillis()}",
+            // 创建新的书签
+            val bookmark = com.example.aifloatingball.model.Bookmark(
                 title = title,
                 url = url,
-                folder = "默认文件夹",
-                createTime = java.util.Date()
+                folder = "默认",
+                addTime = System.currentTimeMillis()
             )
             
-            // 添加到列表开头
-            bookmarksList.add(0, bookmarkEntry)
-            
-            // 保存到SharedPreferences
-            val updatedJson = gson.toJson(bookmarksList)
-            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
+            // 尝试获取favicon
+            try {
+                val favicon = currentTab?.webView?.favicon
+                bookmarkManager.addBookmark(bookmark, favicon)
+            } catch (e: Exception) {
+                // 如果获取favicon失败，仍然保存书签
+                bookmarkManager.addBookmark(bookmark, null)
+            }
             
             Toast.makeText(this, "已添加到收藏", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "添加收藏: title=$title, url=$url")
@@ -8877,7 +8931,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val clickStartY = event.y
                         view.tag = android.util.Pair(clickStartTime, android.util.Pair(clickStartX, clickStartY))
                         // 先让输入框处理DOWN事件，同时记录起始位置用于手势检测
-                        val handled = handleBrowserSwipeUpGesture(view, event)
+                val handled = handleBrowserSwipeUpGesture(view, event)
                         // 如果手势处理返回true，说明是上滑手势，消费事件；否则让输入框处理
                         return@setOnTouchListener handled
                     }
@@ -10217,8 +10271,179 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 显示新建卡片选择弹窗
+     * 获取首页按钮显示状态
      */
+    private fun getHomeButtonVisibility(): Map<String, Boolean> {
+        val visibility = mutableMapOf<String, Boolean>()
+        val buttonIds = listOf("new_tab", "new_group", "history", "bookmarks", "download")
+        
+        buttonIds.forEach { buttonId ->
+            val key = "home_button_${buttonId}_visible"
+            visibility[buttonId] = settingsManager.getBoolean(key, true) // 默认显示
+        }
+        
+        return visibility
+    }
+    
+    /**
+     * 保存首页按钮显示状态
+     */
+    private fun saveHomeButtonVisibility(visibility: Map<String, Boolean>) {
+        visibility.forEach { (buttonId, isVisible) ->
+            val key = "home_button_${buttonId}_visible"
+            settingsManager.putBoolean(key, isVisible)
+        }
+        
+        // 刷新首页按钮显示
+        refreshHomeButtonVisibility()
+    }
+    
+    /**
+     * 刷新首页按钮显示状态
+     */
+    private fun refreshHomeButtonVisibility() {
+        try {
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            if (currentTab?.url == "home://functional") {
+                // 如果当前是功能主页，执行JavaScript刷新按钮显示
+                currentTab.webView.evaluateJavascript("updateButtonVisibility();", null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新首页按钮显示状态失败", e)
+        }
+    }
+    
+    /**
+     * 显示恢复按钮对话框
+     */
+    private fun showRestoreButtonsDialog() {
+        try {
+            val visibility = getHomeButtonVisibility()
+            
+            // 按钮配置
+            val buttonConfigs = listOf(
+                Pair("new_tab", "新建标签页"),
+                Pair("new_group", "新建标签组"),
+                Pair("history", "历史记录"),
+                Pair("bookmarks", "收藏夹"),
+                Pair("download", "下载")
+            )
+            
+            // 筛选出已隐藏的按钮
+            val hiddenButtons = buttonConfigs.filter { (buttonId, _) ->
+                !(visibility[buttonId] ?: true)
+            }
+            
+            if (hiddenButtons.isEmpty()) {
+                showMaterialToast("没有已隐藏的按钮")
+                return
+            }
+            
+            // 创建对话框视图
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_restore_buttons, null)
+            val container = dialogView.findViewById<LinearLayout>(R.id.button_list_container)
+            
+            // 清空容器
+            container?.removeAllViews()
+            
+            // 创建对话框
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("恢复按钮")
+                .setView(dialogView)
+                .setNegativeButton("关闭", null)
+                .create()
+            
+            // 为每个隐藏的按钮创建恢复项
+            hiddenButtons.forEach { (buttonId, buttonName) ->
+                val itemView = LayoutInflater.from(this).inflate(R.layout.item_restore_button, container, false)
+                val textView = itemView.findViewById<TextView>(R.id.text_button_name)
+                val restoreButton = itemView.findViewById<MaterialButton>(R.id.btn_restore)
+                
+                textView?.text = buttonName
+                restoreButton?.setOnClickListener {
+                    // 恢复按钮显示
+                    val key = "home_button_${buttonId}_visible"
+                    settingsManager.putBoolean(key, true)
+                    refreshHomeButtonVisibility()
+                    showMaterialToast("已恢复按钮")
+                    // 关闭对话框
+                    dialog.dismiss()
+                }
+                
+                container?.addView(itemView)
+            }
+            
+            dialog.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示恢复按钮对话框失败", e)
+            showMaterialToast("打开恢复按钮失败")
+        }
+    }
+    
+    /**
+     * 显示历史记录对话框
+     */
+    private fun showHistoryDialog() {
+        try {
+            Log.d(TAG, "开始显示历史记录对话框")
+            
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在结束或已销毁，跳过显示历史记录对话框")
+                return
+            }
+            
+            // 检查FragmentManager状态
+            if (supportFragmentManager.isStateSaved) {
+                Log.w(TAG, "FragmentManager状态已保存，跳过显示历史记录对话框")
+                return
+            }
+            
+            // 使用NewCardSelectionDialog显示历史记录（默认显示历史记录标签页）
+            try {
+                val dialog = NewCardSelectionDialog(
+                    context = this,
+                    onHistoryItemSelected = { historyEntry ->
+                        // 从历史记录打开页面
+                        createNewCardFromUrl(historyEntry.url, historyEntry.title)
+                    },
+                    onBookmarkItemSelected = { bookmarkEntry ->
+                        // 从收藏打开页面
+                        createNewCardFromUrl(bookmarkEntry.url, bookmarkEntry.title)
+                    },
+                    onCreateBlankCard = {
+                        // 创建空白卡片
+                        createNewBlankCard()
+                    },
+                    onDismiss = {
+                        Log.d(TAG, "历史记录对话框已关闭")
+                    }
+                )
+                dialog.show()
+                
+                // 延迟切换到历史记录标签页
+                dialog.window?.decorView?.post {
+                    try {
+                        val tabLayout = dialog.findViewById<com.google.android.material.tabs.TabLayout>(R.id.tab_layout)
+                        if (tabLayout != null && tabLayout.tabCount > 0) {
+                            // 切换到历史记录标签页（第一个标签页通常是历史记录）
+                            tabLayout.getTabAt(0)?.select()
+                            Log.d(TAG, "已切换到历史记录标签页")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "切换到历史记录标签页失败", e)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "显示历史记录对话框失败", e)
+                showMaterialToast("打开历史记录失败")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示历史记录对话框异常", e)
+            showMaterialToast("打开历史记录失败")
+        }
+    }
+    
     private fun showNewCardSelectionDialog() {
         try {
             Log.d(TAG, "开始显示新建卡片选择弹窗")
@@ -10456,27 +10681,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun addBookmarkFromHistoryEntry(entry: com.example.aifloatingball.model.HistoryEntry) {
         try {
-            val sharedPrefs = getSharedPreferences("browser_bookmarks", Context.MODE_PRIVATE)
-            val bookmarksJson = sharedPrefs.getString("bookmarks_data", "[]")
-            
-            // 使用Gson解析现有收藏
-            val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
-            val bookmarksList = if (bookmarksJson != null && bookmarksJson.isNotEmpty()) {
-                try {
-                    gson.fromJson<MutableList<com.example.aifloatingball.model.BookmarkEntry>>(bookmarksJson, type) ?: mutableListOf()
-                } catch (e: Exception) {
-                    mutableListOf()
-                }
-            } else {
-                mutableListOf()
-            }
+            // 使用BookmarkManager统一管理
+            val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(this)
             
             // 检查是否已存在相同URL的收藏（忽略大小写）
-            val existingIndex = bookmarksList.indexOfFirst { 
-                it.url == entry.url || it.url.equals(entry.url, ignoreCase = true)
-            }
-            if (existingIndex >= 0) {
+            if (bookmarkManager.isBookmarkExist(entry.url)) {
                 Toast.makeText(this, "该网址已在收藏中", Toast.LENGTH_SHORT).show()
                 Log.d(TAG, "收藏已存在: ${entry.url}")
                 return
@@ -10484,27 +10693,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             Log.d(TAG, "添加收藏: title=${entry.title}, url=${entry.url}")
             
-            // 创建新的收藏条目
-            val bookmarkEntry = com.example.aifloatingball.model.BookmarkEntry(
-                id = "bookmark_${System.currentTimeMillis()}",
+            // 创建新的书签
+            val bookmark = com.example.aifloatingball.model.Bookmark(
                 title = entry.title,
                 url = entry.url,
                 folder = "从历史添加",
-                createTime = java.util.Date()
+                addTime = System.currentTimeMillis()
             )
             
-            // 添加到列表开头
-            bookmarksList.add(0, bookmarkEntry)
+            // 添加到收藏
+            bookmarkManager.addBookmark(bookmark, null)
             
-            // 保存到SharedPreferences
-            val updatedJson = gson.toJson(bookmarksList)
-            sharedPrefs.edit().putString("bookmarks_data", updatedJson).apply()
-            
-            Log.d(TAG, "收藏保存成功")
-            
+            Toast.makeText(this, "已添加到收藏", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "添加收藏成功: title=${entry.title}, url=${entry.url}")
         } catch (e: Exception) {
-            Log.e(TAG, "添加到收藏失败", e)
-            throw e // 重新抛出异常，让调用者处理
+            Log.e(TAG, "添加收藏失败", e)
+            Toast.makeText(this, "添加失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

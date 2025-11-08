@@ -207,4 +207,175 @@ class BookmarkManager private constructor(private val context: Context) {
         
         return if (changed) saveBookmarks(bookmarks) else true
     }
+    
+    /**
+     * 从旧的BookmarkEntry系统迁移数据到新的Bookmark系统
+     * 只在首次启动时调用一次，迁移完成后会标记，避免重复迁移
+     */
+    fun migrateFromBookmarkEntry(): Int {
+        try {
+            // 检查是否已经迁移过
+            val migrationKey = "bookmark_migration_completed"
+            if (prefs.getBoolean(migrationKey, false)) {
+                Log.d(TAG, "书签数据已迁移，跳过")
+                return 0
+            }
+            
+            // 读取旧的BookmarkEntry数据
+            val oldPrefs = context.getSharedPreferences("browser_bookmarks", Context.MODE_PRIVATE)
+            val oldBookmarksJson = oldPrefs.getString("bookmarks_data", "[]") ?: "[]"
+            
+            if (oldBookmarksJson.isEmpty() || oldBookmarksJson == "[]") {
+                // 没有旧数据，标记为已迁移
+                prefs.edit().putBoolean(migrationKey, true).apply()
+                Log.d(TAG, "没有旧书签数据需要迁移")
+                return 0
+            }
+            
+            // 解析旧数据
+            val gson = Gson()
+            val type = object : TypeToken<List<com.example.aifloatingball.model.BookmarkEntry>>() {}.type
+            val oldBookmarks = try {
+                gson.fromJson<List<com.example.aifloatingball.model.BookmarkEntry>>(oldBookmarksJson, type) ?: emptyList()
+            } catch (e: Exception) {
+                Log.e(TAG, "解析旧书签数据失败", e)
+                emptyList()
+            }
+            
+            if (oldBookmarks.isEmpty()) {
+                // 没有有效数据，标记为已迁移
+                prefs.edit().putBoolean(migrationKey, true).apply()
+                Log.d(TAG, "旧书签数据为空，无需迁移")
+                return 0
+            }
+            
+            // 获取现有书签（避免重复）
+            val existingBookmarks = getAllBookmarks()
+            val existingUrls = existingBookmarks.map { it.url.lowercase() }.toSet()
+            
+            // 转换为新格式并去重
+            val newBookmarks = oldBookmarks
+                .map { com.example.aifloatingball.model.Bookmark.fromBookmarkEntry(it) }
+                .filter { !existingUrls.contains(it.url.lowercase()) } // 过滤重复URL
+            
+            if (newBookmarks.isEmpty()) {
+                // 没有新数据需要添加，标记为已迁移
+                prefs.edit().putBoolean(migrationKey, true).apply()
+                Log.d(TAG, "所有旧书签已存在，无需迁移")
+                return 0
+            }
+            
+            // 合并到现有书签列表
+            val allBookmarks = existingBookmarks.toMutableList()
+            allBookmarks.addAll(newBookmarks)
+            
+            // 保存
+            val success = saveBookmarks(allBookmarks)
+            
+            if (success) {
+                // 标记迁移完成
+                prefs.edit().putBoolean(migrationKey, true).apply()
+                Log.d(TAG, "书签数据迁移成功: ${newBookmarks.size} 条")
+                return newBookmarks.size
+            } else {
+                Log.e(TAG, "保存迁移后的书签数据失败")
+                return 0
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "书签数据迁移失败", e)
+            return 0
+        }
+    }
+    
+    /**
+     * 批量添加书签（用于导入等场景）
+     */
+    fun addBookmarks(bookmarks: List<Bookmark>, skipDuplicates: Boolean = true): Int {
+        val existingBookmarks = getAllBookmarks().toMutableList()
+        val existingUrls = if (skipDuplicates) {
+            existingBookmarks.map { it.url.lowercase() }.toSet()
+        } else {
+            emptySet()
+        }
+        
+        var addedCount = 0
+        bookmarks.forEach { bookmark ->
+            if (!skipDuplicates || !existingUrls.contains(bookmark.url.lowercase())) {
+                existingBookmarks.add(bookmark)
+                addedCount++
+            }
+        }
+        
+        if (addedCount > 0) {
+            saveBookmarks(existingBookmarks)
+        }
+        
+        return addedCount
+    }
+    
+    /**
+     * 批量删除书签
+     */
+    fun deleteBookmarks(bookmarkIds: List<String>): Int {
+        val bookmarks = getAllBookmarks().toMutableList()
+        var deletedCount = 0
+        
+        bookmarkIds.forEach { id ->
+            val removed = bookmarks.removeIf { it.id == id }
+            if (removed) {
+                deletedCount++
+                // 删除相关的 favicon
+                val faviconFile = File(faviconDir, "favicon_$id.png")
+                if (faviconFile.exists()) {
+                    faviconFile.delete()
+                }
+            }
+        }
+        
+        if (deletedCount > 0) {
+            saveBookmarks(bookmarks)
+        }
+        
+        return deletedCount
+    }
+    
+    /**
+     * 批量移动书签到指定文件夹
+     */
+    fun moveBookmarksToFolder(bookmarkIds: List<String>, targetFolder: String): Int {
+        val bookmarks = getAllBookmarks().toMutableList()
+        var movedCount = 0
+        
+        bookmarkIds.forEach { id ->
+            val index = bookmarks.indexOfFirst { it.id == id }
+            if (index >= 0) {
+                bookmarks[index] = bookmarks[index].copy(folder = targetFolder)
+                movedCount++
+            }
+        }
+        
+        if (movedCount > 0) {
+            saveBookmarks(bookmarks)
+        }
+        
+        return movedCount
+    }
+    
+    /**
+     * 搜索书签（按标题、URL、描述、标签）
+     */
+    fun searchBookmarks(query: String): List<Bookmark> {
+        if (query.isBlank()) {
+            return getAllBookmarks()
+        }
+        
+        val lowerQuery = query.lowercase()
+        return getAllBookmarks().filter {
+            it.title.contains(lowerQuery, ignoreCase = true) ||
+            it.url.contains(lowerQuery, ignoreCase = true) ||
+            it.description?.contains(lowerQuery, ignoreCase = true) == true ||
+            it.tags.any { tag -> tag.contains(lowerQuery, ignoreCase = true) } ||
+            it.folder.contains(lowerQuery, ignoreCase = true)
+        }
+    }
 } 

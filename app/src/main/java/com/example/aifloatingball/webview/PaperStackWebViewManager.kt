@@ -230,7 +230,7 @@ class PaperStackWebViewManager(
         // 加载新组的标签页
         loadGroupTabs(groupId, onTabsLoaded)
     }
-    
+
     /**
      * 添加新的标签页
      */
@@ -347,6 +347,48 @@ class PaperStackWebViewManager(
                         Log.d(TAG, "功能主页：打开组管理")
                     }
                 }
+                
+                @android.webkit.JavascriptInterface
+                fun openBookmarks() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开收藏夹（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenBookmarks()
+                        Log.d(TAG, "功能主页：打开收藏夹")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun openHistory() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开历史记录（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenHistory()
+                        Log.d(TAG, "功能主页：打开历史记录")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun hideButton(buttonId: String) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 隐藏按钮（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onHideButton(buttonId)
+                        Log.d(TAG, "功能主页：隐藏按钮 $buttonId")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun showRestoreButtonsDialog() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 显示恢复按钮对话框（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onShowRestoreButtonsDialog()
+                        Log.d(TAG, "功能主页：显示恢复按钮对话框")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun getButtonVisibility(): String {
+                    // 获取按钮显示状态（通过回调通知外部）
+                    return onFunctionalHomeActionListener?.getButtonVisibility() ?: "{}"
+                }
             }, "AndroidInterface")
             
             Log.d(TAG, "功能主页JavaScript接口已设置")
@@ -363,6 +405,11 @@ class PaperStackWebViewManager(
         fun onOpenDownloadManager()
         fun onCreateNewGroup()
         fun onOpenGroupManager()
+        fun onOpenBookmarks()
+        fun onOpenHistory()
+        fun onHideButton(buttonId: String)
+        fun onShowRestoreButtonsDialog()
+        fun getButtonVisibility(): String
     }
     
     private var onFunctionalHomeActionListener: FunctionalHomeActionListener? = null
@@ -1756,6 +1803,14 @@ class PaperStackWebViewManager(
             // 设置长按监听器处理图片和链接
             setOnLongClickListener { view ->
                 val webView = view as WebView
+                
+                // 如果是功能主页，屏蔽长按菜单
+                val currentUrl = webView.url
+                if (currentUrl == "home://functional" || currentUrl == "file:///android_asset/functional_home.html") {
+                    Log.d(TAG, "功能主页长按，屏蔽菜单")
+                    return@setOnLongClickListener true // 返回true阻止默认行为
+                }
+                
                 val result = webView.hitTestResult
                 
                 Log.d(TAG, "WebView长按检测: type=${result.type}, extra=${result.extra}")
