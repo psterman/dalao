@@ -76,7 +76,8 @@ class PaperStackWebViewManager(
         val url: String,
         var isActive: Boolean = false,
         var stackIndex: Int = 0,
-        var groupId: String? = null // 所属组ID
+        var groupId: String? = null, // 所属组ID
+        var isLazyLoaded: Boolean = false // 是否延迟加载（未加载URL）
     )
 
     private val tabs = mutableListOf<WebViewTab>()
@@ -249,7 +250,8 @@ class PaperStackWebViewManager(
             url = url ?: "https://www.baidu.com",
             isActive = false,
             stackIndex = tabs.size,
-            groupId = tabGroupId
+            groupId = tabGroupId,
+            isLazyLoaded = false // 正常创建的标签页立即加载
         )
         
         // 添加到容器
@@ -493,6 +495,18 @@ class PaperStackWebViewManager(
         isAnimating = true
         val currentTab = tabs[currentTabIndex]
         val targetTab = tabs[targetIndex]
+        
+        // 如果目标标签页是延迟加载的，现在加载它
+        if (targetTab.isLazyLoaded) {
+            Log.d(TAG, "延迟加载标签页: ${targetTab.title}")
+            if (targetTab.url == "home://functional") {
+                setupFunctionalHomeInterface(targetTab.webView)
+                targetTab.webView.loadUrl("file:///android_asset/functional_home.html")
+            } else {
+                targetTab.webView.loadUrl(targetTab.url)
+            }
+            targetTab.isLazyLoaded = false
+        }
         
         // 判断滑动方向：targetIndex > currentTabIndex 表示左滑（下一个），否则为右滑（上一个）
         val isSwipeLeft = targetIndex > currentTabIndex || (currentTabIndex == tabs.size - 1 && targetIndex == 0)
@@ -904,6 +918,164 @@ class PaperStackWebViewManager(
             tabs.filter { it.groupId == currentGroupId }
         } else {
             tabs.toList()
+        }
+    }
+    
+    /**
+     * 获取所有组的所有标签页（用于保存恢复数据）
+     */
+    fun getAllTabsByGroup(): Map<String, List<WebViewTab>> {
+        return tabs.groupBy { it.groupId ?: "default" }
+    }
+    
+    /**
+     * 保存恢复数据
+     */
+    fun saveRecoveryData() {
+        try {
+            val recoveryManager = com.example.aifloatingball.manager.TabRecoveryManager.getInstance(context)
+            val allTabsByGroup = getAllTabsByGroup()
+            
+            // 转换为RecoveryTabSource接口，排除功能主页
+            val recoveryTabsMap = allTabsByGroup.mapValues { (groupId, tabs) ->
+                tabs
+                    .filter { it.url != "home://functional" } // 排除功能主页
+                    .map { tab ->
+                        object : com.example.aifloatingball.manager.TabRecoveryManager.RecoveryTabSource {
+                            override val id: String = tab.id
+                            override val title: String = tab.title
+                            override val url: String = tab.url
+                        }
+                    }
+            }.filter { it.value.isNotEmpty() } // 只保留有标签页的组
+            
+            // 保存当前标签页索引（用户最后浏览的页面，排除功能主页后的索引）
+            val currentGroupId = currentGroupId
+            val currentTab = tabs.getOrNull(currentTabIndex)
+            val currentTabIndexInGroup = if (currentGroupId != null && currentTab != null) {
+                // 获取当前组的标签页（排除功能主页）
+                val currentGroupTabs = tabs.filter { 
+                    it.groupId == currentGroupId && it.url != "home://functional" 
+                }
+                // 找到当前标签页在组内的索引（排除功能主页后）
+                val index = currentGroupTabs.indexOfFirst { it.id == currentTab.id }
+                if (index >= 0) index else 0
+            } else {
+                0
+            }
+            
+            recoveryManager.saveRecoveryData(recoveryTabsMap, currentGroupId, currentTabIndexInGroup)
+            Log.d(TAG, "保存恢复数据: ${allTabsByGroup.size} 个组，共 ${tabs.size} 个标签页，当前组: $currentGroupId，当前索引: $currentTabIndexInGroup")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存恢复数据失败", e)
+        }
+    }
+    
+    /**
+     * 从恢复数据中恢复标签页（延迟加载）
+     * @param recoveryData 恢复数据
+     * @param onTabRestored 标签页恢复回调（groupId, tabId, tabTitle, isLoaded）
+     */
+    fun restoreTabsFromRecoveryData(
+        recoveryData: com.example.aifloatingball.manager.TabRecoveryManager.RecoveryData,
+        onTabRestored: ((String, String, String, Boolean) -> Unit)? = null
+    ) {
+        try {
+            var totalRestored = 0
+            var totalLazyLoaded = 0
+            var lastTabIndex = -1 // 最后浏览的标签页索引（在所有恢复的标签页中的索引）
+            var lastTabGroupId: String? = null
+            
+            // 先清理当前标签页
+            cleanup()
+            
+            // 按组恢复标签页
+            recoveryData.groups.forEach { (groupId, recoveryTabs) ->
+                // 设置当前组ID（不调用switchToGroup，避免清理）
+                currentGroupId = groupId
+                
+                recoveryTabs.forEachIndexed { index, recoveryTab ->
+                    // 排除功能主页
+                    if (recoveryTab.url == "home://functional") {
+                        Log.d(TAG, "跳过功能主页: ${recoveryTab.title}")
+                        return@forEachIndexed
+                    }
+                    
+                    // 延迟加载：只创建标签页结构，不立即加载WebView
+                    val tabId = recoveryTab.id
+                    val tabTitle = recoveryTab.title
+                    val tabUrl = recoveryTab.url
+                    
+                    // 创建标签页但不加载URL（延迟加载）
+                    val webView = PaperWebView(context)
+                    webView.setupWebView()
+                    
+                    val tab = WebViewTab(
+                        id = tabId,
+                        webView = webView,
+                        title = tabTitle,
+                        url = tabUrl,
+                        isActive = false,
+                        stackIndex = tabs.size,
+                        groupId = groupId,
+                        isLazyLoaded = true // 标记为延迟加载
+                    )
+                    
+                    // 添加到容器但不加载URL
+                    container.addView(webView)
+                    tabs.add(tab)
+                    
+                    // 检查是否是最后浏览的标签页
+                    val isLastTab = (groupId == recoveryData.lastGroupId && 
+                                    index == recoveryData.lastTabIndex)
+                    
+                    if (isLastTab) {
+                        lastTabIndex = tabs.size - 1
+                        lastTabGroupId = groupId
+                    }
+                    
+                    // 其他标签页延迟加载（不加载URL）
+                    totalLazyLoaded++
+                    onTabRestored?.invoke(groupId, tabId, tabTitle, false)
+                    
+                    totalRestored++
+                }
+                
+                Log.d(TAG, "恢复组 $groupId 的 ${recoveryTabs.size} 个标签页（延迟加载）")
+            }
+            
+            // 更新标签页位置并切换到最后一个浏览的标签页
+            if (tabs.isNotEmpty()) {
+                // 如果找到了最后浏览的标签页，切换到它；否则切换到第一个
+                val targetIndex = if (lastTabIndex >= 0) {
+                    lastTabIndex
+                } else {
+                    0
+                }
+                
+                currentTabIndex = targetIndex
+                updateTabPositions()
+                
+                // 加载最后浏览的标签页
+                val targetTab = tabs[targetIndex]
+                if (targetTab.isLazyLoaded) {
+                    if (targetTab.url == "home://functional") {
+                        setupFunctionalHomeInterface(targetTab.webView)
+                        targetTab.webView.loadUrl("file:///android_asset/functional_home.html")
+                    } else {
+                        targetTab.webView.loadUrl(targetTab.url)
+                    }
+                    targetTab.isLazyLoaded = false
+                    totalLazyLoaded--
+                    onTabRestored?.invoke(targetTab.groupId ?: "default", targetTab.id, targetTab.title, true)
+                }
+                
+                Log.d(TAG, "切换到最后浏览的标签页: 索引=$targetIndex, 标题=${targetTab.title}")
+            }
+            
+            Log.d(TAG, "恢复完成: 共 $totalRestored 个标签页，$totalLazyLoaded 个延迟加载")
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复标签页失败", e)
         }
     }
     

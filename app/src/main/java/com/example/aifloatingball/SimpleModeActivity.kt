@@ -896,6 +896,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置单例实例
         INSTANCE = this
 
+        // 检查上次是否正常关闭，如果是则清除恢复数据
+        try {
+            val recoveryManager = com.example.aifloatingball.manager.TabRecoveryManager.getInstance(this)
+            // 检查上次是否正常关闭（在清除标记之前检查）
+            val wasNormalShutdown = recoveryManager.isNormalShutdown()
+            if (wasNormalShutdown) {
+                // 正常关闭，清除恢复数据
+                recoveryManager.clearRecoveryData()
+                Log.d(TAG, "上次正常关闭，已清除恢复数据")
+            }
+            // 清除正常关闭标记，为下次启动做准备
+            recoveryManager.clearNormalShutdownFlag()
+            Log.d(TAG, "已清除正常关闭标记")
+        } catch (e: Exception) {
+            Log.e(TAG, "检查关闭状态失败", e)
+        }
+
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
         
@@ -6023,6 +6040,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onResume() {
         super.onResume()
+        
         try {
             // 重新加载联系人数据，确保新创建的群聊能够显示
             val savedContacts = loadSavedContacts()
@@ -6188,6 +6206,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 清理手势卡片WebView管理器
         gestureCardWebViewManager?.destroy()
         gestureCardWebViewManager = null
+        
+        // 保存恢复数据并标记正常关闭
+        try {
+            paperStackWebViewManager?.saveRecoveryData()
+            val recoveryManager = com.example.aifloatingball.manager.TabRecoveryManager.getInstance(this)
+            recoveryManager.markNormalShutdown()
+            Log.d(TAG, "已保存恢复数据并标记正常关闭")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存恢复数据失败", e)
+        }
 
         // 清理四分之一圆弧操作栏
         quarterArcOperationBar?.let { operationBar ->
@@ -6274,6 +6302,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onPause() {
         super.onPause()
+        
+        // 保存恢复数据（应用进入后台时保存，确保即使被强制关闭也能恢复）
+        try {
+            paperStackWebViewManager?.saveRecoveryData()
+            Log.d(TAG, "onPause: 已保存恢复数据")
+        } catch (e: Exception) {
+            Log.e(TAG, "onPause: 保存恢复数据失败", e)
+        }
 
         // 在 onPause 中保存悬浮卡片状态，确保即使应用被系统杀死也能保存
         gestureCardWebViewManager?.saveCardsState()
@@ -21097,6 +21133,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 enterPaperStackMode()
             }
             
+            // 检查是否需要恢复页面（延迟执行，确保UI已初始化）
+            handler.postDelayed({
+                try {
+                    checkAndShowRecoveryPrompt()
+                } catch (e: Exception) {
+                    Log.e(TAG, "检查恢复提示失败", e)
+                }
+            }, 500) // 延迟500ms，确保UI已完全初始化
+            
             Log.d(TAG, "切换到搜索tab完成")
         } catch (e: Exception) {
             Log.e(TAG, "切换到搜索tab失败", e)
@@ -28503,6 +28548,86 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 内联编辑组对话框
      */
+    /**
+     * 检查并显示恢复提示
+     */
+    private fun checkAndShowRecoveryPrompt() {
+        try {
+            // 只在搜索tab中检查（检查browserWebViewContainer是否可见）
+            if (browserWebViewContainer.visibility != View.VISIBLE) {
+                return
+            }
+            
+            val recoveryManager = com.example.aifloatingball.manager.TabRecoveryManager.getInstance(this)
+            
+            // 检查是否为非正常关闭
+            if (!recoveryManager.isAbnormalShutdown()) {
+                return
+            }
+            
+            // 获取恢复数据
+            val recoveryData = recoveryManager.getRecoveryData() ?: return
+            val totalTabs = recoveryManager.getRecoveryTabCount()
+            
+            if (totalTabs == 0) {
+                return
+            }
+            
+            // 显示恢复提示（Snackbar，自动延时消失）
+            val snackbar = com.google.android.material.snackbar.Snackbar.make(
+                browserWebViewContainer,
+                "检测到 $totalTabs 个未关闭的页面，点击恢复",
+                com.google.android.material.snackbar.Snackbar.LENGTH_LONG
+            ).apply {
+                setAction("恢复") {
+                    // 恢复页面
+                    restoreTabsFromRecovery(recoveryData)
+                }
+                setActionTextColor(android.graphics.Color.parseColor("#007AFF")) // iOS蓝色
+                // 自动延时消失（5秒）
+                duration = 5000
+            }
+            
+            snackbar.show()
+            Log.d(TAG, "显示恢复提示: $totalTabs 个标签页")
+        } catch (e: Exception) {
+            Log.e(TAG, "检查恢复提示失败", e)
+        }
+    }
+    
+    /**
+     * 从恢复数据中恢复标签页
+     */
+    private fun restoreTabsFromRecovery(recoveryData: com.example.aifloatingball.manager.TabRecoveryManager.RecoveryData) {
+        try {
+            if (paperStackWebViewManager == null) {
+                Log.e(TAG, "PaperStackWebViewManager未初始化，无法恢复")
+                return
+            }
+            
+            // 先计算总数（在清除数据之前）
+            val totalTabs = recoveryData.groups.values.sumOf { it.size }
+            
+            // 恢复标签页（延迟加载）
+            paperStackWebViewManager?.restoreTabsFromRecoveryData(recoveryData) { groupId, tabId, tabTitle, isLoaded ->
+                Log.d(TAG, "恢复标签页: groupId=$groupId, tabId=$tabId, title=$tabTitle, isLoaded=$isLoaded")
+            }
+            
+            // 刷新标签组显示
+            refreshGroupTabs()
+            
+            // 清除恢复数据
+            val recoveryManager = com.example.aifloatingball.manager.TabRecoveryManager.getInstance(this)
+            recoveryManager.clearRecoveryData()
+            
+            showMaterialToast("已恢复 $totalTabs 个页面")
+            Log.d(TAG, "恢复完成: $totalTabs 个标签页")
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复标签页失败", e)
+            showMaterialToast("恢复失败: ${e.message}", android.graphics.Color.RED)
+        }
+    }
+    
     private fun showEditGroupDialogInline(group: TabGroup, groupManager: TabGroupManager) {
         val input = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT
