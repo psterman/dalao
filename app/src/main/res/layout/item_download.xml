@@ -5,12 +5,11 @@
     android:layout_height="wrap_content"
     android:layout_marginStart="16dp"
     android:layout_marginEnd="16dp"
-    android:layout_marginBottom="8dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="2dp"
-    app:cardBackgroundColor="@color/colorBackground"
-    app:strokeColor="@color/floating_text_hint"
-    app:strokeWidth="1dp">
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="#FFFFFF"
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -38,14 +37,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
-                android:background="@drawable/bg_file_type_badge"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
+                android:background="@drawable/bg_ios_status_badge"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
                 android:text="DOC"
-                android:textSize="8sp"
-                android:textColor="@android:color/white"
+                android:textSize="9sp"
+                android:textColor="#FFFFFF"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -84,12 +83,12 @@
                     android:layout_height="wrap_content"
                     android:text="下载完成"
                     android:textSize="12sp"
-                    android:textColor="@color/colorPrimary"
-                    android:background="@drawable/bg_status_badge"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp" />
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/bg_ios_status_badge"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp" />
 
             </LinearLayout>
 
@@ -127,8 +126,8 @@
                 android:layout_marginTop="8dp"
                 android:max="100"
                 android:progress="100"
-                android:progressTint="@color/colorPrimary"
-                android:progressBackgroundTint="@color/floating_text_hint" />
+                android:progressTint="#007AFF"
+                android:progressBackgroundTint="#E5E5EA" />
 
             <!-- 进度和大小信息 -->
             <LinearLayout
@@ -189,32 +188,55 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
+                    <TextView
                         android:id="@+id/open_button"
                         android:layout_width="wrap_content"
-                        android:layout_height="32dp"
+                        android:layout_height="36dp"
                         android:layout_marginEnd="8dp"
                         android:text="打开"
-                        android:textSize="12sp"
-                        style="@style/Widget.MaterialDialog.Button.Outlined" />
+                        android:textSize="15sp"
+                        android:textColor="#007AFF"
+                        android:textStyle="bold"
+                        android:background="@drawable/bg_ios_button_secondary"
+                        android:gravity="center"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:minWidth="60dp"
+                        android:clickable="true"
+                        android:focusable="true" />
 
-                    <com.google.android.material.button.MaterialButton
+                    <TextView
                         android:id="@+id/share_button"
                         android:layout_width="wrap_content"
-                        android:layout_height="32dp"
+                        android:layout_height="36dp"
                         android:layout_marginEnd="8dp"
                         android:text="分享"
-                        android:textSize="12sp"
-                        style="@style/Widget.MaterialDialog.Button.Outlined" />
+                        android:textSize="15sp"
+                        android:textColor="#007AFF"
+                        android:textStyle="bold"
+                        android:background="@drawable/bg_ios_button_secondary"
+                        android:gravity="center"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:minWidth="60dp"
+                        android:clickable="true"
+                        android:focusable="true" />
 
-                    <com.google.android.material.button.MaterialButton
+                    <TextView
                         android:id="@+id/delete_button"
                         android:layout_width="wrap_content"
-                        android:layout_height="32dp"
+                        android:layout_height="36dp"
                         android:text="删除"
-                        android:textSize="12sp"
-                        android:textColor="@color/colorAccent"
-                        style="@style/Widget.MaterialDialog.Button.Outlined" />
+                        android:textSize="15sp"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold"
+                        android:background="@drawable/bg_ios_button_danger"
+                        android:gravity="center"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:minWidth="60dp"
+                        android:clickable="true"
+                        android:focusable="true" />
 
                 </LinearLayout>
 

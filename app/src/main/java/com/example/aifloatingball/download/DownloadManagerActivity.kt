@@ -302,16 +302,16 @@ class DownloadManagerActivity : AppCompatActivity() {
     }
     
     /**
-     * 更新Chip选中状态
+     * 更新Chip选中状态（iOS风格）
      */
     private fun updateChipSelection(chips: List<TextView>, selectedIndex: Int) {
         chips.forEachIndexed { index, chip ->
             if (index == selectedIndex) {
-                chip.setTextColor(ContextCompat.getColor(this, R.color.floating_text_primary))
-                chip.setBackgroundResource(R.drawable.bg_chip_selected)
+                chip.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                chip.setBackgroundResource(R.drawable.bg_ios_chip_selected)
             } else {
-                chip.setTextColor(ContextCompat.getColor(this, R.color.floating_text_hint))
-                chip.setBackgroundResource(R.drawable.bg_chip_normal)
+                chip.setTextColor(0xFF000000.toInt()) // 黑色文字
+                chip.setBackgroundResource(R.drawable.bg_ios_chip_normal)
             }
         }
     }

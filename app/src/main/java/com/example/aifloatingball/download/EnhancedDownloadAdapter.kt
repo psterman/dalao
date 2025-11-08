@@ -8,7 +8,6 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
 import com.example.aifloatingball.R
 import java.text.SimpleDateFormat
 import java.util.*
@@ -68,9 +67,9 @@ class EnhancedDownloadAdapter(
         private val speedTextView: TextView = itemView.findViewById(R.id.speed_text_view)
         private val sizeTextView: TextView = itemView.findViewById(R.id.size_text_view)
         private val dateTextView: TextView = itemView.findViewById(R.id.date_text_view)
-        private val openButton: MaterialButton = itemView.findViewById(R.id.open_button)
-        private val shareButton: MaterialButton = itemView.findViewById(R.id.share_button)
-        private val deleteButton: MaterialButton = itemView.findViewById(R.id.delete_button)
+        private val openButton: TextView = itemView.findViewById(R.id.open_button)
+        private val shareButton: TextView = itemView.findViewById(R.id.share_button)
+        private val deleteButton: TextView = itemView.findViewById(R.id.delete_button)
         
         fun bind(download: EnhancedDownloadManager.DownloadInfo) {
             val filename = download.localFilename ?: download.title
@@ -127,18 +126,22 @@ class EnhancedDownloadAdapter(
                             val apkInfo = apkInstallManager.getApkInfo(filename)
                             if (apkInfo?.isInstalled == true) {
                                 statusTextView.text = "已安装"
-                                statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_green_dark))
+                                statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                                statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge)
                             } else {
                                 statusTextView.text = "可安装"
-                                statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_blue_dark))
+                                statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                                statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge)
                             }
                         } catch (e: Exception) {
-                            statusTextView.text = "APK文件"
-                            statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_blue_dark))
+                            statusTextView.text = "可安装"
+                            statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                            statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge)
                         }
                     } else {
                         statusTextView.text = "下载完成"
-                        statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_green_dark))
+                        statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                        statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge_success)
                     }
                     progressBar.progress = 100
                     progressTextView.text = "100%"
@@ -146,10 +149,14 @@ class EnhancedDownloadAdapter(
                     shareButton.visibility = View.VISIBLE
                     deleteButton.visibility = View.VISIBLE
                     deleteButton.text = "删除"
+                    // 删除按钮使用红色样式
+                    deleteButton.setTextColor(0xFFFFFFFF.toInt())
+                    deleteButton.setBackgroundResource(R.drawable.bg_ios_button_danger)
                 }
                 DownloadManager.STATUS_FAILED -> {
                     statusTextView.text = "下载失败"
-                    statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_red_dark))
+                    statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                    statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge_danger)
                     progressBar.progress = 0
                     progressTextView.text = "0%"
                     speedTextView.visibility = View.GONE
@@ -157,10 +164,14 @@ class EnhancedDownloadAdapter(
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
                     deleteButton.text = "重试"
+                    // 重试按钮使用蓝色样式
+                    deleteButton.setTextColor(0xFFFFFFFF.toInt())
+                    deleteButton.setBackgroundResource(R.drawable.bg_ios_button_primary)
                 }
                 DownloadManager.STATUS_RUNNING -> {
                     statusTextView.text = "正在下载"
-                    statusTextView.setTextColor(itemView.context.getColor(android.R.color.holo_blue_dark))
+                    statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                    statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge)
                     val progress = if (download.bytesTotal > 0) {
                         (download.bytesDownloaded * 100 / download.bytesTotal).toInt()
                     } else 0
@@ -180,10 +191,14 @@ class EnhancedDownloadAdapter(
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
                     deleteButton.text = "删除"
+                    // 删除按钮使用红色样式
+                    deleteButton.setTextColor(0xFFFFFFFF.toInt())
+                    deleteButton.setBackgroundResource(R.drawable.bg_ios_button_danger)
                 }
                 DownloadManager.STATUS_PENDING -> {
                     statusTextView.text = "等待下载"
-                    statusTextView.setTextColor(itemView.context.getColor(android.R.color.darker_gray))
+                    statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                    statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge_gray)
                     progressBar.progress = 0
                     progressTextView.text = "0%"
                     speedTextView.visibility = View.GONE
@@ -191,10 +206,14 @@ class EnhancedDownloadAdapter(
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
                     deleteButton.text = "删除"
+                    // 删除按钮使用红色样式
+                    deleteButton.setTextColor(0xFFFFFFFF.toInt())
+                    deleteButton.setBackgroundResource(R.drawable.bg_ios_button_danger)
                 }
                 DownloadManager.STATUS_PAUSED -> {
                     statusTextView.text = "已暂停"
-                    statusTextView.setTextColor(itemView.context.getColor(android.R.color.darker_gray))
+                    statusTextView.setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+                    statusTextView.setBackgroundResource(R.drawable.bg_ios_status_badge_gray)
                     val progress = if (download.bytesTotal > 0) {
                         (download.bytesDownloaded * 100 / download.bytesTotal).toInt()
                     } else 0
@@ -205,6 +224,9 @@ class EnhancedDownloadAdapter(
                     shareButton.visibility = View.GONE
                     deleteButton.visibility = View.VISIBLE
                     deleteButton.text = "恢复"
+                    // 恢复按钮使用蓝色样式
+                    deleteButton.setTextColor(0xFFFFFFFF.toInt())
+                    deleteButton.setBackgroundResource(R.drawable.bg_ios_button_primary)
                 }
             }
             
