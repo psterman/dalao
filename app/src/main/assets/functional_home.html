@@ -24,7 +24,7 @@
             transition: background 0.3s ease, color 0.3s ease;
         }
         
-        /* 暗色模式支持 - iOS风格 */
+            /* 暗色模式支持 - iOS风格 */
         @media (prefers-color-scheme: dark) {
             body {
                 background: linear-gradient(to bottom, #1C1C1E 0%, #000000 100%);
@@ -33,13 +33,20 @@
             
             .button {
                 background: rgba(255, 255, 255, 0.1);
-                color: #fff;
+                color: #0A84FF;
+            }
+            
+            .button:active {
+                background: rgba(10, 132, 255, 0.2);
             }
             
             .secondary-button {
                 background: rgba(255, 255, 255, 0.1);
-                color: #fff;
-                border-color: rgba(255, 255, 255, 0.2);
+                color: #0A84FF;
+            }
+            
+            .secondary-button:active {
+                background: rgba(10, 132, 255, 0.2);
             }
             
             .hint {
@@ -74,52 +81,74 @@
         }
         
         .button {
+            width: 100%;
             background: rgba(255, 255, 255, 0.95);
-            color: #333;
+            color: #007AFF;
             border: none;
-            border-radius: 16px;
-            padding: 20px 24px;
-            font-size: 18px;
-            font-weight: bold;
+            border-radius: 12px;
+            padding: 14px 20px;
+            font-size: 17px;
+            font-weight: 400;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+            box-shadow: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 44px;
         }
         
         .button:active {
-            transform: scale(0.98);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background: rgba(0, 122, 255, 0.1);
+            transform: none;
         }
         
         .button-icon {
-            font-size: 24px;
+            display: none;
         }
         
         .secondary-buttons {
             display: flex;
             gap: 12px;
+            width: 100%;
         }
         
         .secondary-button {
             flex: 1;
-            background: rgba(255, 255, 255, 0.8);
-            color: #333;
-            border: 2px solid rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.95);
+            color: #007AFF;
+            border: none;
             border-radius: 12px;
-            padding: 16px;
-            font-size: 16px;
-            font-weight: 600;
+            padding: 14px 20px;
+            font-size: 17px;
+            font-weight: 400;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 44px;
+        }
+        
+        .secondary-button span {
+            display: none;
+        }
+        
+        .secondary-button div {
+            margin: 0;
+            padding: 0;
+            line-height: 1.2;
         }
         
         .secondary-button:active {
-            transform: scale(0.98);
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(0, 122, 255, 0.1);
+            transform: none;
         }
         
         .hint {
@@ -133,35 +162,30 @@
 <body>
     <div class="container">
         <div class="button-group" id="buttonGroup">
-            <div style="display: flex; gap: 12px; width: 100%;">
-                <button id="btn_new_tab" class="button" onclick="createNewTab()" style="flex: 1;" data-button-id="new_tab">
-                <span class="button-icon">➕</span>
-                <span>新建标签页</span>
+            <button id="btn_new_tab" class="button" onclick="createNewTab()" data-button-id="new_tab">
+                新建标签页
             </button>
-                <button id="btn_new_group" class="secondary-button" onclick="createNewGroup()" style="flex: 0 0 auto; min-width: 100px;" data-button-id="new_group">
-                    <span>📁</span>
+            
+            <div class="secondary-buttons">
+                <button id="btn_new_group" class="secondary-button" onclick="createNewGroup()" data-button-id="new_group">
                     <div>新建标签组</div>
                 </button>
-            </div>
-            
-            <div class="secondary-buttons">
                 <button id="btn_history" class="secondary-button" onclick="openHistory()" data-button-id="history">
-                    <span>🕐</span>
                     <div>历史记录</div>
                 </button>
+            </div>
+            
+            <div class="secondary-buttons">
                 <button id="btn_bookmarks" class="secondary-button" onclick="openBookmarks()" data-button-id="bookmarks">
-                    <span>⭐</span>
                     <div>收藏夹</div>
+                </button>
+                <button id="btn_download" class="secondary-button" onclick="openDownloadManager()" data-button-id="download">
+                    <div>下载</div>
                 </button>
             </div>
             
             <div class="secondary-buttons">
-                <button id="btn_download" class="secondary-button" onclick="openDownloadManager()" data-button-id="download">
-                    <span>⬇️</span>
-                    <div>下载</div>
-                </button>
                 <button id="btn_restore_buttons" class="secondary-button" onclick="showRestoreButtonsDialog()" data-button-id="restore_buttons" style="display: none;">
-                    <span>➕</span>
                     <div>恢复按钮</div>
                 </button>
             </div>

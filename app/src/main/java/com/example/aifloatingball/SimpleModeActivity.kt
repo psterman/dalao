@@ -8931,9 +8931,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val clickStartY = event.y
                         view.tag = android.util.Pair(clickStartTime, android.util.Pair(clickStartX, clickStartY))
                         // 先让输入框处理DOWN事件，同时记录起始位置用于手势检测
-                val handled = handleBrowserSwipeUpGesture(view, event)
-                        // 如果手势处理返回true，说明是上滑手势，消费事件；否则让输入框处理
-                        return@setOnTouchListener handled
+                        // 不消费事件，让输入框可以正常获取焦点
+                        handleBrowserSwipeUpGesture(view, event)
+                        return@setOnTouchListener false // 不消费，让输入框处理
                     }
                     MotionEvent.ACTION_UP -> {
                         val tagData = view.tag as? android.util.Pair<*, *>
@@ -8948,6 +8948,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         )
                         // 如果点击时间很短且移动距离很小，认为是点击，不处理手势
                         if (clickDuration < 300 && moveDistance < 20) {
+                            // 确保输入框可以获取焦点并显示输入法
+                            view.isFocusable = true
+                            view.isFocusableInTouchMode = true
+                            view.requestFocus()
+                            handler.postDelayed({
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                imm?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                            }, 100)
                             return@setOnTouchListener false // 让输入框正常处理点击
                         }
                         // 否则处理手势
@@ -8955,9 +8963,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         return@setOnTouchListener handled
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        // MOVE事件总是传递给手势处理
-                        val handled = handleBrowserSwipeUpGesture(view, event)
-                        return@setOnTouchListener handled
+                        // MOVE事件传递给手势处理，但不消费事件
+                        handleBrowserSwipeUpGesture(view, event)
+                        return@setOnTouchListener false // 不消费，让输入框可以正常处理
                     }
                     else -> {
                         val handled = handleBrowserSwipeUpGesture(view, event)
