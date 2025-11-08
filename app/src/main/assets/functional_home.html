@@ -40,13 +40,12 @@
                 background: rgba(10, 132, 255, 0.2);
             }
             
-            .secondary-button {
-                background: rgba(255, 255, 255, 0.1);
-                color: #0A84FF;
+            .button:hover {
+                background: rgba(10, 132, 255, 0.15);
             }
             
-            .secondary-button:active {
-                background: rgba(10, 132, 255, 0.2);
+            .button.long-pressing {
+                background: rgba(255, 59, 48, 0.2);
             }
             
             .hint {
@@ -74,23 +73,23 @@
         }
         
         .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
             margin-bottom: 32px;
+            width: 100%;
         }
         
         .button {
-            width: 100%;
             background: rgba(255, 255, 255, 0.95);
             color: #007AFF;
             border: none;
             border-radius: 12px;
-            padding: 14px 20px;
+            padding: 14px 16px;
             font-size: 17px;
             font-weight: 400;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: none;
             display: flex;
             align-items: center;
@@ -99,57 +98,175 @@
             overflow: hidden;
             text-overflow: ellipsis;
             min-height: 44px;
+            position: relative;
+            opacity: 0;
+            transform: scale(0.8) translateY(10px);
+            animation: buttonAppear 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        /* 长按倒计时进度条容器 */
+        .button-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        /* 长按倒计时进度条 - 在按钮下方 */
+        .button-wrapper::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            height: 3px;
+            width: 0%;
+            background: #8E8E93;
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 1;
+        }
+        
+        /* 长按时的状态 */
+        .button.long-pressing {
+            animation: longPressPulse 1.5s ease-in-out infinite;
+            background: rgba(255, 59, 48, 0.1);
+        }
+        
+        .button-wrapper.long-pressing::after {
+            opacity: 1;
+            animation: countdownProgress 1.5s linear forwards;
+        }
+        
+        @keyframes longPressPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+        
+        @keyframes countdownProgress {
+            from {
+                width: 0%;
+                background: #8E8E93;
+            }
+            to {
+                width: 100%;
+                background: transparent;
+            }
+        }
+        
+        @keyframes buttonAppear {
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .button.hiding {
+            animation: buttonDisappear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        @keyframes buttonDisappear {
+            to {
+                opacity: 0;
+                transform: scale(0.8) translateY(-10px);
+            }
         }
         
         .button:active {
-            background: rgba(0, 122, 255, 0.1);
-            transform: none;
+            transform: scale(0.98);
+            opacity: 0.8;
+        }
+        
+        .button:hover {
+            transform: translateY(-1px);
+        }
+        
+        /* 长按时文字逐渐消失 */
+        .button.long-pressing .button-text {
+            transition: opacity 0.4s ease;
+            opacity: 1;
+        }
+        
+        /* 当进度条走到50%时，文字开始消失 */
+        .button-wrapper.long-pressing.mid-progress .button-text {
+            opacity: 0;
         }
         
         .button-icon {
             display: none;
         }
         
-        .secondary-buttons {
-            display: flex;
-            gap: 12px;
-            width: 100%;
+        /* 恢复按钮特殊样式 - 小长方形 */
+        .button.restore-button {
+            grid-column: span 1;
+            min-width: 80px;
+            max-width: 120px;
+            padding: 10px 16px;
+            font-size: 24px;
+            min-height: 36px;
+            margin: 0 auto;
         }
         
-        .secondary-button {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.95);
-            color: #007AFF;
-            border: none;
-            border-radius: 12px;
-            padding: 14px 20px;
-            font-size: 17px;
-            font-weight: 400;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            min-height: 44px;
+        /* 根据按钮数量调整布局 */
+        .button-group[data-count="1"] {
+            grid-template-columns: 1fr;
         }
         
-        .secondary-button span {
-            display: none;
+        .button-group[data-count="2"] {
+            grid-template-columns: repeat(2, 1fr);
         }
         
-        .secondary-button div {
-            margin: 0;
-            padding: 0;
-            line-height: 1.2;
+        .button-group[data-count="3"] {
+            grid-template-columns: repeat(3, 1fr);
         }
         
-        .secondary-button:active {
-            background: rgba(0, 122, 255, 0.1);
-            transform: none;
+        .button-group[data-count="4"] {
+            grid-template-columns: repeat(2, 1fr);
         }
+        
+        .button-group[data-count="5"] {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .button-group[data-count="6"] {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .button-group[data-count="7"] {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .button-group[data-count="8"] {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .button-group[data-count="9"] {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        /* 按钮微互动效果 */
+        .button-group .button:not(.hiding):hover {
+            transform: translateY(-2px) scale(1.02);
+        }
+        
+        .button-group .button:not(.hiding):active {
+            transform: translateY(0) scale(0.96);
+        }
+        
+        /* 按钮出现时的延迟动画 */
+        .button-group .button:nth-child(1) { animation-delay: 0s; }
+        .button-group .button:nth-child(2) { animation-delay: 0.05s; }
+        .button-group .button:nth-child(3) { animation-delay: 0.1s; }
+        .button-group .button:nth-child(4) { animation-delay: 0.15s; }
+        .button-group .button:nth-child(5) { animation-delay: 0.2s; }
+        .button-group .button:nth-child(6) { animation-delay: 0.25s; }
+        .button-group .button:nth-child(7) { animation-delay: 0.3s; }
+        .button-group .button:nth-child(8) { animation-delay: 0.35s; }
+        .button-group .button:nth-child(9) { animation-delay: 0.4s; }
         
         .hint {
             margin-top: 32px;
@@ -162,31 +279,39 @@
 <body>
     <div class="container">
         <div class="button-group" id="buttonGroup">
-            <button id="btn_new_tab" class="button" onclick="createNewTab()" data-button-id="new_tab">
-                新建标签页
-            </button>
-            
-            <div class="secondary-buttons">
-                <button id="btn_new_group" class="secondary-button" onclick="createNewGroup()" data-button-id="new_group">
-                    <div>新建标签组</div>
-                </button>
-                <button id="btn_history" class="secondary-button" onclick="openHistory()" data-button-id="history">
-                    <div>历史记录</div>
+            <div class="button-wrapper">
+                <button id="btn_new_tab" class="button" onclick="createNewTab()" data-button-id="new_tab" data-text="新建标签页">
+                    <span class="button-text">新建标签页</span>
                 </button>
             </div>
             
-            <div class="secondary-buttons">
-                <button id="btn_bookmarks" class="secondary-button" onclick="openBookmarks()" data-button-id="bookmarks">
-                    <div>收藏夹</div>
-                </button>
-                <button id="btn_download" class="secondary-button" onclick="openDownloadManager()" data-button-id="download">
-                    <div>下载</div>
+            <div class="button-wrapper">
+                <button id="btn_new_group" class="button" onclick="createNewGroup()" data-button-id="new_group" data-text="新建标签组">
+                    <span class="button-text">新建标签组</span>
                 </button>
             </div>
             
-            <div class="secondary-buttons">
-                <button id="btn_restore_buttons" class="secondary-button" onclick="showRestoreButtonsDialog()" data-button-id="restore_buttons" style="display: none;">
-                    <div>恢复按钮</div>
+            <div class="button-wrapper">
+                <button id="btn_history" class="button" onclick="openHistory()" data-button-id="history" data-text="历史记录">
+                    <span class="button-text">历史记录</span>
+                </button>
+            </div>
+            
+            <div class="button-wrapper">
+                <button id="btn_bookmarks" class="button" onclick="openBookmarks()" data-button-id="bookmarks" data-text="收藏夹">
+                    <span class="button-text">收藏夹</span>
+                </button>
+            </div>
+            
+            <div class="button-wrapper">
+                <button id="btn_download" class="button" onclick="openDownloadManager()" data-button-id="download" data-text="下载">
+                    <span class="button-text">下载</span>
+                </button>
+            </div>
+            
+            <div class="button-wrapper">
+                <button id="btn_restore_buttons" class="button restore-button" onclick="showRestoreButtonsDialog()" data-button-id="restore_buttons" data-text="➕" style="display: none;">
+                    <span class="button-text">➕</span>
                 </button>
             </div>
         </div>
@@ -253,13 +378,18 @@
         };
         
         // 长按隐藏按钮
+        const LONG_PRESS_DURATION = 1500; // 1.5秒长按
         let longPressTimer = null;
         let longPressButton = null;
+        let longPressStartTime = 0;
         
         function setupButtonLongPress() {
             Object.keys(buttonConfigs).forEach(buttonId => {
                 const button = document.getElementById('btn_' + buttonId);
                 if (button) {
+                    // 获取按钮的包装器
+                    const buttonWrapper = button.parentElement;
+                    
                     // 阻止默认的长按菜单
                     button.addEventListener('contextmenu', function(e) {
                         e.preventDefault();
@@ -276,49 +406,129 @@
                         touchStartTime = Date.now();
                         touchStartX = e.touches[0].clientX;
                         touchStartY = e.touches[0].clientY;
+                        longPressStartTime = Date.now();
+                        
+                        // 添加长按状态类到按钮和包装器
+                        button.classList.add('long-pressing');
+                        if (buttonWrapper) {
+                            buttonWrapper.classList.add('long-pressing');
+                        }
+                        
+                        // 当进度条走到一半时，文字开始消失
+                        setTimeout(function() {
+                            if (buttonWrapper && buttonWrapper.classList.contains('long-pressing')) {
+                                buttonWrapper.classList.add('mid-progress');
+                            }
+                        }, LONG_PRESS_DURATION * 0.5); // 50%时
+                        
+                        // 开始倒计时动画
                         longPressTimer = setTimeout(function() {
-                            // 长按成功，隐藏按钮
-                            hideButton(buttonId);
+                            // 进度条走完，长按成功，隐藏按钮
+                            // 清除定时器标记，防止在touchend中误判为单击
+                            const timerId = longPressTimer;
                             longPressTimer = null;
-                        }, 500); // 500ms长按
+                            
+                            // 移除长按状态
+                            button.classList.remove('long-pressing');
+                            if (buttonWrapper) {
+                                buttonWrapper.classList.remove('long-pressing', 'mid-progress');
+                            }
+                            
+                            // 隐藏按钮
+                            hideButton(buttonId);
+                        }, LONG_PRESS_DURATION);
                     }, { passive: true });
                     
                     // 触摸结束
                     button.addEventListener('touchend', function(e) {
-                        if (longPressTimer) {
-                            // 如果长按定时器还在，说明是短按，取消长按
+                        const wasLongPressing = button.classList.contains('long-pressing');
+                        const timerWasActive = longPressTimer !== null;
+                        const touchDuration = Date.now() - touchStartTime;
+                        
+                        // 移除长按状态
+                        button.classList.remove('long-pressing');
+                        if (buttonWrapper) {
+                            buttonWrapper.classList.remove('long-pressing', 'mid-progress');
+                        }
+                        
+                        if (timerWasActive) {
+                            // 如果长按定时器还在，说明进度条没走完
                             clearTimeout(longPressTimer);
                             longPressTimer = null;
+                            
+                            // 如果触摸时间很短（<300ms），认为是快速点击，让浏览器正常处理
+                            if (touchDuration < 300) {
+                                // 快速点击，不阻止默认行为，让onclick正常执行
+                                longPressButton = null;
+                                return;
+                            }
+                            
+                            // 如果之前已经开始长按（有长按状态且触摸时间较长），说明用户提前松手
+                            // 此时应该执行按钮的点击操作，而不是隐藏按钮
+                            if (wasLongPressing) {
+                                // 阻止默认行为，手动触发点击
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                // 延迟一点触发，确保长按状态已清除
+                                setTimeout(function() {
+                                    button.click();
+                                }, 50);
+                            }
                         }
                         longPressButton = null;
-                    }, { passive: true });
+                    }, { passive: false }); // 改为false以便可以preventDefault
                     
                     // 触摸移动时取消长按
                     button.addEventListener('touchmove', function(e) {
                         if (longPressTimer) {
                             const moveX = Math.abs(e.touches[0].clientX - touchStartX);
                             const moveY = Math.abs(e.touches[0].clientY - touchStartY);
-                            // 如果移动超过10px，取消长按
-                            if (moveX > 10 || moveY > 10) {
+                            // 如果移动超过15px，取消长按
+                            if (moveX > 15 || moveY > 15) {
+                                button.classList.remove('long-pressing');
+                                if (buttonWrapper) {
+                                    buttonWrapper.classList.remove('long-pressing', 'mid-progress');
+                                }
                                 clearTimeout(longPressTimer);
                                 longPressTimer = null;
                                 longPressButton = null;
                             }
                         }
                     }, { passive: true });
+                    
+                    // 触摸取消（如被系统中断）
+                    button.addEventListener('touchcancel', function(e) {
+                        button.classList.remove('long-pressing');
+                        if (buttonWrapper) {
+                            buttonWrapper.classList.remove('long-pressing', 'mid-progress');
+                        }
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
+                        longPressButton = null;
+                    }, { passive: true });
                 }
             });
         }
         
-        // 隐藏按钮
+        // 隐藏按钮（带动画）
         function hideButton(buttonId) {
             if (window.AndroidInterface && window.AndroidInterface.hideButton) {
                 window.AndroidInterface.hideButton(buttonId);
                 const button = document.getElementById('btn_' + buttonId);
                 if (button) {
-                    button.style.display = 'none';
+                    // 添加隐藏动画
+                    button.classList.add('hiding');
+                    // 等待进度条动画完成后再隐藏按钮
+                    setTimeout(() => {
+                        button.style.display = 'none';
+                        updateButtonLayout();
+                    }, LONG_PRESS_DURATION + 100); // 等待长按动画和进度条完成
+                } else {
+                    updateButtonLayout();
                 }
-                updateButtonGroupsVisibility();
                 checkAndShowRestoreButton();
             }
         }
@@ -336,9 +546,19 @@
             const hasHiddenButtons = Object.values(visibility).some(visible => !visible);
             const restoreButton = document.getElementById('btn_restore_buttons');
             if (restoreButton) {
-                restoreButton.style.display = hasHiddenButtons ? 'flex' : 'none';
+                if (hasHiddenButtons && restoreButton.style.display === 'none') {
+                    // 显示恢复按钮时，重置动画
+                    restoreButton.classList.remove('hiding');
+                    restoreButton.style.display = 'flex';
+                    restoreButton.style.animation = 'none';
+                    // 触发重排
+                    void restoreButton.offsetWidth;
+                    restoreButton.style.animation = '';
+                } else if (!hasHiddenButtons) {
+                    restoreButton.style.display = 'none';
+                }
             }
-            updateButtonGroupsVisibility();
+            updateButtonLayout();
         }
         
         // 获取按钮显示状态
@@ -356,6 +576,30 @@
             return {};
         }
         
+        // 更新按钮布局
+        function updateButtonLayout() {
+            const buttonGroup = document.getElementById('buttonGroup');
+            if (!buttonGroup) return;
+            
+            // 计算可见按钮数量（包括包装器）
+            const visibleWrappers = Array.from(buttonGroup.querySelectorAll('.button-wrapper')).filter(wrapper => {
+                const button = wrapper.querySelector('.button');
+                return button && button.style.display !== 'none';
+            });
+            const count = visibleWrappers.length;
+            
+            // 更新data-count属性以应用正确的布局
+            buttonGroup.setAttribute('data-count', count);
+            
+            // 为每个按钮添加延迟动画
+            visibleWrappers.forEach((wrapper, index) => {
+                const button = wrapper.querySelector('.button');
+                if (button && !button.classList.contains('hiding')) {
+                    button.style.animationDelay = (index * 0.05) + 's';
+                }
+            });
+        }
+        
         // 根据设置显示/隐藏按钮
         function updateButtonVisibility() {
             if (window.AndroidInterface && window.AndroidInterface.getButtonVisibility) {
@@ -367,12 +611,22 @@
                             const button = document.getElementById('btn_' + buttonId);
                             if (button) {
                                 const isVisible = visibility[buttonId] !== false; // 默认显示
-                                button.style.display = isVisible ? 'flex' : 'none';
+                                if (isVisible && button.style.display === 'none') {
+                                    // 显示按钮时，重置动画
+                                    button.classList.remove('hiding');
+                                    button.style.display = 'flex';
+                                    button.style.animation = 'none';
+                                    // 触发重排
+                                    void button.offsetWidth;
+                                    button.style.animation = '';
+                                } else if (!isVisible) {
+                                    button.style.display = 'none';
+                                }
                             }
                         });
                         
-                        // 隐藏空的按钮组
-                        updateButtonGroupsVisibility();
+                        // 更新布局
+                        updateButtonLayout();
                         // 检查并显示恢复按钮
                         checkAndShowRestoreButton();
                     }
@@ -382,33 +636,23 @@
             }
         }
         
-        // 更新按钮组的显示状态（隐藏空的按钮组）
-        function updateButtonGroupsVisibility() {
-            const buttonGroups = document.querySelectorAll('.secondary-buttons');
-            buttonGroups.forEach(group => {
-                const visibleButtons = group.querySelectorAll('button[style*="display: flex"], button:not([style*="display: none"])');
-                if (visibleButtons.length === 0) {
-                    group.style.display = 'none';
-                } else {
-                    group.style.display = 'flex';
-                }
-            });
-        }
-        
         // 页面加载时更新按钮显示状态并设置长按事件
         window.addEventListener('load', function() {
             updateButtonVisibility();
             setupButtonLongPress();
+            updateButtonLayout();
         });
         
         // 如果页面已经加载完成，立即更新
         if (document.readyState === 'complete') {
             updateButtonVisibility();
             setupButtonLongPress();
+            updateButtonLayout();
         } else {
             document.addEventListener('DOMContentLoaded', function() {
                 updateButtonVisibility();
                 setupButtonLongPress();
+                updateButtonLayout();
             });
         }
     </script>
