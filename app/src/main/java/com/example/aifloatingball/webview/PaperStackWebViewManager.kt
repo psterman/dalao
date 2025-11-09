@@ -1285,7 +1285,7 @@ class PaperStackWebViewManager(
                 mutableListOf()
             }
             
-            // 创建新的历史记录条目
+            // 创建新的历史记录条目，记录当前组ID
             val newEntry = HistoryEntry(
                 id = System.currentTimeMillis().toString(),
                 title = if (title.isNotEmpty() && title != finalUrl) title else {
@@ -1298,7 +1298,8 @@ class PaperStackWebViewManager(
                     }
                 },
                 url = finalUrl,
-                visitTime = Date()
+                visitTime = Date(),
+                groupId = currentGroupId // 记录当前组ID
             )
             
             // 添加到历史记录列表（即使URL相同也记录，因为是精准记录每次访问）

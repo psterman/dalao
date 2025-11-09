@@ -20,7 +20,11 @@ class TabGroupAdapter(
     private val onGroupEdit: (TabGroup) -> Unit,
     private val onGroupDelete: (TabGroup) -> Unit,
     private val onGroupPin: (TabGroup) -> Unit,
-    private val onGroupDrag: (fromPosition: Int, toPosition: Int) -> Unit
+    private val onGroupDrag: (fromPosition: Int, toPosition: Int) -> Unit,
+    private val onGroupSecurity: (TabGroup) -> Unit = {}, // 密码设置回调
+    private val onGroupVisibility: (TabGroup) -> Unit = {}, // 隐藏/显示回调
+    private val isUnlockMode: Boolean = false, // 是否处于解锁模式（显示隐藏组）
+    private val unlockedGroupIds: Set<String> = emptySet() // 已解锁的组ID集合
 ) : RecyclerView.Adapter<TabGroupAdapter.GroupViewHolder>() {
     
     class GroupViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -28,6 +32,8 @@ class TabGroupAdapter(
         val editButton: ImageButton = itemView.findViewById(R.id.btn_edit_group)
         val deleteButton: ImageButton = itemView.findViewById(R.id.btn_delete_group)
         val pinButton: ImageButton = itemView.findViewById(R.id.btn_pin_group)
+        val securityButton: ImageButton = itemView.findViewById(R.id.btn_security_group)
+        val visibilityButton: ImageButton = itemView.findViewById(R.id.btn_visibility_group)
         val dragHandle: View = itemView.findViewById(R.id.drag_handle)
     }
     
@@ -40,7 +46,23 @@ class TabGroupAdapter(
     override fun onBindViewHolder(holder: GroupViewHolder, position: Int) {
         val group = groups[position]
         
-        holder.groupName.text = group.name
+        // 处理组名显示：确保每个组都显示名称
+        val isGroupUnlocked = unlockedGroupIds.contains(group.id)
+        if (isUnlockMode && (group.isHidden || group.passwordHash != null) && !isGroupUnlocked) {
+            // 未解锁的隐藏/加密组，显示"***"并添加提示
+            holder.groupName.text = "*** (点击解锁查看)"
+            // 使用主题颜色
+            val typedValue = android.util.TypedValue()
+            holder.groupName.context.theme.resolveAttribute(android.R.attr.textColorSecondary, typedValue, true)
+            holder.groupName.setTextColor(typedValue.data)
+        } else {
+            // 正常显示组名
+            holder.groupName.text = group.name
+            // 使用主题颜色
+            val typedValue = android.util.TypedValue()
+            holder.groupName.context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
+            holder.groupName.setTextColor(typedValue.data)
+        }
         
         // 置顶按钮图标
         val pinIcon = if (group.isPinned) {
@@ -50,24 +72,65 @@ class TabGroupAdapter(
         }
         holder.pinButton.setImageResource(pinIcon)
         
-        // 点击组名进入组
+        // 隐藏/显示按钮图标（眼睛图标）
+        val visibilityIcon = if (group.isHidden) {
+            R.drawable.ic_visibility_off // 闭眼 = 隐藏
+        } else {
+            R.drawable.ic_visibility // 睁眼 = 显示
+        }
+        holder.visibilityButton.setImageResource(visibilityIcon)
+        
+        // 密码按钮图标（如果有密码显示锁定图标）
+        holder.securityButton.setImageResource(R.drawable.ic_security)
+        
+        // 如果组未解锁，禁用编辑、删除、置顶按钮
+        val isActionEnabled = !isUnlockMode || isGroupUnlocked || (!group.isHidden && group.passwordHash == null)
+        holder.editButton.isEnabled = isActionEnabled
+        holder.deleteButton.isEnabled = isActionEnabled
+        holder.pinButton.isEnabled = isActionEnabled
+        holder.editButton.alpha = if (isActionEnabled) 1.0f else 0.5f
+        holder.deleteButton.alpha = if (isActionEnabled) 1.0f else 0.5f
+        holder.pinButton.alpha = if (isActionEnabled) 1.0f else 0.5f
+        
+        // 点击组名：如果未解锁，触发解锁流程；如果已解锁或非解锁模式，切换到该组
         holder.groupName.setOnClickListener {
             onGroupClick(group)
         }
         
+        // 隐藏/显示按钮
+        holder.visibilityButton.setOnClickListener {
+            onGroupVisibility(group)
+        }
+        
+        // 密码设置按钮
+        holder.securityButton.setOnClickListener {
+            if (isUnlockMode && (group.isHidden || group.passwordHash != null) && !isGroupUnlocked) {
+                // 未解锁的组，需要先解锁才能设置密码
+                onGroupClick(group) // 触发解锁流程
+            } else {
+                onGroupSecurity(group)
+            }
+        }
+        
         // 编辑按钮
         holder.editButton.setOnClickListener {
-            onGroupEdit(group)
+            if (isActionEnabled) {
+                onGroupEdit(group)
+            }
         }
         
         // 删除按钮
         holder.deleteButton.setOnClickListener {
-            onGroupDelete(group)
+            if (isActionEnabled) {
+                onGroupDelete(group)
+            }
         }
         
         // 置顶按钮
         holder.pinButton.setOnClickListener {
-            onGroupPin(group)
+            if (isActionEnabled) {
+                onGroupPin(group)
+            }
         }
     }
     

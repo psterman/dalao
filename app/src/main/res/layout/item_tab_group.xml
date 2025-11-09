@@ -50,6 +50,28 @@
             android:src="@drawable/ic_pin_outline"
             app:tint="?android:attr/textColorSecondary" />
 
+        <!-- 隐藏/显示按钮 -->
+        <ImageButton
+            android:id="@+id/btn_visibility_group"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="隐藏/显示"
+            android:src="@drawable/ic_visibility"
+            app:tint="?android:attr/textColorSecondary" />
+
+        <!-- 密码设置按钮 -->
+        <ImageButton
+            android:id="@+id/btn_security_group"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="密码设置"
+            android:src="@drawable/ic_security"
+            app:tint="?android:attr/textColorSecondary" />
+
         <!-- 编辑按钮 -->
         <ImageButton
             android:id="@+id/btn_edit_group"

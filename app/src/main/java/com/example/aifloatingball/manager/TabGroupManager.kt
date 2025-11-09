@@ -68,9 +68,16 @@ class TabGroupManager private constructor(private val context: Context) {
     }
     
     /**
-     * 获取所有组
+     * 获取所有组（默认只返回可见的组）
      */
     fun getAllGroups(): List<TabGroup> {
+        return getVisibleGroups()
+    }
+    
+    /**
+     * 获取所有组（内部方法，直接从groups列表获取并排序）
+     */
+    private fun getAllGroupsInternal(): List<TabGroup> {
         return groups.sortedWith(compareBy<TabGroup> { !it.isPinned } // 置顶的在前
             .thenBy { it.order }) // 然后按排序顺序
     }
@@ -126,6 +133,101 @@ class TabGroupManager private constructor(private val context: Context) {
         saveGroups()
         notifyGroupChanged()
         Log.d(TAG, "更新组: ${group.name} (${group.id})")
+    }
+    
+    /**
+     * 设置组密码
+     */
+    fun setGroupPassword(groupId: String, password: String) {
+        val group = getGroupById(groupId) ?: return
+        group.passwordHash = hashPassword(password)
+        group.updatedAt = System.currentTimeMillis()
+        saveGroups()
+        notifyGroupChanged()
+        Log.d(TAG, "设置组密码: ${group.name}")
+    }
+    
+    /**
+     * 验证组密码
+     */
+    fun verifyGroupPassword(groupId: String, password: String): Boolean {
+        val group = getGroupById(groupId) ?: return false
+        if (group.passwordHash == null) return true // 没有密码，直接通过
+        return group.passwordHash == hashPassword(password)
+    }
+    
+    /**
+     * 移除组密码
+     */
+    fun removeGroupPassword(groupId: String) {
+        val group = getGroupById(groupId) ?: return
+        group.passwordHash = null
+        group.quickAccessCode = null
+        group.updatedAt = System.currentTimeMillis()
+        saveGroups()
+        notifyGroupChanged()
+        Log.d(TAG, "移除组密码: ${group.name}")
+    }
+    
+    /**
+     * 设置快捷访问码
+     */
+    fun setQuickAccessCode(groupId: String, code: String) {
+        val group = getGroupById(groupId) ?: return
+        group.quickAccessCode = hashPassword(code)
+        group.updatedAt = System.currentTimeMillis()
+        saveGroups()
+        notifyGroupChanged()
+        Log.d(TAG, "设置快捷访问码: ${group.name}")
+    }
+    
+    /**
+     * 验证快捷访问码
+     */
+    fun verifyQuickAccessCode(groupId: String, code: String): Boolean {
+        val group = getGroupById(groupId) ?: return false
+        if (group.quickAccessCode == null) return false
+        return group.quickAccessCode == hashPassword(code)
+    }
+    
+    /**
+     * 切换组隐藏状态
+     */
+    fun toggleGroupHidden(groupId: String) {
+        val group = getGroupById(groupId) ?: return
+        group.isHidden = !group.isHidden
+        group.updatedAt = System.currentTimeMillis()
+        saveGroups()
+        notifyGroupChanged()
+        Log.d(TAG, "${if (group.isHidden) "隐藏" else "显示"}组: ${group.name}")
+    }
+    
+    /**
+     * 获取可见的组（排除隐藏的组）
+     */
+    fun getVisibleGroups(): List<TabGroup> {
+        return getAllGroupsInternal().filter { !it.isHidden }
+    }
+    
+    /**
+     * 获取所有组（包括隐藏的）
+     */
+    fun getAllGroupsIncludingHidden(): List<TabGroup> {
+        return getAllGroupsInternal()
+    }
+    
+    /**
+     * 密码哈希（简单实现，生产环境应使用更安全的加密方式）
+     */
+    private fun hashPassword(password: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val hashBytes = md.digest(password.toByteArray())
+            hashBytes.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "密码哈希失败", e)
+            password // 失败时返回原密码（不安全，但至少能工作）
+        }
     }
     
     /**

@@ -784,6 +784,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var isSearchTabGestureOverlayActive = false
     private var gestureDetectorForOverlay: GestureDetectorCompat? = null
     
+    
     // 保存tab原始布局参数，用于恢复
     private val originalTabLayoutParams = mutableMapOf<Int, ViewGroup.LayoutParams>()
     private val originalTabTextViews = mutableMapOf<Int, TextView?>()
@@ -2861,6 +2862,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupAppSearchPage() {
         Log.d(TAG, "setupAppSearchPage被调用")
         Log.d(TAG, "appSearchAdapter是否已初始化: ${::appSearchAdapter.isInitialized}")
+        
         // 初始化应用搜索适配器
         if (!::appSearchAdapter.isInitialized) {
             Log.d(TAG, "开始初始化appSearchAdapter")
@@ -6565,7 +6567,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             
         override fun onHideButton(buttonId: String) {
-            // 隐藏按钮
+            // 隐藏按钮（只在长按进度条走完时调用，不应该在单击时调用）
             try {
                 val key = "home_button_${buttonId}_visible"
                 settingsManager.putBoolean(key, false)
@@ -10487,18 +10489,46 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         buttonIds.forEach { buttonId ->
             val key = "home_button_${buttonId}_visible"
-            if (isInitialized) {
-                // 已经初始化过，如果key存在则使用保存的值，否则默认不显示（false）
-                // 这样可以确保只有用户明确选中的按钮才会显示
-                if (settingsManager.getSharedPreferences().contains(key)) {
-                    visibility[buttonId] = settingsManager.getBoolean(key, false)
-                } else {
-                    // key不存在，说明用户从未设置过，默认不显示
-                    visibility[buttonId] = false
-                }
+            // 优先从SettingsManager读取（这是DraggableButtonGrid保存的）
+            if (settingsManager.getSharedPreferences().contains(key)) {
+                visibility[buttonId] = settingsManager.getBoolean(key, false)
             } else {
-                // 首次使用，默认显示所有主要按钮
-                visibility[buttonId] = settingsManager.getBoolean(key, true)
+                // 如果SettingsManager中没有，尝试从DraggableButtonGrid的SharedPreferences读取
+                val prefs = getSharedPreferences("draggable_button_grid", Context.MODE_PRIVATE)
+                val visibleButtonsJson = prefs.getString("visible_buttons", null)
+                if (visibleButtonsJson != null) {
+                    try {
+                        val visibleButtons = com.google.gson.Gson().fromJson<List<String>>(
+                            visibleButtonsJson,
+                            object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+                        )
+                        // 检查按钮ID是否在可见列表中
+                        val buttonIdInPrefs = when (buttonId) {
+                            "new_tab" -> "new_tab"
+                            "new_group" -> "new_group"
+                            "history" -> "history"
+                            "bookmarks" -> "bookmarks"
+                            "download" -> "download"
+                            else -> buttonId
+                        }
+                        visibility[buttonId] = visibleButtons.contains(buttonIdInPrefs)
+                        // 同步到SettingsManager，确保下次直接读取
+                        settingsManager.putBoolean(key, visibility[buttonId] ?: false)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析按钮可见性失败", e)
+                        // 解析失败，默认不显示
+                        visibility[buttonId] = false
+                    }
+                } else {
+                    // 如果DraggableButtonGrid的配置也不存在，根据是否初始化决定默认值
+                    if (isInitialized) {
+                        // 已初始化但配置不存在，默认不显示
+                        visibility[buttonId] = false
+                    } else {
+                        // 首次使用，默认显示所有主要按钮
+                        visibility[buttonId] = true
+                    }
+                }
             }
         }
         
@@ -28625,14 +28655,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showGroupManagerDialog() {
         try {
             val groupManager = TabGroupManager.getInstance(this)
-            val allGroups = groupManager.getAllGroups()
             
-            // 分离默认组和用户创建的组
-            val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-            val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+            // 解锁模式状态
+            var isUnlockMode = false
+            val unlockedGroupIds = mutableSetOf<String>()
+            
+            // 获取所有组（包括隐藏的）
+            val allGroupsIncludingHidden = groupManager.getAllGroupsIncludingHidden()
+            val allVisibleGroups = groupManager.getAllGroups()
+            
+            // 分离默认组和用户创建的组（只显示可见组）
+            val defaultGroup = allVisibleGroups.firstOrNull { it.id.startsWith("group_default_") }
+            val userGroups = allVisibleGroups.filter { !it.id.startsWith("group_default_") }
             
             // 如果有用户创建的组，则显示默认组（第一个）和所有用户创建的组；否则只显示用户创建的组（此时为空，不显示）
-            val groupsToShow = if (userGroups.isNotEmpty() && defaultGroup != null) {
+            var groupsToShow = if (userGroups.isNotEmpty() && defaultGroup != null) {
                 listOf(defaultGroup) + userGroups
             } else {
                 userGroups
@@ -28646,80 +28683,197 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 设置RecyclerView
             recyclerView?.layoutManager = LinearLayoutManager(this)
             
-            // 先声明适配器变量（使用 lateinit 或者先创建一个临时变量）
-            lateinit var adapter: TabGroupAdapter
+            // 先声明适配器变量（使用 var 以便在刷新时更新）
+            var adapter: TabGroupAdapter
+            
+            // 刷新适配器的辅助函数
+            fun refreshAdapter() {
+                // 重新获取最新的组列表
+                val latestAllGroupsIncludingHidden = groupManager.getAllGroupsIncludingHidden()
+                val latestAllVisibleGroups = groupManager.getAllGroups()
+                
+                val allGroups = if (isUnlockMode) {
+                    // 解锁模式：显示所有组（包括隐藏的）
+                    val defaultGroupAll = latestAllGroupsIncludingHidden.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroupsAll = latestAllGroupsIncludingHidden.filter { !it.id.startsWith("group_default_") }
+                    if (userGroupsAll.isNotEmpty() && defaultGroupAll != null) {
+                        listOf(defaultGroupAll) + userGroupsAll
+                    } else {
+                        userGroupsAll
+                    }
+                } else {
+                    // 正常模式：只显示可见组
+                    val defaultGroupVisible = latestAllVisibleGroups.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroupsVisible = latestAllVisibleGroups.filter { !it.id.startsWith("group_default_") }
+                    if (userGroupsVisible.isNotEmpty() && defaultGroupVisible != null) {
+                        listOf(defaultGroupVisible) + userGroupsVisible
+                    } else {
+                        userGroupsVisible
+                    }
+                }
+                
+                // 重新创建适配器以更新isUnlockMode和unlockedGroupIds
+                adapter = TabGroupAdapter(
+                    groups = allGroups.toMutableList(),
+                    onGroupClick = { group ->
+                        // 如果处于解锁模式且组未解锁，需要先解锁
+                        if (isUnlockMode && (group.isHidden || group.passwordHash != null) && !unlockedGroupIds.contains(group.id)) {
+                            // 显示密码验证对话框
+                            showUnlockGroupDialog(group, groupManager) { verified ->
+                                if (verified) {
+                                    unlockedGroupIds.add(group.id)
+                                    // 延迟刷新适配器，确保解锁对话框完全关闭后再刷新
+                                    handler.postDelayed({
+                                        refreshAdapter()
+                                        showMaterialToast("已解锁组：${group.name}，组名已显示")
+                                    }, 150)
+                                    // 解锁后不切换到该组，保持在标签页组管理弹窗中
+                                }
+                            }
+                        } else {
+                            // 正常切换到该组（只有在非解锁模式或已解锁的情况下才切换）
+                            if (!isUnlockMode || unlockedGroupIds.contains(group.id) || (!group.isHidden && group.passwordHash == null)) {
+                                groupManager.setCurrentGroup(group.id)
+                                paperStackWebViewManager?.switchToGroup(group.id) { tabs ->
+                                    Log.d(TAG, "切换到组 ${group.name}，加载 ${tabs.size} 个标签页")
+                                    syncAllCardSystems()
+                                    showMaterialToast("已切换到组：${group.name}")
+                                }
+                            }
+                        }
+                    },
+                    onGroupEdit = { group ->
+                        // 编辑组名
+                        showEditGroupDialog(group, groupManager) { 
+                            refreshAdapter()
+                            refreshGroupTabs() // 同时刷新顶部标签栏
+                        }
+                    },
+                    onGroupDelete = { group ->
+                        // 删除组
+                        showDeleteGroupDialog(group, groupManager) {
+                            refreshAdapter()
+                            refreshGroupTabs() // 同时刷新顶部标签栏
+                        }
+                    },
+                    onGroupPin = { group ->
+                        // 置顶/取消置顶
+                        groupManager.togglePinGroup(group.id)
+                        refreshAdapter()
+                        refreshGroupTabs() // 同时刷新顶部标签栏
+                    },
+                    onGroupDrag = { fromPosition, toPosition ->
+                        // 拖动排序（注意：默认组应该始终在第一个位置，不能拖动）
+                        val allGroupsDrag = if (isUnlockMode) latestAllGroupsIncludingHidden else latestAllVisibleGroups
+                        val defaultGroupDrag = allGroupsDrag.firstOrNull { it.id.startsWith("group_default_") }
+                        val userGroupsDrag = allGroupsDrag.filter { !it.id.startsWith("group_default_") }
+                        
+                        // 如果拖动的是默认组（位置0），不允许拖动
+                        if (defaultGroupDrag != null && fromPosition == 0) {
+                            return@TabGroupAdapter
+                        }
+                        
+                        // 只对用户创建的组进行排序
+                        val groupIds = userGroupsDrag.map { it.id }.toMutableList()
+                        val adjustedFromPosition = if (defaultGroupDrag != null) fromPosition - 1 else fromPosition
+                        val adjustedToPosition = if (defaultGroupDrag != null) toPosition - 1 else toPosition
+                        
+                        if (adjustedFromPosition >= 0 && adjustedFromPosition < groupIds.size &&
+                            adjustedToPosition >= 0 && adjustedToPosition < groupIds.size) {
+                            val fromId = groupIds.removeAt(adjustedFromPosition)
+                            groupIds.add(adjustedToPosition, fromId)
+                            groupManager.updateGroupOrder(groupIds)
+                            
+                            refreshAdapter()
+                        }
+                    },
+                    onGroupSecurity = { group ->
+                        // 密码设置
+                        showGroupSecurityDialogInline(group, groupManager) {
+                            refreshAdapter()
+                        }
+                    },
+                    onGroupVisibility = { group ->
+                        // 隐藏/显示组
+                        groupManager.toggleGroupHidden(group.id)
+                        refreshAdapter()
+                        refreshGroupTabs() // 同时刷新顶部标签栏
+                        showMaterialToast(if (group.isHidden) "组已显示" else "组已隐藏")
+                    },
+                    isUnlockMode = isUnlockMode,
+                    unlockedGroupIds = unlockedGroupIds
+                )
+                recyclerView?.adapter = adapter
+                // 重新设置拖动排序
+                val itemTouchHelper = ItemTouchHelper(GroupItemTouchHelperCallback(adapter))
+                itemTouchHelper.attachToRecyclerView(recyclerView)
+            }
             
             // 创建适配器（在 lambda 中可以引用已声明的 adapter 变量）
             adapter = TabGroupAdapter(
                 groups = groupsToShow.toMutableList(),
                 onGroupClick = { group ->
-                    // 点击组，切换到该组
-                    groupManager.setCurrentGroup(group.id)
-                    paperStackWebViewManager?.switchToGroup(group.id) { tabs ->
-                        Log.d(TAG, "切换到组 ${group.name}，加载 ${tabs.size} 个标签页")
-                        syncAllCardSystems()
-                        showMaterialToast("已切换到组：${group.name}")
+                    // 如果处于解锁模式且组未解锁，需要先解锁
+                    if (isUnlockMode && (group.isHidden || group.passwordHash != null) && !unlockedGroupIds.contains(group.id)) {
+                        // 显示密码验证对话框
+                        showUnlockGroupDialog(group, groupManager) { verified ->
+                            if (verified) {
+                                unlockedGroupIds.add(group.id)
+                                // 延迟刷新适配器，确保解锁对话框完全关闭后再刷新
+                                handler.postDelayed({
+                                    refreshAdapter()
+                                    showMaterialToast("已解锁组：${group.name}，组名已显示")
+                                }, 150)
+                                // 解锁后不切换到该组，保持在标签页组管理弹窗中
+                            }
+                        }
+                    } else {
+                        // 正常切换到该组（只有在非解锁模式或已解锁的情况下才切换）
+                        if (!isUnlockMode || unlockedGroupIds.contains(group.id) || (!group.isHidden && group.passwordHash == null)) {
+                            groupManager.setCurrentGroup(group.id)
+                            paperStackWebViewManager?.switchToGroup(group.id) { tabs ->
+                                Log.d(TAG, "切换到组 ${group.name}，加载 ${tabs.size} 个标签页")
+                                syncAllCardSystems()
+                                showMaterialToast("已切换到组：${group.name}")
+                            }
+                        }
                     }
                 },
                 onGroupEdit = { group ->
                     // 编辑组名
                     showEditGroupDialog(group, groupManager) { 
-                        val allGroups = groupManager.getAllGroups()
-                        val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-                        val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
-                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
-                            listOf(defaultGroup) + userGroups
-                        } else {
-                            userGroups
-                        }
-                        adapter.updateGroups(updatedGroups)
+                        refreshAdapter()
                         refreshGroupTabs() // 同时刷新顶部标签栏
                     }
                 },
                 onGroupDelete = { group ->
                     // 删除组
                     showDeleteGroupDialog(group, groupManager) {
-                        val allGroups = groupManager.getAllGroups()
-                        val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-                        val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
-                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
-                            listOf(defaultGroup) + userGroups
-                        } else {
-                            userGroups
-                        }
-                        adapter.updateGroups(updatedGroups)
+                        refreshAdapter()
                         refreshGroupTabs() // 同时刷新顶部标签栏
                     }
                 },
                 onGroupPin = { group ->
                     // 置顶/取消置顶
                     groupManager.togglePinGroup(group.id)
-                    val allGroups = groupManager.getAllGroups()
-                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
-                    val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
-                        listOf(defaultGroup) + userGroups
-                    } else {
-                        userGroups
-                    }
-                    adapter.updateGroups(updatedGroups)
+                    refreshAdapter()
                     refreshGroupTabs() // 同时刷新顶部标签栏
                 },
                 onGroupDrag = { fromPosition, toPosition ->
                     // 拖动排序（注意：默认组应该始终在第一个位置，不能拖动）
-                    val allGroups = groupManager.getAllGroups()
-                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
+                    val allGroups = if (isUnlockMode) allGroupsIncludingHidden else allVisibleGroups
+                    val defaultGroupDrag = allGroups.firstOrNull { it.id.startsWith("group_default_") }
+                    val userGroupsDrag = allGroups.filter { !it.id.startsWith("group_default_") }
                     
                     // 如果拖动的是默认组（位置0），不允许拖动
-                    if (defaultGroup != null && fromPosition == 0) {
+                    if (defaultGroupDrag != null && fromPosition == 0) {
                         return@TabGroupAdapter
                     }
                     
                     // 只对用户创建的组进行排序
-                    val groupIds = userGroups.map { it.id }.toMutableList()
-                    val adjustedFromPosition = if (defaultGroup != null) fromPosition - 1 else fromPosition
-                    val adjustedToPosition = if (defaultGroup != null) toPosition - 1 else toPosition
+                    val groupIds = userGroupsDrag.map { it.id }.toMutableList()
+                    val adjustedFromPosition = if (defaultGroupDrag != null) fromPosition - 1 else fromPosition
+                    val adjustedToPosition = if (defaultGroupDrag != null) toPosition - 1 else toPosition
                     
                     if (adjustedFromPosition >= 0 && adjustedFromPosition < groupIds.size &&
                         adjustedToPosition >= 0 && adjustedToPosition < groupIds.size) {
@@ -28727,15 +28881,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         groupIds.add(adjustedToPosition, fromId)
                         groupManager.updateGroupOrder(groupIds)
                         
-                        // 更新适配器
-                        val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
-                            listOf(defaultGroup) + userGroups.sortedBy { groupIds.indexOf(it.id) }
-                        } else {
-                            userGroups.sortedBy { groupIds.indexOf(it.id) }
-                        }
-                        adapter.updateGroups(updatedGroups)
+                        refreshAdapter()
                     }
-                }
+                },
+                onGroupSecurity = { group ->
+                    // 密码设置
+                    showGroupSecurityDialogInline(group, groupManager) {
+                        refreshAdapter()
+                    }
+                },
+                onGroupVisibility = { group ->
+                    // 隐藏/显示组
+                    groupManager.toggleGroupHidden(group.id)
+                    refreshAdapter()
+                    refreshGroupTabs() // 同时刷新顶部标签栏
+                    showMaterialToast(if (group.isHidden) "组已显示" else "组已隐藏")
+                },
+                isUnlockMode = isUnlockMode,
+                unlockedGroupIds = unlockedGroupIds
             )
             
             recyclerView?.adapter = adapter
@@ -28747,26 +28910,45 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 新建组按钮
             btnAddGroup?.setOnClickListener {
                 showCreateGroupDialog(groupManager) {
-                    // 更新时包含默认组（如果有用户创建的组）
-                    val allGroups = groupManager.getAllGroups()
-                    val defaultGroup = allGroups.firstOrNull { it.id.startsWith("group_default_") }
-                    val userGroups = allGroups.filter { !it.id.startsWith("group_default_") }
-                    val updatedGroups = if (userGroups.isNotEmpty() && defaultGroup != null) {
-                        listOf(defaultGroup) + userGroups
-                    } else {
-                        userGroups
-                    }
-                    adapter.updateGroups(updatedGroups)
+                    refreshAdapter()
                     refreshGroupTabs() // 同时刷新顶部标签栏
                 }
             }
             
-            // 创建对话框
+            // 创建对话框（不设置标题，因为布局文件中已有标题）
             val dialog = AlertDialog.Builder(this)
-                .setTitle("标签页组管理")
                 .setView(dialogView)
+                .setNeutralButton("解锁", null) // 先设置为null，稍后手动处理
                 .setPositiveButton("关闭", null)
                 .create()
+            
+            // 手动处理解锁按钮点击，避免对话框关闭
+            dialog.setOnShowListener {
+                val unlockButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                unlockButton?.setOnClickListener {
+                    // 切换解锁模式：显示隐藏组但隐藏组名
+                    isUnlockMode = !isUnlockMode
+                    unlockedGroupIds.clear()
+                    refreshAdapter()
+                    if (isUnlockMode) {
+                        // 进入解锁模式：显示所有隐藏和加密的组，但组名隐藏
+                        val latestAllGroupsIncludingHidden = groupManager.getAllGroupsIncludingHidden()
+                        val hiddenGroups = latestAllGroupsIncludingHidden.filter { it.isHidden || it.passwordHash != null }
+                        if (hiddenGroups.isNotEmpty()) {
+                            showMaterialToast("已显示隐藏组，点击组名输入密码解锁后查看")
+                            // 更新按钮文本
+                            unlockButton.text = "退出解锁"
+                        } else {
+                            showMaterialToast("已进入解锁模式，但没有隐藏或加密的组")
+                            unlockButton.text = "退出解锁"
+                        }
+                    } else {
+                        showMaterialToast("已退出解锁模式")
+                        // 更新按钮文本
+                        unlockButton.text = "解锁"
+                    }
+                }
+            }
             
             dialog.show()
                 
@@ -28956,9 +29138,99 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 切换到指定组
+     * 处理组激活（通过手势或密码）
      */
-    private fun switchToGroup(groupId: String, groupManager: TabGroupManager) {
+    private fun handleGroupActivation(group: TabGroup) {
+        try {
+            val groupManager = TabGroupManager.getInstance(this)
+            
+            // 如果组有密码，需要验证
+            if (group.passwordHash != null) {
+                showGroupPasswordVerificationDialog(group) { verified ->
+                    if (verified) {
+                        // 如果组是隐藏的，先显示它
+                        if (group.isHidden) {
+                            groupManager.toggleGroupHidden(group.id)
+                        }
+                        // 切换到该组（跳过密码检查，因为已经验证过了）
+                        switchToGroup(group.id, groupManager, skipPasswordCheck = true)
+                        Toast.makeText(this, "已激活组：${group.name}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                // 没有密码，直接激活
+                if (group.isHidden) {
+                    groupManager.toggleGroupHidden(group.id)
+                }
+                switchToGroup(group.id, groupManager, skipPasswordCheck = true)
+                Toast.makeText(this, "已激活组：${group.name}", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "激活组失败", e)
+            Toast.makeText(this, "激活组失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示组密码验证对话框
+     */
+    private fun showGroupPasswordVerificationDialog(group: TabGroup, onVerified: (Boolean) -> Unit) {
+        val passwordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码或快捷访问码"
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("输入密码")
+            .setMessage("组「${group.name}」已加密，请输入密码或快捷访问码")
+            .setView(passwordInput)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                val groupManager = TabGroupManager.getInstance(this)
+                val verified = groupManager.verifyGroupPassword(group.id, password) ||
+                              groupManager.verifyQuickAccessCode(group.id, password)
+                if (verified) {
+                    onVerified(true)
+                    Toast.makeText(this, "密码正确", Toast.LENGTH_SHORT).show()
+                } else {
+                    onVerified(false)
+                    Toast.makeText(this, "密码错误", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消") { _, _ ->
+                onVerified(false)
+            }
+            .setCancelable(false)
+            .show()
+    }
+    
+    /**
+     * 切换到指定组（带密码验证）
+     */
+    private fun switchToGroup(groupId: String, groupManager: TabGroupManager, skipPasswordCheck: Boolean = false) {
+        try {
+            val group = groupManager.getGroupById(groupId) ?: return
+            
+            // 如果组有密码且未跳过验证，需要验证密码
+            if (!skipPasswordCheck && group.passwordHash != null) {
+                showGroupPasswordVerificationDialog(group) { verified ->
+                    if (verified) {
+                        performSwitchToGroup(groupId, groupManager)
+                    }
+                }
+            } else {
+                performSwitchToGroup(groupId, groupManager)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换组失败", e)
+            showMaterialToast("切换组失败：${e.message}")
+        }
+    }
+    
+    /**
+     * 执行切换到组（内部方法，不检查密码）
+     */
+    private fun performSwitchToGroup(groupId: String, groupManager: TabGroupManager) {
         try {
             groupManager.setCurrentGroup(groupId)
             
@@ -28968,9 +29240,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 syncAllCardSystems()
                 refreshGroupTabs()
             }
-            
         } catch (e: Exception) {
-            Log.e(TAG, "切换组失败", e)
+            Log.e(TAG, "执行切换组失败", e)
             showMaterialToast("切换组失败：${e.message}")
         }
     }
@@ -28979,13 +29250,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示组上下文菜单（长按）
      */
     private fun showGroupContextMenu(group: TabGroup, groupManager: TabGroupManager) {
-        val items = arrayOf("编辑", "删除")
-        AlertDialog.Builder(this)
+        val items = arrayOf("编辑", "密码设置", "删除")
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
             .setTitle(group.name)
             .setItems(items) { _, which ->
                 when (which) {
                     0 -> showEditGroupDialogInline(group, groupManager)
-                    1 -> showDeleteGroupDialogInline(group, groupManager)
+                    1 -> showGroupSecurityDialogInline(group, groupManager)
+                    2 -> showDeleteGroupDialogInline(group, groupManager)
                 }
             }
             .show()
@@ -29150,5 +29427,263 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             .setNegativeButton("取消", null)
             .show()
     }
-
+    
+    /**
+     * 显示解锁组对话框
+     */
+    private fun showUnlockGroupDialog(group: TabGroup, groupManager: TabGroupManager, onUnlocked: (Boolean) -> Unit) {
+        val passwordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码或快捷访问码"
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        val unlockDialog = androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("解锁组")
+            .setMessage("该组已加密或隐藏，请输入密码或快捷访问码以解锁")
+            .setView(passwordInput)
+            .setPositiveButton("解锁", null) // 先设置为null，稍后手动处理
+            .setNegativeButton("取消") { _, _ ->
+                onUnlocked(false)
+            }
+            .setCancelable(true)
+            .setOnCancelListener {
+                onUnlocked(false)
+            }
+            .create()
+        
+        // 手动处理解锁按钮点击，避免对话框自动关闭
+        unlockDialog.setOnShowListener {
+            val unlockButton = unlockDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            unlockButton.setOnClickListener {
+                val password = passwordInput.text.toString()
+                val verified = groupManager.verifyGroupPassword(group.id, password) ||
+                               groupManager.verifyQuickAccessCode(group.id, password)
+                if (verified) {
+                    unlockDialog.dismiss() // 先关闭解锁对话框
+                    // 延迟一下再执行回调，确保解锁对话框完全关闭
+                    handler.postDelayed({
+                        onUnlocked(true)
+                    }, 100)
+                } else {
+                    showMaterialToast("密码或快捷访问码错误")
+                    // 不关闭对话框，让用户重试
+                }
+            }
+        }
+        
+        unlockDialog.show()
+    }
+    
+    /**
+     * 显示组安全设置对话框（内联）
+     */
+    private fun showGroupSecurityDialogInline(group: TabGroup, groupManager: TabGroupManager, onUpdated: () -> Unit = {}) {
+        val items = mutableListOf<String>()
+        if (group.passwordHash != null) {
+            items.add("修改密码")
+            items.add("移除密码")
+        } else {
+            items.add("设置密码")
+        }
+        items.add(if (group.isHidden) "显示组" else "隐藏组")
+        if (group.passwordHash != null) {
+            items.add("设置快捷访问码")
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("组安全设置 - ${group.name}")
+            .setItems(items.toTypedArray()) { _, which ->
+                when (items[which]) {
+                    "设置密码" -> showSetPasswordDialogInline(group, groupManager)
+                    "修改密码" -> showChangePasswordDialogInline(group, groupManager)
+                    "移除密码" -> showRemovePasswordDialogInline(group, groupManager)
+                    "隐藏组" -> {
+                        groupManager.toggleGroupHidden(group.id)
+                        refreshGroupTabs()
+                        showMaterialToast("组已隐藏")
+                    }
+                    "显示组" -> {
+                        groupManager.toggleGroupHidden(group.id)
+                        refreshGroupTabs()
+                        showMaterialToast("组已显示")
+                    }
+                    "设置快捷访问码" -> showSetQuickAccessCodeDialogInline(group, groupManager)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示设置密码对话框（内联）
+     */
+    private fun showSetPasswordDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        val passwordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码"
+        }
+        val confirmInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请确认密码"
+        }
+        
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+            addView(passwordInput)
+            addView(confirmInput)
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("设置密码")
+            .setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                val confirm = confirmInput.text.toString()
+                if (password.isEmpty()) {
+                    showMaterialToast("密码不能为空")
+                } else if (password != confirm) {
+                    showMaterialToast("两次输入的密码不一致")
+                } else {
+                    groupManager.setGroupPassword(group.id, password)
+                    refreshGroupTabs()
+                    showMaterialToast("密码已设置")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示修改密码对话框（内联）
+     */
+    private fun showChangePasswordDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        val oldPasswordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入原密码"
+        }
+        val newPasswordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入新密码"
+        }
+        val confirmInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请确认新密码"
+        }
+        
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+            addView(oldPasswordInput)
+            addView(newPasswordInput)
+            addView(confirmInput)
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("修改密码")
+            .setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val oldPassword = oldPasswordInput.text.toString()
+                val newPassword = newPasswordInput.text.toString()
+                val confirm = confirmInput.text.toString()
+                
+                if (!groupManager.verifyGroupPassword(group.id, oldPassword)) {
+                    showMaterialToast("原密码错误")
+                } else if (newPassword.isEmpty()) {
+                    showMaterialToast("新密码不能为空")
+                } else if (newPassword != confirm) {
+                    showMaterialToast("两次输入的新密码不一致")
+                } else {
+                    groupManager.setGroupPassword(group.id, newPassword)
+                    refreshGroupTabs()
+                    showMaterialToast("密码已修改")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示移除密码对话框（内联）
+     */
+    private fun showRemovePasswordDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        val passwordInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码确认"
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("移除密码")
+            .setMessage("确定要移除组「${group.name}」的密码保护吗？")
+            .setView(passwordInput)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                if (groupManager.verifyGroupPassword(group.id, password)) {
+                    groupManager.removeGroupPassword(group.id)
+                    refreshGroupTabs()
+                    showMaterialToast("密码已移除")
+                } else {
+                    showMaterialToast("密码错误")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示设置快捷访问码对话框（内联）
+     */
+    private fun showSetQuickAccessCodeDialogInline(group: TabGroup, groupManager: TabGroupManager) {
+        val codeInput = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入快捷访问码（特殊密码）"
+        }
+        
+        // 使用AppCompat AlertDialog并指定主题，避免黑屏问题
+        val themedContext = androidx.appcompat.view.ContextThemeWrapper(
+            this,
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        )
+        androidx.appcompat.app.AlertDialog.Builder(themedContext)
+            .setTitle("设置快捷访问码")
+            .setMessage("快捷访问码是一个特殊的密码，可以用来快速访问加密的组")
+            .setView(codeInput)
+            .setPositiveButton("确定") { _, _ ->
+                val code = codeInput.text.toString()
+                if (code.isEmpty()) {
+                    showMaterialToast("访问码不能为空")
+                } else {
+                    groupManager.setQuickAccessCode(group.id, code)
+                    showMaterialToast("快捷访问码已设置")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
 }

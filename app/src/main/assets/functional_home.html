@@ -477,6 +477,13 @@
                     
                     // 触摸开始
                     button.addEventListener('touchstart', function(e) {
+                        // 重置所有状态，防止残留
+                        buttonHiddenByLongPress = false;
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
+                        }
+                        
                         longPressButton = buttonId;
                         touchStartTime = Date.now();
                         touchStartX = e.touches[0].clientX;
@@ -500,10 +507,9 @@
                         longPressTimer = setTimeout(function() {
                             // 进度条走完，长按成功，隐藏按钮
                             // 清除定时器标记，防止在touchend中误判为单击
-                            const timerId = longPressTimer;
                             longPressTimer = null;
                             
-                            // 标记按钮因长按而隐藏
+                            // 标记按钮因长按而隐藏（在调用hideButton之前设置）
                             buttonHiddenByLongPress = true;
                             
                             // 移除长按状态
@@ -512,20 +518,16 @@
                                 buttonWrapper.classList.remove('long-pressing', 'mid-progress');
                             }
                             
-                            // 隐藏按钮
+                            // 隐藏按钮（只在进度条走完时调用）
                             hideButton(buttonId);
                         }, LONG_PRESS_DURATION);
                     }, { passive: true });
                     
                     // 触摸结束
                     button.addEventListener('touchend', function(e) {
-                        const wasLongPressing = button.classList.contains('long-pressing');
-                        const timerWasActive = longPressTimer !== null;
-                        const touchDuration = Date.now() - touchStartTime;
-                        const wasHidden = buttonHiddenByLongPress;
-                        
-                        // 如果按钮因长按而隐藏，不执行按钮功能
-                        if (wasHidden) {
+                        // 先检查按钮是否已经因长按而隐藏（进度条走完）
+                        if (buttonHiddenByLongPress) {
+                            // 按钮已经隐藏，不执行任何操作
                             buttonHiddenByLongPress = false;
                             longPressButton = null;
                             e.preventDefault();
@@ -533,36 +535,46 @@
                             return;
                         }
                         
-                        // 移除长按状态
-                        button.classList.remove('long-pressing');
-                        if (buttonWrapper) {
-                            buttonWrapper.classList.remove('long-pressing', 'mid-progress');
-                        }
+                        const timerWasActive = longPressTimer !== null;
                         
+                        // 如果长按定时器还在，说明进度条没走完，用户提前松手
                         if (timerWasActive) {
-                            // 如果长按定时器还在，说明进度条没走完
+                            // 清除定时器，防止隐藏按钮
                             clearTimeout(longPressTimer);
                             longPressTimer = null;
                             
-                            // 如果触摸时间很短（<300ms），认为是快速点击，让浏览器正常处理
-                            if (touchDuration < 300) {
-                                // 快速点击，不阻止默认行为，让onclick正常执行
-                                longPressButton = null;
-                                return;
+                            // 移除长按状态
+                            button.classList.remove('long-pressing');
+                            if (buttonWrapper) {
+                                buttonWrapper.classList.remove('long-pressing', 'mid-progress');
                             }
                             
-                            // 如果之前已经开始长按（有长按状态且触摸时间较长），说明用户提前松手
-                            // 此时应该执行按钮的点击操作，而不是隐藏按钮
-                            if (wasLongPressing) {
-                                // 阻止默认行为，手动触发点击
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                // 延迟一点触发，确保长按状态已清除
-                                setTimeout(function() {
-                                    button.click();
-                                }, 50);
+                            // 执行按钮功能，不隐藏按钮
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            // 延迟一点触发，确保长按状态已清除
+                            setTimeout(function() {
+                                button.click();
+                            }, 50);
+                        } else {
+                            // 如果定时器不存在，说明是快速点击（还没开始长按计时）
+                            // 移除可能存在的长按状态（防止残留）
+                            button.classList.remove('long-pressing');
+                            if (buttonWrapper) {
+                                buttonWrapper.classList.remove('long-pressing', 'mid-progress');
                             }
+                            
+                            // 确保不会意外触发hideButton
+                            // 快速点击时，确保longPressTimer为null，buttonHiddenByLongPress为false
+                            if (longPressTimer) {
+                                clearTimeout(longPressTimer);
+                                longPressTimer = null;
+                            }
+                            buttonHiddenByLongPress = false;
+                            
+                            // 让浏览器正常处理onclick，执行按钮功能
+                            // 不阻止默认行为，让onclick正常执行
                         }
                         longPressButton = null;
                     }, { passive: false }); // 改为false以便可以preventDefault
@@ -601,14 +613,17 @@
             });
         }
         
-        // 隐藏按钮（带动画）
+        // 隐藏按钮（带动画）- 只在长按进度条走完时调用
         function hideButton(buttonId) {
             if (window.AndroidInterface && window.AndroidInterface.hideButton) {
+                // 标记按钮因长按而隐藏（在调用Android接口之前设置，防止touchend误判）
+                buttonHiddenByLongPress = true;
+                
+                // 调用Android接口隐藏按钮
                 window.AndroidInterface.hideButton(buttonId);
+                
                 const button = document.getElementById('btn_' + buttonId);
                 if (button) {
-                    // 标记按钮因长按而隐藏
-                    buttonHiddenByLongPress = true;
                     // 添加隐藏动画
                     button.classList.add('hiding');
                     // 等待进度条动画完成后再隐藏按钮
@@ -618,10 +633,14 @@
                         // 延迟重置标记，确保touchend事件已处理
                         setTimeout(() => {
                             buttonHiddenByLongPress = false;
-                        }, 100);
-                    }, LONG_PRESS_DURATION + 100); // 等待长按动画和进度条完成
+                        }, 200); // 增加延迟，确保所有事件已处理
+                    }, 100); // 只等待动画完成，不需要等待长按时间
                 } else {
                     updateButtonLayout();
+                    // 如果按钮不存在，立即重置标记
+                    setTimeout(() => {
+                        buttonHiddenByLongPress = false;
+                    }, 200);
                 }
                 checkAndShowRestoreButton();
             }

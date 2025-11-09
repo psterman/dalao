@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -49,9 +50,18 @@ class TabGroupManagerFragment : Fragment() {
         adapter = TabGroupAdapter(
             groups = groupManager.getAllGroups().toMutableList(),
             onGroupClick = { group ->
-                // 点击组，切换到该组
-                groupManager.setCurrentGroup(group.id)
-                onGroupSelectedListener?.invoke(group)
+                // 点击组，检查密码后切换到该组
+                if (group.passwordHash != null) {
+                    showPasswordVerificationDialog(group) { verified ->
+                        if (verified) {
+                            groupManager.setCurrentGroup(group.id)
+                            onGroupSelectedListener?.invoke(group)
+                        }
+                    }
+                } else {
+                    groupManager.setCurrentGroup(group.id)
+                    onGroupSelectedListener?.invoke(group)
+                }
             },
             onGroupEdit = { group ->
                 // 编辑组名
@@ -74,6 +84,16 @@ class TabGroupManagerFragment : Fragment() {
                 groupIds.add(toPosition, fromId)
                 groupManager.updateGroupOrder(groupIds)
                 refreshGroups()
+            },
+            onGroupSecurity = { group ->
+                // 密码设置
+                showGroupSecurityDialog(group)
+            },
+            onGroupVisibility = { group ->
+                // 隐藏/显示组
+                groupManager.toggleGroupHidden(group.id)
+                refreshGroups()
+                Toast.makeText(requireContext(), if (group.isHidden) "组已显示" else "组已隐藏", Toast.LENGTH_SHORT).show()
             }
         )
         
@@ -91,6 +111,13 @@ class TabGroupManagerFragment : Fragment() {
         // 添加新建组按钮
         view.findViewById<View>(R.id.btn_add_group)?.setOnClickListener {
             showCreateGroupDialog()
+        }
+        
+        // 添加激活隐藏组按钮（在标题栏添加一个菜单按钮）
+        // 可以通过长按标题栏或添加一个菜单按钮来激活隐藏组
+        view.findViewById<TextView>(R.id.text_group_manager_title)?.setOnLongClickListener {
+            showActivateHiddenGroupDialog()
+            true
         }
     }
     
@@ -174,6 +201,268 @@ class TabGroupManagerFragment : Fragment() {
                 if (groupManager.deleteGroup(group.id)) {
                     refreshGroups()
                     Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示密码验证对话框
+     */
+    private fun showPasswordVerificationDialog(group: TabGroup, onVerified: (Boolean) -> Unit) {
+        val passwordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码"
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("输入密码")
+            .setMessage("组「${group.name}」已加密，请输入密码")
+            .setView(passwordInput)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                val verified = groupManager.verifyGroupPassword(group.id, password) ||
+                               groupManager.verifyQuickAccessCode(group.id, password)
+                if (verified) {
+                    onVerified(true)
+                    Toast.makeText(requireContext(), "密码正确", Toast.LENGTH_SHORT).show()
+                } else {
+                    onVerified(false)
+                    Toast.makeText(requireContext(), "密码错误", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消") { _, _ ->
+                onVerified(false)
+            }
+            .setCancelable(false)
+            .show()
+    }
+    
+    /**
+     * 显示组安全设置对话框
+     */
+    private fun showGroupSecurityDialog(group: TabGroup) {
+        val items = mutableListOf<String>()
+        if (group.passwordHash != null) {
+            items.add("修改密码")
+            items.add("移除密码")
+        } else {
+            items.add("设置密码")
+        }
+        items.add(if (group.isHidden) "显示组" else "隐藏组")
+        if (group.passwordHash != null) {
+            items.add("设置快捷访问码")
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("组安全设置 - ${group.name}")
+            .setItems(items.toTypedArray()) { _, which ->
+                when (items[which]) {
+                    "设置密码" -> showSetPasswordDialog(group)
+                    "修改密码" -> showChangePasswordDialog(group)
+                    "移除密码" -> showRemovePasswordDialog(group)
+                    "隐藏组" -> {
+                        groupManager.toggleGroupHidden(group.id)
+                        refreshGroups()
+                        Toast.makeText(requireContext(), "组已隐藏", Toast.LENGTH_SHORT).show()
+                    }
+                    "显示组" -> {
+                        groupManager.toggleGroupHidden(group.id)
+                        refreshGroups()
+                        Toast.makeText(requireContext(), "组已显示", Toast.LENGTH_SHORT).show()
+                    }
+                    "设置快捷访问码" -> showSetQuickAccessCodeDialog(group)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示设置密码对话框
+     */
+    private fun showSetPasswordDialog(group: TabGroup) {
+        val passwordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码"
+        }
+        val confirmInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请确认密码"
+        }
+        
+        val layout = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+            addView(passwordInput)
+            addView(confirmInput)
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("设置密码")
+            .setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                val confirm = confirmInput.text.toString()
+                if (password.isEmpty()) {
+                    Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show()
+                } else if (password != confirm) {
+                    Toast.makeText(requireContext(), "两次输入的密码不一致", Toast.LENGTH_SHORT).show()
+                } else {
+                    groupManager.setGroupPassword(group.id, password)
+                    refreshGroups()
+                    Toast.makeText(requireContext(), "密码已设置", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示修改密码对话框
+     */
+    private fun showChangePasswordDialog(group: TabGroup) {
+        val oldPasswordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入原密码"
+        }
+        val newPasswordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入新密码"
+        }
+        val confirmInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请确认新密码"
+        }
+        
+        val layout = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+            addView(oldPasswordInput)
+            addView(newPasswordInput)
+            addView(confirmInput)
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("修改密码")
+            .setView(layout)
+            .setPositiveButton("确定") { _, _ ->
+                val oldPassword = oldPasswordInput.text.toString()
+                val newPassword = newPasswordInput.text.toString()
+                val confirm = confirmInput.text.toString()
+                
+                if (!groupManager.verifyGroupPassword(group.id, oldPassword)) {
+                    Toast.makeText(requireContext(), "原密码错误", Toast.LENGTH_SHORT).show()
+                } else if (newPassword.isEmpty()) {
+                    Toast.makeText(requireContext(), "新密码不能为空", Toast.LENGTH_SHORT).show()
+                } else if (newPassword != confirm) {
+                    Toast.makeText(requireContext(), "两次输入的新密码不一致", Toast.LENGTH_SHORT).show()
+                } else {
+                    groupManager.setGroupPassword(group.id, newPassword)
+                    refreshGroups()
+                    Toast.makeText(requireContext(), "密码已修改", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示移除密码对话框
+     */
+    private fun showRemovePasswordDialog(group: TabGroup) {
+        val passwordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码确认"
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("移除密码")
+            .setMessage("确定要移除组「${group.name}」的密码保护吗？")
+            .setView(passwordInput)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                if (groupManager.verifyGroupPassword(group.id, password)) {
+                    groupManager.removeGroupPassword(group.id)
+                    refreshGroups()
+                    Toast.makeText(requireContext(), "密码已移除", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "密码错误", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示设置快捷访问码对话框
+     */
+    private fun showSetQuickAccessCodeDialog(group: TabGroup) {
+        val codeInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入快捷访问码（特殊密码）"
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("设置快捷访问码")
+            .setMessage("快捷访问码是一个特殊的密码，可以用来快速访问加密的组")
+            .setView(codeInput)
+            .setPositiveButton("确定") { _, _ ->
+                val code = codeInput.text.toString()
+                if (code.isEmpty()) {
+                    Toast.makeText(requireContext(), "访问码不能为空", Toast.LENGTH_SHORT).show()
+                } else {
+                    groupManager.setQuickAccessCode(group.id, code)
+                    Toast.makeText(requireContext(), "快捷访问码已设置", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示激活隐藏组对话框
+     */
+    private fun showActivateHiddenGroupDialog() {
+        val passwordInput = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码或快捷访问码"
+        }
+        
+        AlertDialog.Builder(requireContext())
+            .setTitle("激活隐藏组")
+            .setMessage("请输入隐藏组的密码或快捷访问码来激活并显示该组")
+            .setView(passwordInput)
+            .setPositiveButton("激活") { _, _ ->
+                val password = passwordInput.text.toString()
+                if (password.isEmpty()) {
+                    Toast.makeText(requireContext(), "请输入密码或快捷访问码", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                
+                // 查找所有隐藏的组
+                val allGroups = groupManager.getAllGroupsIncludingHidden()
+                val hiddenGroups = allGroups.filter { it.isHidden }
+                
+                // 尝试匹配密码或快捷访问码
+                var activated = false
+                for (group in hiddenGroups) {
+                    if (groupManager.verifyGroupPassword(group.id, password) || 
+                        groupManager.verifyQuickAccessCode(group.id, password)) {
+                        // 激活组：显示并切换到该组
+                        groupManager.toggleGroupHidden(group.id)
+                        groupManager.setCurrentGroup(group.id)
+                        refreshGroups()
+                        onGroupSelectedListener?.invoke(group)
+                        Toast.makeText(requireContext(), "已激活组：${group.name}", Toast.LENGTH_SHORT).show()
+                        activated = true
+                        break
+                    }
+                }
+                
+                if (!activated) {
+                    Toast.makeText(requireContext(), "密码或快捷访问码错误，或没有匹配的隐藏组", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("取消", null)

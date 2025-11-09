@@ -315,6 +315,16 @@ class DraggableButtonGrid @JvmOverloads constructor(
                 }
             }
             Log.d(TAG, "按钮 ${it.label} 可见性已切换为: ${it.isVisible}")
+            
+            // 发送广播通知首页刷新按钮显示状态
+            try {
+                val refreshIntent = android.content.Intent("com.example.aifloatingball.ACTION_REFRESH_HOME_BUTTONS")
+                refreshIntent.setPackage(context.packageName)
+                context.sendBroadcast(refreshIntent)
+                Log.d(TAG, "已发送刷新首页按钮的广播")
+            } catch (e: Exception) {
+                Log.e(TAG, "发送刷新广播失败", e)
+            }
         }
     }
     
@@ -516,14 +526,15 @@ class DraggableButtonGrid @JvmOverloads constructor(
                 // 设置文字颜色，确保可见
                 setTextColor(context.getColor(com.example.aifloatingball.R.color.simple_mode_text_primary_light))
                 
-                // 点击切换选中状态
+                // 单击切换显示状态（选中/取消选中）
                 setOnClickListener {
                     // 切换按钮可见性（选中/取消选中）
                     val grid = (holder.itemView.parent as? RecyclerView)?.parent as? DraggableButtonGrid
                     grid?.toggleButtonVisibility(buttonItem.type)
-                    // 不调用onButtonClick，避免弹出预览模式弹窗
-                    // 配置会自动保存并同步到首页
                 }
+                
+                // 按钮本身不处理长按，让itemView处理拖动
+                setOnLongClickListener(null)
             }
             
             // 隐藏选中指示器（绿色横线）
@@ -563,7 +574,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
                 val recyclerView = holder.itemView.parent as? RecyclerView
                 val grid = recyclerView?.parent as? DraggableButtonGrid
                 grid?.itemTouchHelper?.startDrag(holder)
-                true
+                true // 消费长按事件，开始拖动
             }
         }
         

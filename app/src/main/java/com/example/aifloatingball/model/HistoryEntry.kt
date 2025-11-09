@@ -11,7 +11,8 @@ data class HistoryEntry(
     val url: String,
     val favicon: String? = null,
     val visitTime: Date,
-    val visitCount: Int = 1
+    val visitCount: Int = 1,
+    val groupId: String? = null // 所属组ID（用于过滤隐藏组的历史记录）
 ) {
     /**
      * 获取格式化的访问时间

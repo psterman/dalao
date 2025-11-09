@@ -201,36 +201,38 @@ class HistoryPageFragment : Fragment() {
     }
     
     private fun loadHistoryData() {
-        // 模拟历史数据
-        val mockHistory = listOf(
-            HistoryEntry(
-                id = "1",
-                title = "GitHub - 代码托管平台",
-                url = "https://github.com",
-                visitTime = Date(System.currentTimeMillis() - 2 * 60 * 60 * 1000) // 2小时前
-            ),
-            HistoryEntry(
-                id = "2",
-                title = "Stack Overflow - 程序员问答社区",
-                url = "https://stackoverflow.com",
-                visitTime = Date(System.currentTimeMillis() - 4 * 60 * 60 * 1000) // 4小时前
-            ),
-            HistoryEntry(
-                id = "3",
-                title = "Android 开发者官网",
-                url = "https://developer.android.com",
-                visitTime = Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000) // 1天前
-            ),
-            HistoryEntry(
-                id = "4",
-                title = "Material Design 指南",
-                url = "https://material.io",
-                visitTime = Date(System.currentTimeMillis() - 3 * 24 * 60 * 60 * 1000) // 3天前
-            )
-        )
-        
-        adapter.updateEntries(mockHistory)
-        updateEmptyState()
+        try {
+            // 从SharedPreferences加载真实历史数据
+            val sharedPrefs = requireContext().getSharedPreferences("browser_history", android.content.Context.MODE_PRIVATE)
+            val historyJson = sharedPrefs.getString("history_data", "[]")
+            
+            val historyList = if (historyJson.isNullOrEmpty()) {
+                emptyList<HistoryEntry>()
+            } else {
+                val gson = com.google.gson.Gson()
+                val type = object : com.google.gson.reflect.TypeToken<List<HistoryEntry>>() {}.type
+                val allHistory = gson.fromJson<List<HistoryEntry>>(historyJson, type) ?: emptyList()
+                
+                // 过滤隐藏组的历史记录
+                val groupManager = com.example.aifloatingball.manager.TabGroupManager.getInstance(requireContext())
+                val hiddenGroupIds = groupManager.getAllGroupsIncludingHidden()
+                    .filter { it.isHidden }
+                    .map { it.id }
+                    .toSet()
+                
+                // 只返回可见组的历史记录（groupId为null的记录也显示，兼容旧数据）
+                allHistory.filter { entry ->
+                    entry.groupId == null || !hiddenGroupIds.contains(entry.groupId)
+                }
+            }
+            
+            adapter.updateEntries(historyList)
+            updateEmptyState()
+        } catch (e: Exception) {
+            android.util.Log.e("HistoryPageFragment", "加载历史数据失败", e)
+            adapter.updateEntries(emptyList())
+            updateEmptyState()
+        }
     }
     
     private fun updateEmptyState() {

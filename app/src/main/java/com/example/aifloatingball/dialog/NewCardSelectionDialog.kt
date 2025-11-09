@@ -629,7 +629,7 @@ class NewCardSelectionDialog(
     }
 
     /**
-     * 获取浏览历史
+     * 获取浏览历史（自动过滤隐藏组的历史记录）
      */
     private fun getBrowseHistory(): List<HistoryEntry> {
         return try {
@@ -642,7 +642,19 @@ class NewCardSelectionDialog(
                 // 使用Gson解析JSON历史记录
                 val gson = com.google.gson.Gson()
                 val type = object : com.google.gson.reflect.TypeToken<List<HistoryEntry>>() {}.type
-                gson.fromJson<List<HistoryEntry>>(historyJson, type) ?: emptyList()
+                val allHistory = gson.fromJson<List<HistoryEntry>>(historyJson, type) ?: emptyList()
+                
+                // 过滤隐藏组的历史记录
+                val groupManager = com.example.aifloatingball.manager.TabGroupManager.getInstance(context)
+                val hiddenGroupIds = groupManager.getAllGroupsIncludingHidden()
+                    .filter { it.isHidden }
+                    .map { it.id }
+                    .toSet()
+                
+                // 只返回可见组的历史记录（groupId为null的记录也显示，兼容旧数据）
+                allHistory.filter { entry ->
+                    entry.groupId == null || !hiddenGroupIds.contains(entry.groupId)
+                }
             }
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "获取浏览历史失败", e)

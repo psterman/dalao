@@ -14,7 +14,10 @@ data class TabGroup(
     var isPinned: Boolean = false, // 是否置顶
     var order: Int = 0, // 排序顺序
     var createdAt: Long = System.currentTimeMillis(), // 创建时间
-    var updatedAt: Long = System.currentTimeMillis() // 更新时间
+    var updatedAt: Long = System.currentTimeMillis(), // 更新时间
+    var passwordHash: String? = null, // 密码哈希值（加密存储）
+    var isHidden: Boolean = false, // 是否隐藏
+    var quickAccessCode: String? = null // 快捷访问码（特殊密码）
 ) : Parcelable {
     
     companion object {
