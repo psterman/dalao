@@ -6,6 +6,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -2849,6 +2850,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         setupAppSearchPage()
 
         updateTabColors()
+        
+        // 检查并启动网速悬浮窗服务（确保在搜索tab中常驻显示）
+        checkAndStartNetworkSpeedService()
     }
 
     /**
@@ -6150,6 +6154,72 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "onResume: 重新加载联系人数据失败", e)
         }
+        
+        // 检查并启动网速悬浮窗服务（全局控制）
+        checkAndStartNetworkSpeedService()
+    }
+
+    /**
+     * 检查并启动网速悬浮窗服务
+     * 全局控制：如果开关已打开，立即启动服务，确保悬浮窗能够显示
+     */
+    private fun checkAndStartNetworkSpeedService() {
+        try {
+            val isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
+            
+            if (isNetworkSpeedEnabled) {
+                Log.d(TAG, "悬浮窗网速开关已打开，检查并启动服务")
+                
+                // 检查悬浮窗权限（Android 6.0+需要）
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!android.provider.Settings.canDrawOverlays(this)) {
+                        Log.w(TAG, "没有悬浮窗权限，无法启动网速悬浮窗服务")
+                        return
+                    }
+                }
+                
+                // 检查服务是否已经在运行
+                val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+                val runningServices = activityManager.getRunningServices(Integer.MAX_VALUE)
+                val isServiceRunning = runningServices.any { 
+                    it.service.className == com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java.name 
+                }
+                
+                if (!isServiceRunning) {
+                    // 服务未运行，启动服务
+                    val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        Log.d(TAG, "悬浮窗网速服务已启动")
+                    } catch (e: SecurityException) {
+                        Log.e(TAG, "启动悬浮窗网速服务失败：缺少权限", e)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "启动悬浮窗网速服务失败", e)
+                    }
+                } else {
+                    // 服务已在运行，触发onStartCommand确保状态正确
+                    val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        Log.d(TAG, "悬浮窗网速服务已在运行，已触发状态更新")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "更新悬浮窗网速服务状态失败", e)
+                    }
+                }
+            } else {
+                Log.d(TAG, "悬浮窗网速开关未打开，跳过服务启动")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查并启动网速悬浮窗服务失败", e)
+        }
     }
 
     override fun onDestroy() {
@@ -7097,6 +7167,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleWebViewScroll(deltaY: Int, scrollY: Int) {
         try {
+            // 获取当前WebView，检查是否还能继续滚动
+            val currentWebView = getCurrentWebViewForScrollCheck()
+            val canScrollDown = currentWebView?.canScrollVertically(1) ?: false
+            val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
+            
+            // 如果已经滚动到底部且无法继续向下滚动，不触发隐藏动画，避免重复切换
+            if (!canScrollDown && deltaY > 0) {
+                return
+            }
+            
+            // 如果已经滚动到顶部且无法继续向上滚动，不触发显示动画
+            if (!canScrollUp && deltaY < 0) {
+                return
+            }
+            
             // 向下滚动：当累计滚动高度超过阈值时隐藏标题栏，显示快捷操作栏
             if (deltaY > 6 && isToolbarVisible && scrollY > toolbarHideThreshold) {
                 hideToolbar()

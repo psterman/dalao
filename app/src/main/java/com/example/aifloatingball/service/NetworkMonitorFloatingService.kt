@@ -80,30 +80,57 @@ class NetworkMonitorFloatingService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         
+        // 检查悬浮窗权限（Android 6.0+需要）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "没有悬浮窗权限，停止服务")
+                stopSelf()
+                return
+            }
+        }
+        
         // 检查设置
         isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
         isDownloadProgressEnabled = settingsManager.getBoolean("download_progress_display_enabled", false)
         
         if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
             createFloatingView()
-            // 立即开始更新
-            updateHandler.post(updateRunnable)
+            // 立即开始更新（如果悬浮窗创建成功）
+            if (floatingView != null) {
+                updateHandler.post(updateRunnable)
+            }
         }
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "NetworkMonitorFloatingService onStartCommand")
         
+        // 检查悬浮窗权限（Android 6.0+需要）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "没有悬浮窗权限，停止服务")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        
         // 检查设置状态
         isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
         isDownloadProgressEnabled = settingsManager.getBoolean("download_progress_display_enabled", false)
         
         if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
-            if (floatingView == null) {
+            // 检查悬浮窗是否存在且已添加到窗口管理器
+            val viewExists = floatingView != null && floatingView?.parent != null
+            if (!viewExists) {
+                // 悬浮窗不存在或已被移除，重新创建
+                Log.d(TAG, "悬浮窗不存在，重新创建")
                 createFloatingView()
                 // 立即开始更新
-                updateHandler.post(updateRunnable)
+                if (floatingView != null) {
+                    updateHandler.post(updateRunnable)
+                }
             } else {
+                // 悬浮窗存在，更新可见性
                 updateViewVisibility()
                 // 确保更新任务正在运行
                 if (!updateHandler.hasCallbacks(updateRunnable)) {
@@ -169,6 +196,26 @@ class NetworkMonitorFloatingService : Service() {
      */
     private fun createFloatingView() {
         try {
+            // 检查悬浮窗权限（Android 6.0+需要）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!android.provider.Settings.canDrawOverlays(this)) {
+                    Log.e(TAG, "创建悬浮窗失败：没有悬浮窗权限")
+                    // 如果服务正在运行但没有权限，停止服务
+                    stopSelf()
+                    return
+                }
+            }
+            
+            // 如果悬浮窗已经存在，先移除
+            if (floatingView != null) {
+                try {
+                    windowManager.removeView(floatingView)
+                } catch (e: Exception) {
+                    Log.w(TAG, "移除旧悬浮窗失败", e)
+                }
+                floatingView = null
+            }
+            
             val inflater = LayoutInflater.from(this)
             floatingView = inflater.inflate(R.layout.floating_network_monitor, null)
             
@@ -187,6 +234,9 @@ class NetworkMonitorFloatingService : Service() {
             // 更新视图可见性
             updateViewVisibility()
             
+            // 获取状态栏高度，避免遮挡状态栏
+            val statusBarHeight = getStatusBarHeight()
+            
             // 设置窗口参数
             params = WindowManager.LayoutParams().apply {
                 type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -202,7 +252,8 @@ class NetworkMonitorFloatingService : Service() {
                 height = WindowManager.LayoutParams.WRAP_CONTENT
                 gravity = Gravity.TOP or Gravity.START
                 x = 100
-                y = 100
+                // 设置y坐标为状态栏高度+16dp，避免遮挡状态栏
+                y = statusBarHeight + (16 * resources.displayMetrics.density).toInt()
             }
             
             windowManager.addView(floatingView, params)
@@ -216,8 +267,24 @@ class NetworkMonitorFloatingService : Service() {
             updateHandler.post(updateRunnable)
             
             Log.d(TAG, "悬浮窗创建成功")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "创建悬浮窗失败：缺少权限", e)
+            // 缺少权限，停止服务
+            stopSelf()
+        } catch (e: android.view.WindowManager.BadTokenException) {
+            Log.e(TAG, "创建悬浮窗失败：窗口令牌无效", e)
+            // 窗口令牌无效，可能是权限问题，停止服务
+            stopSelf()
         } catch (e: Exception) {
             Log.e(TAG, "创建悬浮窗失败", e)
+            // 其他异常，尝试重新创建
+            floatingView = null
+            // 延迟重试
+            updateHandler.postDelayed({
+                if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
+                    createFloatingView()
+                }
+            }, 1000)
         }
     }
     
@@ -273,16 +340,47 @@ class NetworkMonitorFloatingService : Service() {
             val currentTxBytes = TrafficStats.getTotalTxBytes()
             val currentTime = System.currentTimeMillis()
             
-            if (lastTime > 0) {
-                val timeDiff = (currentTime - lastTime) / 1000.0 // 秒
-                if (timeDiff > 0) {
-                    val rxSpeed = ((currentRxBytes - lastRxBytes) / timeDiff).toLong()
-                    val txSpeed = ((currentTxBytes - lastTxBytes) / timeDiff).toLong()
-                    val totalSpeed = rxSpeed + txSpeed
-                    
-                    val speedText = "↓${formatSpeed(rxSpeed)} ↑${formatSpeed(txSpeed)}"
-                    networkSpeedTextView?.text = speedText
+            // 检查TrafficStats是否支持（返回-1表示不支持）
+            if (currentRxBytes == TrafficStats.UNSUPPORTED.toLong() || 
+                currentTxBytes == TrafficStats.UNSUPPORTED.toLong()) {
+                networkSpeedTextView?.text = "↓0.0KB/s ↑0.0KB/s"
+                return
+            }
+            
+            // 初始化时，设置初始值，不显示网速
+            if (lastTime == 0L) {
+                lastRxBytes = currentRxBytes
+                lastTxBytes = currentTxBytes
+                lastTime = currentTime
+                // 显示初始占位文本，避免显示0
+                networkSpeedTextView?.text = "↓0.0KB/s ↑0.0KB/s"
+                return
+            }
+            
+            val timeDiff = (currentTime - lastTime) / 1000.0 // 秒
+            // 确保时间差大于0且至少0.1秒，避免计算异常
+            if (timeDiff > 0.1) {
+                // 计算速度差，处理可能的负数情况（流量统计重置）
+                val rxDiff = currentRxBytes - lastRxBytes
+                val txDiff = currentTxBytes - lastTxBytes
+                
+                // 如果流量统计重置（当前值小于上次值），重新初始化
+                if (rxDiff < 0 || txDiff < 0) {
+                    lastRxBytes = currentRxBytes
+                    lastTxBytes = currentTxBytes
+                    lastTime = currentTime
+                    return
                 }
+                
+                val rxSpeed = (rxDiff / timeDiff).toLong()
+                val txSpeed = (txDiff / timeDiff).toLong()
+                
+                // 确保速度值非负
+                val safeRxSpeed = rxSpeed.coerceAtLeast(0)
+                val safeTxSpeed = txSpeed.coerceAtLeast(0)
+                
+                val speedText = "↓${formatSpeed(safeRxSpeed)} ↑${formatSpeed(safeTxSpeed)}"
+                networkSpeedTextView?.text = speedText
             }
             
             lastRxBytes = currentRxBytes
@@ -332,14 +430,31 @@ class NetworkMonitorFloatingService : Service() {
     
     /**
      * 格式化网速
+     * 保留一位小数，确保能兼容各种网速数值
      */
     private fun formatSpeed(bytesPerSecond: Long): String {
-        val df = DecimalFormat("#.##")
+        val df = DecimalFormat("#.#")
         return when {
             bytesPerSecond >= 1024 * 1024 -> "${df.format(bytesPerSecond / (1024.0 * 1024.0))}MB/s"
             bytesPerSecond >= 1024 -> "${df.format(bytesPerSecond / 1024.0)}KB/s"
             else -> "${bytesPerSecond}B/s"
         }
+    }
+    
+    /**
+     * 获取状态栏高度
+     */
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        // 如果获取失败，使用默认值（24dp）
+        if (result == 0) {
+            result = (24 * resources.displayMetrics.density).toInt()
+        }
+        return result
     }
     
     /**
@@ -357,8 +472,18 @@ class NetworkMonitorFloatingService : Service() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     params?.let {
-                        it.x = initialX + (event.rawX - initialTouchX).toInt()
-                        it.y = initialY + (event.rawY - initialTouchY).toInt()
+                        val newX = initialX + (event.rawX - initialTouchX).toInt()
+                        var newY = initialY + (event.rawY - initialTouchY).toInt()
+                        
+                        // 确保悬浮窗不会移动到状态栏上方
+                        val statusBarHeight = getStatusBarHeight()
+                        val minY = statusBarHeight + (8 * resources.displayMetrics.density).toInt()
+                        if (newY < minY) {
+                            newY = minY
+                        }
+                        
+                        it.x = newX
+                        it.y = newY
                         windowManager.updateViewLayout(floatingView, it)
                     }
                     true
