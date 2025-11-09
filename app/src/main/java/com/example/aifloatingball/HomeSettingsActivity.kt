@@ -50,11 +50,11 @@ class HomeSettingsActivity : AppCompatActivity() {
         LayoutStyle("自定义布局", "custom", R.drawable.ic_settings)
     )
     
-    // App样式选项（iOS风格：深色、浅色、跟随系统）
+    // App样式选项（iOS风格：白天模式、夜间模式、跟随系统）
     private val appStyles = listOf(
-        AppStyle("浅色", "light", R.drawable.ic_settings),
-        AppStyle("深色", "dark", R.drawable.ic_settings),
-        AppStyle("跟随系统", "system", R.drawable.ic_settings)
+        AppStyle("白天模式", "light", 0),
+        AppStyle("夜间模式", "dark", 0),
+        AppStyle("跟随系统", "system", 0)
     )
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -133,7 +133,7 @@ class HomeSettingsActivity : AppCompatActivity() {
             recreate()
         }
         
-        appStyleRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        appStyleRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         appStyleRecyclerView.adapter = adapter
         
         // 设置当前选中的样式
@@ -459,10 +459,14 @@ class HomeSettingsActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val style = styles[position]
             holder.nameText.text = style.name
-            holder.iconImage.setImageResource(style.iconRes)
-            holder.itemView.isSelected = position == selectedIndex
+            holder.radioButton.isChecked = position == selectedIndex
             
             holder.itemView.setOnClickListener {
+                setSelectedIndex(position)
+                onItemClick(style)
+            }
+            
+            holder.radioButton.setOnClickListener {
                 setSelectedIndex(position)
                 onItemClick(style)
             }
@@ -472,7 +476,7 @@ class HomeSettingsActivity : AppCompatActivity() {
         
         class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             val nameText: TextView = itemView.findViewById(R.id.style_name_text)
-            val iconImage: ImageView = itemView.findViewById(R.id.style_icon_image)
+            val radioButton: RadioButton = itemView.findViewById(R.id.style_radio_button)
         }
     }
 }
