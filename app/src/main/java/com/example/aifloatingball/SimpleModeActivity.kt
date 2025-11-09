@@ -663,7 +663,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
     private lateinit var browserHomeContent: LinearLayout
-    private lateinit var browserBtnClose: ImageButton
+    private lateinit var browserBtnClose: TextView
     private lateinit var browserSearchInput: EditText
     
     // 上滑激活悬浮卡片相关变量
@@ -1871,7 +1871,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
         browserHomeContent = findViewById(R.id.browser_home_content)
-        browserBtnClose = findViewById(R.id.browser_btn_close)
+        browserBtnClose = findViewById<TextView>(R.id.browser_btn_close)
         browserSearchInput = findViewById(R.id.browser_search_input)
         browserBtnMenu = findViewById(R.id.browser_btn_menu)
         browserProgressBar = findViewById(R.id.browser_progress_bar)
@@ -2555,7 +2555,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateToolbarButtonsForHandedness(isLeftHanded: Boolean) {
         // 查找搜索页面的标题栏按钮
-        val closeButton = findViewById<ImageButton>(R.id.browser_btn_close)
+        val closeButton = findViewById<TextView>(R.id.browser_btn_close)
         val menuButton = findViewById<ImageButton>(R.id.browser_btn_menu)
         val searchInput = findViewById<EditText>(R.id.browser_search_input)
         val toolbar = closeButton?.parent as? LinearLayout
@@ -5036,31 +5036,47 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 更新搜索tab左下角九宫格按钮的页面数字显示
+     * 更新搜索tab标题栏左侧按钮的页面数字显示（Material Design风格）
+     */
+    /**
+     * 更新页面数量显示（Material Design风格）
+     * 精准映射当前搜索tab打开的页面数量，不包括默认主页
      */
     private fun updatePageCountDisplay() {
         try {
-            // 优先使用左下角的按钮
-            var pageCountTextView = findViewById<TextView>(R.id.btn_menu_page_count_bottom)
-            if (pageCountTextView == null) {
-                // 如果左下角按钮不存在，尝试使用左上角的
-                pageCountTextView = findViewById<TextView>(R.id.btn_menu_page_count)
+            // 获取当前组的所有标签页（使用getAllTabs获取当前组的标签页）
+            val allTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            
+            // 精准排除默认主页：排除所有功能主页相关的URL
+            val pageCount = allTabs.count { tab -> 
+                val url = tab.url
+                url != "home://functional" && 
+                url != "file:///android_asset/functional_home.html" &&
+                !url.startsWith("home://") // 排除所有home://协议
             }
             
-            if (pageCountTextView == null) {
-                Log.w(TAG, "页面数字TextView未找到")
-                return
+            // 更新标题栏左侧的数字显示（browser_btn_close）
+            if (::browserBtnClose.isInitialized) {
+                browserBtnClose.text = pageCount.toString()
+                Log.d(TAG, "✅ 更新标题栏页面数字: $pageCount (总标签页: ${allTabs.size}, 排除功能主页)")
             }
             
-            // 获取所有打开的页面总数（包括所有组）
-            val pageCount = paperStackWebViewManager?.getAllTabsByGroup()?.values?.sumOf { it.size } ?: 0
+            // 优先使用标题栏左侧的Material按钮（activity_search.xml中的btn_menu）
+            var pageCountButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu)
+            if (pageCountButton == null) {
+                // 如果标题栏按钮不存在，尝试使用左下角的
+                pageCountButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu_bottom)
+            }
             
-            pageCountTextView.text = pageCount.toString()
-            pageCountTextView.visibility = if (pageCount > 0) View.VISIBLE else View.GONE
+            if (pageCountButton != null) {
+                pageCountButton.text = pageCount.toString()
+                // 始终显示按钮，即使数量为0
+                pageCountButton.visibility = View.VISIBLE
+            }
             
-            Log.d(TAG, "更新页面数字: $pageCount")
+            Log.d(TAG, "📊 更新页面数字: $pageCount (排除默认主页), 总标签页数: ${allTabs.size}, 功能主页数: ${allTabs.count { it.url == "home://functional" || it.url == "file:///android_asset/functional_home.html" }}")
         } catch (e: Exception) {
-            Log.e(TAG, "更新页面数字失败", e)
+            Log.e(TAG, "❌ 更新页面数字失败", e)
         }
     }
     
@@ -6631,7 +6647,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         })
         
-        // 设置标签页监听器
+        // 设置标签页监听器（合并所有逻辑到一个监听器，避免覆盖）
         paperStackWebViewManager?.setOnTabCreatedListener { tab ->
             // 隐藏原生功能主页，显示纸堆界面
             browserHomeContent.visibility = View.GONE
@@ -6657,12 +6673,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "功能主页标签页创建: ${tab.title}, 已显示纸堆布局")
             }
             
+            // 标签页创建时同步更新
+            syncAllCardSystems()
+            
+            // 新建标签页也注入视频检测
+            injectVideoHookToWebView(tab.webView)
+            
             // 更新搜索tab徽标
             updateSearchTabBadge()
-            // 更新页面数字
-            updatePageCountDisplay()
             
-            Log.d(TAG, "创建标签页: ${tab.title}")
+            // ⚡ 立即更新页面数字（必须在所有逻辑之后，确保数据已更新）
+            handler.post {
+                updatePageCountDisplay()
+            }
+            
+            Log.d(TAG, "创建标签页: ${tab.title}, URL: ${tab.url}")
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
@@ -6708,14 +6733,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "切换到标签页: ${tab.title}")
         }
         
-        paperStackWebViewManager?.setOnTabCreatedListener { tab ->
-            // 标签页创建时同步更新
-            syncAllCardSystems()
-            Log.d(TAG, "创建标签页: ${tab.title}")
-
-            // 新建标签页也注入视频检测
-            injectVideoHookToWebView(tab.webView)
-        }
+        // 注意：setOnTabCreatedListener 已在上面设置，这里不再重复设置，避免覆盖
+        // 如果需要添加额外逻辑，应该在之前的监听器中合并
 
         // favicon 接收时，立即更新站点按钮的图标与可见性
         paperStackWebViewManager?.setOnFaviconReceivedListener { tab, icon ->
@@ -7953,6 +7972,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 // 关闭标签页
                 paperStackWebViewManager?.removeTab(currentTab.id)
+                // ⚡ 立即更新页面数量显示
+                handler.post {
+                    updatePageCountDisplay()
+                }
             } else {
                 Toast.makeText(this, "没有可关闭的标签页", Toast.LENGTH_SHORT).show()
             }
@@ -8007,6 +8030,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 找到新标签页的索引并切换
                 val tabIndex = manager.getTabCount() - 1 // addTab会在末尾添加，所以索引是最后一个
                 manager.switchToTab(tabIndex)
+                
+                // ⚡ 立即更新页面数量显示
+                handler.post {
+                    updatePageCountDisplay()
+                }
                 
                 Toast.makeText(this, "已恢复标签页: ${lastClosedTab.title}", Toast.LENGTH_SHORT).show()
                 Log.d(TAG, "恢复标签页: ${lastClosedTab.title}, URL: ${lastClosedTab.url}")
@@ -8931,13 +8959,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
         
-        // 搜索tab的九宫格按钮（显示页面数字）- 优先使用左下角的按钮
-        var searchTabMenuButton = findViewById<ImageButton>(R.id.btn_menu_bottom)
+        // 搜索tab的页面数量按钮（显示页面数字）- 优先使用标题栏左侧的按钮
+        var searchTabMenuButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu)
         if (searchTabMenuButton == null) {
-            searchTabMenuButton = findViewById<ImageButton>(R.id.btn_menu)
+            searchTabMenuButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu_bottom)
         }
         searchTabMenuButton?.setOnClickListener {
-            Log.d(TAG, "搜索tab九宫格按钮被点击，激活搜索tab的悬浮卡片系统")
+            Log.d(TAG, "搜索tab页面数量按钮被点击，激活搜索tab的悬浮卡片系统")
             activateStackedCardPreview()
         }
         
@@ -10094,6 +10122,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 menuActions.add {
                     currentTab?.let { tab ->
                         paperStackWebViewManager?.removeTab(tab.id)
+                        // ⚡ 立即更新页面数量显示
+                        handler.post {
+                            updatePageCountDisplay()
+                        }
                         Toast.makeText(this, "已关闭标签页: ${tab.title}", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -10124,6 +10156,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val defaultUrl = "about:blank"
                 val defaultTitle = "主页"
                 paperStackWebViewManager?.addTab(defaultUrl, defaultTitle)
+                // ⚡ 立即更新页面数量显示
+                handler.post {
+                    updatePageCountDisplay()
+                }
                 Toast.makeText(this, "已创建新标签页", Toast.LENGTH_SHORT).show()
             }
             
@@ -10232,6 +10268,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     1 -> {
                         // 关闭该标签页
                         paperStackWebViewManager?.removeTab(tab.id)
+                        // ⚡ 立即更新页面数量显示
+                        handler.post {
+                            updatePageCountDisplay()
+                        }
                         Toast.makeText(this, "已关闭: ${tab.title}", Toast.LENGTH_SHORT).show()
                     }
                     2 -> {
@@ -10953,6 +10993,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             if (newTab != null) {
                 Log.d(TAG, "新标签页创建成功: ${newTab.id}, 标题: ${newTab.title}, URL: ${newTab.url}")
+
+                // ⚡ 立即更新页面数量显示（使用post确保在监听器之后执行）
+                handler.post {
+                    updatePageCountDisplay()
+                }
 
                 // 检查标签页总数
                 val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
@@ -21310,6 +21355,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         
                         // 从纸堆管理器中移除标签页
                         manager.removeTab(tabToRemove.id)
+                        // ⚡ 立即更新页面数量显示
+                        handler.post {
+                            updatePageCountDisplay()
+                        }
                         Log.d(TAG, "✅ 从纸堆模式移除标签页: ${tabToRemove.title}")
                         
                         // 如果纸堆模式没有标签页了，返回主页
@@ -21721,6 +21770,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupBrowserWebView()
             }
             
+            // 更新页面数量显示
+            updatePageCountDisplay()
+            
             // 检查是否有标签页
             val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
             if (tabCount == 0) {
@@ -21769,6 +21821,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 url = functionalHomeUrl,
                 title = "主页"
             )
+            
+            // ⚡ 创建功能主页后也要更新计数（虽然功能主页会被排除，但确保UI同步）
+            handler.post {
+                updatePageCountDisplay()
+            }
             
             if (functionalTab != null) {
                 Log.d(TAG, "✅ 功能主页卡片创建成功: ${functionalTab.url}")
@@ -23145,25 +23202,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // ==================== 卡片预览功能 ====================
 
     /**
-     * 设置卡片预览按钮图标
+     * 设置页面数量按钮（显示数字）
      */
     private fun setupCardPreviewButtonIcon() {
         try {
-            // 使用系统内置的网格视图图标作为卡片预览图标
-            browserBtnClose.setImageResource(android.R.drawable.ic_dialog_dialer)
-
             // 设置按钮提示文字
-            browserBtnClose.contentDescription = "卡片预览"
-
-            Log.d(TAG, "卡片预览按钮图标设置完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "设置卡片预览按钮图标失败", e)
-            // 如果系统图标也不可用，使用默认图标
-            try {
-                browserBtnClose.setImageResource(android.R.drawable.ic_menu_view)
-            } catch (e2: Exception) {
-                Log.e(TAG, "设置备用图标也失败", e2)
+            if (::browserBtnClose.isInitialized) {
+                browserBtnClose.contentDescription = "页面数量"
             }
+            
+            // 更新页面数量显示
+            updatePageCountDisplay()
+
+            Log.d(TAG, "页面数量按钮设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置页面数量按钮失败", e)
         }
     }
 
