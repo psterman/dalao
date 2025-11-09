@@ -80,7 +80,8 @@ class PaperStackWebViewManager(
         var isActive: Boolean = false,
         var stackIndex: Int = 0,
         var groupId: String? = null, // 所属组ID
-        var isLazyLoaded: Boolean = false // 是否延迟加载（未加载URL）
+        var isLazyLoaded: Boolean = false, // 是否延迟加载（未加载URL）
+        var screenshot: android.graphics.Bitmap? = null // 🔧 修复4：保存用户最后浏览的界面截图
     )
 
     private val tabs = mutableListOf<WebViewTab>()
@@ -659,6 +660,28 @@ class PaperStackWebViewManager(
             override fun onAnimationEnd(animation: Animator) {
                 isAnimating = false
                 
+                // 🔧 修复4：在切换前保存当前页面的截图
+                try {
+                    if (currentTab.webView.width > 0 && currentTab.webView.height > 0) {
+                        currentTab.webView.isDrawingCacheEnabled = true
+                        currentTab.webView.buildDrawingCache()
+                        val bitmap = currentTab.webView.drawingCache
+                        if (bitmap != null) {
+                            // 创建副本避免引用问题
+                            val screenshot = android.graphics.Bitmap.createBitmap(bitmap)
+                            // 找到对应的tab并更新截图
+                            tabs.find { it.id == currentTab.id }?.let { tab ->
+                                tab.screenshot?.recycle() // 回收旧截图
+                                tab.screenshot = screenshot
+                                Log.d(TAG, "✅ 已保存页面截图: ${currentTab.title}")
+                            }
+                        }
+                        currentTab.webView.isDrawingCacheEnabled = false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "保存页面截图失败: ${currentTab.title}", e)
+                }
+                
                 // 重新排序标签页数组（只更新视觉位置，不改变数组顺序）
                 reorderTabs(currentTabIndex, targetIndex)
                 
@@ -704,7 +727,7 @@ class PaperStackWebViewManager(
         
         // 获取容器宽度，用于计算左右移动距离
         val containerWidth = container.width.toFloat()
-        val swipeDistance = if (containerWidth > 0) containerWidth * 0.6f else 400f // 滑动距离为容器宽度的60%
+        val swipeDistance = if (containerWidth > 0) containerWidth * 0.9f else 600f // 🔧 修复1：增加滑动距离为容器宽度的90%，增强翻页效果
         
         // 1. 当前卡片（上方）根据滑动方向向左或向右滑动，同时移到底部
         val currentTargetStackIndex = tabs.size - 1
@@ -718,10 +741,10 @@ class PaperStackWebViewManager(
         // 左滑时向左移动，右滑时向右移动，同时移动到堆叠底部
         val currentTargetX = if (isSwipeLeft) {
             // 左滑：当前卡片向左移动并到达堆叠底部位置
-            currentTargetOffsetX - swipeDistance * 0.3f // 向左移动一段距离，同时移到堆叠底部
+            currentTargetOffsetX - swipeDistance * 0.5f // 🔧 修复1：增加移动距离为50%，增强翻页效果
         } else {
             // 右滑：当前卡片向右移动并到达堆叠底部位置
-            currentTargetOffsetX + swipeDistance * 0.3f // 向右移动一段距离，同时移到堆叠底部
+            currentTargetOffsetX + swipeDistance * 0.5f // 🔧 修复1：增加移动距离为50%，增强翻页效果
         }
         
         val currentAnimatorX = ObjectAnimator.ofFloat(currentWebView, "translationX", currentWebView.translationX, currentTargetX)
@@ -1007,28 +1030,28 @@ class PaperStackWebViewManager(
             val distanceFromCurrent = abs(index - currentTabIndex)
             val stackIndex = distanceFromCurrent
             
-            val offsetX = stackIndex * TAB_OFFSET_X
-            val offsetY = stackIndex * TAB_OFFSET_Y
-            val scale = TAB_SCALE_FACTOR.pow(stackIndex)
-            
-            // 修复透明度问题：当前激活的页面完全不透明，其他页面按层级降低
-            val alpha = if (index == currentTabIndex) 1.0f else max(0.4f, 1f - (stackIndex * TAB_ALPHA_FACTOR))
-            
-            // 设置变换属性
-            tab.webView.translationX = offsetX
-            tab.webView.translationY = offsetY
-            tab.webView.scaleX = scale
-            tab.webView.scaleY = scale
-            tab.webView.alpha = alpha
-            
-            // 设置层级：当前激活的标签页在最上面，确保不重叠
-            tab.webView.elevation = if (index == currentTabIndex) (tabs.size + 20).toFloat() else (tabs.size - stackIndex + 10).toFloat()
+            // 🔧 修复1：确保只有当前页面可见，其他页面完全隐藏
+            if (index == currentTabIndex) {
+                // 当前页面：完全可见
+                tab.webView.visibility = View.VISIBLE
+                tab.webView.alpha = 1.0f
+                tab.webView.translationX = 0f
+                tab.webView.translationY = 0f
+                tab.webView.scaleX = 1.0f
+                tab.webView.scaleY = 1.0f
+                tab.webView.elevation = (tabs.size + 20).toFloat()
+            } else {
+                // 非当前页面：完全隐藏，避免重叠显示
+                tab.webView.visibility = View.GONE
+                tab.webView.alpha = 0f
+                tab.webView.elevation = (tabs.size - stackIndex + 10).toFloat()
+            }
             
             // 更新标签页状态
             tab.isActive = (index == currentTabIndex)
             tab.stackIndex = stackIndex
             
-            Log.d(TAG, "标签页 ${tab.title}: index=$index, currentTabIndex=$currentTabIndex, stackIndex=$stackIndex, offsetX=$offsetX, offsetY=$offsetY, scale=$scale, alpha=$alpha, elevation=${tab.webView.elevation}")
+            Log.d(TAG, "标签页 ${tab.title}: index=$index, currentTabIndex=$currentTabIndex, visible=${index == currentTabIndex}")
         }
     }
 

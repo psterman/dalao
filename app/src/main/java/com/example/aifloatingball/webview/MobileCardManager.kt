@@ -614,7 +614,7 @@ class MobileCardManager(
 
 
 
-        webViewCards.forEach { it.webView.destroy() }
+        webViewCards.forEach { it.webView?.destroy() }
         webViewCards.clear()
     }
 

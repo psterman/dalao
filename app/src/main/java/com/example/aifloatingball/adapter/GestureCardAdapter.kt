@@ -92,17 +92,23 @@ class GestureCardAdapter(
         val cardData = cards[position]
         val webView = cardData.webView
         
-        // 移除WebView的旧父容器
-        (webView.parent as? ViewGroup)?.removeView(webView)
-        
         // 清空容器
         holder.container.removeAllViews()
         
-        // 添加WebView到容器
-        holder.container.addView(webView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
+        // 如果WebView存在，添加到容器
+        webView?.let { view ->
+            // 移除WebView的旧父容器
+            (view.parent as? ViewGroup)?.removeView(view)
+            
+            // 添加WebView到容器
+            holder.container.addView(view, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+            
+            // 设置WebView回调（如果需要）
+            onWebViewSetup(view, cardData)
+        }
         
         // 创建并添加关闭按钮（确保在最上层）
         val closeButton = createCloseButton(holder.container.context)
@@ -113,9 +119,6 @@ class GestureCardAdapter(
         closeButton.setOnClickListener {
             onCardClose(cardData.url)
         }
-        
-        // 设置WebView回调（如果需要）
-        onWebViewSetup(webView, cardData)
     }
 
     override fun getItemCount(): Int = cards.size

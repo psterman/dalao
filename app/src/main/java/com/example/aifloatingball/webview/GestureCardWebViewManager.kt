@@ -101,10 +101,11 @@ class GestureCardWebViewManager(
      */
     data class WebViewCardData(
         val id: String,
-        val webView: WebView,
+        val webView: WebView?,
         var title: String = "新标签页",
         var url: String = "about:blank",
-        var favicon: Bitmap? = null
+        var favicon: Bitmap? = null,
+        var screenshot: Bitmap? = null // 🔧 修复4：保存用户最后浏览的界面截图
     )
 
     /**
@@ -958,7 +959,7 @@ class GestureCardWebViewManager(
     fun destroy() {
         // 销毁所有WebView
         webViewCards.forEach { cardData ->
-            cardData.webView.destroy()
+            cardData.webView?.destroy()
         }
         webViewCards.clear()
 

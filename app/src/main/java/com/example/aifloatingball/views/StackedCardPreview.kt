@@ -1878,7 +1878,16 @@ class StackedCardPreview @JvmOverloads constructor(
             cardData.title
         }
 
+        // 🔧 修复2：根据主题模式动态设置标题文字颜色，确保在亮色模式下可读
+        val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val titleColor = if (isDarkMode) {
+            Color.WHITE // 暗色模式下使用白色文字
+        } else {
+            Color.parseColor("#212121") // 亮色模式下使用深色文字，确保在灰色背景上可读
+        }
+        
         val titlePaint = Paint(textPaint).apply {
+            color = titleColor
             textSize = 28f * scale
             this.alpha = (255 * alpha).toInt()
         }
@@ -1996,32 +2005,10 @@ class StackedCardPreview @JvmOverloads constructor(
     
     /**
      * 加载卡片背景图片
+     * 🔧 修复3：移除背景图片填充，背景图片只用于搜索tab首页
      */
     private fun loadCardBackgroundBitmap(cardData: WebViewCardData): Bitmap? {
-        // 根据卡片索引选择背景图片（循环使用3张图片）
-        val cardIndex = webViewCards.indexOf(cardData)
-        val imageIndex = (cardIndex % 3) + 1
-        
-        // 检查缓存
-        if (backgroundBitmapCache.containsKey(imageIndex)) {
-            return backgroundBitmapCache[imageIndex]
-        }
-        
-        try {
-            val coverPath = settingsManager.getString("home_cover_image_path_$imageIndex", "")
-            if (coverPath?.isNotEmpty() == true) {
-                val file = File(coverPath)
-                if (file.exists()) {
-                    val bitmap = BitmapFactory.decodeFile(coverPath)
-                    backgroundBitmapCache[imageIndex] = bitmap
-                    return bitmap
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "加载卡片背景图片失败: $imageIndex", e)
-        }
-        
-        backgroundBitmapCache[imageIndex] = null
+        // 不再加载背景图片，直接返回null
         return null
     }
 

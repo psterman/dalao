@@ -6767,6 +6767,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         paperStackWebViewManager?.setOnPageFinishedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面加载完成: $url")
             injectVideoHookToWebView(tab.webView)
+            
+            // 🔧 修复4：页面加载完成后保存截图
+            handler.postDelayed({
+                try {
+                    if (tab.webView.width > 0 && tab.webView.height > 0) {
+                        tab.webView.isDrawingCacheEnabled = true
+                        tab.webView.buildDrawingCache()
+                        val bitmap = tab.webView.drawingCache
+                        if (bitmap != null) {
+                            val screenshot = android.graphics.Bitmap.createBitmap(bitmap)
+                            tab.screenshot?.recycle()
+                            tab.screenshot = screenshot
+                            Log.d(TAG, "✅ 页面加载完成，已保存截图: ${tab.title}")
+                        }
+                        tab.webView.isDrawingCacheEnabled = false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "页面加载完成时保存截图失败: ${tab.title}", e)
+                }
+            }, 500) // 延迟500ms确保页面完全渲染
+            
+            // 🔧 修复5：页面加载完成后立即更新页面数量显示
+            handler.post {
+                updatePageCountDisplay()
+            }
         }
         
         // 页面标题变化时，优先用标题填充搜索框
@@ -6856,7 +6881,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 页面加载完成后注入视频检测脚本；加载中则收起悬浮播放器
                 if (!isLoading) {
-                    injectVideoHookToWebView(cardData.webView)
+                    cardData.webView?.let { webView ->
+                        injectVideoHookToWebView(webView)
+                    }
                 } else {
                     if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
                         floatingVideoManager.hide()
@@ -7186,12 +7213,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             // 为GestureCardWebViewManager中的现有WebView添加监听器
             gestureCardWebViewManager?.getAllCards()?.forEach { card ->
-                addScrollListenerToWebView(card.webView)
+                card.webView?.let { webView ->
+                    addScrollListenerToWebView(webView)
+                }
             }
 
             // 为MobileCardManager中的现有WebView添加监听器
             mobileCardManager?.getAllCards()?.forEach { card ->
-                addScrollListenerToWebView(card.webView)
+                card.webView?.let { webView ->
+                    addScrollListenerToWebView(webView)
+                }
             }
 
             Log.d(TAG, "为现有WebView添加滚动监听器完成")
@@ -7203,14 +7234,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 为WebView添加滚动监听器
+     * 🔧 修复2：确保在搜索tab中上滑时能自动隐藏标题栏和底部栏，浮现悬浮工具栏
      */
     private fun addScrollListenerToWebView(webView: android.webkit.WebView) {
         try {
             webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
                 val deltaY = scrollY - oldScrollY
 
-                // 只有在滚动距离足够大时才处理，并且确保不在遮罩层激活状态
-                if (Math.abs(deltaY) > 5 && !isSearchTabGestureOverlayActive) {
+                // 🔧 修复2：确保在搜索tab中也能正常工作，排除悬浮卡片预览状态和遮罩层激活状态
+                val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+                if (Math.abs(deltaY) > 5 && !isSearchTabGestureOverlayActive && !isStackedPreviewVisible) {
                     handleWebViewScroll(deltaY, scrollY)
                 }
             }
@@ -7242,14 +7275,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 向下滚动：当累计滚动高度超过阈值时隐藏标题栏，显示快捷操作栏
-            if (deltaY > 6 && isToolbarVisible && scrollY > toolbarHideThreshold) {
+            // 🔧 修复3：向下滚动时立即隐藏标题栏和底部栏，显示工具栏
+            if (deltaY > 3 && isToolbarVisible) {
                 hideToolbar()
                 // 同步隐藏底部导航栏和显示快捷操作栏
                 hideBottomNavigationAndShowQuickActions()
             }
-            // 向上滚动：轻阈值即显示标题栏，隐藏快捷操作栏
-            else if (deltaY < -6 && !isToolbarVisible) {
+            // 🔧 修复3：向上滚动时立即显示标题栏和底部栏，隐藏工具栏
+            else if (deltaY < -3 && !isToolbarVisible) {
                 showToolbar()
                 // 同步显示底部导航栏和隐藏快捷操作栏
                 showBottomNavigationAndHideQuickActions()
@@ -9986,10 +10019,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         id = tab.id,
                         title = tab.title,
                         url = tab.url,
-                        webView = tab.webView
+                        webView = tab.webView,
+                        screenshot = tab.screenshot // 🔧 修复4：传递保存的截图
                     )
                     allCards.add(paperStackCard)
-                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}")
+                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}, 截图: ${if (tab.screenshot != null) "有" else "无"}")
                 } else {
                     duplicateCount++
                     if (isBaiduHome) {
@@ -10077,10 +10111,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         id = tab.id,
                         title = tab.title,
                         url = tab.url,
-                        webView = tab.webView
+                        webView = tab.webView,
+                        screenshot = tab.screenshot // 🔧 修复4：传递保存的截图
                     )
                     allCards.add(paperStackCard)
-                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}")
+                    Log.d(TAG, "添加纸堆标签页: ${tab.title} - ${tab.url}, 截图: ${if (tab.screenshot != null) "有" else "无"}")
                 } else {
                     duplicateCount++
                     if (isBaiduHome) {
@@ -21103,8 +21138,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         title = cardData.title ?: "无标题",
                         url = cardData.url ?: "",
                         favicon = null, // 可以后续添加favicon支持
-                        screenshot = cardData.webView?.let { webView ->
-                            // 尝试获取WebView截图
+                        screenshot = cardData.screenshot ?: cardData.webView?.let { webView ->
+                            // 🔧 修复4：优先使用保存的截图，如果没有则尝试获取WebView截图
                             try {
                                 val bitmap = Bitmap.createBitmap(
                                     webView.width,
@@ -21128,8 +21163,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         title = cardData.title ?: "无标题",
                         url = cardData.url ?: "",
                         favicon = null, // 可以后续添加favicon支持
-                        screenshot = cardData.webView?.let { webView ->
-                            // 尝试获取WebView截图
+                        screenshot = cardData.screenshot ?: cardData.webView?.let { webView ->
+                            // 🔧 修复4：优先使用保存的截图，如果没有则尝试获取WebView截图
                             try {
                                 val bitmap = Bitmap.createBitmap(
                                     webView.width,
@@ -23351,8 +23386,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         title = cardData.title ?: "无标题",
                         url = cardData.url ?: "",
                         favicon = null,
-                        screenshot = cardData.webView?.let { webView ->
-                            // 尝试获取WebView截图
+                        screenshot = cardData.screenshot ?: cardData.webView?.let { webView ->
+                            // 🔧 修复4：优先使用保存的截图，如果没有则尝试获取WebView截图
                             try {
                                 val bitmap = Bitmap.createBitmap(
                                     webView.width,
@@ -29512,6 +29547,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             paperStackWebViewManager?.restoreTabsFromRecoveryData(recoveryData) { groupId, tabId, tabTitle, isLoaded ->
                 Log.d(TAG, "恢复标签页: groupId=$groupId, tabId=$tabId, title=$tabTitle, isLoaded=$isLoaded")
             }
+            
+            // 🔧 修复4：恢复页面后，检查并确保默认主页存在
+            handler.postDelayed({
+                try {
+                    val allTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+                    val hasFunctionalHome = allTabs.any { tab ->
+                        tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html"
+                    }
+                    
+                    if (!hasFunctionalHome) {
+                        Log.d(TAG, "🔧 修复4：恢复页面后未发现默认主页，自动创建")
+                        createFunctionalHomeTab()
+                    } else {
+                        Log.d(TAG, "✅ 恢复页面后已存在默认主页")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "检查默认主页失败", e)
+                }
+            }, 500) // 延迟500ms确保恢复完成
             
             // 刷新标签组显示
             refreshGroupTabs()

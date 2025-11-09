@@ -230,7 +230,9 @@ class CardPreviewOverlay @JvmOverloads constructor(
             }
             
             // 生成WebView缩略图
-            generateThumbnail(cardData.webView, holder.thumbnailView)
+            cardData.webView?.let { webView ->
+                generateThumbnail(webView, holder.thumbnailView)
+            }
             
             // 设置点击监听器
             holder.cardView.setOnClickListener {
