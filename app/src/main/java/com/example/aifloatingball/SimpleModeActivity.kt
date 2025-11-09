@@ -6451,6 +6451,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
+            override fun onOpenSettings() {
+                // 打开综合设置界面
+                try {
+                    val intent = android.content.Intent(this@SimpleModeActivity, com.example.aifloatingball.HomeSettingsActivity::class.java)
+                    startActivity(intent)
+                    Log.d(TAG, "成功打开综合设置界面")
+                } catch (e: Exception) {
+                    Log.e(TAG, "综合设置按钮点击处理失败", e)
+                    showMaterialToast("打开综合设置失败")
+                }
+            }
+            
         override fun onHideButton(buttonId: String) {
             // 隐藏按钮
             try {

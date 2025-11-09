@@ -397,6 +397,15 @@ class PaperStackWebViewManager(
                     // 获取按钮显示状态（通过回调通知外部）
                     return onFunctionalHomeActionListener?.getButtonVisibility() ?: "{}"
                 }
+                
+                @android.webkit.JavascriptInterface
+                fun openSettings() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开综合设置（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenSettings()
+                        Log.d(TAG, "功能主页：打开综合设置")
+                    }
+                }
             }, "AndroidInterface")
             
             Log.d(TAG, "功能主页JavaScript接口已设置")
@@ -418,6 +427,7 @@ class PaperStackWebViewManager(
         fun onHideButton(buttonId: String)
         fun onShowRestoreButtonsDialog()
         fun getButtonVisibility(): String
+        fun onOpenSettings()
     }
     
     private var onFunctionalHomeActionListener: FunctionalHomeActionListener? = null

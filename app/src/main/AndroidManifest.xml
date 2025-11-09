@@ -297,6 +297,11 @@
             android:label="书签管理"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
+            android:name=".HomeSettingsActivity"
+            android:exported="false"
+            android:label="综合设置"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
             android:name=".MenuSettingsActivity"
             android:exported="false"
             android:label="菜单设置"
@@ -348,6 +353,12 @@
 
         <service
             android:name=".service.FloatingWindowService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false" />
+        <service
+            android:name=".service.NetworkMonitorFloatingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
