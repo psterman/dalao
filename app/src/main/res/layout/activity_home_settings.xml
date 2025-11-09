@@ -79,7 +79,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 自定义封面（三个竖立长方形） -->
+        <!-- 搜索tab背景图片设置 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -96,7 +96,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="悬浮卡片背景图片"
+                    android:text="搜索tab背景图片"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
@@ -105,57 +105,95 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="上传三个竖立长方形图片作为激活悬浮卡片时的背景"
+                    android:text="设置搜索tab的背景图片"
                     android:textSize="14sp"
                     android:textColor="@color/simple_mode_text_secondary_light"
                     android:layout_marginBottom="12dp" />
 
+                <!-- 图片预览（竖向长方形） -->
+                <ImageView
+                    android:id="@+id/search_tab_background_image"
+                    android:layout_width="120dp"
+                    android:layout_height="200dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="16dp"
+                    android:scaleType="centerCrop"
+                    android:background="@android:color/darker_gray"
+                    android:contentDescription="搜索tab背景图片"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground" />
+
+                <!-- 功能按钮区域 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:weightSum="3">
+                    android:orientation="vertical"
+                    android:layout_marginTop="8dp">
 
-                    <ImageView
-                        android:id="@+id/cover_image_view_1"
-                        android:layout_width="0dp"
-                        android:layout_height="180dp"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="8dp"
-                        android:scaleType="centerCrop"
-                        android:background="@android:color/darker_gray"
-                        android:contentDescription="封面图片1"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground" />
+                    <!-- 背景模糊选项 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
 
-                    <ImageView
-                        android:id="@+id/cover_image_view_2"
-                        android:layout_width="0dp"
-                        android:layout_height="180dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
-                        android:layout_marginEnd="4dp"
-                        android:scaleType="centerCrop"
-                        android:background="@android:color/darker_gray"
-                        android:contentDescription="封面图片2"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="背景模糊"
+                            android:textSize="16sp"
+                            android:textColor="@color/simple_mode_text_primary_light" />
 
-                    <ImageView
-                        android:id="@+id/cover_image_view_3"
-                        android:layout_width="0dp"
-                        android:layout_height="180dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="8dp"
-                        android:scaleType="centerCrop"
-                        android:background="@android:color/darker_gray"
-                        android:contentDescription="封面图片3"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:foreground="?attr/selectableItemBackground" />
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/search_tab_background_blur_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- 关闭背景模式 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="关闭背景（纯色显示）"
+                            android:textSize="16sp"
+                            android:textColor="@color/simple_mode_text_primary_light" />
+
+                        <androidx.appcompat.widget.SwitchCompat
+                            android:id="@+id/search_tab_background_disable_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- 选择背景文件夹 -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/select_background_folder_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="选择背景文件夹"
+                        android:textSize="14sp"
+                        style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                    <TextView
+                        android:id="@+id/selected_folder_path"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:textSize="12sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:textStyle="bold"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

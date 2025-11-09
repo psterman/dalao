@@ -5036,6 +5036,35 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 更新搜索tab左下角九宫格按钮的页面数字显示
+     */
+    private fun updatePageCountDisplay() {
+        try {
+            // 优先使用左下角的按钮
+            var pageCountTextView = findViewById<TextView>(R.id.btn_menu_page_count_bottom)
+            if (pageCountTextView == null) {
+                // 如果左下角按钮不存在，尝试使用左上角的
+                pageCountTextView = findViewById<TextView>(R.id.btn_menu_page_count)
+            }
+            
+            if (pageCountTextView == null) {
+                Log.w(TAG, "页面数字TextView未找到")
+                return
+            }
+            
+            // 获取所有打开的页面总数（包括所有组）
+            val pageCount = paperStackWebViewManager?.getAllTabsByGroup()?.values?.sumOf { it.size } ?: 0
+            
+            pageCountTextView.text = pageCount.toString()
+            pageCountTextView.visibility = if (pageCount > 0) View.VISIBLE else View.GONE
+            
+            Log.d(TAG, "更新页面数字: $pageCount")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新页面数字失败", e)
+        }
+    }
+    
+    /**
      * 设置搜索引擎RecyclerView
      */
     private fun setupSearchEngineRecyclerView() {
@@ -6630,11 +6659,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 更新搜索tab徽标
             updateSearchTabBadge()
+            // 更新页面数字
+            updatePageCountDisplay()
             
             Log.d(TAG, "创建标签页: ${tab.title}")
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
+            // 更新页面数字
+            updatePageCountDisplay()
             // 更新搜索框URL与站点图标（功能主页显示空字符串）
             if (tab.url == "home://functional") {
                 browserSearchInput.setText("")
@@ -6745,6 +6778,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+                // 更新页面数字
+                updatePageCountDisplay()
 
                 // 同步所有卡片系统数据
                 syncAllCardSystems()
@@ -6764,6 +6799,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+                // 更新页面数字
+                updatePageCountDisplay()
 
                 // 同步所有卡片系统数据
                 syncAllCardSystems()
@@ -6859,6 +6896,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+                // 更新页面数字
+                updatePageCountDisplay()
 
                 // 显示提示信息
                 Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
@@ -8891,6 +8930,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
         }
+        
+        // 搜索tab的九宫格按钮（显示页面数字）- 优先使用左下角的按钮
+        var searchTabMenuButton = findViewById<ImageButton>(R.id.btn_menu_bottom)
+        if (searchTabMenuButton == null) {
+            searchTabMenuButton = findViewById<ImageButton>(R.id.btn_menu)
+        }
+        searchTabMenuButton?.setOnClickListener {
+            Log.d(TAG, "搜索tab九宫格按钮被点击，激活搜索tab的悬浮卡片系统")
+            activateStackedCardPreview()
+        }
+        
+        // 初始化页面数字显示
+        updatePageCountDisplay()
+        
+        // 隐藏顶部按钮，只显示底部按钮栏
+        val rightButtons = findViewById<LinearLayout>(R.id.right_buttons)
+        rightButtons?.visibility = View.GONE
+        
+        val leftButtons = findViewById<LinearLayout>(R.id.left_buttons)
+        leftButtons?.visibility = View.GONE
+        
+        // 同步底部按钮的点击事件
+        val btnFaviconBottom = findViewById<ImageButton>(R.id.btn_favicon_bottom)
+        btnFaviconBottom?.setOnClickListener {
+            val btnFavicon = findViewById<ImageButton>(R.id.btn_favicon)
+            btnFavicon?.performClick()
+        }
+        
+        val btnSearchEngineBottom = findViewById<ImageButton>(R.id.btn_search_engine_bottom)
+        btnSearchEngineBottom?.setOnClickListener {
+            val btnSearchEngine = findViewById<ImageButton>(R.id.btn_search_engine)
+            btnSearchEngine?.performClick()
+        }
+        
+        val btnCloseBottom = findViewById<ImageButton>(R.id.btn_close_bottom)
+        btnCloseBottom?.setOnClickListener {
+            val btnClose = findViewById<ImageButton>(R.id.btn_close)
+            btnClose?.performClick()
+        }
+        
+        val btnDownloadIndicatorBottom = findViewById<ImageButton>(R.id.btn_download_indicator_bottom)
+        btnDownloadIndicatorBottom?.setOnClickListener {
+            val btnDownloadIndicator = findViewById<ImageButton>(R.id.btn_download_indicator)
+            btnDownloadIndicator?.performClick()
+        }
 
         // 初始化可拖动按钮网格
         val draggableButtonGrid = findViewById<com.example.aifloatingball.views.DraggableButtonGrid>(R.id.draggable_button_grid)
@@ -9091,6 +9175,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+                // 更新页面数字
+                updatePageCountDisplay()
 
                 // 显示提示信息
                 Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
@@ -11045,6 +11131,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+                // 更新页面数字
+                updatePageCountDisplay()
                 
                 Log.d(TAG, "所有手机卡片已移除")
             }

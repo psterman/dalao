@@ -28,18 +28,19 @@ class HomeSettingsActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "HomeSettingsActivity"
-        private const val REQUEST_CODE_PICK_IMAGE_1 = 1001
-        private const val REQUEST_CODE_PICK_IMAGE_2 = 1002
-        private const val REQUEST_CODE_PICK_IMAGE_3 = 1003
+        private const val REQUEST_CODE_PICK_IMAGE = 1001
+        private const val REQUEST_CODE_PICK_FOLDER = 1002
     }
     
     private lateinit var settingsManager: SettingsManager
     private lateinit var appStyleRecyclerView: RecyclerView
     private lateinit var floatingNetworkSpeedSwitch: SwitchCompat
     private lateinit var downloadProgressSwitch: SwitchCompat
-    private lateinit var coverImageView1: ImageView
-    private lateinit var coverImageView2: ImageView
-    private lateinit var coverImageView3: ImageView
+    private lateinit var searchTabBackgroundImage: ImageView
+    private lateinit var searchTabBackgroundBlurSwitch: SwitchCompat
+    private lateinit var searchTabBackgroundDisableSwitch: SwitchCompat
+    private lateinit var selectBackgroundFolderButton: com.google.android.material.button.MaterialButton
+    private lateinit var selectedFolderPath: TextView
     private lateinit var layoutPreviewGrid: com.example.aifloatingball.views.DraggableButtonGrid
     
     // 布局样式选项
@@ -83,9 +84,11 @@ class HomeSettingsActivity : AppCompatActivity() {
         appStyleRecyclerView = findViewById(R.id.app_style_recycler_view)
         floatingNetworkSpeedSwitch = findViewById(R.id.floating_network_speed_switch)
         downloadProgressSwitch = findViewById(R.id.download_progress_switch)
-        coverImageView1 = findViewById(R.id.cover_image_view_1)
-        coverImageView2 = findViewById(R.id.cover_image_view_2)
-        coverImageView3 = findViewById(R.id.cover_image_view_3)
+        searchTabBackgroundImage = findViewById(R.id.search_tab_background_image)
+        searchTabBackgroundBlurSwitch = findViewById(R.id.search_tab_background_blur_switch)
+        searchTabBackgroundDisableSwitch = findViewById(R.id.search_tab_background_disable_switch)
+        selectBackgroundFolderButton = findViewById(R.id.select_background_folder_button)
+        selectedFolderPath = findViewById(R.id.selected_folder_path)
         layoutPreviewGrid = findViewById(R.id.layout_preview_grid)
         
         // 设置返回按钮
@@ -247,57 +250,70 @@ class HomeSettingsActivity : AppCompatActivity() {
     }
     
     /**
-     * 设置封面图片
+     * 设置搜索tab背景图片
      */
     private fun setupCoverImage() {
-        coverImageView1.setOnClickListener {
-            // 打开图片选择器
+        // 点击图片选择背景
+        searchTabBackgroundImage.setOnClickListener {
             val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_1)
+            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE)
         }
         
-        coverImageView2.setOnClickListener {
-            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_2)
+        // 背景模糊开关
+        val blurEnabled = settingsManager.getBoolean("search_tab_background_blur", false)
+        searchTabBackgroundBlurSwitch.isChecked = blurEnabled
+        searchTabBackgroundBlurSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("search_tab_background_blur", isChecked)
+            Log.d(TAG, "背景模糊: $isChecked")
         }
         
-        coverImageView3.setOnClickListener {
-            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_3)
+        // 关闭背景开关
+        val backgroundDisabled = settingsManager.getBoolean("search_tab_background_disable", false)
+        searchTabBackgroundDisableSwitch.isChecked = backgroundDisabled
+        searchTabBackgroundDisableSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("search_tab_background_disable", isChecked)
+            Log.d(TAG, "关闭背景: $isChecked")
         }
         
-        // 加载当前封面
-        loadCoverImages()
+        // 选择背景文件夹
+        selectBackgroundFolderButton.setOnClickListener {
+            // 使用文件选择器选择文件夹
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                startActivityForResult(intent, REQUEST_CODE_PICK_FOLDER)
+            } else {
+                Toast.makeText(this, "此功能需要Android 5.0以上版本", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 加载当前设置
+        loadSearchTabBackgroundSettings()
     }
     
     /**
-     * 加载封面图片
+     * 加载搜索tab背景设置
      */
-    private fun loadCoverImages() {
+    private fun loadSearchTabBackgroundSettings() {
         try {
-            loadCoverImage(1, coverImageView1, "home_cover_image_path_1")
-            loadCoverImage(2, coverImageView2, "home_cover_image_path_2")
-            loadCoverImage(3, coverImageView3, "home_cover_image_path_3")
-        } catch (e: Exception) {
-            Log.e(TAG, "加载封面图片失败", e)
-        }
-    }
-    
-    /**
-     * 加载单个封面图片
-     */
-    private fun loadCoverImage(index: Int, imageView: ImageView, key: String) {
-        try {
-            val coverPath = settingsManager.getString(key, "")
-            if (coverPath?.isNotEmpty() == true) {
-                val file = File(coverPath)
+            // 加载背景图片
+            val backgroundPath = settingsManager.getString("search_tab_background_path", "")
+            if (backgroundPath?.isNotEmpty() == true) {
+                val file = File(backgroundPath)
                 if (file.exists()) {
-                    val bitmap = BitmapFactory.decodeFile(coverPath)
-                    imageView.setImageBitmap(bitmap)
+                    val bitmap = BitmapFactory.decodeFile(backgroundPath)
+                    searchTabBackgroundImage.setImageBitmap(bitmap)
                 }
             }
+            
+            // 加载文件夹路径
+            val folderPath = settingsManager.getString("search_tab_background_folder_path", "")
+            if (folderPath?.isNotEmpty() == true) {
+                selectedFolderPath.text = "已选择: $folderPath"
+            } else {
+                selectedFolderPath.text = "未选择文件夹"
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "加载封面图片${index}失败", e)
+            Log.e(TAG, "加载搜索tab背景设置失败", e)
         }
     }
     
@@ -306,52 +322,67 @@ class HomeSettingsActivity : AppCompatActivity() {
         
         if (resultCode != RESULT_OK || data == null) return
         
-        val imageUri: Uri? = data.data
-        if (imageUri == null) return
-        
-        val imageIndex = when (requestCode) {
-            REQUEST_CODE_PICK_IMAGE_1 -> 1
-            REQUEST_CODE_PICK_IMAGE_2 -> 2
-            REQUEST_CODE_PICK_IMAGE_3 -> 3
-            else -> return
-        }
-        
-        val imageView = when (imageIndex) {
-            1 -> coverImageView1
-            2 -> coverImageView2
-            3 -> coverImageView3
-            else -> return
-        }
-        
-        val key = "home_cover_image_path_$imageIndex"
-        
-        try {
-            // 保存图片到应用目录
-            val inputStream = contentResolver.openInputStream(imageUri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-            
-            // 保存到文件
-            val coverDir = File(getFilesDir(), "covers")
-            if (!coverDir.exists()) {
-                coverDir.mkdirs()
+        when (requestCode) {
+            REQUEST_CODE_PICK_IMAGE -> {
+                val imageUri: Uri? = data.data
+                if (imageUri == null) return
+                
+                try {
+                    // 保存图片到应用目录
+                    val inputStream = contentResolver.openInputStream(imageUri)
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream?.close()
+                    
+                    // 保存到文件
+                    val coverDir = File(getFilesDir(), "covers")
+                    if (!coverDir.exists()) {
+                        coverDir.mkdirs()
+                    }
+                    val coverFile = File(coverDir, "search_tab_background.jpg")
+                    val outputStream = FileOutputStream(coverFile)
+                    bitmap?.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                    outputStream.close()
+                    
+                    // 保存路径到设置
+                    settingsManager.putString("search_tab_background_path", coverFile.absolutePath)
+                    
+                    // 更新显示
+                    searchTabBackgroundImage.setImageBitmap(bitmap)
+                    
+                    Toast.makeText(this, "背景图片设置成功", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "搜索tab背景图片已保存: ${coverFile.absolutePath}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "保存背景图片失败", e)
+                    Toast.makeText(this, "背景图片设置失败", Toast.LENGTH_SHORT).show()
+                }
             }
-            val coverFile = File(coverDir, "home_cover_$imageIndex.jpg")
-            val outputStream = FileOutputStream(coverFile)
-            bitmap?.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            outputStream.close()
             
-            // 保存路径到设置
-            settingsManager.putString(key, coverFile.absolutePath)
-            
-            // 更新显示
-            imageView.setImageBitmap(bitmap)
-            
-            Toast.makeText(this, "封面图片${imageIndex}设置成功", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "封面图片${imageIndex}已保存: ${coverFile.absolutePath}")
-        } catch (e: Exception) {
-            Log.e(TAG, "保存封面图片${imageIndex}失败", e)
-            Toast.makeText(this, "封面图片${imageIndex}设置失败", Toast.LENGTH_SHORT).show()
+            REQUEST_CODE_PICK_FOLDER -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    val treeUri = data.data
+                    if (treeUri != null) {
+                        try {
+                            // 获取文件夹路径
+                            val docTreeUri = treeUri.toString()
+                            val folderPath = docTreeUri.replace("content://com.android.externalstorage.documents/tree/", "")
+                            
+                            // 保存文件夹URI
+                            settingsManager.putString("search_tab_background_folder_uri", docTreeUri)
+                            
+                            // 尝试获取实际路径
+                            val displayPath = folderPath.replace("primary:", "/storage/emulated/0/")
+                            settingsManager.putString("search_tab_background_folder_path", displayPath)
+                            
+                            selectedFolderPath.text = "已选择: $displayPath"
+                            Toast.makeText(this, "文件夹选择成功", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "背景文件夹已保存: $displayPath")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "保存文件夹路径失败", e)
+                            Toast.makeText(this, "文件夹选择失败", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
         }
     }
     

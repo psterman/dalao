@@ -2294,17 +2294,26 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         
         // 绘制文字标签（提高对比度，确保清晰可见）
-        val textColor = iconColor // 文字颜色与图标颜色一致（白黑方案）
+        // 使用高对比度颜色：暗色模式用白色，亮色模式用深色
+        val textColor = if (isDark) {
+            Color.parseColor("#FFFFFF") // 暗色模式：纯白色
+        } else {
+            Color.parseColor("#212121") // 亮色模式：深灰色（Material Design 900）
+        }
         val textPaint = Paint().apply {
             color = textColor
-            textSize = 24f * scale // 更大的文字（调大）
+            textSize = 26f * scale // 更大的文字（调大）
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD // 加粗
             this.alpha = (255 * alpha).toInt()
-            // 添加文字阴影，提高可读性
-            setShadowLayer(3f * scale, 0f, 1f * scale, 
-                if (isDark) Color.parseColor("#80000000") else Color.parseColor("#80FFFFFF"))
+            // 添加更强的文字阴影，提高可读性
+            val shadowColor = if (isDark) {
+                Color.parseColor("#CC000000") // 暗色模式：黑色阴影
+            } else {
+                Color.parseColor("#CCFFFFFF") // 亮色模式：白色阴影
+            }
+            setShadowLayer(4f * scale, 0f, 2f * scale, shadowColor)
         }
         val textY = y + height / 2f + textSpacing + 24f * scale
         canvas.drawText(label, x, textY, textPaint)

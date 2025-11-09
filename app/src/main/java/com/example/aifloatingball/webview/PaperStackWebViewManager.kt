@@ -604,8 +604,10 @@ class PaperStackWebViewManager(
 
     /**
      * 切换到指定标签页
+     * @param targetIndex 目标标签页索引
+     * @param swipeDirection 滑动方向（可选，如果提供则使用，否则根据索引判断）
      */
-    fun switchToTab(targetIndex: Int) {
+    fun switchToTab(targetIndex: Int, swipeDirection: SwipeDirection? = null) {
         if (isAnimating || targetIndex < 0 || targetIndex >= tabs.size || tabs.isEmpty()) {
             Log.w(TAG, "switchToTab: 无效参数或条件不满足。isAnimating=$isAnimating, targetIndex=$targetIndex, tabs.size=${tabs.size}")
             return
@@ -633,8 +635,16 @@ class PaperStackWebViewManager(
             targetTab.isLazyLoaded = false
         }
         
-        // 判断滑动方向：targetIndex > currentTabIndex 表示左滑（下一个），否则为右滑（上一个）
-        val isSwipeLeft = targetIndex > currentTabIndex || (currentTabIndex == tabs.size - 1 && targetIndex == 0)
+        // 判断滑动方向：优先使用传入的滑动方向，否则根据索引判断
+        val isSwipeLeft = when {
+            swipeDirection == SwipeDirection.LEFT -> true
+            swipeDirection == SwipeDirection.RIGHT -> false
+            targetIndex > currentTabIndex -> true // 索引增大表示左滑（下一个）
+            targetIndex < currentTabIndex -> false // 索引减小表示右滑（上一个）
+            currentTabIndex == tabs.size - 1 && targetIndex == 0 -> true // 从最后一个到第一个，视为左滑
+            currentTabIndex == 0 && targetIndex == tabs.size - 1 -> false // 从第一个到最后一个，视为右滑
+            else -> targetIndex > currentTabIndex // 默认根据索引判断
+        }
         
         Log.d(TAG, "开始卡片交叠切换：从 ${currentTab.title} 到 ${targetTab.title}, 方向=${if (isSwipeLeft) "左滑" else "右滑"}")
         
@@ -1479,11 +1489,13 @@ class PaperStackWebViewManager(
                         if (deltaX > 0) {
                             // 右滑 - 切换到上一个标签页
                             Log.d(TAG, "右滑检测到，切换到上一个标签页")
-                            switchToPreviousTab()
+                            val prevIndex = if (currentTabIndex > 0) currentTabIndex - 1 else tabs.size - 1
+                            switchToTab(prevIndex, SwipeDirection.RIGHT)
                         } else {
                             // 左滑 - 切换到下一个标签页
                             Log.d(TAG, "左滑检测到，切换到下一个标签页")
-                            switchToNextTab()
+                            val nextIndex = if (currentTabIndex < tabs.size - 1) currentTabIndex + 1 else 0
+                            switchToTab(nextIndex, SwipeDirection.LEFT)
                         }
                         return true
                     }
@@ -1702,8 +1714,8 @@ class PaperStackWebViewManager(
     /**
      * 滑动方向枚举
      */
-    private enum class SwipeDirection {
-        NONE, HORIZONTAL, VERTICAL
+    enum class SwipeDirection {
+        NONE, HORIZONTAL, VERTICAL, LEFT, RIGHT
     }
 
     /**
