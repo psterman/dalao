@@ -758,6 +758,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 链接操作广播接收器
     private var linkActionReceiver: BroadcastReceiver? = null
     
+    // 首页按钮刷新广播接收器
+    private var homeButtonRefreshReceiver: BroadcastReceiver? = null
+    
     // 群聊管理器
     // 统一群聊管理器
     private lateinit var unifiedGroupChatManager: UnifiedGroupChatManager
@@ -6463,6 +6466,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
+            override fun onSaveButtonOrder(orderJson: String) {
+                // 保存按钮顺序
+                try {
+                    settingsManager.putString("home_button_order", orderJson)
+                    Log.d(TAG, "按钮顺序已保存: $orderJson")
+                } catch (e: Exception) {
+                    Log.e(TAG, "保存按钮顺序失败", e)
+                }
+            }
+            
+            override fun getButtonOrder(): String {
+                // 获取按钮顺序
+                try {
+                    val order = settingsManager.getString("home_button_order", "[]") ?: "[]"
+                    Log.d(TAG, "获取按钮顺序: $order")
+                    return order
+                } catch (e: Exception) {
+                    Log.e(TAG, "获取按钮顺序失败", e)
+                    return "[]"
+                }
+            }
+            
+            override fun onCancelButtonLongPress() {
+                // 取消长按（用于拖拽时）
+                // 这个功能在HTML中处理，这里可以留空或添加日志
+                Log.d(TAG, "取消按钮长按")
+            }
+            
         override fun onHideButton(buttonId: String) {
             // 隐藏按钮
             try {
@@ -6535,6 +6566,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新搜索框URL与站点图标（功能主页显示空字符串）
             if (tab.url == "home://functional") {
                 browserSearchInput.setText("")
+                
+                // 切换到功能主页时，刷新按钮显示状态和顺序，并设置主题
+                tab.webView.postDelayed({
+                    tab.webView.evaluateJavascript("updateButtonVisibility();", null)
+                    tab.webView.evaluateJavascript("loadButtonOrder();", null)
+                    tab.webView.evaluateJavascript("updateButtonLayout();", null)
+                    
+                    // 设置深色模式
+                    val themeMode = settingsManager.getThemeMode()
+                    val isDarkMode = when (themeMode) {
+                        SettingsManager.THEME_MODE_DARK -> true
+                        SettingsManager.THEME_MODE_LIGHT -> false
+                        else -> {
+                            // 跟随系统
+                            val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                            nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        }
+                    }
+                    val theme = if (isDarkMode) "dark" else "light"
+                    tab.webView.evaluateJavascript("setTheme('$theme');", null)
+                    
+                    Log.d(TAG, "切换到功能主页，已刷新按钮状态和设置主题: $theme")
+                }, 300)
             } else {
                 browserSearchInput.setText(tab.url)
             }
@@ -8758,6 +8812,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.NEW_TAB -> {
                     performCreateNewCard()
                 }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.NEW_GROUP -> {
+                    try {
+                        showGroupManagerDialog()
+                        Log.d(TAG, "成功打开组管理界面")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "新建标签组按钮点击处理失败", e)
+                        showMaterialToast("打开组管理失败")
+                    }
+                }
                 com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.GESTURE -> {
                     try {
                         if (!::browserGestureOverlay.isInitialized) {
@@ -10334,9 +10397,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val visibility = mutableMapOf<String, Boolean>()
         val buttonIds = listOf("new_tab", "new_group", "history", "bookmarks", "download")
         
+        // 检查是否已经初始化过按钮配置
+        val isInitialized = settingsManager.getBoolean("home_buttons_initialized", false)
+        
         buttonIds.forEach { buttonId ->
             val key = "home_button_${buttonId}_visible"
-            visibility[buttonId] = settingsManager.getBoolean(key, true) // 默认显示
+            if (isInitialized) {
+                // 已经初始化过，如果key存在则使用保存的值，否则默认不显示（false）
+                // 这样可以确保只有用户明确选中的按钮才会显示
+                if (settingsManager.getSharedPreferences().contains(key)) {
+                    visibility[buttonId] = settingsManager.getBoolean(key, false)
+                } else {
+                    // key不存在，说明用户从未设置过，默认不显示
+                    visibility[buttonId] = false
+                }
+            } else {
+                // 首次使用，默认显示所有主要按钮
+                visibility[buttonId] = settingsManager.getBoolean(key, true)
+            }
         }
         
         return visibility
@@ -10360,10 +10438,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun refreshHomeButtonVisibility() {
         try {
+            // 检查所有标签页，找到功能主页并刷新
+            val allTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            allTabs.forEach { tab ->
+                if (tab.url == "home://functional") {
+                    // 如果是功能主页，执行JavaScript刷新按钮显示和顺序
+                    tab.webView.post {
+                        try {
+                            tab.webView.evaluateJavascript("updateButtonVisibility();", null)
+                            tab.webView.evaluateJavascript("loadButtonOrder();", null)
+                            tab.webView.evaluateJavascript("updateButtonLayout();", null)
+                            Log.d(TAG, "已刷新功能主页按钮显示状态")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "执行JavaScript刷新失败", e)
+                        }
+                    }
+                }
+            }
+            // 如果当前标签页是功能主页，也刷新一次（确保立即生效）
             val currentTab = paperStackWebViewManager?.getCurrentTab()
             if (currentTab?.url == "home://functional") {
-                // 如果当前是功能主页，执行JavaScript刷新按钮显示
-                currentTab.webView.evaluateJavascript("updateButtonVisibility();", null)
+                currentTab.webView.post {
+                    try {
+                        currentTab.webView.evaluateJavascript("updateButtonVisibility();", null)
+                        currentTab.webView.evaluateJavascript("loadButtonOrder();", null)
+                        currentTab.webView.evaluateJavascript("updateButtonLayout();", null)
+                        Log.d(TAG, "已刷新当前功能主页按钮显示状态")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "执行JavaScript刷新失败", e)
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "刷新首页按钮显示状态失败", e)
@@ -13025,6 +13129,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "注册广播接收器失败", e)
         }
+        
+        // 注册首页按钮刷新广播接收器
+        try {
+            homeButtonRefreshReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action == "com.example.aifloatingball.ACTION_REFRESH_HOME_BUTTONS") {
+                        Log.d(TAG, "收到刷新首页按钮的广播")
+                        refreshHomeButtonVisibility()
+                    }
+                }
+            }
+            val filter = IntentFilter("com.example.aifloatingball.ACTION_REFRESH_HOME_BUTTONS")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(homeButtonRefreshReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(homeButtonRefreshReceiver, filter)
+            }
+            Log.d(TAG, "已注册首页按钮刷新广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册首页按钮刷新广播接收器失败", e)
+        }
     }
     
     /**
@@ -13036,6 +13161,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "已注销AI消息更新广播接收器")
         } catch (e: Exception) {
             Log.e(TAG, "注销广播接收器失败", e)
+        }
+        
+        // 注销首页按钮刷新广播接收器
+        try {
+            homeButtonRefreshReceiver?.let {
+                unregisterReceiver(it)
+                homeButtonRefreshReceiver = null
+                Log.d(TAG, "已注销首页按钮刷新广播接收器")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "注销首页按钮刷新广播接收器失败", e)
         }
     }
     

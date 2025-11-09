@@ -64,14 +64,22 @@
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="12dp" />
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/layout_style_recycler_view"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="长按按钮可拖拽调整位置"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
+                <com.example.aifloatingball.views.DraggableButtonGrid
+                    android:id="@+id/layout_preview_grid"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 自定义封面 -->
+        <!-- 自定义封面（三个竖立长方形） -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -88,22 +96,67 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="自定义封面"
+                    android:text="悬浮卡片背景图片"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="12dp" />
 
-                <ImageView
-                    android:id="@+id/cover_image_view"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="上传三个竖立长方形图片作为激活悬浮卡片时的背景"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="200dp"
-                    android:scaleType="centerCrop"
-                    android:background="@android:color/darker_gray"
-                    android:contentDescription="封面图片"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:weightSum="3">
+
+                    <ImageView
+                        android:id="@+id/cover_image_view_1"
+                        android:layout_width="0dp"
+                        android:layout_height="180dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        android:scaleType="centerCrop"
+                        android:background="@android:color/darker_gray"
+                        android:contentDescription="封面图片1"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground" />
+
+                    <ImageView
+                        android:id="@+id/cover_image_view_2"
+                        android:layout_width="0dp"
+                        android:layout_height="180dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:scaleType="centerCrop"
+                        android:background="@android:color/darker_gray"
+                        android:contentDescription="封面图片2"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground" />
+
+                    <ImageView
+                        android:id="@+id/cover_image_view_3"
+                        android:layout_width="0dp"
+                        android:layout_height="180dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:scaleType="centerCrop"
+                        android:background="@android:color/darker_gray"
+                        android:contentDescription="封面图片3"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackground" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -137,135 +190,6 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 网络设置 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:id="@+id/network_settings_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="网络设置"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/simple_mode_text_primary_light"
-                    android:layout_marginBottom="12dp" />
-
-                <!-- 网络代理 -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/network_proxy_card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    app:cardCornerRadius="8dp"
-                    app:cardElevation="1dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="网络代理"
-                            android:textSize="16sp"
-                            android:textColor="@color/simple_mode_text_primary_light" />
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_more"
-                            app:tint="@color/simple_mode_text_secondary_light" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- DNS设置 -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/network_dns_card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    app:cardCornerRadius="8dp"
-                    app:cardElevation="1dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="DNS设置"
-                            android:textSize="16sp"
-                            android:textColor="@color/simple_mode_text_primary_light" />
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_more"
-                            app:tint="@color/simple_mode_text_secondary_light" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 网络缓存 -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/network_cache_card"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:cardCornerRadius="8dp"
-                    app:cardElevation="1dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:foreground="?attr/selectableItemBackground">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="12dp">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="网络缓存"
-                            android:textSize="16sp"
-                            android:textColor="@color/simple_mode_text_primary_light" />
-
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@android:drawable/ic_menu_more"
-                            app:tint="@color/simple_mode_text_secondary_light" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
         <!-- 悬浮窗设置 -->
         <com.google.android.material.card.MaterialCardView
@@ -290,7 +214,7 @@
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="12dp" />
 
-                <!-- 悬浮窗开关 -->
+                <!-- 悬浮窗网速显示 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -302,34 +226,12 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="启用悬浮窗"
+                        android:text="悬浮窗显示网速"
                         android:textSize="16sp"
                         android:textColor="@color/simple_mode_text_primary_light" />
 
                     <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/floating_window_switch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <!-- 网速显示 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="12dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="显示网速"
-                        android:textSize="16sp"
-                        android:textColor="@color/simple_mode_text_primary_light" />
-
-                    <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/network_speed_switch"
+                        android:id="@+id/floating_network_speed_switch"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
                 </LinearLayout>

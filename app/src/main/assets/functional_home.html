@@ -26,31 +26,58 @@
         
             /* 暗色模式支持 - iOS风格 */
         @media (prefers-color-scheme: dark) {
-            body {
+            body.dark-mode {
                 background: linear-gradient(to bottom, #1C1C1E 0%, #000000 100%);
                 color: #fff;
             }
             
-            .button {
+            body.dark-mode .button {
                 background: rgba(255, 255, 255, 0.1);
                 color: #0A84FF;
             }
             
-            .button:active {
+            body.dark-mode .button:active {
                 background: rgba(10, 132, 255, 0.2);
             }
             
-            .button:hover {
+            body.dark-mode .button:hover {
                 background: rgba(10, 132, 255, 0.15);
             }
             
-            .button.long-pressing {
+            body.dark-mode .button.long-pressing {
                 background: rgba(255, 59, 48, 0.2);
             }
             
-            .hint {
+            body.dark-mode .hint {
                 color: rgba(255, 255, 255, 0.7);
             }
+        }
+        
+        /* 通过JavaScript动态设置的深色模式 */
+        body.dark-mode {
+            background: linear-gradient(to bottom, #1C1C1E 0%, #000000 100%);
+            color: #fff;
+        }
+        
+        body.dark-mode .button {
+            background: rgba(255, 255, 255, 0.1);
+            color: #0A84FF;
+        }
+        
+        body.dark-mode .button:active {
+            background: rgba(10, 132, 255, 0.2);
+        }
+        
+        body.dark-mode .button:hover {
+            background: rgba(10, 132, 255, 0.15);
+        }
+        
+        body.dark-mode .button.long-pressing {
+            background: rgba(255, 59, 48, 0.2);
+        }
+        
+        body.dark-mode .hint {
+            color: rgba(255, 255, 255, 0.7);
         }
         
         .container {
@@ -117,6 +144,19 @@
             animation: buttonAppear 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
             width: 100%;
             box-sizing: border-box;
+            touch-action: none;
+        }
+        
+        .button.dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .button-wrapper.drag-over {
+            border: 2px dashed #007AFF;
+            border-radius: 12px;
         }
         
         /* 长按倒计时进度条容器 */
@@ -414,6 +454,7 @@
         let longPressTimer = null;
         let longPressButton = null;
         let longPressStartTime = 0;
+        let buttonHiddenByLongPress = false; // 标记按钮是否因长按而隐藏
         
         function setupButtonLongPress() {
             // 排除设置按钮，不让它消失
@@ -462,6 +503,9 @@
                             const timerId = longPressTimer;
                             longPressTimer = null;
                             
+                            // 标记按钮因长按而隐藏
+                            buttonHiddenByLongPress = true;
+                            
                             // 移除长按状态
                             button.classList.remove('long-pressing');
                             if (buttonWrapper) {
@@ -478,6 +522,16 @@
                         const wasLongPressing = button.classList.contains('long-pressing');
                         const timerWasActive = longPressTimer !== null;
                         const touchDuration = Date.now() - touchStartTime;
+                        const wasHidden = buttonHiddenByLongPress;
+                        
+                        // 如果按钮因长按而隐藏，不执行按钮功能
+                        if (wasHidden) {
+                            buttonHiddenByLongPress = false;
+                            longPressButton = null;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            return;
+                        }
                         
                         // 移除长按状态
                         button.classList.remove('long-pressing');
@@ -553,12 +607,18 @@
                 window.AndroidInterface.hideButton(buttonId);
                 const button = document.getElementById('btn_' + buttonId);
                 if (button) {
+                    // 标记按钮因长按而隐藏
+                    buttonHiddenByLongPress = true;
                     // 添加隐藏动画
                     button.classList.add('hiding');
                     // 等待进度条动画完成后再隐藏按钮
                     setTimeout(() => {
                         button.style.display = 'none';
                         updateButtonLayout();
+                        // 延迟重置标记，确保touchend事件已处理
+                        setTimeout(() => {
+                            buttonHiddenByLongPress = false;
+                        }, 100);
                     }, LONG_PRESS_DURATION + 100); // 等待长按动画和进度条完成
                 } else {
                     updateButtonLayout();
@@ -670,10 +730,206 @@
             }
         }
         
+        // 拖拽排序功能
+        let draggedButton = null;
+        let draggedButtonWrapper = null;
+        let dragStartIndex = -1;
+        
+        function setupDragAndDrop() {
+            const buttonGroup = document.getElementById('buttonGroup');
+            if (!buttonGroup) return;
+            
+            const buttonWrappers = Array.from(buttonGroup.querySelectorAll('.button-wrapper'));
+            
+            buttonWrappers.forEach((wrapper, index) => {
+                const button = wrapper.querySelector('.button');
+                if (!button) return;
+                
+                // 长按开始拖拽
+                let dragStartTimer = null;
+                const DRAG_START_DURATION = 500; // 500ms长按开始拖拽
+                
+                button.addEventListener('touchstart', function(e) {
+                    // 如果按钮正在长按隐藏，不启动拖拽
+                    if (button.classList.contains('long-pressing')) {
+                        return;
+                    }
+                    
+                    dragStartTimer = setTimeout(function() {
+                        startDrag(wrapper, button, index, e);
+                    }, DRAG_START_DURATION);
+                }, { passive: true });
+                
+                button.addEventListener('touchend', function(e) {
+                    if (dragStartTimer) {
+                        clearTimeout(dragStartTimer);
+                        dragStartTimer = null;
+                    }
+                    if (draggedButton === button) {
+                        endDrag();
+                    }
+                }, { passive: true });
+                
+                button.addEventListener('touchmove', function(e) {
+                    if (dragStartTimer) {
+                        const moveX = Math.abs(e.touches[0].clientX - e.touches[0].clientX);
+                        const moveY = Math.abs(e.touches[0].clientY - e.touches[0].clientY);
+                        if (moveX > 10 || moveY > 10) {
+                            clearTimeout(dragStartTimer);
+                            dragStartTimer = null;
+                        }
+                    }
+                    if (draggedButton === button) {
+                        handleDrag(e);
+                    }
+                }, { passive: true });
+            });
+        }
+        
+        function startDrag(wrapper, button, index, e) {
+            draggedButton = button;
+            draggedButtonWrapper = wrapper;
+            dragStartIndex = index;
+            
+            button.classList.add('dragging');
+            wrapper.style.opacity = '0.5';
+            
+            // 阻止长按隐藏
+            if (window.AndroidInterface && window.AndroidInterface.cancelButtonLongPress) {
+                window.AndroidInterface.cancelButtonLongPress();
+            }
+        }
+        
+        function handleDrag(e) {
+            if (!draggedButton || !draggedButtonWrapper) return;
+            
+            const touch = e.touches[0];
+            const buttonGroup = document.getElementById('buttonGroup');
+            const buttonWrappers = Array.from(buttonGroup.querySelectorAll('.button-wrapper'));
+            
+            // 找到当前拖拽位置下的按钮
+            let targetWrapper = null;
+            buttonWrappers.forEach(wrapper => {
+                if (wrapper === draggedButtonWrapper) return;
+                const rect = wrapper.getBoundingClientRect();
+                if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                    touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                    targetWrapper = wrapper;
+                }
+            });
+            
+            // 更新视觉反馈
+            buttonWrappers.forEach(wrapper => {
+                wrapper.classList.remove('drag-over');
+            });
+            if (targetWrapper) {
+                targetWrapper.classList.add('drag-over');
+            }
+        }
+        
+        function endDrag() {
+            if (!draggedButton || !draggedButtonWrapper) return;
+            
+            const buttonGroup = document.getElementById('buttonGroup');
+            const buttonWrappers = Array.from(buttonGroup.querySelectorAll('.button-wrapper'));
+            
+            // 找到目标位置
+            let targetIndex = -1;
+            buttonWrappers.forEach((wrapper, index) => {
+                if (wrapper.classList.contains('drag-over')) {
+                    targetIndex = index;
+                }
+                wrapper.classList.remove('drag-over');
+            });
+            
+            if (targetIndex >= 0 && targetIndex !== dragStartIndex) {
+                // 移动按钮位置
+                const targetWrapper = buttonWrappers[targetIndex];
+                if (dragStartIndex < targetIndex) {
+                    buttonGroup.insertBefore(draggedButtonWrapper, targetWrapper.nextSibling);
+                } else {
+                    buttonGroup.insertBefore(draggedButtonWrapper, targetWrapper);
+                }
+                
+                // 保存按钮顺序
+                saveButtonOrder();
+                
+                // 更新布局
+                updateButtonLayout();
+            }
+            
+            // 清理
+            draggedButton.classList.remove('dragging');
+            draggedButtonWrapper.style.opacity = '1';
+            draggedButton = null;
+            draggedButtonWrapper = null;
+            dragStartIndex = -1;
+        }
+        
+        function saveButtonOrder() {
+            const buttonGroup = document.getElementById('buttonGroup');
+            const buttonWrappers = Array.from(buttonGroup.querySelectorAll('.button-wrapper'));
+            const order = [];
+            
+            buttonWrappers.forEach(wrapper => {
+                const button = wrapper.querySelector('.button');
+                if (button) {
+                    const buttonId = button.getAttribute('data-button-id');
+                    if (buttonId) {
+                        order.push(buttonId);
+                    }
+                }
+            });
+            
+            if (window.AndroidInterface && window.AndroidInterface.saveButtonOrder) {
+                window.AndroidInterface.saveButtonOrder(JSON.stringify(order));
+            }
+        }
+        
+        function loadButtonOrder() {
+            if (window.AndroidInterface && window.AndroidInterface.getButtonOrder) {
+                try {
+                    const orderJson = window.AndroidInterface.getButtonOrder();
+                    if (orderJson) {
+                        const order = JSON.parse(orderJson);
+                        const buttonGroup = document.getElementById('buttonGroup');
+                        if (!buttonGroup) return;
+                        
+                        // 按照保存的顺序重新排列按钮
+                        order.forEach(buttonId => {
+                            const button = document.getElementById('btn_' + buttonId);
+                            if (button) {
+                                const wrapper = button.parentElement;
+                                if (wrapper) {
+                                    buttonGroup.appendChild(wrapper);
+                                }
+                            }
+                        });
+                        
+                        updateButtonLayout();
+                    }
+                } catch (e) {
+                    console.error('加载按钮顺序失败:', e);
+                }
+            }
+        }
+        
+        // 设置主题函数
+        function setTheme(theme) {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+            console.log('主题已设置为:', theme);
+        }
+        
         // 页面加载时更新按钮显示状态并设置长按事件
         window.addEventListener('load', function() {
             updateButtonVisibility();
             setupButtonLongPress();
+            setupDragAndDrop();
+            loadButtonOrder();
             updateButtonLayout();
         });
         
@@ -681,11 +937,15 @@
         if (document.readyState === 'complete') {
             updateButtonVisibility();
             setupButtonLongPress();
+            setupDragAndDrop();
+            loadButtonOrder();
             updateButtonLayout();
         } else {
             document.addEventListener('DOMContentLoaded', function() {
                 updateButtonVisibility();
                 setupButtonLongPress();
+                setupDragAndDrop();
+                loadButtonOrder();
                 updateButtonLayout();
             });
         }

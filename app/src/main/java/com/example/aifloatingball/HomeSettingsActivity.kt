@@ -28,17 +28,19 @@ class HomeSettingsActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "HomeSettingsActivity"
-        private const val REQUEST_CODE_PICK_IMAGE = 1001
+        private const val REQUEST_CODE_PICK_IMAGE_1 = 1001
+        private const val REQUEST_CODE_PICK_IMAGE_2 = 1002
+        private const val REQUEST_CODE_PICK_IMAGE_3 = 1003
     }
     
     private lateinit var settingsManager: SettingsManager
-    private lateinit var layoutStyleRecyclerView: RecyclerView
     private lateinit var appStyleRecyclerView: RecyclerView
-    private lateinit var networkSettingsContainer: LinearLayout
-    private lateinit var floatingWindowSwitch: SwitchCompat
-    private lateinit var networkSpeedSwitch: SwitchCompat
+    private lateinit var floatingNetworkSpeedSwitch: SwitchCompat
     private lateinit var downloadProgressSwitch: SwitchCompat
-    private lateinit var coverImageView: ImageView
+    private lateinit var coverImageView1: ImageView
+    private lateinit var coverImageView2: ImageView
+    private lateinit var coverImageView3: ImageView
+    private lateinit var layoutPreviewGrid: com.example.aifloatingball.views.DraggableButtonGrid
     
     // 布局样式选项
     private val layoutStyles = listOf(
@@ -48,12 +50,11 @@ class HomeSettingsActivity : AppCompatActivity() {
         LayoutStyle("自定义布局", "custom", R.drawable.ic_settings)
     )
     
-    // App样式选项
+    // App样式选项（iOS风格：深色、浅色、跟随系统）
     private val appStyles = listOf(
-        AppStyle("浅色主题", "light", R.drawable.ic_settings),
-        AppStyle("深色主题", "dark", R.drawable.ic_settings),
-        AppStyle("跟随系统", "system", R.drawable.ic_settings),
-        AppStyle("自动切换", "auto", R.drawable.ic_settings)
+        AppStyle("浅色", "light", R.drawable.ic_settings),
+        AppStyle("深色", "dark", R.drawable.ic_settings),
+        AppStyle("跟随系统", "system", R.drawable.ic_settings)
     )
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,51 +64,59 @@ class HomeSettingsActivity : AppCompatActivity() {
         settingsManager = SettingsManager.getInstance(this)
         
         initViews()
-        setupLayoutStyleSelector()
         setupAppStyleSelector()
-        setupNetworkSettings()
         setupFloatingWindow()
         setupCoverImage()
+        setupLayoutPreviewGrid()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // 每次显示设置页面时，刷新按钮配置（确保与首页同步）
+        layoutPreviewGrid.refreshButtonConfig()
     }
     
     /**
      * 初始化视图
      */
     private fun initViews() {
-        layoutStyleRecyclerView = findViewById(R.id.layout_style_recycler_view)
         appStyleRecyclerView = findViewById(R.id.app_style_recycler_view)
-        networkSettingsContainer = findViewById(R.id.network_settings_container)
-        floatingWindowSwitch = findViewById(R.id.floating_window_switch)
-        networkSpeedSwitch = findViewById(R.id.network_speed_switch)
+        floatingNetworkSpeedSwitch = findViewById(R.id.floating_network_speed_switch)
         downloadProgressSwitch = findViewById(R.id.download_progress_switch)
-        coverImageView = findViewById(R.id.cover_image_view)
+        coverImageView1 = findViewById(R.id.cover_image_view_1)
+        coverImageView2 = findViewById(R.id.cover_image_view_2)
+        coverImageView3 = findViewById(R.id.cover_image_view_3)
+        layoutPreviewGrid = findViewById(R.id.layout_preview_grid)
         
         // 设置返回按钮
         findViewById<ImageButton>(R.id.back_button)?.setOnClickListener {
             finish()
         }
+        
+        // 不再强制设置所有按钮为可见，而是加载已保存的配置
+        // 这样用户的选择会被正确保留
+        layoutPreviewGrid.post {
+            // 刷新按钮配置，确保显示的是用户保存的状态
+            layoutPreviewGrid.refreshButtonConfig()
+        }
+        
+        // 设置按钮点击监听（不弹出预览模式弹窗，直接同步到首页）
+        layoutPreviewGrid.setOnButtonClickListener { buttonType ->
+            // 按钮点击已经在DraggableButtonGrid内部处理（切换选中状态）
+            // 这里不需要额外处理，配置会自动保存并同步到首页
+            Log.d(TAG, "按钮点击：$buttonType，配置已自动保存并同步")
+        }
     }
     
     /**
-     * 设置布局样式选择器
+     * 设置首页布局预览网格
      */
-    private fun setupLayoutStyleSelector() {
-        val adapter = LayoutStyleAdapter(layoutStyles) { style ->
-            settingsManager.putString("home_layout_style", style.value)
-            Toast.makeText(this, "已切换到${style.name}", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "布局样式已切换为: ${style.value}")
-        }
-        
-        layoutStyleRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        layoutStyleRecyclerView.adapter = adapter
-        
-        // 设置当前选中的样式
-        val currentStyle = settingsManager.getString("home_layout_style", "default")
-        val currentIndex = layoutStyles.indexOfFirst { it.value == currentStyle }
-        if (currentIndex >= 0) {
-            adapter.setSelectedIndex(currentIndex)
-        }
+    private fun setupLayoutPreviewGrid() {
+        // 当按钮可见性改变时，自动保存配置
+        // DraggableButtonGrid 内部已经实现了自动保存，这里只需要确保UI更新
+        // 如果需要，可以添加额外的监听逻辑
     }
+    
     
     /**
      * 设置App样式选择器
@@ -115,10 +124,13 @@ class HomeSettingsActivity : AppCompatActivity() {
     private fun setupAppStyleSelector() {
         val adapter = AppStyleAdapter(appStyles) { style ->
             settingsManager.putString("app_theme_style", style.value)
-            Toast.makeText(this, "已切换到${style.name}", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "App样式已切换为: ${style.value}")
-            // 这里可以触发主题切换
+            
+            // 立即应用主题
             applyTheme(style.value)
+            
+            // 重新创建Activity以应用主题
+            recreate()
         }
         
         appStyleRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
@@ -133,53 +145,71 @@ class HomeSettingsActivity : AppCompatActivity() {
     }
     
     /**
-     * 设置网络设置
-     */
-    private fun setupNetworkSettings() {
-        // 网络代理设置
-        findViewById<MaterialCardView>(R.id.network_proxy_card)?.setOnClickListener {
-            showNetworkProxyDialog()
-        }
-        
-        // DNS设置
-        findViewById<MaterialCardView>(R.id.network_dns_card)?.setOnClickListener {
-            showDNSSettingsDialog()
-        }
-        
-        // 网络缓存设置
-        findViewById<MaterialCardView>(R.id.network_cache_card)?.setOnClickListener {
-            showNetworkCacheDialog()
-        }
-    }
-    
-    /**
      * 设置悬浮窗功能
      */
     private fun setupFloatingWindow() {
-        // 悬浮窗开关
-        val isFloatingWindowEnabled = settingsManager.getBoolean("floating_window_enabled", false)
-        floatingWindowSwitch.isChecked = isFloatingWindowEnabled
-        floatingWindowSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.putBoolean("floating_window_enabled", isChecked)
-            Log.d(TAG, "悬浮窗开关: $isChecked")
-        }
-        
-        // 网速显示开关
+        // 悬浮窗网速显示开关（合并功能）
         val isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
-        networkSpeedSwitch.isChecked = isNetworkSpeedEnabled
-        networkSpeedSwitch.setOnCheckedChangeListener { _, isChecked ->
+        floatingNetworkSpeedSwitch.isChecked = isNetworkSpeedEnabled
+        floatingNetworkSpeedSwitch.setOnCheckedChangeListener { _, isChecked ->
             settingsManager.putBoolean("network_speed_display_enabled", isChecked)
-            Log.d(TAG, "网速显示开关: $isChecked")
+            Log.d(TAG, "悬浮窗网速显示开关: $isChecked")
             // 启动/停止网速显示服务
             val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
             if (isChecked) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
+                // 检查悬浮窗权限（Android 6.0+需要）
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!android.provider.Settings.canDrawOverlays(this)) {
+                        // 没有权限，提示用户
+                        Toast.makeText(this, "需要悬浮窗权限才能显示网速", Toast.LENGTH_LONG).show()
+                        // 打开权限设置页面
+                        val settingsIntent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                        settingsIntent.data = Uri.parse("package:$packageName")
+                        try {
+                            startActivity(settingsIntent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "打开悬浮窗权限设置失败", e)
+                        }
+                        // 恢复开关状态
+                        floatingNetworkSpeedSwitch.isChecked = false
+                        settingsManager.putBoolean("network_speed_display_enabled", false)
+                        return@setOnCheckedChangeListener
+                    }
+                }
+                // 有权限，启动或重启服务（确保服务重新检查设置）
+                try {
+                    // 先停止服务（如果正在运行），然后重新启动，确保服务重新检查设置
+                    stopService(intent)
+                    // 延迟一小段时间后重新启动，确保服务完全停止
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startForegroundService(intent)
+                            } else {
+                                startService(intent)
+                            }
+                            Log.d(TAG, "悬浮窗网速服务已重新启动")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "重新启动悬浮窗网速服务失败", e)
+                            Toast.makeText(this, "启动服务失败：${e.message}", Toast.LENGTH_SHORT).show()
+                            floatingNetworkSpeedSwitch.isChecked = false
+                            settingsManager.putBoolean("network_speed_display_enabled", false)
+                        }
+                    }, 200)
+                } catch (e: SecurityException) {
+                    Log.e(TAG, "启动悬浮窗网速服务失败：缺少权限", e)
+                    Toast.makeText(this, "启动服务失败：缺少权限", Toast.LENGTH_SHORT).show()
+                    floatingNetworkSpeedSwitch.isChecked = false
+                    settingsManager.putBoolean("network_speed_display_enabled", false)
+                } catch (e: Exception) {
+                    Log.e(TAG, "启动悬浮窗网速服务失败", e)
+                    Toast.makeText(this, "启动服务失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    floatingNetworkSpeedSwitch.isChecked = false
+                    settingsManager.putBoolean("network_speed_display_enabled", false)
                 }
             } else {
                 stopService(intent)
+                Log.d(TAG, "悬浮窗网速服务已停止")
             }
         }
         
@@ -192,13 +222,26 @@ class HomeSettingsActivity : AppCompatActivity() {
             // 启动/停止下载进度显示服务
             val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
             if (isChecked) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(intent)
-                } else {
-                    startService(intent)
-                }
+                // 先停止服务（如果正在运行），然后重新启动，确保服务重新检查设置
+                stopService(intent)
+                // 延迟一小段时间后重新启动，确保服务完全停止
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        Log.d(TAG, "下载进度显示服务已重新启动")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重新启动下载进度显示服务失败", e)
+                        downloadProgressSwitch.isChecked = false
+                        settingsManager.putBoolean("download_progress_display_enabled", false)
+                    }
+                }, 200)
             } else {
                 stopService(intent)
+                Log.d(TAG, "下载进度显示服务已停止")
             }
         }
     }
@@ -207,69 +250,108 @@ class HomeSettingsActivity : AppCompatActivity() {
      * 设置封面图片
      */
     private fun setupCoverImage() {
-        coverImageView.setOnClickListener {
+        coverImageView1.setOnClickListener {
             // 打开图片选择器
             val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE)
+            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_1)
+        }
+        
+        coverImageView2.setOnClickListener {
+            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_2)
+        }
+        
+        coverImageView3.setOnClickListener {
+            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+            startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE_3)
         }
         
         // 加载当前封面
-        loadCoverImage()
+        loadCoverImages()
     }
     
     /**
      * 加载封面图片
      */
-    private fun loadCoverImage() {
+    private fun loadCoverImages() {
         try {
-            val coverPath = settingsManager.getString("home_cover_image_path", "")
+            loadCoverImage(1, coverImageView1, "home_cover_image_path_1")
+            loadCoverImage(2, coverImageView2, "home_cover_image_path_2")
+            loadCoverImage(3, coverImageView3, "home_cover_image_path_3")
+        } catch (e: Exception) {
+            Log.e(TAG, "加载封面图片失败", e)
+        }
+    }
+    
+    /**
+     * 加载单个封面图片
+     */
+    private fun loadCoverImage(index: Int, imageView: ImageView, key: String) {
+        try {
+            val coverPath = settingsManager.getString(key, "")
             if (coverPath?.isNotEmpty() == true) {
                 val file = File(coverPath)
                 if (file.exists()) {
                     val bitmap = BitmapFactory.decodeFile(coverPath)
-                    coverImageView.setImageBitmap(bitmap)
+                    imageView.setImageBitmap(bitmap)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "加载封面图片失败", e)
+            Log.e(TAG, "加载封面图片${index}失败", e)
         }
     }
     
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        if (requestCode == REQUEST_CODE_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
-            val imageUri: Uri? = data.data
-            if (imageUri != null) {
-                try {
-                    // 保存图片到应用目录
-                    val inputStream = contentResolver.openInputStream(imageUri)
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    inputStream?.close()
-                    
-                    // 保存到文件
-                    val coverDir = File(getFilesDir(), "covers")
-                    if (!coverDir.exists()) {
-                        coverDir.mkdirs()
-                    }
-                    val coverFile = File(coverDir, "home_cover.jpg")
-                    val outputStream = FileOutputStream(coverFile)
-                    bitmap?.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-                    outputStream.close()
-                    
-                    // 保存路径到设置
-                    settingsManager.putString("home_cover_image_path", coverFile.absolutePath)
-                    
-                    // 更新显示
-                    coverImageView.setImageBitmap(bitmap)
-                    
-                    Toast.makeText(this, "封面设置成功", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "封面图片已保存: ${coverFile.absolutePath}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "保存封面图片失败", e)
-                    Toast.makeText(this, "封面设置失败", Toast.LENGTH_SHORT).show()
-                }
+        if (resultCode != RESULT_OK || data == null) return
+        
+        val imageUri: Uri? = data.data
+        if (imageUri == null) return
+        
+        val imageIndex = when (requestCode) {
+            REQUEST_CODE_PICK_IMAGE_1 -> 1
+            REQUEST_CODE_PICK_IMAGE_2 -> 2
+            REQUEST_CODE_PICK_IMAGE_3 -> 3
+            else -> return
+        }
+        
+        val imageView = when (imageIndex) {
+            1 -> coverImageView1
+            2 -> coverImageView2
+            3 -> coverImageView3
+            else -> return
+        }
+        
+        val key = "home_cover_image_path_$imageIndex"
+        
+        try {
+            // 保存图片到应用目录
+            val inputStream = contentResolver.openInputStream(imageUri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+            
+            // 保存到文件
+            val coverDir = File(getFilesDir(), "covers")
+            if (!coverDir.exists()) {
+                coverDir.mkdirs()
             }
+            val coverFile = File(coverDir, "home_cover_$imageIndex.jpg")
+            val outputStream = FileOutputStream(coverFile)
+            bitmap?.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+            outputStream.close()
+            
+            // 保存路径到设置
+            settingsManager.putString(key, coverFile.absolutePath)
+            
+            // 更新显示
+            imageView.setImageBitmap(bitmap)
+            
+            Toast.makeText(this, "封面图片${imageIndex}设置成功", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "封面图片${imageIndex}已保存: ${coverFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存封面图片${imageIndex}失败", e)
+            Toast.makeText(this, "封面图片${imageIndex}设置失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -277,88 +359,18 @@ class HomeSettingsActivity : AppCompatActivity() {
      * 应用主题
      */
     private fun applyTheme(themeValue: String) {
-        // 这里可以根据主题值应用不同的主题
-        // 实际实现需要根据项目的主题系统来调整
-        Log.d(TAG, "应用主题: $themeValue")
+        val themeMode = when (themeValue) {
+            "light" -> SettingsManager.THEME_MODE_LIGHT
+            "dark" -> SettingsManager.THEME_MODE_DARK
+            "system" -> SettingsManager.THEME_MODE_SYSTEM
+            else -> SettingsManager.THEME_MODE_SYSTEM
+        }
+        
+        // 使用SettingsManager的setThemeMode方法应用主题
+        settingsManager.setThemeMode(themeMode)
+        Log.d(TAG, "应用主题: $themeValue (mode: $themeMode)")
     }
     
-    /**
-     * 显示网络代理设置对话框
-     */
-    private fun showNetworkProxyDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_network_proxy, null)
-        val proxyHostEdit = dialogView.findViewById<EditText>(R.id.proxy_host_edit)
-        val proxyPortEdit = dialogView.findViewById<EditText>(R.id.proxy_port_edit)
-        
-        // 加载当前设置
-        val currentHost = settingsManager.getString("network_proxy_host", "")
-        val currentPort = settingsManager.getString("network_proxy_port", "8080")
-        proxyHostEdit.setText(currentHost)
-        proxyPortEdit.setText(currentPort)
-        
-        android.app.AlertDialog.Builder(this)
-            .setTitle("网络代理设置")
-            .setView(dialogView)
-            .setPositiveButton("确定") { _, _ ->
-                val host = proxyHostEdit.text.toString()
-                val port = proxyPortEdit.text.toString()
-                settingsManager.putString("network_proxy_host", host)
-                settingsManager.putString("network_proxy_port", port)
-                Toast.makeText(this, "代理设置已保存", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "网络代理设置: $host:$port")
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-    
-    /**
-     * 显示DNS设置对话框
-     */
-    private fun showDNSSettingsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_dns_settings, null)
-        val dns1Edit = dialogView.findViewById<EditText>(R.id.dns1_edit)
-        val dns2Edit = dialogView.findViewById<EditText>(R.id.dns2_edit)
-        
-        // 加载当前设置
-        val currentDns1 = settingsManager.getString("network_dns1", "8.8.8.8")
-        val currentDns2 = settingsManager.getString("network_dns2", "8.8.4.4")
-        dns1Edit.setText(currentDns1)
-        dns2Edit.setText(currentDns2)
-        
-        android.app.AlertDialog.Builder(this)
-            .setTitle("DNS设置")
-            .setView(dialogView)
-            .setPositiveButton("确定") { _, _ ->
-                val dns1 = dns1Edit.text.toString()
-                val dns2 = dns2Edit.text.toString()
-                settingsManager.putString("network_dns1", dns1)
-                settingsManager.putString("network_dns2", dns2)
-                Toast.makeText(this, "DNS设置已保存", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "DNS设置: $dns1, $dns2")
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-    
-    /**
-     * 显示网络缓存设置对话框
-     */
-    private fun showNetworkCacheDialog() {
-        val cacheOptions = arrayOf("无缓存", "小缓存(50MB)", "中缓存(100MB)", "大缓存(200MB)")
-        val currentCache = settingsManager.getString("network_cache_size", "中缓存(100MB)")
-        val currentIndex = cacheOptions.indexOf(currentCache)
-        
-        android.app.AlertDialog.Builder(this)
-            .setTitle("网络缓存设置")
-            .setSingleChoiceItems(cacheOptions, if (currentIndex >= 0) currentIndex else 2) { dialog, which ->
-                settingsManager.putString("network_cache_size", cacheOptions[which])
-                Toast.makeText(this, "缓存设置已保存", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "网络缓存设置: ${cacheOptions[which]}")
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
     
     /**
      * 布局样式数据类

@@ -277,6 +277,39 @@ class PaperStackWebViewManager(
         if (url == "home://functional") {
             // 为功能主页设置JavaScript接口
             setupFunctionalHomeInterface(webView)
+            
+            // 设置WebViewClient以在页面加载完成后刷新按钮和设置主题
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    if (url == "file:///android_asset/functional_home.html") {
+                        // 页面加载完成后，刷新按钮显示状态和顺序
+                        view?.postDelayed({
+                            view.evaluateJavascript("updateButtonVisibility();", null)
+                            view.evaluateJavascript("loadButtonOrder();", null)
+                            view.evaluateJavascript("updateButtonLayout();", null)
+                            
+                            // 设置深色模式
+                            val settingsManager = com.example.aifloatingball.SettingsManager.getInstance(context)
+                            val themeMode = settingsManager.getThemeMode()
+                            val isDarkMode = when (themeMode) {
+                                com.example.aifloatingball.SettingsManager.THEME_MODE_DARK -> true
+                                com.example.aifloatingball.SettingsManager.THEME_MODE_LIGHT -> false
+                                else -> {
+                                    // 跟随系统
+                                    val nightModeFlags = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                                    nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                }
+                            }
+                            val theme = if (isDarkMode) "dark" else "light"
+                            view.evaluateJavascript("setTheme('$theme');", null)
+                            
+                            Log.d(TAG, "功能主页加载完成，已刷新按钮状态和设置主题: $theme")
+                        }, 300)
+                    }
+                }
+            }
+            
             webView.loadUrl("file:///android_asset/functional_home.html")
         } else {
             webView.loadUrl(tab.url)
@@ -406,6 +439,30 @@ class PaperStackWebViewManager(
                         Log.d(TAG, "功能主页：打开综合设置")
                     }
                 }
+                
+                @android.webkit.JavascriptInterface
+                fun saveButtonOrder(orderJson: String) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 保存按钮顺序（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onSaveButtonOrder(orderJson)
+                        Log.d(TAG, "功能主页：保存按钮顺序")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun getButtonOrder(): String {
+                    // 获取按钮顺序（通过回调通知外部）
+                    return onFunctionalHomeActionListener?.getButtonOrder() ?: "[]"
+                }
+                
+                @android.webkit.JavascriptInterface
+                fun cancelButtonLongPress() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 取消长按（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onCancelButtonLongPress()
+                        Log.d(TAG, "功能主页：取消长按")
+                    }
+                }
             }, "AndroidInterface")
             
             Log.d(TAG, "功能主页JavaScript接口已设置")
@@ -428,6 +485,9 @@ class PaperStackWebViewManager(
         fun onShowRestoreButtonsDialog()
         fun getButtonVisibility(): String
         fun onOpenSettings()
+        fun onSaveButtonOrder(orderJson: String)
+        fun getButtonOrder(): String
+        fun onCancelButtonLongPress()
     }
     
     private var onFunctionalHomeActionListener: FunctionalHomeActionListener? = null

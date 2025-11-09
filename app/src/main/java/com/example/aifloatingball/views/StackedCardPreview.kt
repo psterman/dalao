@@ -18,6 +18,8 @@ import android.view.VelocityTracker
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.PathInterpolator
 import android.view.animation.OvershootInterpolator
+import com.example.aifloatingball.SettingsManager
+import java.io.File
 import kotlin.math.*
 
 /**
@@ -169,6 +171,10 @@ class StackedCardPreview @JvmOverloads constructor(
     
     // 底部导航栏高度获取回调
     private var bottomNavHeightProvider: (() -> Int)? = null
+    
+    // 背景图片缓存
+    private val backgroundBitmapCache = mutableMapOf<Int, Bitmap?>()
+    private val settingsManager by lazy { SettingsManager.getInstance(context) }
 
     data class WebViewCardData(
         val title: String,
@@ -1910,20 +1916,35 @@ class StackedCardPreview @JvmOverloads constructor(
         val contentWidth = width - padding * 2
         val contentHeight = height - padding * 3 - 40f * scale // 为标题留空间
 
-        // 绘制背景色
-        val placeholderPaint = Paint().apply {
-            color = Color.parseColor("#F5F5F5")
-            this.alpha = (255 * alpha).toInt()
+        // 尝试加载自定义背景图片
+        val backgroundBitmap = loadCardBackgroundBitmap(cardData)
+        if (backgroundBitmap != null) {
+            val scaledBackground = Bitmap.createScaledBitmap(
+                backgroundBitmap,
+                contentWidth.toInt(),
+                contentHeight.toInt(),
+                true
+            )
+            val bitmapPaint = Paint().apply {
+                this.alpha = (255 * alpha).toInt()
+            }
+            canvas.drawBitmap(scaledBackground, contentLeft, contentTop, bitmapPaint)
+        } else {
+            // 绘制默认背景色
+            val placeholderPaint = Paint().apply {
+                color = Color.parseColor("#F5F5F5")
+                this.alpha = (255 * alpha).toInt()
+            }
+            canvas.drawRoundRect(
+                contentLeft,
+                contentTop,
+                contentLeft + contentWidth,
+                contentTop + contentHeight,
+                8f * scale,
+                8f * scale,
+                placeholderPaint
+            )
         }
-        canvas.drawRoundRect(
-            contentLeft,
-            contentTop,
-            contentLeft + contentWidth,
-            contentTop + contentHeight,
-            8f * scale,
-            8f * scale,
-            placeholderPaint
-        )
 
         // 绘制URL信息
         val urlText = cardData.url.takeIf { it.isNotEmpty() } ?: "无URL"
@@ -1947,27 +1968,61 @@ class StackedCardPreview @JvmOverloads constructor(
 
         canvas.drawText(displayUrl, textX, textY, urlPaint)
 
-        // 绘制一个简单的网页图标
-        val iconSize = 32f * scale
-        val iconX = contentLeft + (contentWidth - iconSize) / 2f
-        val iconY = textY - textBounds.height() - 20f * scale
+        // 如果有背景图片，不绘制图标
+        if (backgroundBitmap == null) {
+            // 绘制一个简单的网页图标
+            val iconSize = 32f * scale
+            val iconX = contentLeft + (contentWidth - iconSize) / 2f
+            val iconY = textY - textBounds.height() - 20f * scale
 
-        val iconPaint = Paint().apply {
-            color = Color.parseColor("#4CAF50")
-            this.alpha = (255 * alpha).toInt()
-            style = Paint.Style.FILL
+            val iconPaint = Paint().apply {
+                color = Color.parseColor("#4CAF50")
+                this.alpha = (255 * alpha).toInt()
+                style = Paint.Style.FILL
+            }
+
+            // 绘制简单的网页图标（矩形）
+            canvas.drawRoundRect(
+                iconX,
+                iconY,
+                iconX + iconSize,
+                iconY + iconSize,
+                4f * scale,
+                4f * scale,
+                iconPaint
+            )
         }
-
-        // 绘制简单的网页图标（矩形）
-        canvas.drawRoundRect(
-            iconX,
-            iconY,
-            iconX + iconSize,
-            iconY + iconSize,
-            4f * scale,
-            4f * scale,
-            iconPaint
-        )
+    }
+    
+    /**
+     * 加载卡片背景图片
+     */
+    private fun loadCardBackgroundBitmap(cardData: WebViewCardData): Bitmap? {
+        // 根据卡片索引选择背景图片（循环使用3张图片）
+        val cardIndex = webViewCards.indexOf(cardData)
+        val imageIndex = (cardIndex % 3) + 1
+        
+        // 检查缓存
+        if (backgroundBitmapCache.containsKey(imageIndex)) {
+            return backgroundBitmapCache[imageIndex]
+        }
+        
+        try {
+            val coverPath = settingsManager.getString("home_cover_image_path_$imageIndex", "")
+            if (coverPath?.isNotEmpty() == true) {
+                val file = File(coverPath)
+                if (file.exists()) {
+                    val bitmap = BitmapFactory.decodeFile(coverPath)
+                    backgroundBitmapCache[imageIndex] = bitmap
+                    return bitmap
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载卡片背景图片失败: $imageIndex", e)
+        }
+        
+        backgroundBitmapCache[imageIndex] = null
+        return null
     }
 
     /**

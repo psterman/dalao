@@ -11,12 +11,25 @@
         android:layout_height="80dp"
         android:textSize="14sp"
         android:textStyle="bold"
+        android:textColor="@color/simple_mode_text_primary_light"
         app:iconGravity="top"
         app:iconSize="32dp"
         app:iconPadding="8dp"
+        app:iconTint="@color/simple_mode_text_primary_light"
         app:cornerRadius="12dp"
         app:strokeWidth="2dp"
+        app:strokeColor="@color/simple_mode_text_secondary_light"
+        app:backgroundTint="@android:color/transparent"
         style="@style/Widget.Material3.Button.OutlinedButton" />
+
+    <!-- 选中指示器 -->
+    <View
+        android:id="@+id/selected_indicator"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_gravity="bottom"
+        android:background="@color/simple_mode_accent_light"
+        android:visibility="gone" />
 
     <!-- 拖动指示器 -->
     <View

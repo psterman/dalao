@@ -86,6 +86,8 @@ class NetworkMonitorFloatingService : Service() {
         
         if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
             createFloatingView()
+            // 立即开始更新
+            updateHandler.post(updateRunnable)
         }
     }
     
@@ -99,8 +101,14 @@ class NetworkMonitorFloatingService : Service() {
         if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
             if (floatingView == null) {
                 createFloatingView()
+                // 立即开始更新
+                updateHandler.post(updateRunnable)
             } else {
                 updateViewVisibility()
+                // 确保更新任务正在运行
+                if (!updateHandler.hasCallbacks(updateRunnable)) {
+                    updateHandler.post(updateRunnable)
+                }
             }
         } else {
             removeFloatingView()
@@ -304,13 +312,21 @@ class NetworkMonitorFloatingService : Service() {
                 } else 0
                 
                 val fileName = download.localFilename ?: download.title ?: "未知文件"
-                val progressText = "下载: $fileName\n$progress%"
+                // 截断文件名，避免过长
+                val shortFileName = if (fileName.length > 15) {
+                    fileName.substring(0, 15) + "..."
+                } else {
+                    fileName
+                }
+                val progressText = "下载: $shortFileName\n$progress%"
                 downloadProgressTextView?.text = progressText
+                Log.d(TAG, "更新下载进度: $shortFileName $progress%")
             } else {
                 downloadProgressTextView?.text = "无下载任务"
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新下载进度失败", e)
+            downloadProgressTextView?.text = "下载进度获取失败"
         }
     }
     

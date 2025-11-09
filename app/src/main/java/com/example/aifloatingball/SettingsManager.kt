@@ -777,7 +777,16 @@ class SettingsManager private constructor(context: Context) {
     }
     
     fun putBoolean(key: String, value: Boolean) {
-        prefs.edit().putBoolean(key, value).apply()
+        // 对于关键设置（如网速开关），使用commit确保立即保存
+        // 其他设置使用apply异步保存以提高性能
+        val isCriticalSetting = key == "network_speed_display_enabled" || 
+                                  key == "download_progress_display_enabled" ||
+                                  key.startsWith("home_button_")
+        if (isCriticalSetting) {
+            prefs.edit().putBoolean(key, value).commit()
+        } else {
+            prefs.edit().putBoolean(key, value).apply()
+        }
         notifyListeners(key, value)
     }
     
