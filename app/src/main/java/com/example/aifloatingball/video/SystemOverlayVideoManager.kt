@@ -3,6 +3,7 @@ package com.example.aifloatingball.video
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -19,6 +20,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.Button
 import android.widget.MediaController
+import android.widget.PopupMenu
 import android.widget.VideoView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
@@ -71,6 +73,8 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var hideControlsRunnable: Runnable? = null
     private var hideControlsHandler: android.os.Handler? = null
     private val CONTROLS_AUTO_HIDE_DELAY = 3000L // 3秒后自动隐藏
+    private var lastScreenOrientationCheck = 0L // 上次检查屏幕方向的时间
+    private val SCREEN_ORIENTATION_CHECK_INTERVAL = 1000L // 每1秒检查一次屏幕方向
     private var screenWidth = 0
     private var screenHeight = 0
     private var isFullscreen = false
@@ -79,6 +83,10 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var originalX = 0
     private var originalY = 0
     private var currentVideoUrl: String? = null
+    private var videoWidth = 0
+    private var videoHeight = 0
+    private var isVideoPortrait = false // 视频是否为竖屏
+    private var hasAutoMaximized = false // 是否已经自动最大化过
     
     // 手势控制相关
     private var gestureDetector: GestureDetector? = null
@@ -166,10 +174,24 @@ class SystemOverlayVideoManager(private val context: Context) {
             Log.d(TAG, "准备播放视频: $url")
             
             currentVideoUrl = url
+            hasAutoMaximized = false // 重置自动最大化标志
             videoView?.setVideoURI(Uri.parse(url))
             videoView?.setOnPreparedListener { mediaPlayer ->
                 try {
                     mediaPlayer.isLooping = isLooping
+                    
+                    // 检测视频尺寸和宽高比
+                    try {
+                        videoWidth = mediaPlayer.videoWidth
+                        videoHeight = mediaPlayer.videoHeight
+                        isVideoPortrait = videoHeight > videoWidth
+                        Log.d(TAG, "视频尺寸: ${videoWidth}x${videoHeight}, 是否为竖屏: $isVideoPortrait")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "无法获取视频尺寸", e)
+                        videoWidth = 0
+                        videoHeight = 0
+                        isVideoPortrait = false
+                    }
                     
                     // 更新控制条状态
                     val duration = mediaPlayer.duration
@@ -206,6 +228,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                     progressBar?.progress = progressPercent
                                                     currentTimeText?.text = formatTime(current)
                                                     totalTimeText?.text = formatTime(total)
+                                                    
+                                                    // 定期检查屏幕方向变化（每1秒检查一次，减少性能开销）
+                                                    val currentTime = System.currentTimeMillis()
+                                                    if (currentTime - lastScreenOrientationCheck > SCREEN_ORIENTATION_CHECK_INTERVAL) {
+                                                        lastScreenOrientationCheck = currentTime
+                                                        adjustVideoWindowSize()
+                                                    }
                                                 }
                                                 updateHandler?.postDelayed(this, 500)
                                             } catch (e: Exception) {
@@ -214,6 +243,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                                         }
                                     }
                                     updateHandler?.post(updateRunnable!!)
+                                    
+                                    // 自动调整视频窗口大小
+                                    adjustVideoWindowSize()
                                 } else {
                                     Log.d(TAG, "视频已经在播放中")
                                 }
@@ -267,6 +299,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             videoView?.setOnCompletionListener(null)
             floatingView?.visibility = View.GONE
             isShowing = false
+            hasAutoMaximized = false // 重置自动最大化标志
             Log.d(TAG, "悬浮窗播放器已隐藏")
         } catch (e: Exception) {
             Log.e(TAG, "隐藏悬浮窗播放器失败", e)
@@ -428,7 +461,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(0x80000000.toInt()) // 提高透明度，减少遮挡
             visibility = View.VISIBLE
-            setPadding(dpToPx(4), dpToPx(2), dpToPx(4), dpToPx(2)) // 进一步减少上下padding，降低高度
+            // 缩小蒙版背景高度到一半：原来padding是4dp上下，现在改为2dp上下
+            setPadding(dpToPx(4), dpToPx(1), dpToPx(4), dpToPx(1))
         }
         
         // 创建底部控制条容器（按钮在底部）
@@ -498,6 +532,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                                             progressBar?.progress = progressPercent
                                             currentTimeText?.text = formatTime(current)
                                             totalTimeText?.text = formatTime(total)
+                                            
+                                            // 定期检查屏幕方向变化
+                                            val currentTime = System.currentTimeMillis()
+                                            if (currentTime - lastScreenOrientationCheck > SCREEN_ORIENTATION_CHECK_INTERVAL) {
+                                                lastScreenOrientationCheck = currentTime
+                                                adjustVideoWindowSize()
+                                            }
                                         }
                                         updateHandler?.postDelayed(this, 500)
                                     } catch (e: Exception) {
@@ -689,33 +730,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
             
             setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
-            setOnClickListener {
-                // 循环切换播放速度
-                val currentIndex = speedOptions.indexOf(playbackSpeed)
-                val nextIndex = (currentIndex + 1) % speedOptions.size
-                playbackSpeed = speedOptions[nextIndex]
-                text = "${playbackSpeed}x"
-                
-                try {
-                    // 通过反射设置播放速度
-                    val mediaPlayerField = VideoView::class.java.getDeclaredField("mMediaPlayer")
-                    mediaPlayerField.isAccessible = true
-                    val mediaPlayer = mediaPlayerField.get(videoView)
-                    if (mediaPlayer != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                        val setPlaybackParamsMethod = mediaPlayer.javaClass.getDeclaredMethod("setPlaybackParams", android.media.PlaybackParams::class.java)
-                        val params = android.media.PlaybackParams()
-                        params.speed = playbackSpeed
-                        setPlaybackParamsMethod.invoke(mediaPlayer, params)
-                        Log.d(TAG, "播放速度已设置为: ${playbackSpeed}x")
-                        Toast.makeText(context, "播放速度: ${playbackSpeed}x", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Log.w(TAG, "当前Android版本不支持播放速度调整")
-                        Toast.makeText(context, "当前版本不支持播放速度调整", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "设置播放速度失败", e)
-                    Toast.makeText(context, "设置播放速度失败", Toast.LENGTH_SHORT).show()
-                }
+            setOnClickListener { view ->
+                // 显示播放速度选择菜单
+                showSpeedMenu(view)
             }
         }
         
@@ -1166,6 +1183,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                     progressBar?.progress = progressPercent
                                                     currentTimeText?.text = formatTime(current)
                                                     totalTimeText?.text = formatTime(total)
+                                                    
+                                                    // 定期检查屏幕方向变化
+                                                    val currentTime = System.currentTimeMillis()
+                                                    if (currentTime - lastScreenOrientationCheck > SCREEN_ORIENTATION_CHECK_INTERVAL) {
+                                                        lastScreenOrientationCheck = currentTime
+                                                        adjustVideoWindowSize()
+                                                    }
                                                 }
                                                 updateHandler?.postDelayed(this, 500)
                                             } catch (e: Exception) {
@@ -1815,6 +1839,176 @@ class SystemOverlayVideoManager(private val context: Context) {
             hideControlsRunnable = null
         } catch (e: Exception) {
             Log.e(TAG, "取消自动隐藏失败", e)
+        }
+    }
+    
+    /**
+     * 自动调整视频窗口大小
+     * 竖屏视频自动最大化，横屏视频居中播放
+     */
+    private fun adjustVideoWindowSize() {
+        try {
+            if (params == null || floatingView == null || windowManager == null) return
+            
+            val displayMetrics = context.resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            val isScreenLandscape = screenWidth > screenHeight
+            
+            // 如果视频尺寸未知，使用默认逻辑
+            if (videoWidth <= 0 || videoHeight <= 0) {
+                // 视频尺寸未知时，根据屏幕方向决定
+                if (isScreenLandscape) {
+                    // 横屏时，使用全屏
+                    if (!isFullscreen) {
+                        params?.width = screenWidth
+                        params?.height = screenHeight
+                        params?.x = 0
+                        params?.y = 0
+                        
+                        floatingView?.layoutParams?.width = screenWidth
+                        floatingView?.layoutParams?.height = screenHeight
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        isFullscreen = true
+                        Log.d(TAG, "屏幕横屏，视频已自动最大化")
+                    }
+                }
+                return
+            }
+            
+            if (isVideoPortrait) {
+                // 竖屏视频：自动最大化
+                if (!hasAutoMaximized && !isFullscreen) {
+                    hasAutoMaximized = true
+                    params?.width = screenWidth
+                    params?.height = screenHeight
+                    params?.x = 0
+                    params?.y = 0
+                    
+                    floatingView?.layoutParams?.width = screenWidth
+                    floatingView?.layoutParams?.height = screenHeight
+                    
+                    windowManager?.updateViewLayout(floatingView, params)
+                    isFullscreen = true
+                    Log.d(TAG, "竖屏视频已自动最大化")
+                }
+            } else {
+                // 横屏视频：居中播放
+                if (!hasAutoMaximized && !isFullscreen) {
+                    hasAutoMaximized = true
+                    // 保持16:9比例，但居中显示
+                    val videoWidth = screenWidth
+                    val videoHeight = (screenWidth * 9 / 16)
+                    
+                    params?.width = videoWidth
+                    params?.height = videoHeight
+                    params?.x = (screenWidth - videoWidth) / 2 // 水平居中
+                    params?.y = (screenHeight - videoHeight) / 2 // 垂直居中
+                    
+                    floatingView?.layoutParams?.width = videoWidth
+                    floatingView?.layoutParams?.height = videoHeight
+                    
+                    // 更新原始尺寸和位置
+                    originalWidth = videoWidth
+                    originalHeight = videoHeight
+                    originalX = params?.x ?: 0
+                    originalY = params?.y ?: 0
+                    
+                    windowManager?.updateViewLayout(floatingView, params)
+                    Log.d(TAG, "横屏视频已居中播放")
+                }
+                
+                // 如果用户横屏，自动最大化
+                if (isScreenLandscape && !isFullscreen) {
+                    params?.width = screenWidth
+                    params?.height = screenHeight
+                    params?.x = 0
+                    params?.y = 0
+                    
+                    floatingView?.layoutParams?.width = screenWidth
+                    floatingView?.layoutParams?.height = screenHeight
+                    
+                    windowManager?.updateViewLayout(floatingView, params)
+                    isFullscreen = true
+                    Log.d(TAG, "用户横屏，横屏视频已自动最大化")
+                } else if (!isScreenLandscape && isFullscreen && !isVideoPortrait) {
+                    // 用户竖屏回来，恢复窗口模式（仅对横屏视频）
+                    val videoWidth = screenWidth
+                    val videoHeight = (screenWidth * 9 / 16)
+                    
+                    params?.width = videoWidth
+                    params?.height = videoHeight
+                    params?.x = (screenWidth - videoWidth) / 2
+                    params?.y = (screenHeight - videoHeight) / 2
+                    
+                    floatingView?.layoutParams?.width = videoWidth
+                    floatingView?.layoutParams?.height = videoHeight
+                    
+                    windowManager?.updateViewLayout(floatingView, params)
+                    isFullscreen = false
+                    Log.d(TAG, "用户竖屏回来，横屏视频恢复窗口模式")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "自动调整视频窗口大小失败", e)
+        }
+    }
+    
+    /**
+     * 显示播放速度选择菜单
+     */
+    private fun showSpeedMenu(anchorView: View) {
+        try {
+            val popupMenu = PopupMenu(context, anchorView)
+            
+            // 添加所有速度选项
+            speedOptions.forEachIndexed { index, speed ->
+                popupMenu.menu.add(0, index, 0, "${speed}x")
+            }
+            
+            // 设置当前选中的速度
+            val currentIndex = speedOptions.indexOf(playbackSpeed)
+            if (currentIndex >= 0) {
+                popupMenu.menu.getItem(currentIndex)?.isChecked = true
+            }
+            
+            // 设置菜单项点击监听
+            popupMenu.setOnMenuItemClickListener { item ->
+                val selectedIndex = item.itemId
+                if (selectedIndex >= 0 && selectedIndex < speedOptions.size) {
+                    val selectedSpeed = speedOptions[selectedIndex]
+                    playbackSpeed = selectedSpeed
+                    speedBtn?.text = "${playbackSpeed}x"
+                    
+                    // 应用播放速度
+                    try {
+                        val mediaPlayerField = VideoView::class.java.getDeclaredField("mMediaPlayer")
+                        mediaPlayerField.isAccessible = true
+                        val mediaPlayer = mediaPlayerField.get(videoView)
+                        if (mediaPlayer != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            val setPlaybackParamsMethod = mediaPlayer.javaClass.getDeclaredMethod("setPlaybackParams", android.media.PlaybackParams::class.java)
+                            val params = android.media.PlaybackParams()
+                            params.speed = playbackSpeed
+                            setPlaybackParamsMethod.invoke(mediaPlayer, params)
+                            Log.d(TAG, "播放速度已设置为: ${playbackSpeed}x")
+                            Toast.makeText(context, "播放速度: ${playbackSpeed}x", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Log.w(TAG, "当前Android版本不支持播放速度调整")
+                            Toast.makeText(context, "当前版本不支持播放速度调整", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置播放速度失败", e)
+                        Toast.makeText(context, "设置播放速度失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                true
+            }
+            
+            popupMenu.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示播放速度菜单失败", e)
+            Toast.makeText(context, "显示菜单失败", Toast.LENGTH_SHORT).show()
         }
     }
     
