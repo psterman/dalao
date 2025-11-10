@@ -348,7 +348,7 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/AppTheme.SimpleMode"
-            android:windowSoftInputMode="adjustPan|stateHidden"
+            android:windowSoftInputMode="adjustResize|stateHidden"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode" />
 
         <service

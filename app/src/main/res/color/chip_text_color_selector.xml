@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 选中状态：蓝色文字（iOS风格） -->
+    <!-- 🔧 修复2：选中状态：iOS Safari风格蓝色文字 -->
     <item android:state_checked="true" android:color="#007AFF" />
-    <!-- 未选中状态：深灰色文字 -->
-    <item android:color="#000000" />
+    <!-- 🔧 修复2：未选中状态：iOS Safari风格深灰色文字（不是纯黑） -->
+    <item android:color="#1C1C1E" />
 </selector>
 
 

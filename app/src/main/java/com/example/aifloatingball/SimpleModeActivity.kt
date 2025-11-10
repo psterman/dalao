@@ -669,6 +669,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 🔧 修复4：搜索输入框文字工具栏相关
     private var searchInputToolbarContainer: View? = null
     private var searchInputToolbarLayout: LinearLayout? = null
+    private var isKeyboardVisible = false // 软键盘显示状态
     
     // 上滑激活悬浮卡片相关变量
     private var swipeUpStartY = 0f
@@ -7024,6 +7025,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置按钮监听器
         setupBrowserButtons()
         
+        // 🔧 修复3：设置标题栏上滑手势检测
+        setupToolbarSwipeUpGesture()
+        
         // 🔧 修复4：设置搜索输入框文字工具栏
         setupSearchInputToolbar()
 
@@ -7293,20 +7297,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 🔧 优化：使用适中的阈值，确保在合适的时机触发
             // 向下滚动：滚动超过5px时隐藏，避免过于敏感
+            // 注意：hideToolbar()已经包含了组标签栏的隐藏处理
             if (deltaY > 5 && isToolbarVisible) {
                 hideToolbar()
                 // 同步隐藏底部导航栏和显示快捷操作栏
                 hideBottomNavigationAndShowQuickActions()
-                Log.d(TAG, "🔧 隐藏标题栏和tab栏，deltaY=$deltaY")
+                Log.d(TAG, "🔧 隐藏标题栏、tab栏和组标签栏，deltaY=$deltaY")
                 return
             }
             
             // 向上滚动：滚动超过5px时显示，确保自然触发
+            // 注意：showToolbar()已经包含了组标签栏的显示处理
             if (deltaY < -5 && !isToolbarVisible) {
                 showToolbar()
                 // 同步显示底部导航栏和隐藏快捷操作栏
                 showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 显示标题栏和tab栏，deltaY=$deltaY")
+                Log.d(TAG, "🔧 显示标题栏、tab栏和组标签栏，deltaY=$deltaY")
                 return
             }
 
@@ -7728,15 +7734,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             browserTabContainer.layoutParams = tabLayoutParams
                         }
                         
-                        // 🔧 修复3：重置组标签栏状态
+                        // 🔧 修复3：重置组标签栏状态并隐藏
                         groupTabsContainer?.let { container ->
-                            if (container.visibility == View.VISIBLE) {
-                                container.translationY = 0f
-                                container.alpha = 1f
-                                val groupTabsLayoutParams = container.layoutParams
-                                groupTabsLayoutParams.height = originalGroupTabsHeight
-                                container.layoutParams = groupTabsLayoutParams
-                            }
+                            container.translationY = 0f
+                            container.alpha = 1f
+                            val groupTabsLayoutParams = container.layoutParams
+                            groupTabsLayoutParams.height = originalGroupTabsHeight
+                            container.layoutParams = groupTabsLayoutParams
+                            // 🔧 关键修复：隐藏组标签栏
+                            container.visibility = View.GONE
                         }
                         // 🔧 修复白色背景：动画结束后再次确认背景透明
                         val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
@@ -7996,6 +8002,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             browserTabContainer.translationY = 0f
                             browserTabContainer.alpha = 1f
                         }
+                        // 🔧 修复：确保组标签栏在工具栏显示后也正确显示
+                        groupTabsContainer?.let { container ->
+                            container.translationY = 0f
+                            container.alpha = 1f
+                            // 🔧 关键修复：确保组标签栏可见
+                            if (isToolbarVisible && currentState == UIState.BROWSER) {
+                                container.visibility = View.VISIBLE
+                                // 刷新组标签栏，确保内容正确
+                                refreshGroupTabs()
+                            }
+                        }
                         // 🔧 修复白色背景：动画结束后再次确认背景透明
                         val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
                         webViewContainer?.setBackgroundColor(Color.TRANSPARENT)
@@ -8014,6 +8031,144 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    /**
+     * 隐藏顶部组标签栏
+     * 🔧 新增：在页面下滑时动态隐藏组标签栏
+     */
+    private fun hideGroupTabsContainer() {
+        try {
+            val container = groupTabsContainer ?: return
+            
+            // 如果已经隐藏或不可见，直接返回
+            if (container.visibility != View.VISIBLE) {
+                return
+            }
+            
+            // 取消之前的动画
+            groupTabsAnimator?.cancel()
+            
+            val containerHeight = if (container.height > 0) {
+                container.height.toFloat()
+            } else {
+                dpToPx(48f)
+            }
+            
+            // 创建隐藏动画
+            groupTabsAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 280L
+                interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                
+                addUpdateListener { animator ->
+                    val progress = animator.animatedValue as Float
+                    val easedProgress = progress * progress // 缓动效果
+                    
+                    // 向下移动并淡出
+                    container.translationY = containerHeight * easedProgress
+                    container.alpha = 1f - 0.95f * easedProgress
+                    
+                    // 动态调整高度
+                    val currentHeight = (containerHeight * (1f - easedProgress)).toInt()
+                    val layoutParams = container.layoutParams
+                    layoutParams.height = currentHeight
+                    container.layoutParams = layoutParams
+                }
+                
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        container.visibility = View.GONE
+                        container.translationY = 0f
+                        container.alpha = 1f
+                        val layoutParams = container.layoutParams
+                        layoutParams.height = containerHeight.toInt()
+                        container.layoutParams = layoutParams
+                    }
+                })
+                
+                start()
+            }
+            
+            Log.d(TAG, "隐藏组标签栏动画开始")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏组标签栏失败", e)
+        }
+    }
+    
+    /**
+     * 显示顶部组标签栏
+     * 🔧 新增：在页面上滑时动态显示组标签栏
+     */
+    private fun showGroupTabsContainer() {
+        try {
+            val container = groupTabsContainer ?: return
+            
+            // 如果已经可见，直接返回
+            if (container.visibility == View.VISIBLE && container.alpha >= 1f) {
+                return
+            }
+            
+            // 取消之前的动画
+            groupTabsAnimator?.cancel()
+            
+            val targetHeight = if (container.height > 0) {
+                container.height.toFloat()
+            } else {
+                dpToPx(48f)
+            }
+            
+            // 设置为可见，但初始高度为0
+            if (container.visibility != View.VISIBLE) {
+                container.visibility = View.VISIBLE
+                val layoutParams = container.layoutParams
+                layoutParams.height = 0
+                container.layoutParams = layoutParams
+                container.translationY = targetHeight
+                container.alpha = 0.1f
+            }
+            
+            // 创建显示动画
+            groupTabsAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 280L
+                interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                
+                addUpdateListener { animator ->
+                    val progress = animator.animatedValue as Float
+                    val easedProgress = progress * progress // 缓动效果
+                    
+                    // 向上移动并淡入
+                    container.translationY = targetHeight * (1f - easedProgress)
+                    container.alpha = 0.1f + 0.9f * easedProgress
+                    
+                    // 动态调整高度
+                    val currentHeight = (targetHeight * easedProgress).toInt()
+                    val layoutParams = container.layoutParams
+                    layoutParams.height = currentHeight
+                    container.layoutParams = layoutParams
+                }
+                
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        container.translationY = 0f
+                        container.alpha = 1f
+                        val layoutParams = container.layoutParams
+                        layoutParams.height = targetHeight.toInt()
+                        container.layoutParams = layoutParams
+                    }
+                })
+                
+                start()
+            }
+            
+            Log.d(TAG, "显示组标签栏动画开始")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示组标签栏失败", e)
+        }
+    }
+    
+    // 组标签栏动画器
+    private var groupTabsAnimator: android.animation.ValueAnimator? = null
+    
     /**
      * 设置底部快捷操作栏
      */
@@ -9440,54 +9595,292 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
+     * 🔧 修复3：设置搜索输入框上滑手势检测
+     * 从搜索tab的标题栏（搜索输入框）为起点往上方滑时，激活悬浮卡片系统
+     */
+    private fun setupToolbarSwipeUpGesture() {
+        try {
+            var swipeStartY = 0f
+            var swipeStartTime = 0L
+            var isSwipeUpDetected = false
+            val swipeThreshold = 100f // 上滑距离阈值（像素）
+            val swipeVelocityThreshold = 500f // 上滑速度阈值（px/s）
+            
+            // 🔧 修改：监听搜索输入框而不是整个标题栏
+            browserSearchInput.setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        swipeStartY = event.y
+                        swipeStartTime = System.currentTimeMillis()
+                        isSwipeUpDetected = false
+                        false // 不拦截，让其他点击事件正常处理（如输入框获得焦点）
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaY = swipeStartY - event.y // 向上滑动时deltaY为正
+                        val currentTime = System.currentTimeMillis()
+                        val timeDelta = currentTime - swipeStartTime
+                        
+                        // 检测上滑手势：向上滑动且距离足够
+                        if (deltaY > swipeThreshold && !isSwipeUpDetected && timeDelta < 500) {
+                            // 计算滑动速度
+                            val velocity = if (timeDelta > 0) {
+                                (deltaY / timeDelta) * 1000f // px/s
+                            } else {
+                                0f
+                            }
+                            
+                            // 如果滑动距离足够或速度足够，激活悬浮卡片系统
+                            if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
+                                isSwipeUpDetected = true
+                                Log.d(TAG, "🔧 检测到搜索输入框上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
+                                
+                                // 隐藏键盘（如果显示）
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+                                
+                                // 激活悬浮卡片系统
+                                activateStackedCardPreview()
+                                
+                                // 提供触觉反馈
+                                vibrator?.vibrate(50)
+                                
+                                return@setOnTouchListener true // 消费事件
+                            }
+                        }
+                        false // 不拦截，让其他手势正常处理
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        isSwipeUpDetected = false
+                        false
+                    }
+                    else -> false
+                }
+            }
+            
+            Log.d(TAG, "搜索输入框上滑手势检测设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索输入框上滑手势检测失败", e)
+        }
+    }
+    
+    /**
      * 🔧 修复4：设置搜索输入框文字工具栏
      * 当输入框获得焦点时显示工具栏，包含快捷输入按钮
      */
     private fun setupSearchInputToolbar() {
         try {
-            val toolbarContainer = searchInputToolbarContainer
-            val toolbarLayout = searchInputToolbarLayout
+            // 🔧 修复：使用多种方式查找工具栏容器，确保能找到
+            var toolbarContainer = searchInputToolbarContainer
+            if (toolbarContainer == null) {
+                // 尝试通过include的ID查找
+                toolbarContainer = findViewById(R.id.search_input_toolbar_container)
+            }
+            if (toolbarContainer == null) {
+                // 尝试通过被包含布局的根视图ID查找
+                toolbarContainer = findViewById(R.id.search_input_toolbar_scroll)
+            }
+            
+            var toolbarLayout = searchInputToolbarLayout
+            if (toolbarLayout == null) {
+                toolbarLayout = findViewById(R.id.search_input_toolbar_layout)
+            }
             
             if (toolbarContainer == null || toolbarLayout == null) {
                 Log.w(TAG, "搜索输入框文字工具栏未找到，跳过设置")
+                Log.w(TAG, "toolbarContainer: $toolbarContainer, toolbarLayout: $toolbarLayout")
                 return
             }
+            
+            // 保存引用
+            searchInputToolbarContainer = toolbarContainer
+            searchInputToolbarLayout = toolbarLayout
             
             // 默认隐藏工具栏
             toolbarContainer.visibility = View.GONE
             
-            // 设置输入框焦点监听
-            browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
-                if (hasFocus) {
-                    // 显示工具栏
-                    toolbarContainer.visibility = View.VISIBLE
-                    // 加载自定义词组
-                    loadCustomToolbarItems(toolbarLayout)
+            /**
+             * 更新工具栏可见性
+             * 规则：当输入框有焦点时显示工具栏，无论软键盘是否显示
+             */
+            val updateToolbarVisibility: (View, LinearLayout) -> Unit = { container, layout ->
+                val shouldShow = browserSearchInput.isFocused
+                if (shouldShow) {
+                    if (container.visibility != View.VISIBLE) {
+                        container.visibility = View.VISIBLE
+                        loadCustomToolbarItems(layout)
+                        // 🔧 修复：确保工具栏在输入框上方，不遮挡输入框
+                        // 使用FrameLayout布局，工具栏通过layout_gravity="bottom"和marginBottom定位在输入框上方
+                        val layoutParams = container.layoutParams
+                        if (layoutParams is android.widget.FrameLayout.LayoutParams) {
+                            // 输入框高度40dp + 间距2dp = 42dp，转换为像素
+                            val marginBottomPx = (42 * resources.displayMetrics.density).toInt()
+                            if (layoutParams.bottomMargin != marginBottomPx) {
+                                layoutParams.bottomMargin = marginBottomPx
+                                layoutParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                                container.layoutParams = layoutParams
+                                Log.d(TAG, "设置工具栏位置: bottomMargin=${layoutParams.bottomMargin}px, gravity=${layoutParams.gravity}")
+                            }
+                        } else {
+                            // 如果不是FrameLayout.LayoutParams，尝试创建新的
+                            val parent = container.parent
+                            if (parent is android.widget.FrameLayout) {
+                                val newParams = android.widget.FrameLayout.LayoutParams(
+                                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+                                )
+                                newParams.bottomMargin = (42 * resources.displayMetrics.density).toInt()
+                                newParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                                container.layoutParams = newParams
+                                Log.d(TAG, "重新创建工具栏布局参数: bottomMargin=${newParams.bottomMargin}px")
+                            } else {
+                                Log.w(TAG, "工具栏父容器不是FrameLayout，无法设置位置: ${parent?.javaClass?.simpleName}")
+                            }
+                        }
+                        // 🔧 修复：确保工具栏不会拦截触摸事件
+                        // 工具栏容器本身不拦截触摸，让Chip按钮自己处理点击事件
+                        container.setOnTouchListener { _, event ->
+                            // 不拦截触摸事件，让事件穿透到下层（输入框）
+                            // Chip按钮会自己处理点击事件
+                            false
+                        }
+                        Log.d(TAG, "显示文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 软键盘: $isKeyboardVisible")
+                    }
                 } else {
-                    // 隐藏工具栏
-                    toolbarContainer.visibility = View.GONE
+                    if (container.visibility != View.GONE) {
+                        container.visibility = View.GONE
+                        Log.d(TAG, "隐藏文本工具栏")
+                    }
                 }
             }
             
+            // 🔧 修复：监听软键盘状态，动态控制工具栏显示
+            val rootView = window.decorView.rootView
+            rootView.viewTreeObserver.addOnGlobalLayoutListener {
+                val rect = android.graphics.Rect()
+                rootView.getWindowVisibleDisplayFrame(rect)
+                val screenHeight = rootView.height
+                val keypadHeight = screenHeight - rect.bottom
+                
+                // 如果键盘高度超过屏幕高度的15%，认为键盘已显示
+                val keyboardVisible = keypadHeight > screenHeight * 0.15
+                
+                if (keyboardVisible != isKeyboardVisible) {
+                    isKeyboardVisible = keyboardVisible
+                    Log.d(TAG, "软键盘状态变化: visible=$isKeyboardVisible, keypadHeight=$keypadHeight, screenHeight=$screenHeight")
+                    
+                    // 根据输入框焦点和键盘状态决定是否显示工具栏
+                    updateToolbarVisibility(toolbarContainer, toolbarLayout)
+                }
+            }
+            
+            // 设置输入框焦点监听
+            browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
+                Log.d(TAG, "搜索输入框焦点变化: hasFocus=$hasFocus, isKeyboardVisible=$isKeyboardVisible")
+                // 根据焦点状态更新工具栏显示
+                updateToolbarVisibility(toolbarContainer, toolbarLayout)
+            }
+            
+            // 🔧 修复：同时监听点击事件，确保点击时也能显示工具栏
+            browserSearchInput.setOnClickListener { view ->
+                Log.d(TAG, "搜索输入框被点击")
+                // 延迟一点时间，确保焦点已经获得
+                handler.postDelayed({
+                    updateToolbarVisibility(toolbarContainer, toolbarLayout)
+                }, 100)
+            }
+            
+            // 🔧 修复：监听触摸事件，确保触摸时也能显示
+            browserSearchInput.setOnTouchListener { view, event ->
+                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+                    Log.d(TAG, "搜索输入框被触摸")
+                    // 延迟显示工具栏，确保焦点已经获得
+                    handler.postDelayed({
+                        updateToolbarVisibility(toolbarContainer, toolbarLayout)
+                    }, 150)
+                }
+                false // 不拦截事件，让系统正常处理
+            }
+            
             // 设置默认快捷按钮点击事件
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_http)?.setOnClickListener {
-                insertTextToSearchInput("http://")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_http)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput("http://")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog("http://", R.id.toolbar_http)
+                    true
+                }
             }
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_https)?.setOnClickListener {
-                insertTextToSearchInput("https://")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_https)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput("https://")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog("https://", R.id.toolbar_https)
+                    true
+                }
             }
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_m)?.setOnClickListener {
-                insertTextToSearchInput("m.")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_m)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput("m.")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog("m.", R.id.toolbar_m)
+                    true
+                }
             }
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_www)?.setOnClickListener {
-                insertTextToSearchInput("www.")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_www)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput("www.")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog("www.", R.id.toolbar_www)
+                    true
+                }
             }
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.setOnClickListener {
-                insertTextToSearchInput(".com")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".com")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".com", R.id.toolbar_com)
+                    true
+                }
             }
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.setOnClickListener {
-                insertTextToSearchInput("@")
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput("@")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog("@", R.id.toolbar_at)
+                    true
+                }
             }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_cn)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".cn")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".cn", R.id.toolbar_cn)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(",")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(",", R.id.toolbar_comma)
+                    true
+                }
+            }
+            // 编辑按钮点击事件
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_edit)?.setOnClickListener {
+                showManagePresetTextsDialog()
+            }
+            
+            // 加载保存的预设文本配置
+            loadPresetTextsConfig()
             
             Log.d(TAG, "搜索输入框文字工具栏设置完成")
         } catch (e: Exception) {
@@ -9567,6 +9960,300 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "加载了 ${customItems.size} 个自定义工具栏词组")
         } catch (e: Exception) {
             Log.e(TAG, "加载自定义工具栏词组失败", e)
+        }
+    }
+    
+    /**
+     * 显示编辑预设文本对话框
+     * @param currentText 当前预设文本
+     * @param chipId 预设文本按钮的ID
+     */
+    private fun showEditPresetTextDialog(currentText: String, chipId: Int) {
+        try {
+            val input = android.widget.EditText(this).apply {
+                setText(currentText)
+                hint = "输入新的预设文本"
+                selectAll()
+            }
+            
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("编辑预设文本")
+                .setView(input)
+                .setPositiveButton("确定") { _, _ ->
+                    val newText = input.text.toString().trim()
+                    if (newText.isNotEmpty()) {
+                        updatePresetText(chipId, newText)
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示编辑预设文本对话框失败", e)
+        }
+    }
+    
+    /**
+     * 更新预设文本
+     * @param chipId 预设文本按钮的ID
+     * @param newText 新的预设文本
+     */
+    private fun updatePresetText(chipId: Int, newText: String) {
+        try {
+            findViewById<com.google.android.material.chip.Chip>(chipId)?.apply {
+                text = newText
+                setOnClickListener {
+                    insertTextToSearchInput(newText)
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(newText, chipId)
+                    true
+                }
+            }
+            
+            // 保存预设文本配置
+            savePresetTextsConfig()
+            
+            Log.d(TAG, "预设文本已更新: chipId=$chipId, newText=$newText")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新预设文本失败", e)
+        }
+    }
+    
+    /**
+     * 显示管理预设文本对话框
+     */
+    private fun showManagePresetTextsDialog() {
+        try {
+            // 获取所有预设文本
+            val presetTexts = mutableListOf<Pair<Int, String>>()
+            presetTexts.add(Pair(R.id.toolbar_http, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_http)?.text?.toString() ?: "http://"))
+            presetTexts.add(Pair(R.id.toolbar_https, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_https)?.text?.toString() ?: "https://"))
+            presetTexts.add(Pair(R.id.toolbar_m, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_m)?.text?.toString() ?: "m."))
+            presetTexts.add(Pair(R.id.toolbar_www, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_www)?.text?.toString() ?: "www."))
+            presetTexts.add(Pair(R.id.toolbar_com, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.text?.toString() ?: ".com"))
+            presetTexts.add(Pair(R.id.toolbar_at, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.text?.toString() ?: "@"))
+            presetTexts.add(Pair(R.id.toolbar_cn, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_cn)?.text?.toString() ?: ".cn"))
+            presetTexts.add(Pair(R.id.toolbar_comma, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.text?.toString() ?: ","))
+            
+            // 获取自定义预设文本
+            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+            val customItems: List<String> = gson.fromJson(customItemsJson, type) ?: emptyList()
+            
+            val items = arrayOfNulls<CharSequence>(presetTexts.size + customItems.size + 1)
+            presetTexts.forEachIndexed { index, pair ->
+                items[index] = pair.second
+            }
+            customItems.forEachIndexed { index, text ->
+                items[presetTexts.size + index] = text
+            }
+            items[items.size - 1] = "添加新的预设文本"
+            
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("管理预设文本")
+                .setItems(items) { dialog, which ->
+                    if (which < presetTexts.size) {
+                        // 编辑默认预设文本
+                        val pair = presetTexts[which]
+                        showEditPresetTextDialog(pair.second, pair.first)
+                    } else if (which < presetTexts.size + customItems.size) {
+                        // 编辑自定义预设文本
+                        val customText = customItems[which - presetTexts.size]
+                        showEditCustomPresetTextDialog(customText, which - presetTexts.size)
+                    } else {
+                        // 添加新的预设文本
+                        showAddCustomPresetTextDialog()
+                    }
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示管理预设文本对话框失败", e)
+        }
+    }
+    
+    /**
+     * 显示添加自定义预设文本对话框
+     */
+    private fun showAddCustomPresetTextDialog() {
+        try {
+            val input = android.widget.EditText(this).apply {
+                hint = "输入预设文本"
+            }
+            
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("添加预设文本")
+                .setView(input)
+                .setPositiveButton("添加") { _, _ ->
+                    val newText = input.text.toString().trim()
+                    if (newText.isNotEmpty()) {
+                        addCustomPresetText(newText)
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示添加自定义预设文本对话框失败", e)
+        }
+    }
+    
+    /**
+     * 显示编辑自定义预设文本对话框
+     */
+    private fun showEditCustomPresetTextDialog(currentText: String, index: Int) {
+        try {
+            val input = android.widget.EditText(this).apply {
+                setText(currentText)
+                hint = "输入新的预设文本"
+                selectAll()
+            }
+            
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("编辑预设文本")
+                .setView(input)
+                .setPositiveButton("保存") { _, _ ->
+                    val newText = input.text.toString().trim()
+                    if (newText.isNotEmpty()) {
+                        updateCustomPresetText(index, newText)
+                    }
+                }
+                .setNeutralButton("删除") { _, _ ->
+                    deleteCustomPresetText(index)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示编辑自定义预设文本对话框失败", e)
+        }
+    }
+    
+    /**
+     * 添加自定义预设文本
+     */
+    private fun addCustomPresetText(text: String) {
+        try {
+            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<String>>() {}.type
+            val customItems: MutableList<String> = gson.fromJson(customItemsJson, type) ?: mutableListOf()
+            
+            customItems.add(text)
+            
+            val newJson = gson.toJson(customItems)
+            settingsManager.putString("search_toolbar_custom_items", newJson)
+            
+            // 刷新工具栏
+            searchInputToolbarLayout?.let {
+                loadCustomToolbarItems(it)
+            }
+            
+            Log.d(TAG, "已添加自定义预设文本: $text")
+        } catch (e: Exception) {
+            Log.e(TAG, "添加自定义预设文本失败", e)
+        }
+    }
+    
+    /**
+     * 更新自定义预设文本
+     */
+    private fun updateCustomPresetText(index: Int, newText: String) {
+        try {
+            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<String>>() {}.type
+            val customItems: MutableList<String> = gson.fromJson(customItemsJson, type) ?: mutableListOf()
+            
+            if (index < customItems.size) {
+                customItems[index] = newText
+                
+                val newJson = gson.toJson(customItems)
+                settingsManager.putString("search_toolbar_custom_items", newJson)
+                
+                // 刷新工具栏
+                searchInputToolbarLayout?.let {
+                    loadCustomToolbarItems(it)
+                }
+                
+                Log.d(TAG, "已更新自定义预设文本: index=$index, newText=$newText")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新自定义预设文本失败", e)
+        }
+    }
+    
+    /**
+     * 删除自定义预设文本
+     */
+    private fun deleteCustomPresetText(index: Int) {
+        try {
+            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<MutableList<String>>() {}.type
+            val customItems: MutableList<String> = gson.fromJson(customItemsJson, type) ?: mutableListOf()
+            
+            if (index < customItems.size) {
+                customItems.removeAt(index)
+                
+                val newJson = gson.toJson(customItems)
+                settingsManager.putString("search_toolbar_custom_items", newJson)
+                
+                // 刷新工具栏
+                searchInputToolbarLayout?.let {
+                    loadCustomToolbarItems(it)
+                }
+                
+                Log.d(TAG, "已删除自定义预设文本: index=$index")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "删除自定义预设文本失败", e)
+        }
+    }
+    
+    /**
+     * 保存预设文本配置
+     */
+    private fun savePresetTextsConfig() {
+        try {
+            val config = mutableMapOf<Int, String>()
+            config[R.id.toolbar_http] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_http)?.text?.toString() ?: "http://"
+            config[R.id.toolbar_https] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_https)?.text?.toString() ?: "https://"
+            config[R.id.toolbar_m] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_m)?.text?.toString() ?: "m."
+            config[R.id.toolbar_www] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_www)?.text?.toString() ?: "www."
+            config[R.id.toolbar_com] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.text?.toString() ?: ".com"
+            config[R.id.toolbar_at] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.text?.toString() ?: "@"
+            config[R.id.toolbar_cn] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_cn)?.text?.toString() ?: ".cn"
+            config[R.id.toolbar_comma] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.text?.toString() ?: ","
+            
+            val gson = com.google.gson.Gson()
+            val configJson = gson.toJson(config)
+            settingsManager.putString("search_toolbar_preset_config", configJson)
+            
+            Log.d(TAG, "预设文本配置已保存")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存预设文本配置失败", e)
+        }
+    }
+    
+    /**
+     * 加载预设文本配置
+     */
+    private fun loadPresetTextsConfig() {
+        try {
+            val configJson = settingsManager.getString("search_toolbar_preset_config", null)
+            if (configJson != null) {
+                val gson = com.google.gson.Gson()
+                val type = object : com.google.gson.reflect.TypeToken<Map<Int, String>>() {}.type
+                val config: Map<Int, String> = gson.fromJson(configJson, type) ?: emptyMap()
+                
+                config.forEach { (chipId, text) ->
+                    updatePresetText(chipId, text)
+                }
+                
+                Log.d(TAG, "预设文本配置已加载")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载预设文本配置失败", e)
         }
     }
 
@@ -10602,6 +11289,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             Log.d(TAG, "StackedCardPreview专用卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 纸堆标签页: ${paperStackTabs.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
+            
+            // 🔧 修复4：确保默认首页（功能主页）在最左边（第一个位置）
+            val functionalHomeUrl = "home://functional"
+            val functionalHomeIndex = allCards.indexOfFirst { it.url == functionalHomeUrl }
+            
+            if (functionalHomeIndex > 0) {
+                // 如果功能主页不在第一个位置，将其移到最前面
+                val functionalHomeCard = allCards.removeAt(functionalHomeIndex)
+                allCards.add(0, functionalHomeCard)
+                Log.d(TAG, "🔧 修复4：已将默认首页移到最左边（位置0）")
+            } else if (functionalHomeIndex == -1) {
+                // 如果没有功能主页，检查是否有其他首页类型的卡片
+                val homeCardIndex = allCards.indexOfFirst { 
+                    it.url == "home://functional" || 
+                    it.url?.contains("home://") == true ||
+                    (it.url == "https://www.baidu.com" && it.title == "百度")
+                }
+                
+                if (homeCardIndex > 0) {
+                    val homeCard = allCards.removeAt(homeCardIndex)
+                    allCards.add(0, homeCard)
+                    Log.d(TAG, "🔧 修复4：已将首页类型卡片移到最左边（位置0）")
+                }
+            }
+            
             Log.d(TAG, "=== StackedCardPreview专用卡片数据获取结束 ===")
 
             return allCards
@@ -22274,6 +22986,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             deactivateStackedCardPreview()
             showBrowser()
             
+            // 🔧 修复：确保切换到搜索tab时，工具栏和组标签栏都是可见的
+            // 这样用户刚进入搜索tab时，组标签栏会正常显示
+            if (!isToolbarVisible) {
+                showToolbar()
+                showBottomNavigationAndHideQuickActions()
+            }
+            
             // 确保纸堆WebView管理器已初始化
             if (paperStackWebViewManager == null) {
                 Log.d(TAG, "纸堆WebView管理器未初始化，重新初始化")
@@ -22282,6 +23001,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 更新页面数量显示
             updatePageCountDisplay()
+            
+            // 🔧 修复：刷新组标签栏，确保在工具栏可见时显示
+            refreshGroupTabs()
             
             // 检查是否有标签页
             val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
@@ -29708,8 +30430,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 有用户创建的组时显示标签栏
-            groupTabsContainer?.visibility = View.VISIBLE
+            // 🔧 修复：有用户创建的组时，根据当前工具栏状态来决定是否显示
+            // 组标签栏必须和标题栏、tab栏一样，只有在工具栏可见时才显示
+            // 如果工具栏隐藏（用户下滑进入浏览状态），组标签栏也应该隐藏
+            // 🔧 关键修复：组标签栏的显示/隐藏应该由hideToolbar()和showToolbar()控制
+            // 这里只负责刷新内容，不直接控制可见性（除非工具栏已隐藏）
+            val shouldShow = isToolbarVisible && currentState == UIState.BROWSER
+            if (shouldShow) {
+                // 工具栏可见，显示组标签栏（如果当前是GONE，则设置为VISIBLE）
+                // 但不要重置动画状态，因为可能正在动画中
+                if (groupTabsContainer?.visibility == View.GONE) {
+                    groupTabsContainer?.visibility = View.VISIBLE
+                    // 确保组标签栏的动画状态正确（重置translationY和alpha）
+                    groupTabsContainer?.let { container ->
+                        container.translationY = 0f
+                        container.alpha = 1f
+                    }
+                }
+            } else {
+                // 工具栏隐藏，组标签栏也应该隐藏
+                // 🔧 关键修复：只有在工具栏确实隐藏时才设置GONE
+                // 如果正在动画中，不要强制设置GONE，让动画完成
+                if (groupTabsContainer?.visibility == View.VISIBLE && !isToolbarVisible) {
+                    groupTabsContainer?.visibility = View.GONE
+                }
+            }
             
             // 清除旧的组标签
             groupChips.values.forEach { chip ->
@@ -29760,39 +30505,45 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showGroupContextMenu(group, groupManager)
                 true
             }
-            // 设置样式 - iOS风格（浅色背景，不遮挡内容）
-            textSize = 15f // iOS标准字体大小
-            val minHeight28dp = (28 * resources.displayMetrics.density).toInt()
-            minHeight = minHeight28dp
-            // 减少内边距，避免遮挡内容
-            val paddingHorizontal12dp = (12 * resources.displayMetrics.density).toInt()
-            val paddingVertical4dp = (4 * resources.displayMetrics.density).toInt()
-            setPadding(paddingHorizontal12dp, paddingVertical4dp, paddingHorizontal12dp, paddingVertical4dp)
+            // 🔧 修复2：iOS Safari风格标签设计
+            // iOS Safari标签特点：更小的字体、更紧凑的布局、更柔和的颜色、更圆润的圆角
+            textSize = 13f // iOS Safari使用更小的字体（13sp）
+            val minHeight24dp = (24 * resources.displayMetrics.density).toInt()
+            minHeight = minHeight24dp
+            // iOS Safari风格内边距：更紧凑
+            val paddingHorizontal10dp = (10 * resources.displayMetrics.density).toInt()
+            val paddingVertical3dp = (3 * resources.displayMetrics.density).toInt()
+            setPadding(paddingHorizontal10dp, paddingVertical3dp, paddingHorizontal10dp, paddingVertical3dp)
             
             // 移除选中图标（勾和圈）
             chipIcon = null
             checkedIcon = null
             closeIcon = null
             
-            // iOS风格：选中时浅蓝色背景+蓝色边框+蓝色文字，未选中时透明背景+浅灰边框+黑色文字
+            // 🔧 修复2：iOS Safari风格颜色
+            // 选中状态：浅蓝色背景（更淡）+ 蓝色边框 + 蓝色文字
+            // 未选中状态：浅灰色背景（iOS Safari使用浅灰背景而不是透明）+ 浅灰边框 + 深灰文字
             chipBackgroundColor = resources.getColorStateList(R.color.chip_background_color_selector)
             chipStrokeColor = resources.getColorStateList(R.color.chip_stroke_color_selector)
-            val strokeWidth1dp = (1 * resources.displayMetrics.density).toInt()
-            chipStrokeWidth = strokeWidth1dp.toFloat()
+            val strokeWidth0_5dp = (0.5f * resources.displayMetrics.density).toInt()
+            chipStrokeWidth = strokeWidth0_5dp.toFloat() // iOS Safari使用更细的边框
             
-            // iOS风格圆角（更圆润）
-            val cornerRadius14dp = (14 * resources.displayMetrics.density).toInt()
-            chipCornerRadius = cornerRadius14dp.toFloat()
+            // 🔧 修复2：iOS Safari风格圆角（更圆润，接近胶囊形状）
+            val cornerRadius12dp = (12 * resources.displayMetrics.density).toInt()
+            chipCornerRadius = cornerRadius12dp.toFloat()
             
-            // iOS风格文字颜色（选中时蓝色，未选中时黑色）
+            // iOS风格文字颜色（选中时蓝色，未选中时深灰色）
             setTextColor(resources.getColorStateList(R.color.chip_text_color_selector))
             
-            // 移除默认的Material动画，避免遮挡
+            // 移除默认的Material动画，使用iOS风格的平滑过渡
             stateListAnimator = null
             
             // 确保文字不会被遮挡
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
+            
+            // 🔧 修复2：iOS Safari风格字体（使用系统默认字体，更清晰）
+            typeface = android.graphics.Typeface.DEFAULT
         }
     }
     

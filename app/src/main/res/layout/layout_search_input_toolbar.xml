@@ -7,8 +7,12 @@
     android:layout_height="wrap_content"
     android:scrollbars="none"
     android:fadeScrollbars="true"
-    android:background="?android:attr/colorBackground"
-    android:visibility="gone">
+    android:background="@android:color/transparent"
+    android:visibility="gone"
+    android:elevation="-1dp"
+    android:clickable="false"
+    android:focusable="false"
+    android:importantForAccessibility="no">
 
     <LinearLayout
         android:id="@+id/search_input_toolbar_layout"
@@ -16,8 +20,14 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="8dp">
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:minHeight="32dp"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no">
 
         <!-- 默认快捷按钮：http:// -->
         <com.google.android.material.chip.Chip
@@ -85,6 +95,42 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：.cn -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_cn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=".cn"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：, -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_comma"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=","
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 编辑按钮 -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_edit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="编辑"
             android:textSize="14sp"
             android:layout_marginEnd="6dp"
             style="@style/Widget.MaterialComponents.Chip.Choice"

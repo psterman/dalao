@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 选中状态：iOS风格浅蓝色半透明背景 -->
-    <item android:state_checked="true" android:color="#E3F2FD" />
-    <!-- 未选中状态：透明背景 -->
-    <item android:color="#00000000" />
+    <!-- 🔧 修复2：选中状态：iOS Safari风格浅蓝色背景（更淡更柔和） -->
+    <item android:state_checked="true" android:color="#E8F4FD" />
+    <!-- 🔧 修复2：未选中状态：iOS Safari风格浅灰色背景（不是透明） -->
+    <item android:color="#F2F2F7" />
 </selector>
 
 

@@ -2046,93 +2046,110 @@
                             android:visibility="gone"
                             android:elevation="8dp">
                             
+                            <!-- 🔧 修复5：iOS风格工具栏图标 -->
                             <!-- 后退 -->
                             <ImageButton
                                 android:id="@+id/quick_action_back"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_revert"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="后退"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#007AFF"
+                                android:scaleType="centerInside" />
                             
                             <!-- 前进 -->
                             <ImageButton
                                 android:id="@+id/quick_action_forward"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_revert"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="前进"
-                                android:layout_marginEnd="4dp"
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
                                 android:rotation="180"
-                                android:tint="?attr/colorControlNormal" />
+                                android:tint="#007AFF"
+                                android:scaleType="centerInside" />
                             
                             <!-- 刷新 -->
                             <ImageButton
                                 android:id="@+id/quick_action_refresh"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_rotate"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="刷新"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#007AFF"
+                                android:scaleType="centerInside" />
                             
                             <!-- 关闭 -->
                             <ImageButton
                                 android:id="@+id/quick_action_close"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="关闭"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#FF3B30"
+                                android:scaleType="centerInside" />
                             
                             <!-- 撤回关闭 -->
                             <ImageButton
                                 android:id="@+id/quick_action_undo_close"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_revert"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="撤回关闭"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#34C759"
+                                android:scaleType="centerInside" />
                             
                             <!-- 查找 -->
                             <ImageButton
                                 android:id="@+id/quick_action_find"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_search"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="查找"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#007AFF"
+                                android:scaleType="centerInside" />
                             
                             <!-- 收藏 -->
                             <ImageButton
                                 android:id="@+id/quick_action_bookmark"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/btn_star"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="收藏"
-                                android:layout_marginEnd="4dp"
-                                android:tint="?attr/colorControlNormal" />
+                                android:layout_marginEnd="8dp"
+                                android:padding="10dp"
+                                android:tint="#FF9500"
+                                android:scaleType="centerInside" />
                             
                             <!-- 分享 -->
                             <ImageButton
                                 android:id="@+id/quick_action_share"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
+                                android:layout_width="44dp"
+                                android:layout_height="44dp"
                                 android:src="@android:drawable/ic_menu_share"
                                 android:background="?attr/selectableItemBackgroundBorderless"
                                 android:contentDescription="分享"
-                                android:tint="?attr/colorControlNormal" />
+                                android:padding="10dp"
+                                android:tint="#007AFF"
+                                android:scaleType="centerInside" />
                             
                         </LinearLayout>
 
@@ -2465,27 +2482,27 @@
                     android:contentDescription="页面数量" />
 
                 <!-- 搜索框容器 -->
-                <LinearLayout
+                <FrameLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginHorizontal="12dp"
-                    android:orientation="vertical">
+                    android:layout_marginHorizontal="12dp">
                     
-                    <!-- 🔧 修复4：搜索输入框上方的文字工具栏 -->
-                    <include
-                        android:id="@+id/search_input_toolbar_container"
-                        layout="@layout/layout_search_input_toolbar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-                    
-                    <!-- 搜索输入框容器 -->
+                    <!-- 搜索输入框容器（底层） -->
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="40dp"
-                        android:background="@drawable/search_input_background"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical">
+                        
+                        <!-- 搜索输入框容器 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="40dp"
+                            android:background="@drawable/search_input_background"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:elevation="1dp">
 
                     <!-- 站点信息/图标按钮（显示当前网页favicon） -->
                     <ImageButton
@@ -2544,8 +2561,155 @@
                         app:tint="@color/simple_mode_accent_light" />
 
                     </LinearLayout>
+                        
+                    </LinearLayout>
                     
-                </LinearLayout>
+                    <!-- 🔧 修复4：搜索输入框上方的文字工具栏（顶层，位于输入框上方） -->
+                    <HorizontalScrollView
+                        android:id="@+id/search_input_toolbar_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom|start"
+                        android:layout_marginBottom="42dp"
+                        android:scrollbars="none"
+                        android:fadeScrollbars="true"
+                        android:background="@android:color/transparent"
+                        android:visibility="gone"
+                        android:elevation="-1dp"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:importantForAccessibility="no">
+                        
+                        <LinearLayout
+                            android:id="@+id/search_input_toolbar_layout"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp"
+                            android:minHeight="32dp"
+                            android:clickable="false"
+                            android:focusable="false"
+                            android:importantForAccessibility="no">
+                            
+                            <!-- 默认快捷按钮：http:// -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_http"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="http://"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：https:// -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_https"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="https://"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：m. -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_m"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="m."
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：www. -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_www"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="www."
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：.com -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_com"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=".com"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：@ -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_at"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：.cn -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_cn"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=".cn"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 默认快捷按钮：, -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_comma"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=","
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 编辑按钮 -->
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/toolbar_edit"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="编辑"
+                                android:textSize="14sp"
+                                android:layout_marginEnd="6dp"
+                                style="@style/Widget.MaterialComponents.Chip.Choice"
+                                app:chipBackgroundColor="?android:attr/colorControlHighlight"
+                                app:chipStrokeWidth="0dp" />
+
+                            <!-- 自定义词组容器（动态添加） -->
+                            <!-- 这里会在代码中动态添加自定义词组 -->
+                            
+                        </LinearLayout>
+                    </HorizontalScrollView>
+                    
+                </FrameLayout>
 
                 <!-- 菜单按钮 -->
                 <ImageButton

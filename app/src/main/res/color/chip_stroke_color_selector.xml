@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 选中状态：蓝色边框 -->
+    <!-- 🔧 修复2：选中状态：iOS Safari风格蓝色边框（更柔和的蓝色） -->
     <item android:state_checked="true" android:color="#007AFF" />
-    <!-- 未选中状态：浅灰色边框 -->
-    <item android:color="#E5E5EA" />
+    <!-- 🔧 修复2：未选中状态：iOS Safari风格浅灰色边框（与背景色协调） -->
+    <item android:color="#D1D1D6" />
 </selector>
 
 
