@@ -156,7 +156,8 @@
                 <FrameLayout
                     android:id="@+id/browser_webview_container"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                    android:layout_height="match_parent"
+                    android:background="@color/simple_mode_background_light">
 
                     <!-- 纸堆WebView布局 -->
                     <include
@@ -170,14 +171,16 @@
                     <ScrollView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:fillViewport="true">
+                        android:fillViewport="true"
+                        android:background="@color/simple_mode_background_light">
 
                         <LinearLayout
                             android:id="@+id/browser_home_content"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
-                            android:padding="16dp">
+                            android:padding="16dp"
+                            android:background="@color/simple_mode_background_light">
 
                             <!-- 优化的浏览器操作按钮组 -->
                             <LinearLayout

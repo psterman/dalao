@@ -7241,8 +7241,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
                 val deltaY = scrollY - oldScrollY
 
-                // 🔧 修复2：确保在搜索tab中也能正常工作，排除悬浮卡片预览状态和遮罩层激活状态
+                // 🔧 优化：确保在搜索tab中也能正常工作，排除悬浮卡片预览状态和遮罩层激活状态
                 val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+                // 🔧 优化：使用适中的阈值，确保在合适的时机触发，避免过于敏感
                 if (Math.abs(deltaY) > 5 && !isSearchTabGestureOverlayActive && !isStackedPreviewVisible) {
                     handleWebViewScroll(deltaY, scrollY)
                 }
@@ -7255,37 +7256,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    // 🔧 优化：添加防抖机制，避免频繁触发动画
+    private var lastScrollTime = 0L
+    private val scrollDebounceDelay = 50L // 50ms防抖延迟
+    
     /**
      * 处理WebView滚动事件
+     * 🔧 优化：确保动画流畅自然，添加防抖机制，优化触发时机
      */
     private fun handleWebViewScroll(deltaY: Int, scrollY: Int) {
         try {
-            // 获取当前WebView，检查是否还能继续滚动
-            val currentWebView = getCurrentWebViewForScrollCheck()
-            val canScrollDown = currentWebView?.canScrollVertically(1) ?: false
-            val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
+            val currentTime = System.currentTimeMillis()
             
-            // 如果已经滚动到底部且无法继续向下滚动，不触发隐藏动画，避免重复切换
-            if (!canScrollDown && deltaY > 0) {
+            // 🔧 优化：添加防抖机制，避免频繁触发
+            if (currentTime - lastScrollTime < scrollDebounceDelay) {
                 return
             }
+            lastScrollTime = currentTime
             
-            // 如果已经滚动到顶部且无法继续向上滚动，不触发显示动画
-            if (!canScrollUp && deltaY < 0) {
-                return
-            }
-            
-            // 🔧 修复3：向下滚动时立即隐藏标题栏和底部栏，显示工具栏
-            if (deltaY > 3 && isToolbarVisible) {
+            // 🔧 优化：使用适中的阈值，确保在合适的时机触发
+            // 向下滚动：滚动超过5px时隐藏，避免过于敏感
+            if (deltaY > 5 && isToolbarVisible) {
                 hideToolbar()
                 // 同步隐藏底部导航栏和显示快捷操作栏
                 hideBottomNavigationAndShowQuickActions()
+                Log.d(TAG, "🔧 隐藏标题栏和tab栏，deltaY=$deltaY")
+                return
             }
-            // 🔧 修复3：向上滚动时立即显示标题栏和底部栏，隐藏工具栏
-            else if (deltaY < -3 && !isToolbarVisible) {
+            
+            // 向上滚动：滚动超过5px时显示，确保自然触发
+            if (deltaY < -5 && !isToolbarVisible) {
                 showToolbar()
                 // 同步显示底部导航栏和隐藏快捷操作栏
                 showBottomNavigationAndHideQuickActions()
+                Log.d(TAG, "🔧 显示标题栏和tab栏，deltaY=$deltaY")
+                return
             }
 
         } catch (e: Exception) {
@@ -7319,84 +7324,97 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 确保快捷操作栏可见
-            if (browserQuickActionsBar.visibility != View.VISIBLE) {
+            // 🔧 修复：直接设置初始位置在底部下方，避免从tab区域上方下滑的动画
+            // 1. 先设置为VISIBLE但alpha为0，让系统完成布局（layout_gravity="bottom"会生效）
+            // 2. 立即设置translationY为底部下方，避免先出现在错误位置
+            // 3. 然后开始从底部往上浮的动画
+            if (browserQuickActionsBar.visibility == View.GONE) {
+                // 先设置为VISIBLE但完全透明，让系统完成布局
+                browserQuickActionsBar.alpha = 0f
                 browserQuickActionsBar.visibility = View.VISIBLE
             }
             
-            // 获取快捷操作栏高度（使用post确保布局已测量）
+            // 等待布局完成后再设置初始位置和动画
             browserQuickActionsBar.post {
-                // 强制测量布局
-                browserQuickActionsBar.measure(
-                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                browserQuickActionsBar.layout(
-                    browserQuickActionsBar.left,
-                    browserQuickActionsBar.top,
-                    browserQuickActionsBar.right,
-                    browserQuickActionsBar.top + browserQuickActionsBar.measuredHeight
-                )
-                
-                val quickBarHeight = browserQuickActionsBar.measuredHeight.toFloat()
-                if (quickBarHeight <= 0f) {
-                    Log.w(TAG, "快捷操作栏高度为0，使用默认值")
-                    showQuickActionsBar() // 回退到单独显示
-                    return@post
-                }
-                
-                // 创建同步动画
-                val animatorSet = android.animation.AnimatorSet()
-                
-                // 底部导航栏向下移动并淡出
-                val navAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 250
-                    interpolator = android.view.animation.DecelerateInterpolator()
-                    addUpdateListener { anim ->
-                        val progress = anim.animatedValue as Float
-                        bottomNav.translationY = navHeight * progress
-                        bottomNav.alpha = 1f - progress // 完全淡出，避免无效图形
+                // 再等待一帧，确保布局完全完成
+                browserQuickActionsBar.post {
+                    // 强制测量布局，确保高度准确
+                    browserQuickActionsBar.measure(
+                        View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    )
+                    
+                    val quickBarHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                    if (quickBarHeight <= 0f) {
+                        Log.w(TAG, "快捷操作栏高度为0，使用默认值")
+                        showQuickActionsBar() // 回退到单独显示
+                        return@post
                     }
-                    addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: android.animation.Animator) {
-                            bottomNav.translationY = navHeight
-                            bottomNav.alpha = 0f
-                            bottomNav.visibility = View.GONE
+                    
+                    // 🔧 关键修复：立即设置translationY为底部下方，避免先出现在tab区域上方
+                    // 这样操作工具栏会直接从底部下方往上浮，不会有下滑的动画
+                    val startY = quickBarHeight // 从屏幕底部下方开始
+                    browserQuickActionsBar.translationY = startY
+                    browserQuickActionsBar.alpha = 0f
+                    
+                    // 创建同步动画
+                    val animatorSet = android.animation.AnimatorSet()
+                    
+                    // 🔧 优化：使用iOS风格的流畅动画
+                    // 底部导航栏向下移动并淡出
+                    val navAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 280L // 🔧 优化：统一动画时长为280ms
+                        // 🔧 优化：使用iOS风格的缓动曲线
+                        interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                        addUpdateListener { anim ->
+                            val progress = anim.animatedValue as Float
+                            // 🔧 优化：使用平滑的缓动函数
+                            val easedProgress = progress * progress * (3f - 2f * progress)
+                            bottomNav.translationY = navHeight * easedProgress
+                            bottomNav.alpha = 1f - easedProgress // 完全淡出，避免无效图形
                         }
-                    })
-                }
-                
-                // 快捷操作栏从下方上浮（起始位置在底部导航栏下方）
-                val startY = navHeight + quickBarHeight
-                browserQuickActionsBar.alpha = 0f
-                browserQuickActionsBar.translationY = startY
-                
-                val quickBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 250
-                    interpolator = android.view.animation.DecelerateInterpolator()
-                    addUpdateListener { anim ->
-                        val progress = anim.animatedValue as Float
-                        browserQuickActionsBar.alpha = progress
-                        // 从起始位置动画到屏幕底部（0）
-                        browserQuickActionsBar.translationY = startY * (1f - progress)
+                        addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                bottomNav.translationY = navHeight
+                                bottomNav.alpha = 0f
+                                bottomNav.visibility = View.GONE
+                            }
+                        })
                     }
-                    addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: android.animation.Animator) {
-                            // 确保最终位置精确为0，避免偏差
-                            browserQuickActionsBar.translationY = 0f
-                            browserQuickActionsBar.alpha = 1f
+                    
+                    // 🔧 优化：快捷操作栏从底部往上浮现（而不是从高处落下）
+                    // 初始位置已经在上面设置好了（屏幕底部下方），这里直接开始动画
+                    
+                    val quickBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 280L // 🔧 优化：统一动画时长为280ms
+                        // 🔧 优化：使用iOS风格的缓动曲线
+                        interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                        addUpdateListener { anim ->
+                            val progress = anim.animatedValue as Float
+                            // 🔧 优化：使用平滑的缓动函数
+                            val easedProgress = progress * progress * (3f - 2f * progress)
+                            browserQuickActionsBar.alpha = easedProgress
+                            // 🔧 优化：从底部下方（startY）往上浮现到屏幕底部（0）
+                            browserQuickActionsBar.translationY = startY * (1f - easedProgress)
                         }
-                    })
+                        addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                // 确保最终位置精确为0，避免偏差
+                                browserQuickActionsBar.translationY = 0f
+                                browserQuickActionsBar.alpha = 1f
+                            }
+                        })
+                    }
+                    
+                    // 同步执行两个动画
+                    animatorSet.playTogether(navAnimator, quickBarAnimator)
+                    animatorSet.start()
+                    
+                    bottomNavAnimator = navAnimator
+                    quickActionsBarAnimator = quickBarAnimator
+                    
+                    Log.d(TAG, "同步动画开始：navHeight=$navHeight, quickBarHeight=$quickBarHeight, startY=$startY")
                 }
-                
-                // 同步执行两个动画
-                animatorSet.playTogether(navAnimator, quickBarAnimator)
-                animatorSet.start()
-                
-                bottomNavAnimator = navAnimator
-                quickActionsBarAnimator = quickBarAnimator
-                
-                Log.d(TAG, "同步动画开始：navHeight=$navHeight, quickBarHeight=$quickBarHeight, startY=$startY")
             }
         } catch (e: Exception) {
             Log.e(TAG, "同步隐藏底部导航栏并显示快捷操作栏失败", e)
@@ -7463,14 +7481,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 创建同步动画
                 val animatorSet = android.animation.AnimatorSet()
                 
+                // 🔧 优化：使用iOS风格的流畅动画
                 // 底部导航栏从下方上浮
                 val navAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 250
-                    interpolator = android.view.animation.DecelerateInterpolator()
+                    duration = 280L // 🔧 优化：统一动画时长为280ms
+                    // 🔧 优化：使用iOS风格的缓动曲线
+                    interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
                     addUpdateListener { anim ->
                         val progress = anim.animatedValue as Float
-                        bottomNav.translationY = navStartY * (1f - progress)
-                        bottomNav.alpha = progress // 完全淡入，避免无效图形
+                        // 🔧 优化：使用平滑的缓动函数
+                        val easedProgress = progress * progress * (3f - 2f * progress)
+                        bottomNav.translationY = navStartY * (1f - easedProgress)
+                        bottomNav.alpha = easedProgress // 完全淡入，避免无效图形
                     }
                     addListener(object : android.animation.AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: android.animation.Animator) {
@@ -7481,15 +7503,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     })
                 }
                 
+                // 🔧 优化：使用iOS风格的流畅动画
                 // 快捷操作栏向下移动并淡出
                 val endY = navHeight + quickBarHeight
                 val quickBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 250
-                    interpolator = android.view.animation.AccelerateInterpolator()
+                    duration = 280L // 🔧 优化：统一动画时长为280ms
+                    // 🔧 优化：使用iOS风格的缓动曲线
+                    interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
                     addUpdateListener { anim ->
                         val progress = anim.animatedValue as Float
-                        browserQuickActionsBar.alpha = 1f - progress // 完全淡出，避免无效图形
-                        browserQuickActionsBar.translationY = quickBarStartY + (endY - quickBarStartY) * progress
+                        // 🔧 优化：使用平滑的缓动函数
+                        val easedProgress = progress * progress * (3f - 2f * progress)
+                        browserQuickActionsBar.alpha = 1f - easedProgress // 完全淡出，避免无效图形
+                        browserQuickActionsBar.translationY = quickBarStartY + (endY - quickBarStartY) * easedProgress
                     }
                     addListener(object : android.animation.AnimatorListenerAdapter() {
                         override fun onAnimationEnd(animation: android.animation.Animator) {
@@ -7517,6 +7543,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 隐藏工具栏（同步动画：标题栏、tab栏、网页容器）
+     * 🔧 重新设计：通过动态调整高度避免空白区域
      */
     private fun hideToolbar() {
         if (!isToolbarVisible) return
@@ -7531,6 +7558,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val toolbarHeight = browserToolbar.height.toFloat()
             if (toolbarHeight <= 0) {
                 Log.w(TAG, "工具栏高度为0，无法执行隐藏动画")
+                browserToolbar.visibility = View.GONE
                 return
             }
 
@@ -7540,53 +7568,86 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             } else {
                 0f
             }
-            val totalHeight = toolbarHeight + tabContainerHeight
 
             // 缩进距离（左右各缩进）
             val indentDistance = dpToPx(16f)
 
+            // 保存原始高度
+            val originalToolbarHeight = toolbarHeight.toInt()
+            val originalTabHeight = tabContainerHeight.toInt()
+
+            // 🔧 重新设计：使用iOS风格的流畅动画，统一时长和插值器
             // 创建同步隐藏动画 - 标题栏、tab栏、网页容器同步移动和缩进
             toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 300
-                interpolator = android.view.animation.DecelerateInterpolator()
+                duration = 280L // 🔧 优化：统一动画时长为280ms，更流畅
+                // 🔧 优化：使用iOS风格的缓动曲线，更自然流畅
+                interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
 
                 addUpdateListener { animator ->
                     val progress = animator.animatedValue as Float
                     
-                    // 标题栏：向上移动并淡出
-                    val toolbarTranslationY = -toolbarHeight * progress
-                    browserToolbar.translationY = toolbarTranslationY
-                    browserToolbar.alpha = 1f - 0.9f * progress
+                    // 🔧 优化：使用更平滑的缓动函数，让动画更自然
+                    val easedProgress = progress * progress * (3f - 2f * progress) // Smoothstep函数
                     
-                    // Tab栏：向上移动并淡出（同步）
+                    // 🔧 关键修复：标题栏和tab栏作为一体，向下滑动退出
+                    // 计算总高度（工具栏+tab栏）
+                    val totalHeight = toolbarHeight + tabContainerHeight
+                    
+                    // 标题栏和tab栏：向下移动并淡出（作为一体）
+                    val toolbarTranslationY = totalHeight * easedProgress
+                    browserToolbar.translationY = toolbarTranslationY
+                    browserToolbar.alpha = 1f - 0.95f * easedProgress
+                    
+                    // Tab栏：同步向下移动并淡出
                     if (browserTabContainer.visibility == View.VISIBLE) {
                         browserTabContainer.translationY = toolbarTranslationY
-                        browserTabContainer.alpha = 1f - 0.9f * progress
+                        browserTabContainer.alpha = 1f - 0.95f * easedProgress
+                    }
+                    
+                    // 🔧 关键修复：动态调整工具栏高度，从实际高度逐渐减少到0
+                    // 这样工具栏在布局中占据的空间会同步减少，不会出现空白区域
+                    val currentToolbarHeight = (originalToolbarHeight * (1f - easedProgress)).toInt()
+                    val toolbarLayoutParams = browserToolbar.layoutParams
+                    toolbarLayoutParams.height = currentToolbarHeight
+                    browserToolbar.layoutParams = toolbarLayoutParams
+                    
+                    // Tab栏高度同步减少
+                    if (browserTabContainer.visibility == View.VISIBLE) {
+                        val currentTabHeight = (originalTabHeight * (1f - easedProgress)).toInt()
+                        val tabLayoutParams = browserTabContainer.layoutParams
+                        tabLayoutParams.height = currentTabHeight
+                        browserTabContainer.layoutParams = tabLayoutParams
                     }
                     
                     // 网页容器：同步缩进/延伸动画
                     val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
                     if (webViewContainer != null) {
-                        val margin = (indentDistance * (1f - progress)).toInt()
+                        val margin = (indentDistance * (1f - easedProgress)).toInt() // 🔧 优化：使用easedProgress
                         val layoutParams = webViewContainer.layoutParams as? ViewGroup.MarginLayoutParams
                         layoutParams?.let {
                             it.leftMargin = margin
                             it.rightMargin = margin
                             webViewContainer.layoutParams = it
                         }
+                        // 🔧 修复白色背景：确保WebView容器背景始终透明
+                        webViewContainer.setBackgroundColor(Color.TRANSPARENT)
                     }
                     
+                    // 🔧 修复白色背景：确保SwipeRefreshLayout背景也透明
+                    val swipeRefreshLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+                    swipeRefreshLayout?.setBackgroundColor(Color.TRANSPARENT)
+                    
                     // 标题栏和tab栏同步缩进
-                    val toolbarMargin = (indentDistance * (1f - progress)).toInt()
-                    val toolbarLayoutParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
-                    toolbarLayoutParams?.let {
+                    val toolbarMargin = (indentDistance * (1f - easedProgress)).toInt() // 🔧 优化：使用easedProgress
+                    val toolbarMarginParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
+                    toolbarMarginParams?.let {
                         it.leftMargin = toolbarMargin
                         it.rightMargin = toolbarMargin
                         browserToolbar.layoutParams = it
                     }
                     
-                    val tabLayoutParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
-                    tabLayoutParams?.let {
+                    val tabMarginParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                    tabMarginParams?.let {
                         it.leftMargin = toolbarMargin
                         it.rightMargin = toolbarMargin
                         browserTabContainer.layoutParams = it
@@ -7598,6 +7659,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         Log.d(TAG, "工具栏隐藏动画完成")
                         // 完全隐藏后从布局移除，释放高度给内容区域
                         browserToolbar.visibility = View.GONE
+                        browserToolbar.translationY = 0f
+                        browserToolbar.alpha = 1f
+                        // 恢复原始高度，以便下次显示时使用
+                        val toolbarLayoutParams = browserToolbar.layoutParams
+                        toolbarLayoutParams.height = originalToolbarHeight
+                        browserToolbar.layoutParams = toolbarLayoutParams
+                        // 🔧 修复：重置tab栏状态
+                        if (browserTabContainer.visibility == View.VISIBLE) {
+                            browserTabContainer.translationY = 0f
+                            browserTabContainer.alpha = 1f
+                            val tabLayoutParams = browserTabContainer.layoutParams
+                            tabLayoutParams.height = originalTabHeight
+                            browserTabContainer.layoutParams = tabLayoutParams
+                        }
+                        // 🔧 修复白色背景：动画结束后再次确认背景透明
+                        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+                        webViewContainer?.setBackgroundColor(Color.TRANSPARENT)
+                        val swipeRefreshLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+                        swipeRefreshLayout?.setBackgroundColor(Color.TRANSPARENT)
                     }
                 })
 
@@ -7620,6 +7700,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 显示工具栏（同步动画：标题栏、tab栏、网页容器）
+     * 🔧 重新设计：通过动态调整高度避免空白区域
      */
     private fun showToolbar() {
         if (isToolbarVisible) return
@@ -7630,67 +7711,161 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 取消之前的动画
             toolbarAnimator?.cancel()
 
-            // 让工具栏参与布局测量，避免顶部留白
-            if (browserToolbar.visibility != View.VISIBLE) {
-                browserToolbar.visibility = View.VISIBLE
-                if (browserToolbar.height == 0) {
-                    val density = resources.displayMetrics.density
-                    browserToolbar.translationY = -(56f * density)
-                }
-                browserToolbar.alpha = 0.1f
+            // 🔧 重新设计：先设置工具栏为可见，但高度为0，然后动态增加高度
+            // 获取目标高度（如果当前高度为0，使用默认值56dp）
+            val targetToolbarHeight = if (browserToolbar.height > 0) {
+                browserToolbar.height.toFloat()
+            } else {
+                dpToPx(56f)
+            }
+            
+            // 获取tab栏目标高度
+            val targetTabHeight = if (browserTabContainer.visibility == View.VISIBLE && browserTabContainer.height > 0) {
+                browserTabContainer.height.toFloat()
+            } else if (browserTabContainer.visibility == View.VISIBLE) {
+                dpToPx(48f)
+            } else {
+                0f
             }
 
-            // 获取当前位置
-            val toolbarHeight = browserToolbar.height.toFloat()
-            val currentTranslationY = browserToolbar.translationY
-            val startTranslationY = if (currentTranslationY == 0f) -toolbarHeight else currentTranslationY
+            // 让工具栏参与布局，但初始高度为0
+            if (browserToolbar.visibility != View.VISIBLE) {
+                browserToolbar.visibility = View.VISIBLE
+                // 🔧 关键修复：初始高度设为0，避免立即占据布局空间
+                val toolbarLayoutParams = browserToolbar.layoutParams
+                toolbarLayoutParams.height = 0
+                browserToolbar.layoutParams = toolbarLayoutParams
+                
+                // 🔧 关键修复：工具栏直接从底部出现（正的translationY）
+                // 计算总高度（工具栏+tab栏），从底部向上移动到正常位置
+                val totalHeight = targetToolbarHeight + targetTabHeight.toInt()
+                browserToolbar.translationY = totalHeight.toFloat()
+                browserToolbar.alpha = 0.1f
+                
+                // 同样处理tab栏，从底部同步出现
+                if (browserTabContainer.visibility == View.VISIBLE && targetTabHeight > 0) {
+                    val tabLayoutParams = browserTabContainer.layoutParams
+                    tabLayoutParams.height = 0
+                    browserTabContainer.layoutParams = tabLayoutParams
+                    browserTabContainer.translationY = totalHeight.toFloat()
+                    browserTabContainer.alpha = 0.1f
+                }
+            }
+
+            // 🔧 修复白色背景：在动画开始前设置WebView容器和SwipeRefreshLayout的背景
+            val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+            val swipeRefreshLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+            
+            // 设置WebView容器背景为透明，避免显示白色背景
+            webViewContainer?.setBackgroundColor(Color.TRANSPARENT)
+            
+            // 设置SwipeRefreshLayout背景为透明或与主题一致
+            swipeRefreshLayout?.setBackgroundColor(Color.TRANSPARENT)
+            
+            // 等待布局完成后再开始动画，确保高度为0的设置生效
+            browserToolbar.post {
+                // 再次确认高度为0，避免布局测量后高度被重置
+                val toolbarLayoutParams = browserToolbar.layoutParams
+                if (toolbarLayoutParams.height != 0) {
+                    toolbarLayoutParams.height = 0
+                    browserToolbar.layoutParams = toolbarLayoutParams
+                }
+                startToolbarShowAnimation(targetToolbarHeight.toInt(), targetTabHeight.toInt())
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示工具栏失败", e)
+        }
+    }
+    
+    /**
+     * 开始工具栏显示动画
+     * 🔧 重新设计：通过动态调整高度避免空白区域
+     */
+    private fun startToolbarShowAnimation(targetToolbarHeight: Int, targetTabHeight: Int) {
+        try {
+            if (targetToolbarHeight <= 0) {
+                Log.w(TAG, "工具栏目标高度为0，无法执行显示动画")
+                return
+            }
 
             // 缩进距离（左右各缩进）
             val indentDistance = dpToPx(16f)
 
+            // 获取起始位置
+            val startTranslationY = browserToolbar.translationY
+
+            // 🔧 重新设计：使用iOS风格的流畅动画，统一时长和插值器
             // 创建同步显示动画 - 标题栏、tab栏、网页容器同步移动和缩进
             toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 220
-                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                duration = 280L // 🔧 优化：统一动画时长为280ms，与隐藏动画一致
+                // 🔧 优化：使用iOS风格的缓动曲线，更自然流畅
+                interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
 
                 addUpdateListener { animator ->
                     val progress = animator.animatedValue as Float
                     
-                    // 标题栏：从起始位置移动到0并淡入
-                    val toolbarTranslationY = startTranslationY + (-startTranslationY) * progress
+                    // 🔧 优化：使用更平滑的缓动函数，让动画更自然
+                    val easedProgress = progress * progress * (3f - 2f * progress) // Smoothstep函数
+                    
+                    // 🔧 关键修复：工具栏直接从底部出现，向上移动到正常位置
+                    // 计算总高度（工具栏+tab栏），从底部（正的translationY）向上移动到0
+                    val totalHeight = targetToolbarHeight + targetTabHeight
+                    val toolbarTranslationY = startTranslationY + (-startTranslationY) * easedProgress
                     browserToolbar.translationY = toolbarTranslationY
-                    val toolbarAlpha = 0.1f + 0.9f * progress
+                    val toolbarAlpha = 0.1f + 0.9f * easedProgress
                     browserToolbar.alpha = toolbarAlpha
                     
-                    // Tab栏：同步移动和淡入
-                    if (browserTabContainer.visibility == View.VISIBLE) {
+                    // Tab栏：同步从底部向上移动和淡入
+                    if (browserTabContainer.visibility == View.VISIBLE && targetTabHeight > 0) {
                         browserTabContainer.translationY = toolbarTranslationY
                         browserTabContainer.alpha = toolbarAlpha
+                    }
+                    
+                    // 🔧 关键修复：动态调整工具栏高度，从0逐渐增加到目标高度
+                    // 这样工具栏在布局中占据的空间会同步增加，不会出现空白区域
+                    val currentToolbarHeight = (targetToolbarHeight * easedProgress).toInt()
+                    val toolbarLayoutParams = browserToolbar.layoutParams
+                    toolbarLayoutParams.height = currentToolbarHeight
+                    browserToolbar.layoutParams = toolbarLayoutParams
+                    
+                    // Tab栏高度同步增加
+                    if (browserTabContainer.visibility == View.VISIBLE && targetTabHeight > 0) {
+                        val currentTabHeight = (targetTabHeight * easedProgress).toInt()
+                        val tabLayoutParams = browserTabContainer.layoutParams
+                        tabLayoutParams.height = currentTabHeight
+                        browserTabContainer.layoutParams = tabLayoutParams
                     }
                     
                     // 网页容器：同步缩进/延伸动画
                     val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
                     if (webViewContainer != null) {
-                        val margin = (indentDistance * (1f - progress)).toInt()
+                        val margin = (indentDistance * (1f - easedProgress)).toInt() // 🔧 优化：使用easedProgress
                         val layoutParams = webViewContainer.layoutParams as? ViewGroup.MarginLayoutParams
                         layoutParams?.let {
                             it.leftMargin = margin
                             it.rightMargin = margin
                             webViewContainer.layoutParams = it
                         }
+                        // 🔧 修复白色背景：确保WebView容器背景始终透明
+                        webViewContainer.setBackgroundColor(Color.TRANSPARENT)
                     }
                     
+                    // 🔧 修复白色背景：确保SwipeRefreshLayout背景也透明
+                    val swipeRefreshLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+                    swipeRefreshLayout?.setBackgroundColor(Color.TRANSPARENT)
+                    
                     // 标题栏和tab栏同步缩进
-                    val toolbarMargin = (indentDistance * (1f - progress)).toInt()
-                    val toolbarLayoutParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
-                    toolbarLayoutParams?.let {
+                    val toolbarMargin = (indentDistance * (1f - easedProgress)).toInt() // 🔧 优化：使用easedProgress
+                    val toolbarMarginParams = browserToolbar.layoutParams as? ViewGroup.MarginLayoutParams
+                    toolbarMarginParams?.let {
                         it.leftMargin = toolbarMargin
                         it.rightMargin = toolbarMargin
                         browserToolbar.layoutParams = it
                     }
                     
-                    val tabLayoutParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
-                    tabLayoutParams?.let {
+                    val tabMarginParams = browserTabContainer.layoutParams as? ViewGroup.MarginLayoutParams
+                    tabMarginParams?.let {
                         it.leftMargin = toolbarMargin
                         it.rightMargin = toolbarMargin
                         browserTabContainer.layoutParams = it
@@ -7700,16 +7875,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 addListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: android.animation.Animator) {
                         Log.d(TAG, "工具栏显示动画完成")
+                        // 🔧 修复：确保动画结束后translationY为0，避免残留偏移
+                        browserToolbar.translationY = 0f
+                        browserToolbar.alpha = 1f
+                        if (browserTabContainer.visibility == View.VISIBLE) {
+                            browserTabContainer.translationY = 0f
+                            browserTabContainer.alpha = 1f
+                        }
+                        // 🔧 修复白色背景：动画结束后再次确认背景透明
+                        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+                        webViewContainer?.setBackgroundColor(Color.TRANSPARENT)
+                        val swipeRefreshLayout = findViewById<androidx.swiperefreshlayout.widget.SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+                        swipeRefreshLayout?.setBackgroundColor(Color.TRANSPARENT)
                     }
                 })
 
                 start()
             }
 
-            Log.d(TAG, "开始显示工具栏，从位置: $startTranslationY")
+            Log.d(TAG, "开始显示工具栏，目标高度: $targetToolbarHeight")
 
         } catch (e: Exception) {
-            Log.e(TAG, "显示工具栏失败", e)
+            Log.e(TAG, "开始工具栏显示动画失败", e)
         }
     }
 
@@ -7753,6 +7940,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 根据主题设置背景
             updateQuickActionsBarTheme()
+            
+            // 🔧 修复：初始化时确保快捷操作栏处于正确的初始状态（完全隐藏在底部下方）
+            browserQuickActionsBar.post {
+                // 确保布局已测量
+                browserQuickActionsBar.measure(
+                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+                
+                val initialHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                if (initialHeight > 0f) {
+                    // 设置初始状态：完全隐藏在底部下方，透明
+                    browserQuickActionsBar.translationY = initialHeight
+                    browserQuickActionsBar.alpha = 0f
+                    browserQuickActionsBar.visibility = View.GONE
+                } else {
+                    // 如果高度还未测量，使用默认值
+                    val defaultHeight = dpToPx(72f)
+                    browserQuickActionsBar.translationY = defaultHeight
+                    browserQuickActionsBar.alpha = 0f
+                    browserQuickActionsBar.visibility = View.GONE
+                }
+            }
             
             Log.d(TAG, "快捷操作栏初始化完成")
         } catch (e: Exception) {
@@ -7812,73 +8022,73 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isQuickActionsBarVisible = true
             quickActionsBarAnimator?.cancel()
             
-            // 确保快捷操作栏可见
-            if (browserQuickActionsBar.visibility != View.VISIBLE) {
+            // 🔧 重新设计：确保操作工具栏直接从底部往上浮，避免从tab区域上方下滑
+            // 1. 先设置为VISIBLE但alpha为0，让系统完成布局（layout_gravity="bottom"会生效）
+            // 2. 立即设置translationY为底部下方，避免先出现在错误位置
+            // 3. 然后开始从底部往上浮的动画
+            if (browserQuickActionsBar.visibility == View.GONE) {
+                // 先设置为VISIBLE但完全透明，让系统完成布局
+                browserQuickActionsBar.alpha = 0f
                 browserQuickActionsBar.visibility = View.VISIBLE
             }
             
-            // 确保布局已测量完成
+            // 等待布局完成
             browserQuickActionsBar.post {
-                // 强制测量布局，确保高度准确
-                browserQuickActionsBar.measure(
-                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-                
-                val actualHeight = browserQuickActionsBar.measuredHeight.toFloat()
-                if (actualHeight <= 0f) {
-                    Log.w(TAG, "快捷操作栏高度为0，使用默认值")
-                    val defaultHeight = dpToPx(72f) // 默认高度72dp
+                browserQuickActionsBar.post {
+                    // 强制测量布局，确保高度准确
+                    browserQuickActionsBar.measure(
+                        View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                    )
+                    
+                    val actualHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                    val defaultHeight = if (actualHeight <= 0f) {
+                        Log.w(TAG, "快捷操作栏高度为0，使用默认值")
+                        dpToPx(72f) // 默认高度72dp
+                    } else {
+                        actualHeight
+                    }
+                    
+                    // 🔧 关键修复：立即设置translationY为底部下方，避免先出现在tab区域上方
+                    // 这样操作工具栏会直接从底部下方往上浮，不会有下滑的动画
                     browserQuickActionsBar.translationY = defaultHeight
                     browserQuickActionsBar.alpha = 0f
                     
+                    // 🔧 修复白色背景：确保WebView容器背景透明，避免显示白色背景
+                    val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+                    webViewContainer?.setBackgroundColor(Color.TRANSPARENT)
+                    
+                    // 开始从底部滑入的动画
                     quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                        duration = 250
-                        interpolator = android.view.animation.DecelerateInterpolator()
+                        duration = 280L // 🔧 优化：统一动画时长为280ms
+                        // 🔧 优化：使用iOS风格的缓动曲线
+                        interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                        
                         addUpdateListener { animator ->
                             val progress = animator.animatedValue as Float
-                            browserQuickActionsBar.alpha = progress
-                            browserQuickActionsBar.translationY = defaultHeight * (1f - progress)
+                            // 🔧 优化：使用平滑的缓动函数
+                            val easedProgress = progress * progress * (3f - 2f * progress)
+                            
+                            // 🔧 关键修复：从底部下方（translationY=defaultHeight）滑入到屏幕底部（translationY=0）
+                            // translationY从正数逐渐变为0，实现从底部滑出的效果
+                            browserQuickActionsBar.translationY = defaultHeight * (1f - easedProgress)
+                            browserQuickActionsBar.alpha = easedProgress
                         }
+                        
                         addListener(object : android.animation.AnimatorListenerAdapter() {
                             override fun onAnimationEnd(animation: android.animation.Animator) {
+                                // 确保最终位置精确为0，避免偏差
                                 browserQuickActionsBar.translationY = 0f
                                 browserQuickActionsBar.alpha = 1f
+                                Log.d(TAG, "快捷操作栏显示动画完成，已从底部滑出")
                             }
                         })
+                        
                         start()
                     }
-                    return@post
+                    
+                    Log.d(TAG, "快捷操作栏显示动画开始，高度: $defaultHeight，从底部滑出")
                 }
-                
-                // 初始位置：完全隐藏在屏幕下方
-                val startY = actualHeight
-                browserQuickActionsBar.alpha = 0f
-                browserQuickActionsBar.translationY = startY
-                
-                quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                    duration = 250
-                    interpolator = android.view.animation.DecelerateInterpolator()
-                    
-                    addUpdateListener { animator ->
-                        val progress = animator.animatedValue as Float
-                        browserQuickActionsBar.alpha = progress
-                        // 从起始位置动画到0（屏幕底部）
-                        browserQuickActionsBar.translationY = startY * (1f - progress)
-                    }
-                    
-                    addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: android.animation.Animator) {
-                            // 确保最终位置精确为0，避免偏差
-                            browserQuickActionsBar.translationY = 0f
-                            browserQuickActionsBar.alpha = 1f
-                        }
-                    })
-                    
-                    start()
-                }
-                
-                Log.d(TAG, "快捷操作栏显示动画开始，高度: $actualHeight, 起始位置: $startY")
             }
         } catch (e: Exception) {
             Log.e(TAG, "显示快捷操作栏失败", e)
@@ -7895,45 +8105,60 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isQuickActionsBarVisible = false
             quickActionsBarAnimator?.cancel()
             
-            // 获取当前位置和高度
-            val startY = browserQuickActionsBar.translationY
-            val barHeight = browserQuickActionsBar.height.toFloat()
-            
-            // 获取底部导航栏高度（如果即将显示）
-            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
-            val bottomNavHeight = if (bottomNav?.visibility == View.VISIBLE && bottomNav.height > 0) {
-                bottomNav.height.toFloat()
-            } else {
-                0f
-            }
-            
-            // 目标位置：完全隐藏在屏幕下方（考虑底部导航栏）
-            val endY = barHeight + bottomNavHeight
-            
-            quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 200
-                interpolator = android.view.animation.AccelerateInterpolator()
+            // 获取当前位置和高度（使用post确保布局已测量）
+            browserQuickActionsBar.post {
+                // 强制测量布局
+                browserQuickActionsBar.measure(
+                    View.MeasureSpec.makeMeasureSpec(browserQuickActionsBar.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
                 
-                addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
-                    browserQuickActionsBar.alpha = 1f - progress
-                    // 从当前位置动画到完全隐藏位置
-                    browserQuickActionsBar.translationY = startY + (endY - startY) * progress
+                val startY = browserQuickActionsBar.translationY.coerceAtLeast(0f)
+                val barHeight = browserQuickActionsBar.measuredHeight.toFloat()
+                
+                // 如果高度为0，使用默认值
+                val actualBarHeight = if (barHeight <= 0f) {
+                    dpToPx(72f)
+                } else {
+                    barHeight
                 }
                 
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) {
-                        // 确保最终位置正确，并隐藏
-                        browserQuickActionsBar.translationY = endY
-                        browserQuickActionsBar.alpha = 0f
-                        browserQuickActionsBar.visibility = View.GONE
-                    }
-                })
+                // 获取底部导航栏高度（如果即将显示）
+                val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                val bottomNavHeight = if (bottomNav?.visibility == View.VISIBLE && bottomNav.height > 0) {
+                    bottomNav.height.toFloat()
+                } else {
+                    0f
+                }
                 
-                start()
+                // 目标位置：完全隐藏在屏幕下方（考虑底部导航栏）
+                val endY = actualBarHeight + bottomNavHeight
+                
+                quickActionsBarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                    duration = 200
+                    interpolator = android.view.animation.AccelerateInterpolator()
+                    
+                    addUpdateListener { animator ->
+                        val progress = animator.animatedValue as Float
+                        browserQuickActionsBar.alpha = 1f - progress
+                        // 从当前位置动画到完全隐藏位置
+                        browserQuickActionsBar.translationY = startY + (endY - startY) * progress
+                    }
+                    
+                    addListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            // 确保最终位置正确，并隐藏
+                            browserQuickActionsBar.translationY = endY
+                            browserQuickActionsBar.alpha = 0f
+                            browserQuickActionsBar.visibility = View.GONE
+                        }
+                    })
+                    
+                    start()
+                }
+                
+                Log.d(TAG, "快捷操作栏隐藏动画开始，从 $startY 到 $endY")
             }
-            
-            Log.d(TAG, "快捷操作栏隐藏动画开始，从 $startY 到 $endY")
         } catch (e: Exception) {
             Log.e(TAG, "隐藏快捷操作栏失败", e)
         }
@@ -29548,7 +29773,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "恢复标签页: groupId=$groupId, tabId=$tabId, title=$tabTitle, isLoaded=$isLoaded")
             }
             
-            // 🔧 修复4：恢复页面后，检查并确保默认主页存在
+            // 🔧 修复2：恢复页面后，检查并确保默认主页在最左边
             handler.postDelayed({
                 try {
                     val allTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
@@ -29557,10 +29782,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     
                     if (!hasFunctionalHome) {
-                        Log.d(TAG, "🔧 修复4：恢复页面后未发现默认主页，自动创建")
+                        Log.d(TAG, "🔧 修复2：恢复页面后未发现默认主页，自动创建")
                         createFunctionalHomeTab()
                     } else {
-                        Log.d(TAG, "✅ 恢复页面后已存在默认主页")
+                        // 检查默认主页是否在最左边（索引0）
+                        val functionalHomeIndex = allTabs.indexOfFirst { tab ->
+                            tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html"
+                        }
+                        if (functionalHomeIndex != 0) {
+                            Log.d(TAG, "🔧 修复2：默认主页不在最左边（当前索引=$functionalHomeIndex），已在恢复逻辑中处理")
+                        } else {
+                            Log.d(TAG, "✅ 恢复页面后默认主页已在最左边")
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "检查默认主页失败", e)

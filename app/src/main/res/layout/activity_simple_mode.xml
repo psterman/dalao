@@ -2022,7 +2022,8 @@
                     <FrameLayout
                         android:id="@+id/browser_webview_container"
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent">
+                        android:layout_height="match_parent"
+                        android:background="@color/simple_mode_background_light">
 
                         <!-- 纸堆WebView布局 -->
                         <include
@@ -2041,7 +2042,7 @@
                             android:orientation="horizontal"
                             android:gravity="center"
                             android:padding="12dp"
-                            android:background="@android:color/transparent"
+                            android:background="@color/simple_mode_header_background_light"
                             android:visibility="gone"
                             android:elevation="8dp">
                             
@@ -2139,7 +2140,8 @@
                     <ScrollView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:fillViewport="true">
+                        android:fillViewport="true"
+                        android:background="@color/simple_mode_background_light">
 
                         <LinearLayout
                             android:id="@+id/browser_home_content"
@@ -2147,7 +2149,8 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
                             android:padding="24dp"
-                            android:gravity="center">
+                            android:gravity="center"
+                            android:background="@color/simple_mode_background_light">
 
                         <!-- 可拖动的按钮网格布局 -->
                         <com.example.aifloatingball.views.DraggableButtonGrid
