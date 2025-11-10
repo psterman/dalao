@@ -6679,6 +6679,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 新建标签页也注入视频检测
             injectVideoHookToWebView(tab.webView)
             
+            // 🔧 修复：为新建的标签页添加滚动监听器，确保工具栏能正常显示/隐藏
+            addScrollListenerToWebView(tab.webView)
+            
             // 更新搜索tab徽标
             updateSearchTabBadge()
             
@@ -6726,6 +6729,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 为当前标签页注入视频检测脚本
             injectVideoHookToWebView(tab.webView)
+
+            // 🔧 修复：为切换到的标签页添加滚动监听器，确保工具栏能正常显示/隐藏
+            addScrollListenerToWebView(tab.webView)
 
             // 同步更新StackedCardPreview数据
             syncAllCardSystems()
@@ -22043,6 +22049,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 有标签页，进入纸堆模式
                 Log.d(TAG, "切换到搜索tab：有 $tabCount 个标签页，进入纸堆模式")
                 enterPaperStackMode()
+                
+                // 🔧 修复：为当前活动的WebView添加滚动监听器，确保工具栏能正常显示/隐藏
+                paperStackWebViewManager?.getCurrentTab()?.let { currentTab ->
+                    handler.postDelayed({
+                        addScrollListenerToWebView(currentTab.webView)
+                        Log.d(TAG, "为当前标签页添加滚动监听器: ${currentTab.title}")
+                    }, 100) // 延迟100ms，确保WebView已完全初始化
+                }
             }
             
             // 检查是否需要恢复页面（延迟执行，确保UI已初始化）
