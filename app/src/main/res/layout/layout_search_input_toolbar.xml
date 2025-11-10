@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 搜索输入框上方的文字工具栏 -->
+<HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/search_input_toolbar_scroll"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:scrollbars="none"
+    android:fadeScrollbars="true"
+    android:background="?android:attr/colorBackground"
+    android:visibility="gone">
+
+    <LinearLayout
+        android:id="@+id/search_input_toolbar_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="8dp">
+
+        <!-- 默认快捷按钮：http:// -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_http"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="http://"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：https:// -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_https"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="https://"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：m. -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_m"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="m."
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：www. -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_www"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="www."
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：.com -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_com"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=".com"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 默认快捷按钮：@ -->
+        <com.google.android.material.chip.Chip
+            android:id="@+id/toolbar_at"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@"
+            android:textSize="14sp"
+            android:layout_marginEnd="6dp"
+            style="@style/Widget.MaterialComponents.Chip.Choice"
+            app:chipBackgroundColor="?android:attr/colorControlHighlight"
+            app:chipStrokeWidth="0dp" />
+
+        <!-- 自定义词组容器（动态添加） -->
+        <!-- 这里会在代码中动态添加自定义词组 -->
+
+    </LinearLayout>
+
+</HorizontalScrollView>
+

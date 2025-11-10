@@ -666,6 +666,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserBtnClose: TextView
     private lateinit var browserSearchInput: EditText
     
+    // 🔧 修复4：搜索输入框文字工具栏相关
+    private var searchInputToolbarContainer: View? = null
+    private var searchInputToolbarLayout: LinearLayout? = null
+    
     // 上滑激活悬浮卡片相关变量
     private var swipeUpStartY = 0f
     private var swipeUpStartTime = 0L
@@ -1875,6 +1879,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserSearchInput = findViewById(R.id.browser_search_input)
         browserBtnMenu = findViewById(R.id.browser_btn_menu)
         browserProgressBar = findViewById(R.id.browser_progress_bar)
+        
+        // 🔧 修复4：初始化搜索输入框文字工具栏
+        searchInputToolbarContainer = findViewById(R.id.search_input_toolbar_container)
+        searchInputToolbarLayout = findViewById(R.id.search_input_toolbar_layout)
         browserTabContainer = findViewById(R.id.browser_tab_container)
         browserTabBar = findViewById(R.id.browser_tab_bar)
         browserNewTabButton = findViewById(R.id.browser_new_tab_button)
@@ -7015,6 +7023,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置按钮监听器
         setupBrowserButtons()
+        
+        // 🔧 修复4：设置搜索输入框文字工具栏
+        setupSearchInputToolbar()
 
         // 设置卡片预览按钮图标
         setupCardPreviewButtonIcon()
@@ -7574,6 +7585,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             } else {
                 0f
             }
+            
+            // 🔧 修复3：获取组标签栏高度（如果可见）
+            val groupTabsContainerRef = groupTabsContainer
+            val groupTabsContainerHeight = if (groupTabsContainerRef?.visibility == View.VISIBLE) {
+                groupTabsContainerRef.height.toFloat()
+            } else {
+                0f
+            }
 
             // 缩进距离（左右各缩进）
             val indentDistance = dpToPx(16f)
@@ -7581,6 +7600,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 保存原始高度
             val originalToolbarHeight = toolbarHeight.toInt()
             val originalTabHeight = tabContainerHeight.toInt()
+            val originalGroupTabsHeight = groupTabsContainerHeight.toInt()
 
             // 🔧 重新设计：使用iOS风格的流畅动画，统一时长和插值器
             // 创建同步隐藏动画 - 标题栏、tab栏、网页容器同步移动和缩进
@@ -7595,9 +7615,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 🔧 优化：使用更平滑的缓动函数，让动画更自然
                     val easedProgress = progress * progress * (3f - 2f * progress) // Smoothstep函数
                     
-                    // 🔧 关键修复：标题栏和tab栏作为一体，向下滑动退出
-                    // 计算总高度（工具栏+tab栏）
-                    val totalHeight = toolbarHeight + tabContainerHeight
+                    // 🔧 关键修复：标题栏、tab栏和组标签栏作为一体，向下滑动退出
+                    // 计算总高度（工具栏+tab栏+组标签栏）
+                    val totalHeight = toolbarHeight + tabContainerHeight + groupTabsContainerHeight
                     
                     // 标题栏和tab栏：向下移动并淡出（作为一体）
                     val toolbarTranslationY = totalHeight * easedProgress
@@ -7608,6 +7628,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     if (browserTabContainer.visibility == View.VISIBLE) {
                         browserTabContainer.translationY = toolbarTranslationY
                         browserTabContainer.alpha = 1f - 0.95f * easedProgress
+                    }
+                    
+                    // 🔧 修复3：组标签栏：同步向下移动并淡出
+                    groupTabsContainer?.let { container ->
+                        if (container.visibility == View.VISIBLE) {
+                            container.translationY = toolbarTranslationY
+                            container.alpha = 1f - 0.95f * easedProgress
+                        }
                     }
                     
                     // 🔧 关键修复：动态调整工具栏高度，从实际高度逐渐减少到0
@@ -7623,6 +7651,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val tabLayoutParams = browserTabContainer.layoutParams
                         tabLayoutParams.height = currentTabHeight
                         browserTabContainer.layoutParams = tabLayoutParams
+                    }
+                    
+                    // 🔧 修复3：组标签栏高度同步减少
+                    groupTabsContainer?.let { container ->
+                        if (container.visibility == View.VISIBLE) {
+                            val currentGroupTabsHeight = (originalGroupTabsHeight * (1f - easedProgress)).toInt()
+                            val groupTabsLayoutParams = container.layoutParams
+                            groupTabsLayoutParams.height = currentGroupTabsHeight
+                            container.layoutParams = groupTabsLayoutParams
+                        }
                     }
                     
                     // 网页容器：同步缩进/延伸动画
@@ -7658,6 +7696,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         it.rightMargin = toolbarMargin
                         browserTabContainer.layoutParams = it
                     }
+                    
+                    // 🔧 修复3：组标签栏同步缩进
+                    groupTabsContainer?.let { container ->
+                        val groupTabsMarginParams = container.layoutParams as? ViewGroup.MarginLayoutParams
+                        groupTabsMarginParams?.let {
+                            it.leftMargin = toolbarMargin
+                            it.rightMargin = toolbarMargin
+                            container.layoutParams = it
+                        }
+                    }
                 }
 
                 addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -7678,6 +7726,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             val tabLayoutParams = browserTabContainer.layoutParams
                             tabLayoutParams.height = originalTabHeight
                             browserTabContainer.layoutParams = tabLayoutParams
+                        }
+                        
+                        // 🔧 修复3：重置组标签栏状态
+                        groupTabsContainer?.let { container ->
+                            if (container.visibility == View.VISIBLE) {
+                                container.translationY = 0f
+                                container.alpha = 1f
+                                val groupTabsLayoutParams = container.layoutParams
+                                groupTabsLayoutParams.height = originalGroupTabsHeight
+                                container.layoutParams = groupTabsLayoutParams
+                            }
                         }
                         // 🔧 修复白色背景：动画结束后再次确认背景透明
                         val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
@@ -7733,6 +7792,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             } else {
                 0f
             }
+            
+            // 🔧 修复3：获取组标签栏目标高度
+            val groupTabsContainerRef = groupTabsContainer
+            val targetGroupTabsHeight = if (groupTabsContainerRef?.visibility == View.VISIBLE && groupTabsContainerRef.height > 0) {
+                groupTabsContainerRef.height.toFloat()
+            } else if (groupTabsContainerRef?.visibility == View.VISIBLE) {
+                dpToPx(48f)
+            } else {
+                0f
+            }
 
             // 让工具栏参与布局，但初始高度为0
             if (browserToolbar.visibility != View.VISIBLE) {
@@ -7743,8 +7812,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserToolbar.layoutParams = toolbarLayoutParams
                 
                 // 🔧 关键修复：工具栏直接从底部出现（正的translationY）
-                // 计算总高度（工具栏+tab栏），从底部向上移动到正常位置
-                val totalHeight = targetToolbarHeight + targetTabHeight.toInt()
+                // 计算总高度（工具栏+tab栏+组标签栏），从底部向上移动到正常位置
+                val totalHeight = targetToolbarHeight + targetTabHeight.toInt() + targetGroupTabsHeight.toInt()
                 browserToolbar.translationY = totalHeight.toFloat()
                 browserToolbar.alpha = 0.1f
                 
@@ -7755,6 +7824,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     browserTabContainer.layoutParams = tabLayoutParams
                     browserTabContainer.translationY = totalHeight.toFloat()
                     browserTabContainer.alpha = 0.1f
+                }
+                
+                // 🔧 修复3：同样处理组标签栏，从底部同步出现
+                groupTabsContainer?.let { container ->
+                    if (container.visibility == View.VISIBLE && targetGroupTabsHeight > 0) {
+                        val groupTabsLayoutParams = container.layoutParams
+                        groupTabsLayoutParams.height = 0
+                        container.layoutParams = groupTabsLayoutParams
+                        container.translationY = totalHeight.toFloat()
+                        container.alpha = 0.1f
+                    }
                 }
             }
 
@@ -7776,7 +7856,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     toolbarLayoutParams.height = 0
                     browserToolbar.layoutParams = toolbarLayoutParams
                 }
-                startToolbarShowAnimation(targetToolbarHeight.toInt(), targetTabHeight.toInt())
+                startToolbarShowAnimation(targetToolbarHeight.toInt(), targetTabHeight.toInt(), targetGroupTabsHeight.toInt())
             }
 
         } catch (e: Exception) {
@@ -7788,7 +7868,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 开始工具栏显示动画
      * 🔧 重新设计：通过动态调整高度避免空白区域
      */
-    private fun startToolbarShowAnimation(targetToolbarHeight: Int, targetTabHeight: Int) {
+    private fun startToolbarShowAnimation(targetToolbarHeight: Int, targetTabHeight: Int, targetGroupTabsHeight: Int) {
         try {
             if (targetToolbarHeight <= 0) {
                 Log.w(TAG, "工具栏目标高度为0，无法执行显示动画")
@@ -7815,8 +7895,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val easedProgress = progress * progress * (3f - 2f * progress) // Smoothstep函数
                     
                     // 🔧 关键修复：工具栏直接从底部出现，向上移动到正常位置
-                    // 计算总高度（工具栏+tab栏），从底部（正的translationY）向上移动到0
-                    val totalHeight = targetToolbarHeight + targetTabHeight
+                    // 计算总高度（工具栏+tab栏+组标签栏），从底部（正的translationY）向上移动到0
+                    val totalHeight = targetToolbarHeight + targetTabHeight + targetGroupTabsHeight
                     val toolbarTranslationY = startTranslationY + (-startTranslationY) * easedProgress
                     browserToolbar.translationY = toolbarTranslationY
                     val toolbarAlpha = 0.1f + 0.9f * easedProgress
@@ -7826,6 +7906,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     if (browserTabContainer.visibility == View.VISIBLE && targetTabHeight > 0) {
                         browserTabContainer.translationY = toolbarTranslationY
                         browserTabContainer.alpha = toolbarAlpha
+                    }
+                    
+                    // 🔧 修复3：组标签栏：同步从底部向上移动和淡入
+                    groupTabsContainer?.let { container ->
+                        if (container.visibility == View.VISIBLE && targetGroupTabsHeight > 0) {
+                            container.translationY = toolbarTranslationY
+                            container.alpha = toolbarAlpha
+                        }
                     }
                     
                     // 🔧 关键修复：动态调整工具栏高度，从0逐渐增加到目标高度
@@ -7841,6 +7929,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val tabLayoutParams = browserTabContainer.layoutParams
                         tabLayoutParams.height = currentTabHeight
                         browserTabContainer.layoutParams = tabLayoutParams
+                    }
+                    
+                    // 🔧 修复3：组标签栏高度同步增加
+                    groupTabsContainer?.let { container ->
+                        if (container.visibility == View.VISIBLE && targetGroupTabsHeight > 0) {
+                            val currentGroupTabsHeight = (targetGroupTabsHeight * easedProgress).toInt()
+                            val groupTabsLayoutParams = container.layoutParams
+                            groupTabsLayoutParams.height = currentGroupTabsHeight
+                            container.layoutParams = groupTabsLayoutParams
+                        }
                     }
                     
                     // 网页容器：同步缩进/延伸动画
@@ -7875,6 +7973,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         it.leftMargin = toolbarMargin
                         it.rightMargin = toolbarMargin
                         browserTabContainer.layoutParams = it
+                    }
+                    
+                    // 🔧 修复3：组标签栏同步缩进
+                    groupTabsContainer?.let { container ->
+                        val groupTabsMarginParams = container.layoutParams as? ViewGroup.MarginLayoutParams
+                        groupTabsMarginParams?.let {
+                            it.leftMargin = toolbarMargin
+                            it.rightMargin = toolbarMargin
+                            container.layoutParams = it
+                        }
                     }
                 }
 
@@ -9329,7 +9437,143 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
         }
-        
+    }
+    
+    /**
+     * 🔧 修复4：设置搜索输入框文字工具栏
+     * 当输入框获得焦点时显示工具栏，包含快捷输入按钮
+     */
+    private fun setupSearchInputToolbar() {
+        try {
+            val toolbarContainer = searchInputToolbarContainer
+            val toolbarLayout = searchInputToolbarLayout
+            
+            if (toolbarContainer == null || toolbarLayout == null) {
+                Log.w(TAG, "搜索输入框文字工具栏未找到，跳过设置")
+                return
+            }
+            
+            // 默认隐藏工具栏
+            toolbarContainer.visibility = View.GONE
+            
+            // 设置输入框焦点监听
+            browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    // 显示工具栏
+                    toolbarContainer.visibility = View.VISIBLE
+                    // 加载自定义词组
+                    loadCustomToolbarItems(toolbarLayout)
+                } else {
+                    // 隐藏工具栏
+                    toolbarContainer.visibility = View.GONE
+                }
+            }
+            
+            // 设置默认快捷按钮点击事件
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_http)?.setOnClickListener {
+                insertTextToSearchInput("http://")
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_https)?.setOnClickListener {
+                insertTextToSearchInput("https://")
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_m)?.setOnClickListener {
+                insertTextToSearchInput("m.")
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_www)?.setOnClickListener {
+                insertTextToSearchInput("www.")
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.setOnClickListener {
+                insertTextToSearchInput(".com")
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.setOnClickListener {
+                insertTextToSearchInput("@")
+            }
+            
+            Log.d(TAG, "搜索输入框文字工具栏设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索输入框文字工具栏失败", e)
+        }
+    }
+    
+    /**
+     * 🔧 修复4：将文字插入到搜索输入框
+     */
+    private fun insertTextToSearchInput(text: String) {
+        try {
+            val currentText = browserSearchInput.text.toString()
+            val selectionStart = browserSearchInput.selectionStart
+            val selectionEnd = browserSearchInput.selectionEnd
+            
+            val newText = StringBuilder(currentText)
+                .insert(selectionStart, text)
+                .toString()
+            
+            browserSearchInput.setText(newText)
+            browserSearchInput.setSelection(selectionStart + text.length)
+            
+            // 显示清空按钮
+            findViewById<ImageButton>(R.id.browser_btn_clear)?.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            Log.e(TAG, "插入文字到搜索输入框失败", e)
+        }
+    }
+    
+    /**
+     * 🔧 修复4：加载自定义工具栏词组
+     */
+    private fun loadCustomToolbarItems(toolbarLayout: LinearLayout) {
+        try {
+            // 从SharedPreferences读取自定义词组
+            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+            val customItems: List<String> = gson.fromJson(customItemsJson, type) ?: emptyList()
+            
+            // 移除之前添加的自定义词组（保留默认的）
+            val childCount = toolbarLayout.childCount
+            for (i in childCount - 1 downTo 0) {
+                val child = toolbarLayout.getChildAt(i)
+                if (child.tag == "custom_item") {
+                    toolbarLayout.removeViewAt(i)
+                }
+            }
+            
+            // 添加自定义词组
+            customItems.forEach { item ->
+                val chip = com.google.android.material.chip.Chip(
+                    this,
+                    null,
+                    com.google.android.material.R.style.Widget_MaterialComponents_Chip_Choice
+                ).apply {
+                    text = item
+                    textSize = 14f
+                    tag = "custom_item"
+                    setChipBackgroundColorResource(android.R.attr.colorControlHighlight)
+                    chipStrokeWidth = 0f
+                    setOnClickListener {
+                        insertTextToSearchInput(item)
+                    }
+                }
+                val layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginEnd = dpToPx(6f).toInt()
+                }
+                chip.layoutParams = layoutParams
+                toolbarLayout.addView(chip)
+            }
+            
+            Log.d(TAG, "加载了 ${customItems.size} 个自定义工具栏词组")
+        } catch (e: Exception) {
+            Log.e(TAG, "加载自定义工具栏词组失败", e)
+        }
+    }
+
+    /**
+     * 开始浏览按钮处理
+     */
+    private fun setupStartBrowsingButton() {
         // 开始浏览按钮 - 创建新卡片（保留兼容性，但主要使用DraggableButtonGrid）
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener { button ->
             // 添加点击动画

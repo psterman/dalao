@@ -2467,12 +2467,25 @@
                 <!-- 搜索框容器 -->
                 <LinearLayout
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:layout_marginHorizontal="12dp"
-                    android:background="@drawable/search_input_background"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:orientation="vertical">
+                    
+                    <!-- 🔧 修复4：搜索输入框上方的文字工具栏 -->
+                    <include
+                        android:id="@+id/search_input_toolbar_container"
+                        layout="@layout/layout_search_input_toolbar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                    
+                    <!-- 搜索输入框容器 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:background="@drawable/search_input_background"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
                     <!-- 站点信息/图标按钮（显示当前网页favicon） -->
                     <ImageButton
@@ -2530,6 +2543,8 @@
                         android:contentDescription="AI助手档案"
                         app:tint="@color/simple_mode_accent_light" />
 
+                    </LinearLayout>
+                    
                 </LinearLayout>
 
                 <!-- 菜单按钮 -->

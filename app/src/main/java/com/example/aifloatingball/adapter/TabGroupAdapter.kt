@@ -46,19 +46,23 @@ class TabGroupAdapter(
     override fun onBindViewHolder(holder: GroupViewHolder, position: Int) {
         val group = groups[position]
         
-        // 处理组名显示：确保每个组都显示名称
+        // 🔧 修复：处理组名显示逻辑
+        // 1. 未加密的组：正常显示名称
+        // 2. 加密的组（有密码）：未解锁时显示"***"，解锁后显示真实名称
         val isGroupUnlocked = unlockedGroupIds.contains(group.id)
-        if (isUnlockMode && (group.isHidden || group.passwordHash != null) && !isGroupUnlocked) {
-            // 未解锁的隐藏/加密组，显示"***"并添加提示
-            holder.groupName.text = "*** (点击解锁查看)"
-            // 使用主题颜色
+        val hasPassword = group.passwordHash != null
+        
+        if (hasPassword && !isGroupUnlocked) {
+            // 有密码但未解锁的组，显示"***"
+            holder.groupName.text = "***"
+            // 使用次要文本颜色
             val typedValue = android.util.TypedValue()
             holder.groupName.context.theme.resolveAttribute(android.R.attr.textColorSecondary, typedValue, true)
             holder.groupName.setTextColor(typedValue.data)
         } else {
-            // 正常显示组名
+            // 正常显示组名（无密码的组，或已解锁的加密组）
             holder.groupName.text = group.name
-            // 使用主题颜色
+            // 使用主要文本颜色
             val typedValue = android.util.TypedValue()
             holder.groupName.context.theme.resolveAttribute(android.R.attr.textColorPrimary, typedValue, true)
             holder.groupName.setTextColor(typedValue.data)
