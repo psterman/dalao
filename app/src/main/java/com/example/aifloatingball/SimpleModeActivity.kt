@@ -9717,44 +9717,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 检测垂直上滑手势：向上滑动且距离足够，且主要是垂直方向
                 if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
                     absDeltaY > absDeltaX * verticalSwipeRatio) {
-                    // 计算滑动速度
-                    val velocity = if (timeDelta > 0) {
-                        (deltaY / timeDelta) * 1000f // px/s
-                    } else {
-                        0f
-                    }
-                    
-                    // 如果滑动距离足够或速度足够，激活悬浮卡片系统
-                    if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
+                            // 计算滑动速度
+                            val velocity = if (timeDelta > 0) {
+                                (deltaY / timeDelta) * 1000f // px/s
+                            } else {
+                                0f
+                            }
+                            
+                            // 如果滑动距离足够或速度足够，激活悬浮卡片系统
+                            if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
                         isToolbarSwipeUpDetected = true
                         Log.d(TAG, "🔧 检测到标题栏垂直上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity, 垂直/水平比例: ${if (absDeltaX > 0) absDeltaY / absDeltaX else 0f}")
-                        
-                        // 隐藏键盘（如果显示）
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
-                        
-                        // 激活悬浮卡片系统
-                        activateStackedCardPreview()
-                        
-                        // 提供触觉反馈
-                        vibrator?.vibrate(50)
-                        
+                                
+                                // 隐藏键盘（如果显示）
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+                                
+                                // 激活悬浮卡片系统
+                                activateStackedCardPreview()
+                                
+                                // 提供触觉反馈
+                                vibrator?.vibrate(50)
+                                
                         true // 消费事件
                     } else {
                         false // 不拦截，让其他手势正常处理
-                    }
+                            }
                 } else {
-                    false // 不拦截，让其他手势正常处理
+                        false // 不拦截，让其他手势正常处理
+                }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isToolbarSwipeUpDetected = false
+                        false
+                    }
+                    else -> false
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isToolbarSwipeUpDetected = false
-                false
-            }
-            else -> false
-        }
-    }
-    
+            
     /**
      * 更新搜索输入框文字工具栏的可见性
      * 规则：当输入框有焦点时显示工具栏，工具栏位于输入框和tab区之间
@@ -9963,12 +9963,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         toolbarSwipeStartX = event.x
                         toolbarSwipeStartTime = System.currentTimeMillis()
                         isToolbarSwipeUpDetected = false
-                        Log.d(TAG, "搜索输入框被触摸")
+                    Log.d(TAG, "搜索输入框被触摸")
                         // 立即显示工具栏，确保输入法激活时马上出现
                         if (!isToolbarSwipeUpDetected) {
                             updateSearchInputToolbarVisibility()
-                        }
-                        false // 不拦截事件，让系统正常处理
+                }
+                false // 不拦截事件，让系统正常处理
                     }
                     MotionEvent.ACTION_MOVE -> {
                         // 检测是否为上滑手势
@@ -28514,29 +28514,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 在后台打开链接
+     * 🔧 修复：关闭预览弹窗，停留在当前窗口，在后台创建新窗口但不跳转
      */
     private fun openLinkInBackground(url: String) {
         try {
             Log.d(TAG, "在后台打开链接: $url")
             
-            // 确保当前在浏览器状态
-            if (currentState != UIState.BROWSER) {
-                showBrowser()
-            }
-            
-            // 使用手势卡片WebView管理器在后台创建新卡片
-            gestureCardWebViewManager?.let { manager ->
-                // 创建新的WebView卡片并加载URL
-                val newCard = manager.addNewCard(url)
-                
-                // 显示提示信息
-                Toast.makeText(this, "链接已在后台打开", Toast.LENGTH_SHORT).show()
+            // 使用统一的loadUrlInNewCard方法，后台模式（inBackground=true）
+            loadUrlInNewCard(url, inBackground = true)
                 
                 Log.d(TAG, "链接已在后台WebView卡片中打开: $url")
-            } ?: run {
-                Log.w(TAG, "手势卡片WebView管理器未初始化")
-                Toast.makeText(this, "无法在后台打开链接", Toast.LENGTH_SHORT).show()
-            }
         } catch (e: Exception) {
             Log.e(TAG, "在后台打开链接失败", e)
             Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
@@ -28545,30 +28532,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 在新标签中打开链接
+     * 🔧 修复：改成新窗口打开，用户马上跳转新窗口加载链接
      */
     private fun openLinkInNewTab(url: String) {
         try {
-            Log.d(TAG, "在新标签中打开链接: $url")
+            Log.d(TAG, "在新窗口打开链接: $url")
             
-            // 确保当前在浏览器状态
-            if (currentState != UIState.BROWSER) {
-                showBrowser()
-            }
+            // 使用统一的loadUrlInNewCard方法，前台模式（inBackground=false），立即跳转
+            loadUrlInNewCard(url, inBackground = false)
             
-            // 使用手势卡片WebView管理器创建新标签并切换到它
-            gestureCardWebViewManager?.let { manager ->
-                val newCard = manager.addNewCard(url)
-                
-                // 显示提示信息
-                Toast.makeText(this, "链接已在新标签中打开", Toast.LENGTH_SHORT).show()
-                
-                Log.d(TAG, "链接已在新标签中打开: $url")
-            } ?: run {
-                Log.w(TAG, "手势卡片WebView管理器未初始化")
-                Toast.makeText(this, "无法在新标签中打开链接", Toast.LENGTH_SHORT).show()
-            }
+            Log.d(TAG, "链接已在新窗口打开: $url")
         } catch (e: Exception) {
-            Log.e(TAG, "在新标签中打开链接失败", e)
+            Log.e(TAG, "在新窗口打开链接失败", e)
             Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
         }
     }

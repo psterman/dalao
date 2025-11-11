@@ -140,7 +140,7 @@
                             android:layout_width="0dp"
                             android:layout_height="48dp"
                             android:layout_weight="1"
-                            android:text="新标签"
+                            android:text="新窗口"
                             android:textSize="12sp"
                             android:textColor="@color/menu_button_text_light"
                             android:layout_marginStart="4dp"

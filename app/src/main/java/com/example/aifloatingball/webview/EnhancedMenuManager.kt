@@ -1069,18 +1069,13 @@ class EnhancedMenuManager(
             val previewWidth = container.measuredWidth.coerceAtMost((400 * density).toInt())
             val previewHeight = container.measuredHeight.coerceAtMost((600 * density).toInt())
             
-            // 计算位置：优先在触摸点附近，但确保不超出屏幕
+            // 🔧 修复：默认将预览窗口贴到屏幕顶部，不遮挡搜索tab的标题输入框
             val margin = (16 * density).toInt()
-            var finalX = (x - previewWidth / 2).coerceIn(margin, screenWidth - previewWidth - margin)
-            var finalY = (y - previewHeight / 2).coerceIn(margin, screenHeight - previewHeight - margin)
-            
-            // 如果触摸点太靠近边缘，居中显示
-            if (x < screenWidth / 4 || x > screenWidth * 3 / 4) {
-                finalX = (screenWidth - previewWidth) / 2
-            }
-            if (y < screenHeight / 4 || y > screenHeight * 3 / 4) {
-                finalY = (screenHeight - previewHeight) / 2
-            }
+            // 水平居中
+            val finalX = (screenWidth - previewWidth) / 2
+            // 垂直位置：贴到屏幕顶部，留出一些边距
+            val topMargin = (80 * density).toInt() // 留出空间给搜索tab标题栏
+            val finalY = topMargin
             
             // 创建窗口参数
             previewWindowParams = WindowManager.LayoutParams(
@@ -1235,16 +1230,20 @@ class EnhancedMenuManager(
             hidePreviewWindow()
         }
         
-        // 新标签打开
+        // 🔧 修复：新标签改成新窗口打开，用户马上跳转新窗口加载链接
         previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_new)?.setOnClickListener {
-            onNewTabListener?.invoke(url, false)
+            // 先关闭预览窗口
             hidePreviewWindow()
+            // 然后在新窗口打开（前台模式，立即跳转）
+            onNewTabListener?.invoke(url, false)
         }
         
-        // 后台打开
+        // 🔧 修复：后台打开应该关闭预览弹窗，停留在当前窗口，在后台创建新窗口但不跳转
         previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_open_background)?.setOnClickListener {
-            onNewTabListener?.invoke(url, true)
+            // 先关闭预览窗口
             hidePreviewWindow()
+            // 然后在后台创建新窗口（后台模式，不跳转）
+            onNewTabListener?.invoke(url, true)
         }
         
         // 外部浏览器打开
