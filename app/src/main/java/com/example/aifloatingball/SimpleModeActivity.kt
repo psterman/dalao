@@ -692,6 +692,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserBtnAi: ImageButton
     private lateinit var browserBtnSite: ImageButton
     
+    // Safari风格下拉工具栏
+    private lateinit var browserPullDownToolbar: LinearLayout
+    private lateinit var pullDownBtnBack: ImageButton
+    private lateinit var pullDownBtnClose: ImageButton
+    private lateinit var pullDownBtnRefresh: ImageButton
+    private lateinit var pullDownBtnHome: ImageButton
+    private var isPullDownToolbarVisible = false
+    private var pullDownAnimation: android.animation.ValueAnimator? = null
+    
     // 组标签栏相关
     private var groupTabsContainer: HorizontalScrollView? = null
     private var groupTabsLayout: LinearLayout? = null
@@ -1899,6 +1908,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserBtnAi = findViewById(R.id.browser_btn_ai)
         browserBtnSite = findViewById(R.id.browser_btn_site)
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
+        
+        // 初始化下拉工具栏
+        browserPullDownToolbar = findViewById(R.id.browser_pull_down_toolbar)
+        pullDownBtnBack = findViewById(R.id.pull_down_btn_back)
+        pullDownBtnClose = findViewById(R.id.pull_down_btn_close)
+        pullDownBtnRefresh = findViewById(R.id.pull_down_btn_refresh)
+        pullDownBtnHome = findViewById(R.id.pull_down_btn_home)
         
         // 初始化组标签栏
         groupTabsContainer = findViewById(R.id.group_tabs_container)
@@ -7115,49 +7131,255 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun setupPullToRefresh() {
         try {
-            // 设置下拉刷新的颜色
-            browserSwipeRefresh.setColorSchemeResources(
-                android.R.color.holo_blue_bright,
-                android.R.color.holo_green_light,
-                android.R.color.holo_orange_light,
-                android.R.color.holo_red_light
-            )
-
-            // 设置下拉刷新监听器
-            browserSwipeRefresh.setOnRefreshListener {
-                Log.d(TAG, "用户下拉刷新页面")
-                refreshCurrentWebPage()
-
-                // 延迟停止刷新动画
-                Handler(Looper.getMainLooper()).postDelayed({
-                    browserSwipeRefresh.isRefreshing = false
-                }, 1000)
-
-                showMaterialToast("页面已刷新")
-            }
-
-            // 设置下拉刷新的条件 - 只有在页面顶部才能触发
+            // 禁用下拉刷新监听器，不执行刷新逻辑
+            browserSwipeRefresh.setOnRefreshListener(null)
+            
+            // 设置一个很大的触发距离，让刷新几乎不可能触发
+            // 这样即使SwipeRefreshLayout检测到下拉，也不会触发刷新动画
+            val screenHeight = resources.displayMetrics.heightPixels
+            browserSwipeRefresh.setDistanceToTriggerSync(screenHeight * 2)
+            
+            // 保持正常的滚动检测逻辑，允许在页面顶部时检测下拉手势
+            // 这样触摸事件才能正常传递，我们的触摸监听器才能工作
             browserSwipeRefresh.setOnChildScrollUpCallback { parent, child ->
-                // 在纸堆模式下，禁用下拉刷新
-                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
-                if (paperStackLayout?.visibility == View.VISIBLE) {
-                    return@setOnChildScrollUpCallback true // 阻止下拉刷新
-                }
-                
                 // 检查当前WebView是否可以向上滚动
                 val currentWebView = getCurrentWebViewForScrollCheck()
                 val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
-                
-                // 如果可以向上滚动，说明不在页面顶部，阻止下拉刷新
-                // 如果不能向上滚动，说明在页面顶部，允许下拉刷新
-                Log.d(TAG, "下拉刷新检查: canScrollUp=$canScrollUp, 允许下拉刷新=${!canScrollUp}")
+                // 如果可以向上滚动，说明不在页面顶部，阻止下拉检测
+                // 如果不能向上滚动，说明在页面顶部，允许下拉检测（但不会触发刷新，因为距离阈值很大）
                 canScrollUp
             }
 
-            Log.d(TAG, "下拉刷新功能设置完成")
+            // 设置下拉工具栏的触摸检测
+            setupPullDownToolbarDetection()
+            
+            // 设置下拉工具栏按钮点击事件
+            setupPullDownToolbarButtons()
+
+            Log.d(TAG, "下拉工具栏功能设置完成")
 
         } catch (e: Exception) {
-            Log.e(TAG, "设置下拉刷新功能失败", e)
+            Log.e(TAG, "设置下拉工具栏功能失败", e)
+        }
+    }
+    
+    /**
+     * 设置下拉工具栏的触摸检测
+     */
+    private fun setupPullDownToolbarDetection() {
+        var startY = 0f
+        var isDragging = false
+        val pullThreshold = 80f // 下拉阈值，超过这个距离显示工具栏
+        
+        // 使用自定义的触摸监听器，检测下拉手势并显示工具栏
+        browserSwipeRefresh.setOnTouchListener { view, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    startY = event.y
+                    isDragging = false
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val deltaY = event.y - startY
+                    // 只有在向下拖动且超过阈值时才显示工具栏
+                    if (deltaY > pullThreshold && !isDragging) {
+                        val currentWebView = getCurrentWebViewForScrollCheck()
+                        val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
+                        // 只有在页面顶部时才显示工具栏
+                        if (!canScrollUp) {
+                            isDragging = true
+                            showPullDownToolbar()
+                        }
+                    }
+                }
+                android.view.MotionEvent.ACTION_UP, 
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    if (isDragging || isPullDownToolbarVisible) {
+                        isDragging = false
+                        hidePullDownToolbar()
+                    }
+                }
+            }
+            false // 不拦截事件，让其他组件正常处理
+        }
+        
+    }
+    
+    /**
+     * 显示下拉工具栏（淡入动画）
+     */
+    private fun showPullDownToolbar() {
+        if (isPullDownToolbarVisible) return
+        
+        isPullDownToolbarVisible = true
+        browserPullDownToolbar.visibility = View.VISIBLE
+        
+        // 取消之前的动画
+        pullDownAnimation?.cancel()
+        
+        // 淡入动画
+        pullDownAnimation = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 200
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener { animator ->
+                val alpha = animator.animatedValue as Float
+                browserPullDownToolbar.alpha = alpha
+            }
+            start()
+        }
+        
+        Log.d(TAG, "显示下拉工具栏")
+    }
+    
+    /**
+     * 隐藏下拉工具栏（淡出动画）
+     */
+    private fun hidePullDownToolbar() {
+        if (!isPullDownToolbarVisible) return
+        
+        // 取消之前的动画
+        pullDownAnimation?.cancel()
+        
+        // 淡出动画
+        pullDownAnimation = android.animation.ValueAnimator.ofFloat(1f, 0f).apply {
+            duration = 200
+            interpolator = android.view.animation.AccelerateInterpolator()
+            addUpdateListener { animator ->
+                val alpha = animator.animatedValue as Float
+                browserPullDownToolbar.alpha = alpha
+            }
+            addListener(object : android.animation.Animator.AnimatorListener {
+                override fun onAnimationStart(animation: android.animation.Animator) {}
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    browserPullDownToolbar.visibility = View.GONE
+                    isPullDownToolbarVisible = false
+                }
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    browserPullDownToolbar.visibility = View.GONE
+                    isPullDownToolbarVisible = false
+                }
+                override fun onAnimationRepeat(animation: android.animation.Animator) {}
+            })
+            start()
+        }
+        
+        Log.d(TAG, "隐藏下拉工具栏")
+    }
+    
+    /**
+     * 设置下拉工具栏按钮点击事件
+     */
+    private fun setupPullDownToolbarButtons() {
+        // 撤回按钮
+        pullDownBtnBack.setOnClickListener {
+            hidePullDownToolbar()
+            unifiedWebViewManager.goBack()
+            Log.d(TAG, "下拉工具栏：撤回")
+        }
+        
+        // 关闭按钮
+        pullDownBtnClose.setOnClickListener {
+            hidePullDownToolbar()
+            closeCurrentTab()
+            Log.d(TAG, "下拉工具栏：关闭")
+        }
+        
+        // 刷新按钮
+        pullDownBtnRefresh.setOnClickListener {
+            hidePullDownToolbar()
+            refreshCurrentWebPage()
+            Log.d(TAG, "下拉工具栏：刷新")
+        }
+        
+        // 主页按钮
+        pullDownBtnHome.setOnClickListener {
+            hidePullDownToolbar()
+            goToHomePage()
+            Log.d(TAG, "下拉工具栏：主页")
+        }
+    }
+    
+    /**
+     * 关闭当前标签页
+     */
+    private fun closeCurrentTab() {
+        try {
+            // 优先使用PaperStackWebViewManager
+            paperStackWebViewManager?.let { manager ->
+                val currentTab = manager.getCurrentTab()
+                currentTab?.let { tab ->
+                    if (tab.url != "home://functional") {
+                        manager.closeTabByUrl(tab.url)
+                    } else {
+                        showMaterialToast("功能主页不能关闭")
+                    }
+                }
+                return
+            }
+            
+            // 使用MultiPageWebViewManager
+            multiPageWebViewManager?.let { manager ->
+                val currentPage = manager.getCurrentPage()
+                val allPages = manager.getAllPages()
+                if (allPages.size > 1 && currentPage != null) {
+                    val currentIndex = allPages.indexOf(currentPage)
+                    if (currentIndex >= 0) {
+                        manager.closePage(currentIndex)
+                    } else {
+                        showMaterialToast("至少保留一个标签页")
+                    }
+                } else {
+                    showMaterialToast("至少保留一个标签页")
+                }
+                return
+            }
+            
+            showMaterialToast("无法关闭标签页")
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭标签页失败", e)
+            showMaterialToast("关闭标签页失败")
+        }
+    }
+    
+    /**
+     * 回到主页
+     */
+    private fun goToHomePage() {
+        try {
+            // 优先使用PaperStackWebViewManager
+            paperStackWebViewManager?.let { manager ->
+                // 查找功能主页标签
+                val homeTab = manager.getAllTabs().find { it.url == "home://functional" }
+                if (homeTab != null) {
+                    val index = manager.getAllTabs().indexOf(homeTab)
+                    manager.switchToTab(index)
+                } else {
+                    // 如果没有功能主页，创建一个新的
+                    manager.addTab("home://functional")
+                }
+                return
+            }
+            
+            // 使用MultiPageWebViewManager
+            multiPageWebViewManager?.let { manager ->
+                // 查找主页
+                val allPages = manager.getAllPages()
+                val homePage = allPages.find { it.url == "home://functional" }
+                if (homePage != null) {
+                    val index = allPages.indexOf(homePage)
+                    manager.switchToPage(index)
+                } else {
+                    // 如果没有主页，加载主页
+                    manager.loadUrl("home://functional")
+                }
+                return
+            }
+            
+            // 使用当前WebView加载主页
+            val currentWebView = getCurrentWebViewForScrollCheck()
+            currentWebView?.loadUrl("home://functional")
+        } catch (e: Exception) {
+            Log.e(TAG, "回到主页失败", e)
+            showMaterialToast("回到主页失败")
         }
     }
 
@@ -26688,12 +26910,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             var handled = false
 
-            // 优先检查MobileCardManager
-            val mobileCurrentCard = mobileCardManager?.getCurrentCard()
-            if (mobileCurrentCard?.webView != null) {
-                mobileCurrentCard.webView.reload()
-                handled = true
-                Log.d(TAG, "手势遮罩区：手机卡片页面已刷新")
+            // 优先检查PaperStackWebViewManager
+            paperStackWebViewManager?.let { manager ->
+                val currentTab = manager.getCurrentTab()
+                currentTab?.webView?.let { webView ->
+                    webView.reload()
+                    handled = true
+                    Log.d(TAG, "刷新页面：纸堆模式")
+                }
+            }
+
+            // 如果PaperStackWebViewManager没有处理，检查MultiPageWebViewManager
+            if (!handled) {
+                multiPageWebViewManager?.let { manager ->
+                    manager.reload()
+                    handled = true
+                    Log.d(TAG, "刷新页面：多页面模式")
+                }
+            }
+
+            // 如果MultiPageWebViewManager没有处理，检查MobileCardManager
+            if (!handled) {
+                val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+                if (mobileCurrentCard?.webView != null) {
+                    mobileCurrentCard.webView.reload()
+                    handled = true
+                    Log.d(TAG, "刷新页面：手机卡片模式")
+                }
             }
 
             // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
@@ -26702,17 +26945,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (gestureCurrentCard?.webView != null) {
                     gestureCurrentCard.webView.reload()
                     handled = true
-                    Log.d(TAG, "手势遮罩区：手势卡片页面已刷新")
+                    Log.d(TAG, "刷新页面：手势卡片模式")
                 }
             }
 
+            // 如果以上都没有处理，使用通用方法
             if (!handled) {
+                val currentWebView = getCurrentWebViewForScrollCheck()
+                currentWebView?.let { webView ->
+                    webView.reload()
+                    handled = true
+                    Log.d(TAG, "刷新页面：通用方法")
+                }
+            }
+
+            if (handled) {
+                showMaterialToast("页面已刷新")
+            } else {
                 showMaterialToast("没有可刷新的页面", android.graphics.Color.GREEN)
-                Log.d(TAG, "手势遮罩区：没有可刷新的页面")
+                Log.d(TAG, "没有可刷新的页面")
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "刷新当前网页失败", e)
+            showMaterialToast("刷新页面失败")
         }
     }
 

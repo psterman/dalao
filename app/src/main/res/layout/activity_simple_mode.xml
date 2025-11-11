@@ -2025,6 +2025,74 @@
                         android:layout_height="match_parent"
                         android:background="@color/simple_mode_background_light">
 
+                        <!-- Safari风格下拉工具栏 -->
+                        <LinearLayout
+                            android:id="@+id/browser_pull_down_toolbar"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="top"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:paddingVertical="16dp"
+                            android:paddingHorizontal="32dp"
+                            android:background="@color/simple_mode_header_background_light"
+                            android:visibility="gone"
+                            android:alpha="0"
+                            android:elevation="8dp">
+
+                            <!-- 撤回按钮 -->
+                            <ImageButton
+                                android:id="@+id/pull_down_btn_back"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:src="@android:drawable/ic_menu_revert"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="撤回"
+                                android:layout_marginEnd="24dp"
+                                android:padding="12dp"
+                                android:tint="?attr/colorOnSurface"
+                                android:scaleType="centerInside" />
+
+                            <!-- 关闭按钮 -->
+                            <ImageButton
+                                android:id="@+id/pull_down_btn_close"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="关闭"
+                                android:layout_marginEnd="24dp"
+                                android:padding="12dp"
+                                android:tint="?attr/colorOnSurface"
+                                android:scaleType="centerInside" />
+
+                            <!-- 刷新按钮 -->
+                            <ImageButton
+                                android:id="@+id/pull_down_btn_refresh"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:src="@android:drawable/ic_menu_rotate"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="刷新"
+                                android:layout_marginEnd="24dp"
+                                android:padding="12dp"
+                                android:tint="?attr/colorOnSurface"
+                                android:scaleType="centerInside" />
+
+                            <!-- 主页按钮 -->
+                            <ImageButton
+                                android:id="@+id/pull_down_btn_home"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:src="@android:drawable/ic_menu_view"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="主页"
+                                android:padding="12dp"
+                                android:tint="?attr/colorOnSurface"
+                                android:scaleType="centerInside" />
+
+                        </LinearLayout>
+
                         <!-- 纸堆WebView布局 -->
                         <include
                             android:id="@+id/paper_stack_layout"
