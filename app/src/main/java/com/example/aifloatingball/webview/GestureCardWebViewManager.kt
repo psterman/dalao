@@ -560,20 +560,21 @@ class GestureCardWebViewManager(
                         Log.d(TAG, "拦截广告URL: $url")
                         true
                     }
-                    // 处理外部链接，创建新卡片
+                    // 处理外部链接
                     url.startsWith("http://") || url.startsWith("https://") -> {
-                        // 检查是否是外部链接（不是当前域名）
+                        // 🔧 修复：不自动创建新卡片，让用户通过长按菜单选择打开方式
+                        // 如果是外部链接（不同域名），返回false让WebView正常加载，用户可以通过长按菜单选择后台打开
                         val currentUrl = cardData.url
                         if (currentUrl != null && currentUrl.startsWith("http")) {
                             try {
                                 val currentDomain = java.net.URL(currentUrl).host
                                 val newDomain = java.net.URL(url).host
                                 
-                                // 如果是不同域名的链接，创建新卡片
+                                // 如果是不同域名的链接，不拦截，让WebView正常加载
+                                // 用户可以通过长按链接选择"后台打开"来在后台创建新卡片
                                 if (currentDomain != newDomain) {
-                                    Log.d(TAG, "检测到外部链接，创建新卡片: $url")
-                                    createNewCardForUrl(url)
-                                    return true
+                                    Log.d(TAG, "检测到外部链接，允许WebView正常加载: $url（用户可通过长按菜单选择打开方式）")
+                                    return false // 不拦截，让WebView正常加载
                                 }
                             } catch (e: Exception) {
                                 Log.w(TAG, "解析URL域名失败", e)

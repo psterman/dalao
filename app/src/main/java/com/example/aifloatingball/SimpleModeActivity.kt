@@ -8935,6 +8935,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     try {
                         browserBtnSite.visibility = View.GONE
                         updateAddressBarToCurrentUrlAndSelectAll()
+                        // 🔧 修复：当输入框获得焦点时，显示文本工具栏
+                        updateSearchInputToolbarVisibility()
                     } catch (_: Exception) {}
                 } else {
                     // 失焦后根据当前URL恢复favicon按钮
@@ -8943,6 +8945,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             ?: paperStackWebViewManager?.getCurrentTab()?.url
                             ?: unifiedWebViewManager.getCurrentActiveWebView()?.url
                         updateBrowserFaviconButtonForUrl(url)
+                        // 🔧 修复：当输入框失去焦点时，隐藏文本工具栏
+                        updateSearchInputToolbarVisibility()
                     } catch (_: Exception) {}
                 }
             }
@@ -9594,47 +9598,68 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
     
+    // 标题栏上滑手势检测的共享状态变量
+    private var toolbarSwipeStartY = 0f
+    private var toolbarSwipeStartX = 0f
+    private var toolbarSwipeStartTime = 0L
+    private var isToolbarSwipeUpDetected = false
+    
     /**
-     * 🔧 修复3：设置搜索输入框上滑手势检测
-     * 从搜索tab的标题栏（搜索输入框）为起点往上方滑时，激活悬浮卡片系统
+     * 🔧 修复3：设置标题栏上滑手势检测
+     * 从搜索tab的标题栏为起点往上方垂直滑动时，激活悬浮卡片系统
+     * 支持整个标题栏区域，包括输入框和其他子视图
      */
     private fun setupToolbarSwipeUpGesture() {
         try {
-            var swipeStartY = 0f
-            var swipeStartTime = 0L
-            var isSwipeUpDetected = false
             val swipeThreshold = 100f // 上滑距离阈值（像素）
             val swipeVelocityThreshold = 500f // 上滑速度阈值（px/s）
+            val verticalSwipeRatio = 1.5f // 垂直滑动比例阈值，确保是垂直滑动
             
-            // 🔧 修改：监听搜索输入框而不是整个标题栏
+            // 🔧 修改：监听整个标题栏，支持从标题栏任意位置垂直上滑激活悬浮卡片
+            browserToolbar.setOnTouchListener { view, event ->
+                handleToolbarSwipeUpGesture(view, event, swipeThreshold, swipeVelocityThreshold, verticalSwipeRatio)
+            }
+            
+            // 🔧 关键修复：同时为输入框设置触摸监听器，检测上滑手势
+            // 这样即使触摸点在输入框上，也能检测到上滑手势并激活悬浮卡片
             browserSearchInput.setOnTouchListener { view, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        swipeStartY = event.y
-                        swipeStartTime = System.currentTimeMillis()
-                        isSwipeUpDetected = false
-                        false // 不拦截，让其他点击事件正常处理（如输入框获得焦点）
+                        toolbarSwipeStartY = event.y
+                        toolbarSwipeStartX = event.x
+                        toolbarSwipeStartTime = System.currentTimeMillis()
+                        isToolbarSwipeUpDetected = false
+                        // 延迟显示文本工具栏
+                        handler.postDelayed({
+                            if (!isToolbarSwipeUpDetected) {
+                                updateSearchInputToolbarVisibility()
+                            }
+                        }, 100)
+                        false // 不拦截，让输入框可以获取焦点
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        val deltaY = swipeStartY - event.y // 向上滑动时deltaY为正
+                        // 检测是否为上滑手势
+                        val deltaY = toolbarSwipeStartY - event.y
+                        val deltaX = event.x - toolbarSwipeStartX
+                        val absDeltaX = kotlin.math.abs(deltaX)
+                        val absDeltaY = kotlin.math.abs(deltaY)
                         val currentTime = System.currentTimeMillis()
-                        val timeDelta = currentTime - swipeStartTime
+                        val timeDelta = currentTime - toolbarSwipeStartTime
                         
-                        // 检测上滑手势：向上滑动且距离足够
-                        if (deltaY > swipeThreshold && !isSwipeUpDetected && timeDelta < 500) {
-                            // 计算滑动速度
+                        // 如果是明显的垂直上滑手势，激活悬浮卡片系统
+                        if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
+                            absDeltaY > absDeltaX * verticalSwipeRatio) {
                             val velocity = if (timeDelta > 0) {
-                                (deltaY / timeDelta) * 1000f // px/s
+                                (deltaY / timeDelta) * 1000f
                             } else {
                                 0f
                             }
                             
-                            // 如果滑动距离足够或速度足够，激活悬浮卡片系统
                             if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
-                                isSwipeUpDetected = true
-                                Log.d(TAG, "🔧 检测到搜索输入框上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
+                                isToolbarSwipeUpDetected = true
+                                Log.d(TAG, "🔧 从输入框检测到垂直上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
                                 
-                                // 隐藏键盘（如果显示）
+                                // 隐藏键盘
                                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                                 imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
                                 
@@ -9644,22 +9669,212 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 提供触觉反馈
                                 vibrator?.vibrate(50)
                                 
-                                return@setOnTouchListener true // 消费事件
+                                return@setOnTouchListener true // 消费事件，阻止输入框处理
                             }
                         }
-                        false // 不拦截，让其他手势正常处理
+                        false // 不是上滑手势，让输入框正常处理
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        isSwipeUpDetected = false
+                        isToolbarSwipeUpDetected = false
                         false
                     }
                     else -> false
                 }
             }
             
-            Log.d(TAG, "搜索输入框上滑手势检测设置完成")
+            Log.d(TAG, "标题栏上滑手势检测设置完成（包括输入框）")
         } catch (e: Exception) {
-            Log.e(TAG, "设置搜索输入框上滑手势检测失败", e)
+            Log.e(TAG, "设置标题栏上滑手势检测失败", e)
+        }
+    }
+    
+    /**
+     * 处理标题栏上滑手势的通用方法
+     */
+    private fun handleToolbarSwipeUpGesture(
+        view: View, 
+        event: MotionEvent, 
+        swipeThreshold: Float,
+        swipeVelocityThreshold: Float,
+        verticalSwipeRatio: Float
+    ): Boolean {
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                toolbarSwipeStartY = event.y
+                toolbarSwipeStartX = event.x
+                toolbarSwipeStartTime = System.currentTimeMillis()
+                isToolbarSwipeUpDetected = false
+                false // 不拦截，让其他点击事件正常处理
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val deltaY = toolbarSwipeStartY - event.y // 向上滑动时deltaY为正
+                val deltaX = event.x - toolbarSwipeStartX
+                val absDeltaX = kotlin.math.abs(deltaX)
+                val absDeltaY = kotlin.math.abs(deltaY)
+                val currentTime = System.currentTimeMillis()
+                val timeDelta = currentTime - toolbarSwipeStartTime
+                
+                // 检测垂直上滑手势：向上滑动且距离足够，且主要是垂直方向
+                if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
+                    absDeltaY > absDeltaX * verticalSwipeRatio) {
+                    // 计算滑动速度
+                    val velocity = if (timeDelta > 0) {
+                        (deltaY / timeDelta) * 1000f // px/s
+                    } else {
+                        0f
+                    }
+                    
+                    // 如果滑动距离足够或速度足够，激活悬浮卡片系统
+                    if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
+                        isToolbarSwipeUpDetected = true
+                        Log.d(TAG, "🔧 检测到标题栏垂直上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity, 垂直/水平比例: ${if (absDeltaX > 0) absDeltaY / absDeltaX else 0f}")
+                        
+                        // 隐藏键盘（如果显示）
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+                        
+                        // 激活悬浮卡片系统
+                        activateStackedCardPreview()
+                        
+                        // 提供触觉反馈
+                        vibrator?.vibrate(50)
+                        
+                        true // 消费事件
+                    } else {
+                        false // 不拦截，让其他手势正常处理
+                    }
+                } else {
+                    false // 不拦截，让其他手势正常处理
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isToolbarSwipeUpDetected = false
+                false
+            }
+            else -> false
+        }
+    }
+    
+    /**
+     * 更新搜索输入框文字工具栏的可见性
+     * 规则：当输入框有焦点时显示工具栏，工具栏位于输入框和tab区之间
+     */
+    private fun updateSearchInputToolbarVisibility() {
+        val container = searchInputToolbarContainer
+        val layout = searchInputToolbarLayout
+        
+        if (container == null || layout == null) {
+            return
+        }
+        
+        // 🔧 修复：即使预览窗口激活，如果输入框有焦点，也应该显示工具栏
+        val shouldShow = browserSearchInput.isFocused
+        if (shouldShow) {
+            if (container.visibility != View.VISIBLE) {
+                container.visibility = View.VISIBLE
+                loadCustomToolbarItems(layout)
+            }
+            
+            // 🔧 修复：工具栏现在在LinearLayout中垂直排列，不需要动态计算位置
+            // 布局已经自动处理了位置：输入框 -> 工具栏 -> tab区域
+            
+            // 🔧 修复：确保工具栏不会拦截触摸事件
+            container.setOnTouchListener { _, event ->
+                false // 不拦截触摸事件，让事件穿透到下层
+            }
+            Log.d(TAG, "显示文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 预览窗口可见: ${stackedCardPreview?.visibility == View.VISIBLE}")
+        } else {
+            if (container.visibility != View.GONE) {
+                container.visibility = View.GONE
+                Log.d(TAG, "隐藏文本工具栏")
+            }
+        }
+    }
+    
+    /**
+     * 更新工具栏位置，使其显示在输入框和tab区之间
+     */
+    private fun updateToolbarPositionBetweenInputAndTab(container: View) {
+        try {
+            val layoutParams = container.layoutParams
+            if (layoutParams !is android.widget.FrameLayout.LayoutParams) {
+                val parent = container.parent
+                if (parent is android.widget.FrameLayout) {
+                    val newParams = android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    newParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                    container.layoutParams = newParams
+                } else {
+                    Log.w(TAG, "工具栏父容器不是FrameLayout，无法设置位置")
+                    return
+                }
+            }
+            
+            val frameParams = container.layoutParams as android.widget.FrameLayout.LayoutParams
+            
+            // 获取输入框的位置（相对于父视图）
+            val inputRect = android.graphics.Rect()
+            browserSearchInput.getGlobalVisibleRect(inputRect)
+            
+            // 获取工具栏父视图的位置
+            val parentView = container.parent as? View
+            val parentRect = android.graphics.Rect()
+            parentView?.getGlobalVisibleRect(parentRect)
+            
+            // 计算输入框底部相对于父视图的位置
+            val inputBottomInParent = inputRect.bottom - parentRect.top
+            
+            // 获取tab区的位置（如果可见）
+            var tabTopInParent = Int.MAX_VALUE
+            if (browserTabContainer.visibility == View.VISIBLE) {
+                val tabRect = android.graphics.Rect()
+                browserTabContainer.getGlobalVisibleRect(tabRect)
+                tabTopInParent = tabRect.top - parentRect.top
+            }
+            
+            // 工具栏应该显示在输入框下方，tab区上方
+            // 计算合适的bottomMargin
+            val toolbarHeightPx = (48 * resources.displayMetrics.density).toInt() // 估算工具栏高度
+            val spacingPx = (8 * resources.displayMetrics.density).toInt() // 间距8dp
+            
+            val finalBottomMargin = if (tabTopInParent != Int.MAX_VALUE) {
+                // tab区可见：工具栏显示在输入框和tab区之间
+                val availableSpace = tabTopInParent - inputBottomInParent
+                if (availableSpace > toolbarHeightPx + spacingPx) {
+                    // 有足够空间，工具栏显示在中间位置
+                    parentRect.height() - inputBottomInParent - spacingPx - toolbarHeightPx
+                } else {
+                    // 空间不足，工具栏紧贴输入框下方
+                    parentRect.height() - inputBottomInParent - spacingPx
+                }
+            } else {
+                // tab区不可见：工具栏显示在输入框下方，距离底部一定距离
+                val estimatedTabHeight = (48 * resources.displayMetrics.density).toInt()
+                parentRect.height() - inputBottomInParent - spacingPx
+            }
+            
+            // 确保bottomMargin至少为0
+            val finalMargin = maxOf(finalBottomMargin, 0)
+            
+            if (frameParams.bottomMargin != finalMargin) {
+                frameParams.bottomMargin = finalMargin
+                frameParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                container.layoutParams = frameParams
+                Log.d(TAG, "设置工具栏位置（输入框和tab区之间）: bottomMargin=${finalMargin}px, 输入框底部: $inputBottomInParent, tab顶部: ${if (tabTopInParent != Int.MAX_VALUE) tabTopInParent else "不可见"}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新工具栏位置失败", e)
+            // 降级方案：使用固定位置
+            val layoutParams = container.layoutParams
+            if (layoutParams is android.widget.FrameLayout.LayoutParams) {
+                val estimatedTabHeight = (48 * resources.displayMetrics.density).toInt()
+                val inputHeight = (40 * resources.displayMetrics.density).toInt()
+                layoutParams.bottomMargin = estimatedTabHeight + inputHeight + (8 * resources.displayMetrics.density).toInt()
+                layoutParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                container.layoutParams = layoutParams
+            }
         }
     }
     
@@ -9698,62 +9913,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 默认隐藏工具栏
             toolbarContainer.visibility = View.GONE
             
-            /**
-             * 更新工具栏可见性
-             * 规则：当输入框有焦点时显示工具栏，无论软键盘是否显示
-             */
-            val updateToolbarVisibility: (View, LinearLayout) -> Unit = { container, layout ->
-                val shouldShow = browserSearchInput.isFocused
-                if (shouldShow) {
-                    if (container.visibility != View.VISIBLE) {
-                        container.visibility = View.VISIBLE
-                        loadCustomToolbarItems(layout)
-                        // 🔧 修复：确保工具栏在输入框上方，不遮挡输入框
-                        // 使用FrameLayout布局，工具栏通过layout_gravity="bottom"和marginBottom定位在输入框上方
-                        val layoutParams = container.layoutParams
-                        if (layoutParams is android.widget.FrameLayout.LayoutParams) {
-                            // 输入框高度40dp + 间距2dp = 42dp，转换为像素
-                            val marginBottomPx = (42 * resources.displayMetrics.density).toInt()
-                            if (layoutParams.bottomMargin != marginBottomPx) {
-                                layoutParams.bottomMargin = marginBottomPx
-                                layoutParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
-                                container.layoutParams = layoutParams
-                                Log.d(TAG, "设置工具栏位置: bottomMargin=${layoutParams.bottomMargin}px, gravity=${layoutParams.gravity}")
-                            }
-                        } else {
-                            // 如果不是FrameLayout.LayoutParams，尝试创建新的
-                            val parent = container.parent
-                            if (parent is android.widget.FrameLayout) {
-                                val newParams = android.widget.FrameLayout.LayoutParams(
-                                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-                                )
-                                newParams.bottomMargin = (42 * resources.displayMetrics.density).toInt()
-                                newParams.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
-                                container.layoutParams = newParams
-                                Log.d(TAG, "重新创建工具栏布局参数: bottomMargin=${newParams.bottomMargin}px")
-                            } else {
-                                Log.w(TAG, "工具栏父容器不是FrameLayout，无法设置位置: ${parent?.javaClass?.simpleName}")
-                            }
-                        }
-                        // 🔧 修复：确保工具栏不会拦截触摸事件
-                        // 工具栏容器本身不拦截触摸，让Chip按钮自己处理点击事件
-                        container.setOnTouchListener { _, event ->
-                            // 不拦截触摸事件，让事件穿透到下层（输入框）
-                            // Chip按钮会自己处理点击事件
-                            false
-                        }
-                        Log.d(TAG, "显示文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 软键盘: $isKeyboardVisible")
-                    }
-                } else {
-                    if (container.visibility != View.GONE) {
-                        container.visibility = View.GONE
-                        Log.d(TAG, "隐藏文本工具栏")
-                    }
-                }
-            }
+            // 保存工具栏容器和布局的引用，供其他方法使用
+            // 这些引用已经在类成员变量中保存，这里确保它们被正确初始化
             
-            // 🔧 修复：监听软键盘状态，动态控制工具栏显示
+            // 🔧 修复：监听软键盘状态，输入法激活时立即显示工具栏
             val rootView = window.decorView.rootView
             rootView.viewTreeObserver.addOnGlobalLayoutListener {
                 val rect = android.graphics.Rect()
@@ -9768,8 +9931,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     isKeyboardVisible = keyboardVisible
                     Log.d(TAG, "软键盘状态变化: visible=$isKeyboardVisible, keypadHeight=$keypadHeight, screenHeight=$screenHeight")
                     
-                    // 根据输入框焦点和键盘状态决定是否显示工具栏
-                    updateToolbarVisibility(toolbarContainer, toolbarLayout)
+                    // 🔧 如果输入法激活且输入框有焦点，立即显示工具栏
+                    if (keyboardVisible && browserSearchInput.isFocused) {
+                        updateSearchInputToolbarVisibility()
+                    }
                 }
             }
             
@@ -9777,28 +9942,99 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserSearchInput.setOnFocusChangeListener { _, hasFocus ->
                 Log.d(TAG, "搜索输入框焦点变化: hasFocus=$hasFocus, isKeyboardVisible=$isKeyboardVisible")
                 // 根据焦点状态更新工具栏显示
-                updateToolbarVisibility(toolbarContainer, toolbarLayout)
+                updateSearchInputToolbarVisibility()
             }
             
             // 🔧 修复：同时监听点击事件，确保点击时也能显示工具栏
             browserSearchInput.setOnClickListener { view ->
                 Log.d(TAG, "搜索输入框被点击")
-                // 延迟一点时间，确保焦点已经获得
-                handler.postDelayed({
-                    updateToolbarVisibility(toolbarContainer, toolbarLayout)
-                }, 100)
+                // 立即显示工具栏，不延迟
+                updateSearchInputToolbarVisibility()
             }
             
-            // 🔧 修复：监听触摸事件，确保触摸时也能显示
+            // 🔧 修复：监听触摸事件，同时检测上滑手势和显示工具栏
+            // 注意：如果 setupToolbarSwipeUpGesture 已经设置了触摸监听器，这里会覆盖它
+            // 所以需要在这里也检测上滑手势
             browserSearchInput.setOnTouchListener { view, event ->
-                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-                    Log.d(TAG, "搜索输入框被触摸")
-                    // 延迟显示工具栏，确保焦点已经获得
-                    handler.postDelayed({
-                        updateToolbarVisibility(toolbarContainer, toolbarLayout)
-                    }, 150)
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // 记录触摸起始位置，用于检测上滑手势
+                        toolbarSwipeStartY = event.y
+                        toolbarSwipeStartX = event.x
+                        toolbarSwipeStartTime = System.currentTimeMillis()
+                        isToolbarSwipeUpDetected = false
+                        Log.d(TAG, "搜索输入框被触摸")
+                        // 立即显示工具栏，确保输入法激活时马上出现
+                        if (!isToolbarSwipeUpDetected) {
+                            updateSearchInputToolbarVisibility()
+                        }
+                        false // 不拦截事件，让系统正常处理
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // 检测是否为上滑手势
+                        val deltaY = toolbarSwipeStartY - event.y
+                        val deltaX = event.x - toolbarSwipeStartX
+                        val absDeltaX = kotlin.math.abs(deltaX)
+                        val absDeltaY = kotlin.math.abs(deltaY)
+                        val currentTime = System.currentTimeMillis()
+                        val timeDelta = currentTime - toolbarSwipeStartTime
+                        val swipeThreshold = 100f
+                        val swipeVelocityThreshold = 500f
+                        val verticalSwipeRatio = 1.5f
+                        
+                        // 如果是明显的垂直上滑手势，激活悬浮卡片系统
+                        if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
+                            absDeltaY > absDeltaX * verticalSwipeRatio) {
+                            val velocity = if (timeDelta > 0) {
+                                (deltaY / timeDelta) * 1000f
+                            } else {
+                                0f
+                            }
+                            
+                            if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
+                                isToolbarSwipeUpDetected = true
+                                Log.d(TAG, "🔧 从输入框检测到垂直上滑手势（在setupSearchInputToolbar中），激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
+                                
+                                // 隐藏键盘
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+                                
+                                // 激活悬浮卡片系统
+                                activateStackedCardPreview()
+                                
+                                // 提供触觉反馈
+                                vibrator?.vibrate(50)
+                                
+                                return@setOnTouchListener true // 消费事件，阻止输入框处理
+                            }
+                        }
+                        false // 不是上滑手势，让输入框正常处理
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        isToolbarSwipeUpDetected = false
+                        false
+                    }
+                    else -> false
                 }
-                false // 不拦截事件，让系统正常处理
+            }
+            
+            // 设置剪贴板按钮点击事件
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_clipboard)?.apply {
+                setOnClickListener {
+                    pasteFromClipboard()
+                }
+                setOnLongClickListener {
+                    // 长按可以显示剪贴板历史（可选功能）
+                    Toast.makeText(this@SimpleModeActivity, "剪贴板：点击粘贴，长按查看历史", Toast.LENGTH_SHORT).show()
+                    true
+                }
+            }
+            
+            // 设置➕按钮点击事件（添加自定义模板）
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_add)?.apply {
+                setOnClickListener {
+                    showAddCustomTemplateDialog()
+                }
             }
             
             // 设置默认快捷按钮点击事件
@@ -9865,6 +10101,88 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     true
                 }
             }
+            // 新增模板按钮
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_org)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".org")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".org", R.id.toolbar_org)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_net)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".net")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".net", R.id.toolbar_net)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_io)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".io")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".io", R.id.toolbar_io)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_edu)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".edu")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".edu", R.id.toolbar_edu)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_gov)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".gov")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".gov", R.id.toolbar_gov)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_co)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".co")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".co", R.id.toolbar_co)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_me)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".me")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".me", R.id.toolbar_me)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_tv)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".tv")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".tv", R.id.toolbar_tv)
+                    true
+                }
+            }
+            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_info)?.apply {
+                setOnClickListener {
+                    insertTextToSearchInput(".info")
+                }
+                setOnLongClickListener {
+                    showEditPresetTextDialog(".info", R.id.toolbar_info)
+                    true
+                }
+            }
             findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.apply {
                 setOnClickListener {
                     insertTextToSearchInput(",")
@@ -9882,6 +10200,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 加载保存的预设文本配置
             loadPresetTextsConfig()
             
+            // 重新加载自定义模板，确保显示在正确位置
+            loadCustomToolbarItems(toolbarLayout)
+            
+            // 🔧 设置拖拽排序功能（在加载完所有模板后设置）
+            setupToolbarDragAndDrop(toolbarLayout)
+            
             Log.d(TAG, "搜索输入框文字工具栏设置完成")
         } catch (e: Exception) {
             Log.e(TAG, "设置搜索输入框文字工具栏失败", e)
@@ -9891,6 +10215,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 🔧 修复4：将文字插入到搜索输入框
      */
+    /**
+     * 从剪贴板粘贴内容到搜索输入框
+     */
+    private fun pasteFromClipboard() {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip()) {
+                val clipData = clipboard.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val text = clipData.getItemAt(0).text?.toString()?.trim() ?: ""
+                    if (text.isNotEmpty()) {
+                        insertTextToSearchInput(text)
+                        Toast.makeText(this, "已粘贴", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "粘贴剪贴板内容失败", e)
+            Toast.makeText(this, "粘贴失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     private fun insertTextToSearchInput(text: String) {
         try {
             val currentText = browserSearchInput.text.toString()
@@ -9913,6 +10265,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     /**
      * 🔧 修复4：加载自定义工具栏词组
+     * 自定义模板会插入到➕按钮之后
      */
     private fun loadCustomToolbarItems(toolbarLayout: LinearLayout) {
         try {
@@ -9931,7 +10284,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
-            // 添加自定义词组
+            // 找到➕按钮的位置
+            var addButtonIndex = -1
+            for (i in 0 until toolbarLayout.childCount) {
+                val child = toolbarLayout.getChildAt(i)
+                if (child.id == R.id.toolbar_add) {
+                    addButtonIndex = i
+                    break
+                }
+            }
+            
+            // 在➕按钮之后插入自定义词组
+            val insertIndex = if (addButtonIndex >= 0) addButtonIndex + 1 else toolbarLayout.childCount
+            
             customItems.forEach { item ->
                 val chip = com.google.android.material.chip.Chip(
                     this,
@@ -9946,6 +10311,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     setOnClickListener {
                         insertTextToSearchInput(item)
                     }
+                    setOnLongClickListener {
+                        // 长按可以编辑或删除
+                        showEditOrDeleteCustomTemplateDialog(item, customItems.indexOf(item))
+                        true
+                    }
                 }
                 val layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -9954,12 +10324,185 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     marginEnd = dpToPx(6f).toInt()
                 }
                 chip.layoutParams = layoutParams
-                toolbarLayout.addView(chip)
+                toolbarLayout.addView(chip, insertIndex + customItems.indexOf(item))
             }
+            
+            // 重新设置拖拽排序功能，确保新添加的自定义模板也可以拖拽
+            setupToolbarDragAndDrop(toolbarLayout)
             
             Log.d(TAG, "加载了 ${customItems.size} 个自定义工具栏词组")
         } catch (e: Exception) {
             Log.e(TAG, "加载自定义工具栏词组失败", e)
+        }
+    }
+    
+    /**
+     * 显示编辑或删除自定义模板对话框
+     */
+    private fun showEditOrDeleteCustomTemplateDialog(text: String, index: Int) {
+        try {
+            val options = arrayOf("编辑", "删除")
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("模板：$text")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            // 编辑
+                            showEditCustomPresetTextDialog(text, index)
+                        }
+                        1 -> {
+                            // 删除
+                            deleteCustomPresetText(index)
+                            searchInputToolbarLayout?.let {
+                                loadCustomToolbarItems(it)
+                            }
+                        }
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示编辑或删除模板对话框失败", e)
+        }
+    }
+    
+    /**
+     * 设置工具栏拖拽排序功能
+     * 允许长按并拖动模板来调整位置（不包括剪贴板、➕按钮、编辑按钮）
+     */
+    private fun setupToolbarDragAndDrop(toolbarLayout: LinearLayout) {
+        try {
+            // 使用类成员变量来跟踪拖拽状态，避免在每次调用时重新设置
+            var draggedView: View? = null
+            var dragStartX = 0f
+            var dragStartY = 0f
+            var originalIndex = -1
+            var isDragging = false
+            
+            // 为所有可拖动的Chip设置触摸监听器
+            // 注意：需要在每次加载自定义模板后重新设置，所以这里使用一个辅助方法
+            fun setupDragListener(view: View) {
+                // 剪贴板、➕按钮、编辑按钮不可拖动
+                if (view.id == R.id.toolbar_clipboard || 
+                    view.id == R.id.toolbar_add || 
+                    view.id == R.id.toolbar_edit) {
+                    return
+                }
+                
+                view.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            dragStartX = event.x
+                            dragStartY = event.y
+                            originalIndex = toolbarLayout.indexOfChild(v)
+                            isDragging = false
+                            false // 不拦截，让点击事件正常处理
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            if (isDragging) {
+                                // 正在拖拽，计算新位置
+                                val currentX = event.rawX
+                                var targetIndex = originalIndex
+                                
+                                // 找到固定按钮的索引
+                                var clipboardIndex = -1
+                                var addIndex = -1
+                                var editIndex = -1
+                                for (j in 0 until toolbarLayout.childCount) {
+                                    val child = toolbarLayout.getChildAt(j)
+                                    when (child.id) {
+                                        R.id.toolbar_clipboard -> clipboardIndex = j
+                                        R.id.toolbar_add -> addIndex = j
+                                        R.id.toolbar_edit -> editIndex = j
+                                    }
+                                }
+                                
+                                // 计算目标位置（只能在模板区域移动，不能移动到固定按钮位置）
+                                for (j in 0 until toolbarLayout.childCount) {
+                                    val otherChild = toolbarLayout.getChildAt(j)
+                                    if (otherChild != v && 
+                                        otherChild.id != R.id.toolbar_clipboard && 
+                                        otherChild.id != R.id.toolbar_add && 
+                                        otherChild.id != R.id.toolbar_edit) {
+                                        val otherRect = android.graphics.Rect()
+                                        otherChild.getGlobalVisibleRect(otherRect)
+                                        
+                                        if (currentX < otherRect.centerX() && j < originalIndex) {
+                                            targetIndex = j
+                                            break
+                                        } else if (currentX > otherRect.centerX() && j > originalIndex) {
+                                            targetIndex = j + 1
+                                        }
+                                    }
+                                }
+                                
+                                // 确保不移动到固定按钮位置
+                                if (targetIndex != clipboardIndex && 
+                                    targetIndex != addIndex && 
+                                    targetIndex != editIndex &&
+                                    targetIndex != originalIndex) {
+                                    toolbarLayout.removeView(v)
+                                    toolbarLayout.addView(v, targetIndex)
+                                    originalIndex = targetIndex
+                                }
+                                
+                                return@setOnTouchListener true
+                            } else {
+                                // 检查是否开始拖拽
+                                val deltaX = kotlin.math.abs(event.x - dragStartX)
+                                val deltaY = kotlin.math.abs(event.y - dragStartY)
+                                
+                                if (deltaX > 20 || deltaY > 20) {
+                                    isDragging = true
+                                    draggedView = v
+                                    v.alpha = 0.5f
+                                    v.elevation = 8f
+                                    // 提供触觉反馈
+                                    vibrator?.vibrate(50)
+                                    return@setOnTouchListener true
+                                }
+                            }
+                            false
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (isDragging && draggedView == v) {
+                                v.alpha = 1f
+                                v.elevation = 0f
+                                draggedView = null
+                                isDragging = false
+                                
+                                // 保存新的顺序
+                                saveToolbarItemOrder(toolbarLayout)
+                                return@setOnTouchListener true
+                            }
+                            false
+                        }
+                        else -> false
+                    }
+                }
+            }
+            
+            // 为现有的所有子视图设置拖拽监听器
+            for (i in 0 until toolbarLayout.childCount) {
+                setupDragListener(toolbarLayout.getChildAt(i))
+            }
+            
+            Log.d(TAG, "工具栏拖拽排序功能已设置")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置工具栏拖拽排序功能失败", e)
+        }
+    }
+    
+    /**
+     * 保存工具栏项目顺序
+     */
+    private fun saveToolbarItemOrder(toolbarLayout: LinearLayout) {
+        try {
+            // 这里可以保存顺序，但由于默认模板有固定ID，主要保存自定义模板的顺序
+            // 目前先记录日志，后续可以根据需要实现完整的顺序保存
+            Log.d(TAG, "工具栏项目顺序已更新")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存工具栏项目顺序失败", e)
         }
     }
     
@@ -10033,6 +10576,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             presetTexts.add(Pair(R.id.toolbar_com, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.text?.toString() ?: ".com"))
             presetTexts.add(Pair(R.id.toolbar_at, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.text?.toString() ?: "@"))
             presetTexts.add(Pair(R.id.toolbar_cn, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_cn)?.text?.toString() ?: ".cn"))
+            presetTexts.add(Pair(R.id.toolbar_org, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_org)?.text?.toString() ?: ".org"))
+            presetTexts.add(Pair(R.id.toolbar_net, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_net)?.text?.toString() ?: ".net"))
+            presetTexts.add(Pair(R.id.toolbar_io, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_io)?.text?.toString() ?: ".io"))
+            presetTexts.add(Pair(R.id.toolbar_edu, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_edu)?.text?.toString() ?: ".edu"))
+            presetTexts.add(Pair(R.id.toolbar_gov, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_gov)?.text?.toString() ?: ".gov"))
+            presetTexts.add(Pair(R.id.toolbar_co, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_co)?.text?.toString() ?: ".co"))
+            presetTexts.add(Pair(R.id.toolbar_me, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_me)?.text?.toString() ?: ".me"))
+            presetTexts.add(Pair(R.id.toolbar_tv, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_tv)?.text?.toString() ?: ".tv"))
+            presetTexts.add(Pair(R.id.toolbar_info, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_info)?.text?.toString() ?: ".info"))
             presetTexts.add(Pair(R.id.toolbar_comma, findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.text?.toString() ?: ","))
             
             // 获取自定义预设文本
@@ -10074,28 +10626,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 显示添加自定义预设文本对话框
+     * 显示添加自定义模板对话框（用于➕按钮）
      */
-    private fun showAddCustomPresetTextDialog() {
+    private fun showAddCustomTemplateDialog() {
         try {
             val input = android.widget.EditText(this).apply {
-                hint = "输入预设文本"
+                hint = "输入模板文本（如：.xyz、/path等）"
             }
             
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("添加预设文本")
+                .setTitle("添加自定义模板")
                 .setView(input)
                 .setPositiveButton("添加") { _, _ ->
                     val newText = input.text.toString().trim()
                     if (newText.isNotEmpty()) {
                         addCustomPresetText(newText)
+                        // 重新加载工具栏，确保新模板显示在➕按钮右边
+                        searchInputToolbarLayout?.let {
+                            loadCustomToolbarItems(it)
+                        }
+                    } else {
+                        Toast.makeText(this, "模板文本不能为空", Toast.LENGTH_SHORT).show()
                     }
                 }
                 .setNegativeButton("取消", null)
                 .show()
         } catch (e: Exception) {
-            Log.e(TAG, "显示添加自定义预设文本对话框失败", e)
+            Log.e(TAG, "显示添加自定义模板对话框失败", e)
         }
+    }
+    
+    /**
+     * 显示添加自定义预设文本对话框
+     */
+    private fun showAddCustomPresetTextDialog() {
+        showAddCustomTemplateDialog()
     }
     
     /**
@@ -10223,6 +10788,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             config[R.id.toolbar_com] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_com)?.text?.toString() ?: ".com"
             config[R.id.toolbar_at] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_at)?.text?.toString() ?: "@"
             config[R.id.toolbar_cn] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_cn)?.text?.toString() ?: ".cn"
+            config[R.id.toolbar_org] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_org)?.text?.toString() ?: ".org"
+            config[R.id.toolbar_net] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_net)?.text?.toString() ?: ".net"
+            config[R.id.toolbar_io] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_io)?.text?.toString() ?: ".io"
+            config[R.id.toolbar_edu] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_edu)?.text?.toString() ?: ".edu"
+            config[R.id.toolbar_gov] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_gov)?.text?.toString() ?: ".gov"
+            config[R.id.toolbar_co] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_co)?.text?.toString() ?: ".co"
+            config[R.id.toolbar_me] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_me)?.text?.toString() ?: ".me"
+            config[R.id.toolbar_tv] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_tv)?.text?.toString() ?: ".tv"
+            config[R.id.toolbar_info] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_info)?.text?.toString() ?: ".info"
             config[R.id.toolbar_comma] = findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_comma)?.text?.toString() ?: ","
             
             val gson = com.google.gson.Gson()

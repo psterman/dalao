@@ -1032,6 +1032,9 @@ class EnhancedMenuManager(
                 hidePreviewWindow()
             }
             
+            // 🔧 设置菜单折叠功能，避免遮挡输入法
+            setupPreviewMenuCollapse(container)
+            
             // 设置拖拽功能
             setupPreviewDrag(container)
             
@@ -1267,6 +1270,55 @@ class EnhancedMenuManager(
         previewWindowView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.action_preview_share_link)?.setOnClickListener {
             shareContent(title, url)
             hidePreviewWindow()
+        }
+    }
+    
+    /**
+     * 设置预览窗菜单折叠功能，避免遮挡输入法
+     */
+    private fun setupPreviewMenuCollapse(container: View) {
+        try {
+            // 找到菜单内容容器（LinearLayout）
+            val menuContent = previewWindowView?.findViewById<android.widget.LinearLayout>(
+                R.id.preview_menu_content
+            )
+            
+            // 找到菜单ScrollView（它是menuContent的父视图）
+            val menuScrollView = menuContent?.parent as? android.widget.ScrollView
+            
+            if (menuScrollView == null || menuContent == null) {
+                Log.w(TAG, "预览窗菜单视图未找到，无法设置折叠功能")
+                return
+            }
+            
+            // 监听根视图的布局变化，检测输入法显示状态
+            val rootView = (context as? android.app.Activity)?.window?.decorView?.rootView
+            rootView?.viewTreeObserver?.addOnGlobalLayoutListener {
+                val rect = android.graphics.Rect()
+                rootView.getWindowVisibleDisplayFrame(rect)
+                val screenHeight = rootView.height
+                val keypadHeight = screenHeight - rect.bottom
+                
+                // 如果键盘高度超过屏幕高度的15%，认为键盘已显示
+                val keyboardVisible = keypadHeight > screenHeight * 0.15
+                
+                // 当输入法显示时，折叠菜单（隐藏菜单ScrollView）
+                if (keyboardVisible) {
+                    if (menuScrollView.visibility == android.view.View.VISIBLE) {
+                        menuScrollView.visibility = android.view.View.GONE
+                        Log.d(TAG, "输入法显示，折叠预览窗菜单")
+                    }
+                } else {
+                    if (menuScrollView.visibility == android.view.View.GONE) {
+                        menuScrollView.visibility = android.view.View.VISIBLE
+                        Log.d(TAG, "输入法隐藏，展开预览窗菜单")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "预览窗菜单折叠功能已设置")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置预览窗菜单折叠功能失败", e)
         }
     }
     
