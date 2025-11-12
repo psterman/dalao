@@ -763,6 +763,21 @@ class PaperStackWebViewManager(
         targetWebView.alpha = 1.0f
         targetWebView.elevation = currentWebView.elevation + 1f
         
+        // 🔧 修复：设置背景色为不透明，避免透视看到页面下方
+        // 在动画过程中，确保WebView背景不透明
+        if (targetWebView is PaperWebView) {
+            targetWebView.setBackgroundColor(Color.WHITE)
+        } else {
+            targetWebView.setBackgroundColor(Color.WHITE)
+        }
+        
+        // 确保当前页面也有不透明背景，避免透视
+        if (currentWebView is PaperWebView) {
+            currentWebView.setBackgroundColor(Color.WHITE)
+        } else {
+            currentWebView.setBackgroundColor(Color.WHITE)
+        }
+        
         // 当前页面滑出动画
         val currentAnimatorX = ObjectAnimator.ofFloat(currentWebView, "translationX", 0f, currentTargetX).apply {
             this.duration = duration

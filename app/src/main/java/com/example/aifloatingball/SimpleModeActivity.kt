@@ -8182,28 +8182,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 accumulatedScrollY = deltaY
             }
             
-            // 🔧 优化：使用累计阈值，确保滚动足够距离才触发动画
-            // 向下滚动：累计滚动超过阈值时隐藏，避免过于敏感
-            // 注意：hideToolbar()已经包含了组标签栏的隐藏处理
+            // 🔧 修复：tab栏常驻，只有标题栏和悬浮工具栏动态显示/隐藏
+            // 向下滚动：累计滚动超过阈值时隐藏标题栏，显示悬浮工具栏，但tab栏保持显示
+            // tab栏必须用户往下滑页面一定距离才消失，平常应该常驻
+            val tabHideThreshold = scrollAccumulateThreshold * 3 // tab栏需要更大的滚动距离才隐藏
             if (accumulatedScrollY > scrollAccumulateThreshold && isToolbarVisible) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
-                hideToolbar()
-                // 同步隐藏底部导航栏和显示快捷操作栏
+                // 只隐藏标题栏，不隐藏tab栏
+                hideToolbarOnly()
+                // 显示悬浮工具栏（只在用户下滑时浮现）
                 hideBottomNavigationAndShowQuickActions()
-                Log.d(TAG, "🔧 隐藏标题栏、tab栏和组标签栏，累计deltaY=$scrollValue")
+                Log.d(TAG, "🔧 隐藏标题栏，显示悬浮工具栏，累计deltaY=$scrollValue")
                 return
             }
             
-            // 向上滚动：累计滚动超过阈值时显示，确保自然触发
-            // 注意：showToolbar()已经包含了组标签栏的显示处理
+            // tab栏需要更大的滚动距离才隐藏
+            if (accumulatedScrollY > tabHideThreshold && browserTabContainer.visibility == View.VISIBLE) {
+                val scrollValue = accumulatedScrollY
+                accumulatedScrollY = 0 // 重置累计值
+                // 隐藏tab栏
+                browserTabContainer.visibility = View.GONE
+                Log.d(TAG, "🔧 隐藏tab栏，累计deltaY=$scrollValue")
+                return
+            }
+            
+            // 向上滚动：累计滚动超过阈值时显示标题栏和tab栏，隐藏悬浮工具栏
             if (accumulatedScrollY < -scrollAccumulateThreshold && !isToolbarVisible) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 showToolbar()
-                // 同步显示底部导航栏和隐藏快捷操作栏
+                // 显示tab栏（如果应该显示）
+                val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
+                if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+                    browserTabContainer.visibility = View.VISIBLE
+                }
+                // 隐藏悬浮工具栏
                 showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 显示标题栏、tab栏和组标签栏，累计deltaY=$scrollValue")
+                Log.d(TAG, "🔧 显示标题栏和tab栏，隐藏悬浮工具栏，累计deltaY=$scrollValue")
                 return
             }
 
@@ -8456,11 +8472,82 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 只隐藏标题栏，不隐藏tab栏（用于下滑时只隐藏标题栏，tab栏保持显示）
+     */
+    private fun hideToolbarOnly() {
+        if (!isToolbarVisible) return
+        
+        // 搜索tab首页不隐藏标题栏和tab栏
+        if (browserHomeContent.visibility == View.VISIBLE) {
+            Log.d(TAG, "搜索tab首页，不隐藏标题栏和tab栏")
+            return
+        }
+
+        try {
+            isToolbarVisible = false
+
+            // 取消之前的动画
+            toolbarAnimator?.cancel()
+
+            // 获取工具栏高度
+            val toolbarHeight = browserToolbar.height.toFloat()
+            if (toolbarHeight <= 0) {
+                Log.w(TAG, "工具栏高度为0，无法执行隐藏动画")
+                browserToolbar.visibility = View.GONE
+                return
+            }
+
+            // 只隐藏标题栏，不处理tab栏
+            val originalToolbarHeight = toolbarHeight.toInt()
+            val indentDistance = dpToPx(16f)
+
+            // 创建隐藏动画（只针对标题栏）
+            toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 280L
+                interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
+                addUpdateListener { animator ->
+                    val progress = animator.animatedValue as Float
+                    val easedProgress = progress * progress * (3f - 2f * progress)
+                    
+                    // 标题栏向下移动并淡出
+                    val toolbarTranslationY = toolbarHeight * easedProgress
+                    browserToolbar.translationY = toolbarTranslationY
+                    browserToolbar.alpha = 1f - 0.95f * easedProgress
+                    
+                    // 调整标题栏高度
+                    val toolbarLayoutParams = browserToolbar.layoutParams
+                    toolbarLayoutParams.height = (originalToolbarHeight * (1f - easedProgress)).toInt()
+                    browserToolbar.layoutParams = toolbarLayoutParams
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        browserToolbar.visibility = View.GONE
+                        browserToolbar.translationY = 0f
+                        browserToolbar.alpha = 1f
+                        val toolbarLayoutParams = browserToolbar.layoutParams
+                        toolbarLayoutParams.height = originalToolbarHeight
+                        browserToolbar.layoutParams = toolbarLayoutParams
+                    }
+                })
+            }
+            toolbarAnimator?.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏标题栏失败", e)
+        }
+    }
+    
+    /**
      * 隐藏工具栏（同步动画：标题栏、tab栏、网页容器）
      * 🔧 重新设计：通过动态调整高度避免空白区域
      */
     private fun hideToolbar() {
         if (!isToolbarVisible) return
+        
+        // 搜索tab首页不隐藏标题栏和tab栏
+        if (browserHomeContent.visibility == View.VISIBLE) {
+            Log.d(TAG, "搜索tab首页，不隐藏标题栏和tab栏")
+            return
+        }
 
         try {
             isToolbarVisible = false
@@ -14003,8 +14090,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserHomeContent.isClickable = true
         browserSearchInput.setText("")
 
-        // 隐藏标签栏
-        browserTabContainer.visibility = View.GONE
+        // 搜索tab首页不隐藏标签栏和标题栏
+        // browserTabContainer.visibility = View.GONE
+        
+        // 确保标题栏和tab栏可见
+        if (!isToolbarVisible) {
+            showToolbar()
+        }
 
         // 隐藏四分之一圆弧操作栏（在主页不需要）
         quarterArcOperationBar?.hide()
@@ -14167,6 +14259,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 执行浏览器搜索 - 修复搜索关键词机制
      */
     private fun performBrowserSearch() {
+        // 隐藏输入法
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+        
         val query = browserSearchInput.text.toString().trim()
         if (query.isNotEmpty()) {
             try {

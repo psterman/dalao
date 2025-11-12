@@ -58,6 +58,12 @@ class EnhancedDownloadManager(private val context: Context) {
     private var queryFailureCount: Int = 0
     // 记录正在恢复的下载ID，避免重复恢复
     private val resumingDownloadIds = mutableSetOf<Long>()
+    // 记录下载任务的恢复时间，用于防抖（避免短时间内多次恢复）
+    private val downloadResumeTimeMap = mutableMapOf<Long, Long>()
+    // 防抖间隔：同一个下载任务在3秒内只能恢复一次
+    private val RESUME_DEBOUNCE_INTERVAL = 3000L
+    // 存储延迟检查的Runnable，用于取消
+    private val pendingCheckRunnables = mutableMapOf<Long, MutableList<Runnable>>()
     
     // 下载进度弹窗相关
     private var progressDialog: AlertDialog? = null
@@ -254,10 +260,10 @@ class EnhancedDownloadManager(private val context: Context) {
             callback = callback
         )
         
-        // 显示下载进度弹窗
-        if (downloadId != -1L) {
-            showDownloadProgressDialog(downloadId, fileName)
-        }
+        // 不再显示下载进度弹窗，用户可以在下载管理页面查看进度
+        // if (downloadId != -1L) {
+        //     showDownloadProgressDialog(downloadId, fileName)
+        // }
         
         Log.d(TAG, "开始下载图片: $imageUrl -> $fileName")
         Toast.makeText(context, "开始保存图片到相册", Toast.LENGTH_SHORT).show()
@@ -284,10 +290,10 @@ class EnhancedDownloadManager(private val context: Context) {
             callback = callback
         )
         
-        // 显示下载进度弹窗
-        if (downloadId != -1L) {
-            showDownloadProgressDialog(downloadId, fileName)
-        }
+        // 不再显示下载进度弹窗，用户可以在下载管理页面查看进度
+        // if (downloadId != -1L) {
+        //     showDownloadProgressDialog(downloadId, fileName)
+        // }
         
         Log.d(TAG, "开始下载文件: $fileUrl -> $fileName")
         Toast.makeText(context, "开始下载文件到下载文件夹", Toast.LENGTH_SHORT).show()
@@ -564,6 +570,36 @@ class EnhancedDownloadManager(private val context: Context) {
                 return
             }
             
+            // 防抖检查：如果最近3秒内已经恢复过，跳过
+            // 但对于"等待网络连接"的情况，允许立即恢复（已在调用前清除防抖限制）
+            val lastResumeTime = downloadResumeTimeMap[downloadId]
+            val currentTime = System.currentTimeMillis()
+            if (lastResumeTime != null && (currentTime - lastResumeTime) < RESUME_DEBOUNCE_INTERVAL) {
+                Log.d(TAG, "下载恢复防抖：距离上次恢复时间过短，跳过: downloadId=$downloadId, 间隔=${currentTime - lastResumeTime}ms")
+                // 检查是否是"等待网络连接"的情况，如果是则允许恢复
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = downloadManager.query(query)
+                try {
+                    if (cursor.moveToFirst()) {
+                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                        val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+                        if (status == DownloadManager.STATUS_PAUSED && reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK) {
+                            Log.d(TAG, "等待网络连接，忽略防抖限制，允许恢复")
+                            // 继续执行恢复逻辑
+                        } else {
+                            return
+                        }
+                    } else {
+                        return
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "检查下载状态失败", e)
+                    return
+                } finally {
+                    cursor.close()
+                }
+            }
+            
             val fileInfo = downloadInfoMap[downloadId]
             if (fileInfo != null) {
                 Log.d(TAG, "🔄 自动恢复下载: 重新创建下载任务")
@@ -574,6 +610,14 @@ class EnhancedDownloadManager(private val context: Context) {
                 
                 // 标记为正在恢复，避免重复恢复
                 resumingDownloadIds.add(downloadId)
+                // 记录恢复时间，用于防抖
+                downloadResumeTimeMap[downloadId] = System.currentTimeMillis()
+                
+                // 取消所有相关的延迟检查
+                pendingCheckRunnables[downloadId]?.forEach { runnable ->
+                    Handler(Looper.getMainLooper()).removeCallbacks(runnable)
+                }
+                pendingCheckRunnables.remove(downloadId)
                 
                 // 取消旧的下载任务
                 downloadManager.remove(downloadId)
@@ -595,8 +639,9 @@ class EnhancedDownloadManager(private val context: Context) {
                 if (newDownloadId > 0) {
                     Log.d(TAG, "✅ 自动恢复成功: 新downloadId=$newDownloadId")
                     
-                    // 移除旧下载的恢复标记
+                    // 移除旧下载的恢复标记和恢复时间记录
                     resumingDownloadIds.remove(downloadId)
+                    downloadResumeTimeMap.remove(downloadId)
                     
                     // 如果弹窗正在显示，更新弹窗的downloadId，避免闪烁
                     if (needUpdateDialog && progressDialog != null && progressDialog!!.isShowing) {
@@ -867,8 +912,8 @@ class EnhancedDownloadManager(private val context: Context) {
                 destinationDir = destinationDir
             )
             
-            // 显示下载进度弹窗（立即显示，不等待状态）
-            showDownloadProgressDialog(downloadId, fileName)
+            // 不再显示下载进度弹窗，用户可以在下载管理页面查看进度
+            // showDownloadProgressDialog(downloadId, fileName)
             
             // 启动定期检查机制（如果还没启动）
             if (!progressHandler.hasCallbacks(networkCheckRunnable)) {
@@ -877,45 +922,22 @@ class EnhancedDownloadManager(private val context: Context) {
             }
             
             // 延迟检查下载状态，给DownloadManager时间初始化
-            // 避免立即检查导致状态不准确
-            Handler(Looper.getMainLooper()).postDelayed({
-                checkDownloadStatus(downloadId, url)
-            }, 800) // 缩短到800毫秒，更快检测问题
-            
-            // 增加额外的状态检查，确保下载能正常启动
-            // 1.5秒后再次检查，如果还是暂停状态，尝试恢复
-            Handler(Looper.getMainLooper()).postDelayed({
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = downloadManager.query(query)
-                try {
-                    if (deletedDownloadIds.contains(downloadId)) {
-                        // 下载已被删除，不检查
-                        return@postDelayed
-                    }
-                    if (cursor.moveToFirst()) {
-                        val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                        if (status == DownloadManager.STATUS_PAUSED) {
-                            val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                            // 如果是等待网络连接，采用激进策略：直接尝试恢复
-                            // 即使网络检查失败也恢复，因为可能是DownloadManager的误判
-                            if (reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK && 
-                                !resumingDownloadIds.contains(downloadId)) {
-                                Log.w(TAG, "⚠️ 1.5秒后检查发现下载等待网络连接，强制尝试恢复: downloadId=$downloadId")
-                                autoResumePausedDownload(downloadId, url)
-                            } else if (reason != DownloadManager.PAUSED_QUEUED_FOR_WIFI && 
-                                !resumingDownloadIds.contains(downloadId)) {
-                                // 其他暂停原因，尝试恢复
-                                Log.w(TAG, "⚠️ 1.5秒后检查发现下载仍暂停，尝试恢复: downloadId=$downloadId, reason=$reason")
-                                autoResumePausedDownload(downloadId, url)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "二次状态检查失败", e)
-                } finally {
-                    cursor.close()
+            // 避免立即检查导致状态不准确，使用单一检查机制避免重复恢复
+            val checkRunnable = Runnable {
+                // 检查下载是否已被删除或正在恢复
+                if (deletedDownloadIds.contains(downloadId) || resumingDownloadIds.contains(downloadId)) {
+                    return@Runnable
                 }
-            }, 1500) // 缩短到1.5秒，更快响应
+                checkDownloadStatus(downloadId, url)
+            }
+            
+            // 保存Runnable以便后续取消
+            if (!pendingCheckRunnables.containsKey(downloadId)) {
+                pendingCheckRunnables[downloadId] = mutableListOf()
+            }
+            pendingCheckRunnables[downloadId]?.add(checkRunnable)
+            
+            Handler(Looper.getMainLooper()).postDelayed(checkRunnable, 1000) // 1秒后检查，给DownloadManager足够时间初始化
             
             Log.d(TAG, "✅ 下载任务已创建: downloadId=$downloadId, url=$url, path=$downloadPath")
             return downloadId
@@ -941,7 +963,14 @@ class EnhancedDownloadManager(private val context: Context) {
             when (status) {
                 DownloadManager.STATUS_SUCCESSFUL -> {
                     Log.d(TAG, "下载成功: $fileName")
-                    Toast.makeText(context, "下载完成: ${File(fileName).name}", Toast.LENGTH_LONG).show()
+                    val fileNameDisplay = File(fileName).name
+                    // 显示可点击的Toast，点击后跳转到下载管理
+                    val toast = Toast.makeText(context, "下载完成: $fileNameDisplay\n点击查看", Toast.LENGTH_LONG)
+                    toast.view?.setOnClickListener {
+                        toast.cancel()
+                        showDownloadManager()
+                    }
+                    toast.show()
                     downloadCallbacks[downloadId]?.onDownloadSuccess(downloadId, localUri, fileName)
                 }
                 DownloadManager.STATUS_FAILED -> {
@@ -1576,6 +1605,7 @@ class EnhancedDownloadManager(private val context: Context) {
             val speedTextView = dialogView.findViewById<TextView>(R.id.download_speed_text)
             val downloadedSizeTextView = dialogView.findViewById<TextView>(R.id.download_downloaded_size)
             val totalSizeTextView = dialogView.findViewById<TextView>(R.id.download_total_size)
+            val startButton = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.download_start_button)
             val cancelButton = dialogView.findViewById<TextView>(R.id.download_cancel_button)
             val managerButton = dialogView.findViewById<TextView>(R.id.download_manager_button)
             
@@ -1585,6 +1615,9 @@ class EnhancedDownloadManager(private val context: Context) {
                 Log.e(TAG, "弹窗布局控件缺失，无法显示弹窗")
                 return
             }
+            
+            // 初始化"开始下载"按钮（默认隐藏）
+            startButton?.visibility = View.GONE
             
             fileNameTextView.text = fileName
             
@@ -1610,6 +1643,18 @@ class EnhancedDownloadManager(private val context: Context) {
                 progressDialog?.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
             }
             
+            // 开始下载按钮（用于手动恢复暂停的下载）
+            startButton?.setOnClickListener {
+                val url = downloadUrlMap[downloadId]
+                if (url != null) {
+                    Log.d(TAG, "用户点击开始下载按钮，恢复下载: downloadId=$downloadId")
+                    // 清除防抖限制，允许立即恢复
+                    downloadResumeTimeMap.remove(downloadId)
+                    resumingDownloadIds.remove(downloadId)
+                    autoResumePausedDownload(downloadId, url)
+                }
+            }
+            
             // 取消下载
             cancelButton.setOnClickListener {
                 cancelDownload(downloadId)
@@ -1629,6 +1674,7 @@ class EnhancedDownloadManager(private val context: Context) {
             
             progressDialog?.show()
             
+            // 弹窗显示时不立即检查，等待正常的检查机制触发，避免过于激进的恢复
             // 延迟开始更新进度，确保弹窗已完全显示
             progressHandler.postDelayed({
                 if (progressDialog != null && progressDialog!!.isShowing && currentProgressDialogDownloadId == downloadId) {
@@ -1772,6 +1818,10 @@ class EnhancedDownloadManager(private val context: Context) {
                             shouldUpdateUI = true
                             shouldCloseDialog = false
                             
+                            // 隐藏"开始下载"按钮
+                            val startButtonView = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.download_start_button)
+                            startButtonView?.visibility = View.GONE
+                            
                             val progress = if (bytesTotal > 0) (bytesDownloaded * 100 / bytesTotal).toInt() else 0
                             progressBar.progress = progress
                             progressTextView.text = "$progress%"
@@ -1800,6 +1850,10 @@ class EnhancedDownloadManager(private val context: Context) {
                             // 更新UI显示暂停状态
                             shouldUpdateUI = true
                             shouldCloseDialog = false
+                            
+                            // 显示"开始下载"按钮
+                            val startButtonView = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.download_start_button)
+                            startButtonView?.visibility = View.VISIBLE
                             
                             val progress = if (bytesTotal > 0) (bytesDownloaded * 100 / bytesTotal).toInt() else 0
                             progressBar.progress = progress
@@ -1855,56 +1909,28 @@ class EnhancedDownloadManager(private val context: Context) {
                             speedTextView?.text = reasonText
                             speedTextView?.visibility = View.VISIBLE
                             
-                            // 如果不是等待WiFi且未被删除，尝试自动恢复
-                            // 即使是等待网络连接，如果网络已恢复也应该尝试恢复
-                            if (reason != DownloadManager.PAUSED_QUEUED_FOR_WIFI &&
-                                !deletedDownloadIds.contains(currentProgressDialogDownloadId) &&
-                                !resumingDownloadIds.contains(currentProgressDialogDownloadId)) {
+                            // 对于"等待网络连接"，立即尝试恢复，忽略防抖限制
+                            // 因为这是用户主动触发的下载，应该立即开始
+                            if (reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK &&
+                                !deletedDownloadIds.contains(currentProgressDialogDownloadId)) {
                                 val url = downloadUrlMap[currentProgressDialogDownloadId]
                                 if (url != null) {
-                                    // 如果是等待网络连接，立即尝试恢复（不等待延迟）
-                                    if (reason == DownloadManager.PAUSED_WAITING_FOR_NETWORK) {
-                                        Log.d(TAG, "🔄 弹窗更新时检测到等待网络连接，立即恢复: downloadId=$currentProgressDialogDownloadId")
-                                        
-                                        // 检查重试次数
-                                        val retryCount = downloadInfoMap[currentProgressDialogDownloadId]?.let { 
-                                            val desc = it.description
-                                            val retryMatch = Regex("RETRY_COUNT:(\\d+)").find(desc)
-                                            retryMatch?.groupValues?.get(1)?.toInt() ?: 0
-                                        } ?: 0
-                                        
-                                        if (retryCount >= 1) {
-                                            // 已经尝试恢复过，直接切换到自定义HTTP下载
-                                            Log.w(TAG, "⚠️ 弹窗检测到多次暂停，切换到自定义HTTP下载: downloadId=$currentProgressDialogDownloadId")
-                                            switchToCustomHttpDownload(currentProgressDialogDownloadId, url)
-                                        } else {
-                                            // 首次暂停，立即尝试恢复（不延迟）
-                                            Log.d(TAG, "🔄 首次检测到暂停，立即恢复: downloadId=$currentProgressDialogDownloadId")
-                                            resumingDownloadIds.add(currentProgressDialogDownloadId)
-                                            
-                                            // 更新重试次数
-                                            val fileInfo = downloadInfoMap[currentProgressDialogDownloadId]
-                                            if (fileInfo != null) {
-                                                val newDescription = if (fileInfo.description.contains("RETRY_COUNT:")) {
-                                                    fileInfo.description.replace(Regex("RETRY_COUNT:\\d+"), "RETRY_COUNT:1")
-                                                } else {
-                                                    fileInfo.description + "\nRETRY_COUNT:1"
-                                                }
-                                                downloadInfoMap[currentProgressDialogDownloadId] = fileInfo.copy(
-                                                    description = newDescription
-                                                )
-                                            }
-                                            
-                                            // 立即恢复，不延迟
-                                            autoResumePausedDownload(currentProgressDialogDownloadId, url)
-                                        }
-                                    } else {
-                                        // 其他暂停原因，立即恢复
-                                        Log.d(TAG, "🔄 弹窗更新时检测到暂停，立即恢复: downloadId=$currentProgressDialogDownloadId, reason=$reason")
-                                        resumingDownloadIds.add(currentProgressDialogDownloadId)
-                                        // 立即恢复，不延迟
-                                        autoResumePausedDownload(currentProgressDialogDownloadId, url)
-                                    }
+                                    Log.d(TAG, "🔄 检测到等待网络连接，立即恢复（忽略防抖）: downloadId=$currentProgressDialogDownloadId")
+                                    // 清除防抖限制，允许立即恢复
+                                    downloadResumeTimeMap.remove(currentProgressDialogDownloadId)
+                                    resumingDownloadIds.remove(currentProgressDialogDownloadId)
+                                    // 立即恢复，不延迟
+                                    autoResumePausedDownload(currentProgressDialogDownloadId, url)
+                                }
+                            } else if (reason != DownloadManager.PAUSED_QUEUED_FOR_WIFI &&
+                                !deletedDownloadIds.contains(currentProgressDialogDownloadId) &&
+                                !resumingDownloadIds.contains(currentProgressDialogDownloadId)) {
+                                // 其他暂停原因（非等待WiFi），尝试自动恢复
+                                val url = downloadUrlMap[currentProgressDialogDownloadId]
+                                if (url != null) {
+                                    Log.d(TAG, "🔄 弹窗更新时检测到暂停，尝试恢复: downloadId=$currentProgressDialogDownloadId, reason=$reason")
+                                    // 立即恢复，不延迟
+                                    autoResumePausedDownload(currentProgressDialogDownloadId, url)
                                 }
                             }
                         }
@@ -2173,12 +2199,13 @@ class EnhancedDownloadManager(private val context: Context) {
             callback = callback
         )
 
+        // 不再显示下载进度弹窗，用户可以在下载管理页面查看进度
         // downloadFile内部已经显示弹窗，这里不需要重复显示
         // 但需要确保弹窗已显示
-        if (downloadId != -1L && currentProgressDialogDownloadId != downloadId) {
-            // 如果弹窗没有显示，再次显示
-            showDownloadProgressDialog(downloadId, fileName)
-        }
+        // if (downloadId != -1L && currentProgressDialogDownloadId != downloadId) {
+        //     // 如果弹窗没有显示，再次显示
+        //     showDownloadProgressDialog(downloadId, fileName)
+        // }
 
         Log.d(TAG, "开始下载: $url -> $fileName (目录: $destinationDir)")
         Toast.makeText(context, "开始下载$title", Toast.LENGTH_SHORT).show()

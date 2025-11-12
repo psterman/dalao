@@ -223,38 +223,15 @@ class DownloadManagerActivity : AppCompatActivity() {
             }
         }
         
-        // 自动恢复暂停的下载（除了等待WiFi的情况和已删除的下载）
-        val pausedDownloads = filteredDownloads.filter { 
-            it.status == DownloadManager.STATUS_PAUSED && 
-            !autoResumedDownloads.contains(it.downloadId) &&
-            !enhancedDownloadManager.isDownloadDeleted(it.downloadId)
-        }
-        pausedDownloads.forEach { download ->
-            // 检查暂停原因，如果不是等待WiFi，尝试自动恢复
-            val query = android.app.DownloadManager.Query().setFilterById(download.downloadId)
-            val cursor = (getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager).query(query)
-            try {
-                if (cursor.moveToFirst()) {
-                    val reason = cursor.getInt(cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON))
-                    // 如果不是等待WiFi，自动恢复
-                    if (reason != android.app.DownloadManager.PAUSED_QUEUED_FOR_WIFI) {
-                        Log.d(TAG, "🔄 检测到暂停的下载，自动恢复: downloadId=${download.downloadId}, reason=$reason")
-                        autoResumedDownloads.add(download.downloadId)
-                        resumeDownload(download)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "检查暂停原因失败", e)
-            } finally {
-                cursor.close()
-            }
-        }
+        // 移除自动恢复逻辑，避免反复弹窗
+        // EnhancedDownloadManager已经有自动恢复机制，这里不需要重复恢复
+        // 用户可以通过点击下载项手动恢复暂停的下载
         
         // 清理已完成的下载的恢复标记
         val completedDownloads = filteredDownloads.filter { 
             it.status == DownloadManager.STATUS_SUCCESSFUL || it.status == DownloadManager.STATUS_FAILED
         }
-        completedDownloads.forEach { 
+        completedDownloads.forEach {
             autoResumedDownloads.remove(it.downloadId)
         }
         
@@ -839,16 +816,30 @@ class DownloadManagerActivity : AppCompatActivity() {
      */
     private fun resumeDownload(downloadInfo: EnhancedDownloadManager.DownloadInfo) {
         try {
+            // 检查是否正在恢复，避免重复恢复
+            if (autoResumedDownloads.contains(downloadInfo.downloadId)) {
+                Log.d(TAG, "下载正在恢复中，跳过: downloadId=${downloadInfo.downloadId}")
+                return
+            }
+            
+            // 标记为正在恢复
+            autoResumedDownloads.add(downloadInfo.downloadId)
+            
             val downloadId = enhancedDownloadManager.resumeDownload(downloadInfo)
             if (downloadId != -1L) {
+                // 只在用户手动触发时显示提示，避免自动恢复时反复弹窗
                 Toast.makeText(this, "正在恢复下载...", Toast.LENGTH_SHORT).show()
                 refreshDownloads()
             } else {
+                // 恢复失败，移除标记允许重试
+                autoResumedDownloads.remove(downloadInfo.downloadId)
                 // 如果无法恢复，显示失败原因
                 val reason = enhancedDownloadManager.getDownloadFailureReason(downloadInfo.downloadId)
                 Toast.makeText(this, "恢复下载失败: $reason", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
+            // 恢复失败，移除标记允许重试
+            autoResumedDownloads.remove(downloadInfo.downloadId)
             Log.e(TAG, "恢复下载失败", e)
             Toast.makeText(this, "恢复下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
