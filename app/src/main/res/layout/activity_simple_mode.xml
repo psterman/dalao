@@ -2026,19 +2026,25 @@
                         android:background="@color/simple_mode_background_light">
 
                         <!-- Safari风格下拉工具栏 -->
-                        <LinearLayout
+                        <FrameLayout
                             android:id="@+id/browser_pull_down_toolbar"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_gravity="top"
-                            android:orientation="horizontal"
-                            android:gravity="center"
-                            android:paddingVertical="16dp"
-                            android:paddingHorizontal="32dp"
                             android:background="@color/simple_mode_header_background_light"
                             android:visibility="gone"
                             android:alpha="0"
                             android:elevation="8dp">
+
+                            <!-- 按钮容器 -->
+                            <LinearLayout
+                                android:id="@+id/pull_down_toolbar_buttons"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center"
+                                android:paddingVertical="16dp"
+                                android:paddingHorizontal="32dp">
 
                             <!-- 撤回按钮 -->
                             <ImageButton
@@ -2092,6 +2098,17 @@
                                 android:scaleType="centerInside" />
 
                         </LinearLayout>
+
+                            <!-- 选中指示器（跟随手指移动） -->
+                            <View
+                                android:id="@+id/pull_down_indicator"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="@drawable/pull_down_indicator_background"
+                                android:visibility="gone"
+                                android:elevation="4dp" />
+
+                        </FrameLayout>
 
                         <!-- 纸堆WebView布局 -->
                         <include

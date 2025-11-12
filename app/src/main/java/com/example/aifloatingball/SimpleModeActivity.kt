@@ -693,13 +693,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserBtnSite: ImageButton
     
     // Safari风格下拉工具栏
-    private lateinit var browserPullDownToolbar: LinearLayout
+    private lateinit var browserPullDownToolbar: FrameLayout
+    private lateinit var pullDownToolbarButtons: LinearLayout
     private lateinit var pullDownBtnBack: ImageButton
     private lateinit var pullDownBtnClose: ImageButton
     private lateinit var pullDownBtnRefresh: ImageButton
     private lateinit var pullDownBtnHome: ImageButton
+    private lateinit var pullDownIndicator: View
+    private var pullDownButtons: Array<ImageButton>? = null
     private var isPullDownToolbarVisible = false
     private var pullDownAnimation: android.animation.ValueAnimator? = null
+    private var selectedButtonIndex = -1 // 当前选中的按钮索引
     
     // 组标签栏相关
     private var groupTabsContainer: HorizontalScrollView? = null
@@ -1911,10 +1915,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 初始化下拉工具栏
         browserPullDownToolbar = findViewById(R.id.browser_pull_down_toolbar)
+        pullDownToolbarButtons = findViewById(R.id.pull_down_toolbar_buttons)
         pullDownBtnBack = findViewById(R.id.pull_down_btn_back)
         pullDownBtnClose = findViewById(R.id.pull_down_btn_close)
         pullDownBtnRefresh = findViewById(R.id.pull_down_btn_refresh)
         pullDownBtnHome = findViewById(R.id.pull_down_btn_home)
+        pullDownIndicator = findViewById(R.id.pull_down_indicator)
+        // 初始化按钮数组，方便索引访问
+        pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
         
         // 初始化组标签栏
         groupTabsContainer = findViewById(R.id.group_tabs_container)
@@ -7118,11 +7126,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 设置搜索框按钮功能
             setupSearchInputButtons()
+            
+            // 设置输入法监听，显示文本工具栏
+            setupInputMethodListener()
 
             Log.d(TAG, "Safari风格功能设置完成")
 
         } catch (e: Exception) {
             Log.e(TAG, "设置Safari风格功能失败", e)
+        }
+    }
+    
+    /**
+     * 设置输入法监听，当输入法显示时显示文本工具栏
+     */
+    private fun setupInputMethodListener() {
+        try {
+            val rootView = window.decorView.rootView
+            rootView.viewTreeObserver.addOnGlobalLayoutListener {
+                val rect = android.graphics.Rect()
+                rootView.getWindowVisibleDisplayFrame(rect)
+                val screenHeight = rootView.height
+                val keypadHeight = screenHeight - rect.bottom
+                
+                // 如果键盘高度超过屏幕高度的15%，认为键盘已显示
+                val keyboardVisible = keypadHeight > screenHeight * 0.15
+                
+                // 只在搜索tab中处理
+                if (currentState == UIState.BROWSER) {
+                    if (keyboardVisible) {
+                        // 输入法显示，显示文本工具栏
+                        updateSearchInputToolbarVisibility()
+                        Log.d(TAG, "输入法显示，显示文本工具栏")
+                    } else {
+                        // 输入法隐藏，如果输入框没有焦点，隐藏文本工具栏
+                        if (!browserSearchInput.isFocused) {
+                            updateSearchInputToolbarVisibility()
+                            Log.d(TAG, "输入法隐藏，隐藏文本工具栏")
+                        }
+                    }
+                }
+            }
+            
+            Log.d(TAG, "输入法监听设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置输入法监听失败", e)
         }
     }
 
@@ -7168,40 +7216,368 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun setupPullDownToolbarDetection() {
         var startY = 0f
+        var startX = 0f
         var isDragging = false
-        val pullThreshold = 80f // 下拉阈值，超过这个距离显示工具栏
+        var isSelecting = false // 是否正在选择图标
+        var hasPulledUp = false // 是否上滑过（用于判断是否应该执行命令）
+        var maxPullDownY = 0f // 记录最大下拉距离
+        var menuShowY = 0f // 记录菜单显示时的Y坐标
+        val pullThreshold = 100f // 下拉阈值，增加阈值避免过于灵敏
+        val pullUpThreshold = 30f // 上拉隐藏阈值，降低阈值使响应更灵敏
         
         // 使用自定义的触摸监听器，检测下拉手势并显示工具栏
         browserSwipeRefresh.setOnTouchListener { view, event ->
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
                     startY = event.y
+                    startX = event.x
                     isDragging = false
+                    isSelecting = false
+                    hasPulledUp = false // 重置上滑标记
+                    selectedButtonIndex = -1
+                    maxPullDownY = 0f
+                    // 如果菜单已经显示，记录当前Y坐标作为基准（用于计算相对滑动）
+                    if (isPullDownToolbarVisible) {
+                        menuShowY = event.y
+                    } else {
+                        menuShowY = 0f
+                    }
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
                     val deltaY = event.y - startY
-                    // 只有在向下拖动且超过阈值时才显示工具栏
-                    if (deltaY > pullThreshold && !isDragging) {
-                        val currentWebView = getCurrentWebViewForScrollCheck()
-                        val canScrollUp = currentWebView?.canScrollVertically(-1) ?: false
-                        // 只有在页面顶部时才显示工具栏
-                        if (!canScrollUp) {
-                            isDragging = true
-                            showPullDownToolbar()
+                    val deltaX = event.x - startX
+                    
+                    // 如果工具栏已经显示，检测垂直位置选择图标或上拉/下滑调整透明度
+                    if (isPullDownToolbarVisible) {
+                        // 计算相对于菜单显示时的滑动距离
+                        val relativeY = event.y - menuShowY
+                        
+                        // 如果用户上滑（相对于菜单显示位置），逐渐隐藏菜单
+                        if (relativeY < -pullUpThreshold) {
+                            hasPulledUp = true // 标记已上滑
+                            val pullUpDistance = -relativeY - pullUpThreshold
+                            val maxPullDown = maxPullDownY.coerceAtLeast(pullThreshold)
+                            // 根据上拉距离计算alpha，上拉越多，alpha越小
+                            // 使用更平滑的计算方式，让隐藏更自然
+                            val alpha = (1f - (pullUpDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
+                            browserPullDownToolbar.alpha = alpha
+                            pullDownIndicator.alpha = alpha
+                            
+                            // 如果完全上拉，隐藏菜单但不重置状态，允许用户继续下滑恢复
+                            if (alpha <= 0.05f) {
+                                browserPullDownToolbar.alpha = 0f
+                                pullDownIndicator.alpha = 0f
+                                pullDownIndicator.visibility = View.GONE
+                            }
+                        } 
+                        // 如果用户下滑（相对于菜单显示位置），逐渐恢复菜单
+                        else if (relativeY > pullUpThreshold) {
+                            // 如果之前上滑过，现在又下滑了，清除上滑标记
+                            if (hasPulledUp) {
+                                hasPulledUp = false
+                            }
+                            val pullDownDistance = relativeY - pullUpThreshold
+                            val maxPullDown = maxPullDownY.coerceAtLeast(pullThreshold)
+                            // 根据下滑距离计算alpha，下滑越多，alpha越大
+                            val alpha = ((pullDownDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
+                            browserPullDownToolbar.alpha = alpha
+                            if (alpha > 0.1f && pullDownIndicator.visibility != View.VISIBLE) {
+                                pullDownIndicator.visibility = View.VISIBLE
+                            }
+                            pullDownIndicator.alpha = alpha
+                        }
+                        // 如果滑动距离在阈值内，保持当前alpha
+                        else {
+                            // 保持当前alpha，不做改变
+                        }
+                        
+                        // 🔧 新功能：根据手指在屏幕上的X坐标（水平位置）直接选择对应的按钮
+                        // 用户手在屏幕的哪个位置下滑，垂直对应上方的选中菜单按钮就是哪个
+                        // 只有在菜单可见度足够时，才进行选择
+                        if (browserPullDownToolbar.alpha > 0.3f && !hasPulledUp) {
+                            isSelecting = true
+                            // 获取屏幕坐标
+                            val location = IntArray(2)
+                            view.getLocationOnScreen(location)
+                            val screenX = location[0] + event.x
+                            // 根据X坐标选择按钮（手指在屏幕的水平位置对应菜单按钮）
+                            updateIndicatorPositionByX(screenX)
+                        }
+                    } else {
+                        // 只有在向下拖动（deltaY > 0）且超过阈值时才显示工具栏
+                        // 如果用户上滑（deltaY < 0），直接返回，不处理
+                        if (deltaY < 0) {
+                            // 用户上滑，不处理，让WebView正常滚动
+                            return@setOnTouchListener false
+                        }
+                        
+                        // 记录最大下拉距离
+                        if (deltaY > maxPullDownY) {
+                            maxPullDownY = deltaY
+                        }
+                        
+                        // 必须严格检查：页面必须在最顶部（不能向上滚动且scrollY为0）
+                        if (deltaY > pullThreshold && !isDragging) {
+                            val currentWebView = getCurrentWebViewForScrollCheck()
+                            if (currentWebView != null) {
+                                val canScrollUp = currentWebView.canScrollVertically(-1)
+                                val scrollY = currentWebView.scrollY
+                                // 严格检查：不能向上滚动 且 滚动位置必须在顶部（允许1px误差）
+                                if (!canScrollUp && scrollY <= 1) {
+                                    isDragging = true
+                                    menuShowY = event.y // 记录菜单显示时的Y坐标
+                                    showPullDownToolbar()
+                                }
+                            } else {
+                                // 如果没有WebView，可能是功能主页，也允许下拉
+                                isDragging = true
+                                menuShowY = event.y // 记录菜单显示时的Y坐标
+                                showPullDownToolbar()
+                            }
                         }
                     }
                 }
                 android.view.MotionEvent.ACTION_UP, 
                 android.view.MotionEvent.ACTION_CANCEL -> {
-                    if (isDragging || isPullDownToolbarVisible) {
-                        isDragging = false
-                        hidePullDownToolbar()
+                    if (isPullDownToolbarVisible) {
+                        // 🔧 修复bug：如果用户上滑过且没有再次下滑，不应该执行命令
+                        // 只有在没有上滑过、菜单可见度足够、且选中了图标时，才执行操作
+                        if (!hasPulledUp && isSelecting && selectedButtonIndex >= 0 && browserPullDownToolbar.alpha > 0.5f) {
+                            // 执行选中图标的操作
+                            executeSelectedButtonAction(selectedButtonIndex)
+                        }
+                        // 如果菜单完全隐藏（alpha接近0），直接隐藏
+                        if (browserPullDownToolbar.alpha <= 0.1f) {
+                            hidePullDownToolbar()
+                        } else {
+                            // 否则正常隐藏（带动画）
+                            hidePullDownToolbar()
+                        }
                     }
+                    isDragging = false
+                    isSelecting = false
+                    hasPulledUp = false
+                    selectedButtonIndex = -1
+                    maxPullDownY = 0f
+                    menuShowY = 0f
                 }
             }
             false // 不拦截事件，让其他组件正常处理
         }
         
+    }
+    
+    /**
+     * 根据手指在屏幕上的X坐标（水平位置）选择对应的按钮
+     * 用户手在屏幕的哪个位置下滑，垂直对应上方的选中菜单按钮就是哪个
+     */
+    private fun updateIndicatorPositionByX(fingerX: Float) {
+        if (!isPullDownToolbarVisible || pullDownButtons == null) return
+        
+        // 获取屏幕宽度和工具栏位置
+        val screenWidth = resources.displayMetrics.widthPixels.toFloat()
+        val buttons = pullDownButtons!!
+        
+        // 将屏幕宽度分成4等份，每个按钮对应一个区域
+        // 手指在屏幕的哪个位置，就选中对应区域的按钮
+        val buttonWidth = screenWidth / buttons.size
+        var newSelectedIndex = -1
+        
+        for (i in buttons.indices) {
+            val buttonLeft = i * buttonWidth
+            val buttonRight = (i + 1) * buttonWidth
+            
+            // 如果手指在这个按钮对应的屏幕区域内
+            if (fingerX >= buttonLeft && fingerX < buttonRight) {
+                newSelectedIndex = i
+                break
+            }
+        }
+        
+        // 如果找到了选中的按钮，更新指示器位置
+        if (newSelectedIndex >= 0 && newSelectedIndex != selectedButtonIndex) {
+            selectedButtonIndex = newSelectedIndex
+            val selectedButton = buttons[newSelectedIndex]
+            val buttonLocation = IntArray(2)
+            selectedButton.getLocationOnScreen(buttonLocation)
+            val toolbarLocation = IntArray(2)
+            browserPullDownToolbar.getLocationOnScreen(toolbarLocation)
+            
+            // 计算指示器相对于工具栏的位置
+            val indicatorX = buttonLocation[0] - toolbarLocation[0]
+            val indicatorY = buttonLocation[1] - toolbarLocation[1]
+            
+            // 获取当前指示器位置（考虑translation）
+            val currentLayoutParams = pullDownIndicator.layoutParams as FrameLayout.LayoutParams
+            val currentX = currentLayoutParams.leftMargin + pullDownIndicator.translationX
+            val currentY = currentLayoutParams.topMargin + pullDownIndicator.translationY
+            
+            // 如果指示器还未显示，直接设置位置并显示
+            if (pullDownIndicator.visibility != View.VISIBLE) {
+                currentLayoutParams.leftMargin = indicatorX
+                currentLayoutParams.topMargin = indicatorY
+                pullDownIndicator.layoutParams = currentLayoutParams
+                pullDownIndicator.translationX = 0f
+                pullDownIndicator.translationY = 0f
+                pullDownIndicator.visibility = View.VISIBLE
+                pullDownIndicator.alpha = 0f
+                pullDownIndicator.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .start()
+            } else {
+                // 指示器已经显示，使用translation实现平滑移动
+                val deltaX = indicatorX - currentX
+                val deltaY = indicatorY - currentY
+                
+                // 先更新layoutParams到新位置
+                currentLayoutParams.leftMargin = indicatorX
+                currentLayoutParams.topMargin = indicatorY
+                pullDownIndicator.layoutParams = currentLayoutParams
+                
+                // 使用translation从当前位置平滑移动到新位置
+                pullDownIndicator.translationX = -deltaX
+                pullDownIndicator.translationY = -deltaY
+                pullDownIndicator.animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .setDuration(150)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+            }
+        }
+    }
+    
+    /**
+     * 更新指示器位置，根据手指X坐标计算选中的按钮（保留用于横向选择）
+     */
+    private fun updateIndicatorPosition(fingerX: Float) {
+        if (!isPullDownToolbarVisible || pullDownButtons == null) return
+        
+        // 获取工具栏按钮容器的位置
+        val location = IntArray(2)
+        pullDownToolbarButtons.getLocationOnScreen(location)
+        val toolbarX = location[0]
+        val toolbarWidth = pullDownToolbarButtons.width
+        
+        // 计算相对于工具栏的X坐标
+        val relativeX = fingerX - toolbarX
+        
+        // 如果手指在工具栏范围内
+        if (relativeX >= 0 && relativeX <= toolbarWidth) {
+            // 计算每个按钮的位置
+            val buttons = pullDownButtons!!
+            var newSelectedIndex = -1
+            
+            for (i in buttons.indices) {
+                val button = buttons[i]
+                val buttonLocation = IntArray(2)
+                button.getLocationOnScreen(buttonLocation)
+                val buttonX = buttonLocation[0] - toolbarX
+                val buttonWidth = button.width
+                
+                // 如果手指在按钮范围内（允许一定的容差）
+                if (relativeX >= buttonX - buttonWidth / 4 && relativeX <= buttonX + buttonWidth + buttonWidth / 4) {
+                    newSelectedIndex = i
+                    break
+                }
+            }
+            
+            // 如果找到了选中的按钮，更新指示器位置
+            if (newSelectedIndex >= 0 && newSelectedIndex != selectedButtonIndex) {
+                selectedButtonIndex = newSelectedIndex
+                val selectedButton = buttons[newSelectedIndex]
+                val buttonLocation = IntArray(2)
+                selectedButton.getLocationOnScreen(buttonLocation)
+                val toolbarLocation = IntArray(2)
+                browserPullDownToolbar.getLocationOnScreen(toolbarLocation)
+                
+                // 计算指示器相对于工具栏的位置
+                val indicatorX = buttonLocation[0] - toolbarLocation[0]
+                val indicatorY = buttonLocation[1] - toolbarLocation[1]
+                
+                // 获取当前指示器位置（考虑translation）
+                val currentLayoutParams = pullDownIndicator.layoutParams as FrameLayout.LayoutParams
+                val currentX = currentLayoutParams.leftMargin + pullDownIndicator.translationX
+                val currentY = currentLayoutParams.topMargin + pullDownIndicator.translationY
+                
+                // 如果指示器还未显示，直接设置位置并显示
+                if (pullDownIndicator.visibility != View.VISIBLE) {
+                    currentLayoutParams.leftMargin = indicatorX
+                    currentLayoutParams.topMargin = indicatorY
+                    pullDownIndicator.layoutParams = currentLayoutParams
+                    pullDownIndicator.translationX = 0f
+                    pullDownIndicator.translationY = 0f
+                    pullDownIndicator.visibility = View.VISIBLE
+                    pullDownIndicator.alpha = 0f
+                    pullDownIndicator.animate()
+                        .alpha(1f)
+                        .setDuration(150)
+                        .start()
+                } else {
+                    // 指示器已经显示，使用translation实现平滑移动
+                    val deltaX = indicatorX - currentX
+                    val deltaY = indicatorY - currentY
+                    
+                    // 先更新layoutParams到新位置
+                    currentLayoutParams.leftMargin = indicatorX
+                    currentLayoutParams.topMargin = indicatorY
+                    pullDownIndicator.layoutParams = currentLayoutParams
+                    
+                    // 使用translation从当前位置平滑移动到新位置
+                    pullDownIndicator.translationX = -deltaX
+                    pullDownIndicator.translationY = -deltaY
+                    pullDownIndicator.animate()
+                        .translationX(0f)
+                        .translationY(0f)
+                        .setDuration(150)
+                        .setInterpolator(android.view.animation.DecelerateInterpolator())
+                        .start()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 执行选中按钮的操作
+     */
+    private fun executeSelectedButtonAction(index: Int) {
+        when (index) {
+            0 -> {
+                // 撤回
+                try {
+                    val handled = unifiedWebViewManager.goBack()
+                    if (!handled) {
+                        // 如果统一管理器没有处理，尝试直接操作WebView
+                        val currentWebView = getCurrentWebViewForScrollCheck()
+                        if (currentWebView?.canGoBack() == true) {
+                            currentWebView.goBack()
+                        } else {
+                            showMaterialToast("无法撤回")
+                        }
+                    }
+                    Log.d(TAG, "下拉工具栏：撤回")
+                } catch (e: Exception) {
+                    Log.e(TAG, "撤回失败", e)
+                    showMaterialToast("撤回失败")
+                }
+            }
+            1 -> {
+                // 关闭
+                closeCurrentTab()
+                Log.d(TAG, "下拉工具栏：关闭")
+            }
+            2 -> {
+                // 刷新
+                refreshCurrentWebPage()
+                Log.d(TAG, "下拉工具栏：刷新")
+            }
+            3 -> {
+                // 主页
+                goToHomePage()
+                Log.d(TAG, "下拉工具栏：主页")
+            }
+        }
     }
     
     /**
@@ -7235,6 +7611,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun hidePullDownToolbar() {
         if (!isPullDownToolbarVisible) return
+        
+        // 隐藏指示器并重置状态
+        pullDownIndicator.visibility = View.GONE
+        pullDownIndicator.translationX = 0f
+        pullDownIndicator.translationY = 0f
+        selectedButtonIndex = -1
         
         // 取消之前的动画
         pullDownAnimation?.cancel()
@@ -7388,8 +7770,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getCurrentWebViewForScrollCheck(): android.webkit.WebView? {
         return try {
-            // 优先使用MobileCardManager
-            mobileCardManager?.getCurrentCard()?.webView
+            // 优先使用PaperStackWebViewManager（搜索tab主要使用这个）
+            paperStackWebViewManager?.getCurrentTab()?.webView
+                ?: multiPageWebViewManager?.getCurrentPage()?.webView
+                ?: mobileCardManager?.getCurrentCard()?.webView
                 ?: gestureCardWebViewManager?.getCurrentCard()?.webView
         } catch (e: Exception) {
             Log.e(TAG, "获取当前WebView失败", e)
@@ -7486,8 +7870,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 🔧 优化：确保在搜索tab中也能正常工作，排除悬浮卡片预览状态和遮罩层激活状态
                 val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
-                // 🔧 优化：使用适中的阈值，确保在合适的时机触发，避免过于敏感
-                if (Math.abs(deltaY) > 5 && !isSearchTabGestureOverlayActive && !isStackedPreviewVisible) {
+                // 🔧 优化：增加阈值和累计检查，避免小幅波动触发动画
+                if (Math.abs(deltaY) > 3 && !isSearchTabGestureOverlayActive && !isStackedPreviewVisible) {
                     handleWebViewScroll(deltaY, scrollY)
                 }
             }
@@ -7501,7 +7885,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 🔧 优化：添加防抖机制，避免频繁触发动画
     private var lastScrollTime = 0L
-    private val scrollDebounceDelay = 50L // 50ms防抖延迟
+    private val scrollDebounceDelay = 150L // 150ms防抖延迟，增加延迟避免频繁触发
+    private var accumulatedScrollY = 0 // 累计滚动距离，用于判断是否达到阈值
+    private val scrollAccumulateThreshold = 30 // 累计滚动阈值，避免小幅波动触发动画
     
     /**
      * 处理WebView滚动事件
@@ -7517,24 +7903,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             lastScrollTime = currentTime
             
-            // 🔧 优化：使用适中的阈值，确保在合适的时机触发
-            // 向下滚动：滚动超过5px时隐藏，避免过于敏感
+            // 🔧 优化：使用累计滚动距离，避免小幅波动触发动画
+            // 累计滚动距离，同方向累加，反方向重置
+            if ((deltaY > 0 && accumulatedScrollY >= 0) || (deltaY < 0 && accumulatedScrollY <= 0)) {
+                accumulatedScrollY += deltaY
+            } else {
+                // 方向改变，重置累计值
+                accumulatedScrollY = deltaY
+            }
+            
+            // 🔧 优化：使用累计阈值，确保滚动足够距离才触发动画
+            // 向下滚动：累计滚动超过阈值时隐藏，避免过于敏感
             // 注意：hideToolbar()已经包含了组标签栏的隐藏处理
-            if (deltaY > 5 && isToolbarVisible) {
+            if (accumulatedScrollY > scrollAccumulateThreshold && isToolbarVisible) {
+                val scrollValue = accumulatedScrollY
+                accumulatedScrollY = 0 // 重置累计值
                 hideToolbar()
                 // 同步隐藏底部导航栏和显示快捷操作栏
                 hideBottomNavigationAndShowQuickActions()
-                Log.d(TAG, "🔧 隐藏标题栏、tab栏和组标签栏，deltaY=$deltaY")
+                Log.d(TAG, "🔧 隐藏标题栏、tab栏和组标签栏，累计deltaY=$scrollValue")
                 return
             }
             
-            // 向上滚动：滚动超过5px时显示，确保自然触发
+            // 向上滚动：累计滚动超过阈值时显示，确保自然触发
             // 注意：showToolbar()已经包含了组标签栏的显示处理
-            if (deltaY < -5 && !isToolbarVisible) {
+            if (accumulatedScrollY < -scrollAccumulateThreshold && !isToolbarVisible) {
+                val scrollValue = accumulatedScrollY
+                accumulatedScrollY = 0 // 重置累计值
                 showToolbar()
                 // 同步显示底部导航栏和隐藏快捷操作栏
                 showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 显示标题栏、tab栏和组标签栏，deltaY=$deltaY")
+                Log.d(TAG, "🔧 显示标题栏、tab栏和组标签栏，累计deltaY=$scrollValue")
                 return
             }
 
@@ -9990,7 +10389,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         
         // 🔧 修复：即使预览窗口激活，如果输入框有焦点，也应该显示工具栏
-        val shouldShow = browserSearchInput.isFocused
+        // 🔧 新功能：如果输入法显示，也应该显示工具栏（用于WebView输入）
+        val rootView = window.decorView.rootView
+        val rect = android.graphics.Rect()
+        rootView.getWindowVisibleDisplayFrame(rect)
+        val screenHeight = rootView.height
+        val keypadHeight = screenHeight - rect.bottom
+        val isInputMethodVisible = keypadHeight > screenHeight * 0.15
+        val shouldShow = browserSearchInput.isFocused || isInputMethodVisible
         if (shouldShow) {
             if (container.visibility != View.VISIBLE) {
                 container.visibility = View.VISIBLE
