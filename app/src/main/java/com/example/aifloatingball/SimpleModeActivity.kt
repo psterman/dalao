@@ -7282,6 +7282,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         var hasPulledUp = false // 是否上滑过（用于判断是否应该执行命令）
         var maxPullDownY = 0f // 记录最大下拉距离
         var menuShowY = 0f // 记录菜单显示时的Y坐标
+        var menuInitialY = 0f // 记录菜单初始Y位置（用于滑动动画）
         val pullThreshold = 100f // 下拉阈值，增加阈值避免过于灵敏
         val pullUpThreshold = 30f // 上拉隐藏阈值，降低阈值使响应更灵敏
         
@@ -7307,55 +7308,99 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val deltaY = event.y - startY
                     val deltaX = event.x - startX
                     
-                    // 如果工具栏已经显示，检测垂直位置选择图标或上拉/下滑调整透明度
+                    // 如果工具栏已经显示，检测垂直位置选择图标或上拉/下滑调整位置
                     if (isPullDownToolbarVisible) {
                         // 计算相对于菜单显示时的滑动距离
                         val relativeY = event.y - menuShowY
                         
-                        // 如果用户上滑（相对于菜单显示位置），逐渐隐藏菜单
+                        // 🔧 修复1：如果用户正在左右滑动选择图标，菜单和图标必须保持完全不透明
+                        val isHorizontalSwipe = kotlin.math.abs(deltaX) > kotlin.math.abs(relativeY) * 0.5f
+                        
+                        // 🔧 修复2：将淡入淡出动画改为上滑下滑动画，菜单跟随手指移动
+                        // 计算菜单应该移动到的位置（基于下拉距离）
+                        // 确保菜单已经测量，如果高度为0则使用默认值
+                        val menuHeight = if (browserPullDownToolbar.height > 0) {
+                            browserPullDownToolbar.height.toFloat()
+                        } else {
+                            browserPullDownToolbar.measure(0, 0)
+                            browserPullDownToolbar.measuredHeight.toFloat().coerceAtLeast(100f)
+                        }
+                        val maxTranslation = menuHeight * 0.3f // 最大移动距离为菜单高度的30%
+                        
                         if (relativeY < -pullUpThreshold) {
-                            hasPulledUp = true // 标记已上滑
+                            // 用户上滑：菜单向上移动并彻底滑出屏幕
+                            hasPulledUp = true
                             val pullUpDistance = -relativeY - pullUpThreshold
                             val maxPullDown = maxPullDownY.coerceAtLeast(pullThreshold)
-                            // 根据上拉距离计算alpha，上拉越多，alpha越小
-                            // 使用更平滑的计算方式，让隐藏更自然
-                            val alpha = (1f - (pullUpDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
-                            browserPullDownToolbar.alpha = alpha
-                            pullDownIndicator.alpha = alpha
                             
-                            // 如果完全上拉，隐藏菜单但不重置状态，允许用户继续下滑恢复
-                            if (alpha <= 0.05f) {
-                                browserPullDownToolbar.alpha = 0f
-                                pullDownIndicator.alpha = 0f
-                                pullDownIndicator.visibility = View.GONE
+                            // 🔧 修复1：计算菜单的translationY（向上移动，彻底滑出屏幕）
+                            // 上滑时，菜单应该彻底滑出屏幕，而不是只移动30%
+                            val translationY = -kotlin.math.min(pullUpDistance * 0.8f, menuHeight * 1.2f) // 允许滑出屏幕外
+                            browserPullDownToolbar.translationY = translationY
+                            
+                            // 只有在不是水平滑动时才调整alpha（避免选择图标时变透明）
+                            if (!isHorizontalSwipe && !isSelecting) {
+                                val alpha = (1f - (pullUpDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
+                                browserPullDownToolbar.alpha = alpha
+                                pullDownIndicator.alpha = alpha
+                                
+                                if (alpha <= 0.05f) {
+                                    browserPullDownToolbar.alpha = 0f
+                                    pullDownIndicator.alpha = 0f
+                                    pullDownIndicator.visibility = View.GONE
+                                }
+                            } else {
+                                // 水平滑动或正在选择时，保持完全不透明
+                                browserPullDownToolbar.alpha = 1f
+                                pullDownIndicator.alpha = 1f
                             }
                         } 
-                        // 🔧 修复：如果用户下滑（相对于菜单显示位置），恢复菜单
-                        // 如果之前上滑过，现在又下滑了，清除上滑标记，允许菜单恢复和按钮选中
                         else if (relativeY > pullUpThreshold) {
-                            // 如果之前上滑过，现在又下滑了，清除上滑标记
+                            // 用户下滑：菜单向下移动并逐渐显示
                             if (hasPulledUp) {
                                 hasPulledUp = false
                             }
                             val pullDownDistance = relativeY - pullUpThreshold
                             val maxPullDown = maxPullDownY.coerceAtLeast(pullThreshold)
-                            // 根据下滑距离计算alpha，下滑越多，alpha越大
-                            val alpha = ((pullDownDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
-                            browserPullDownToolbar.alpha = alpha
-                            if (alpha > 0.1f && pullDownIndicator.visibility != View.VISIBLE) {
-                                pullDownIndicator.visibility = View.VISIBLE
+                            
+                            // 🔧 修改：计算菜单的translationY（从顶部向下移动，跟随手指）
+                            // 下拉时，菜单从顶部向下移动，跟随手指位置
+                            // 🔧 修复：下拉幅度不超过菜单总高度（translationY范围：-menuHeight到0）
+                            val translationY = (-menuHeight + pullDownDistance * 0.8f).coerceIn(-menuHeight, 0f)
+                            browserPullDownToolbar.translationY = translationY
+                            
+                            // 只有在不是水平滑动时才调整alpha
+                            if (!isHorizontalSwipe && !isSelecting) {
+                                val alpha = ((pullDownDistance / (maxPullDown * 0.6f)).coerceIn(0f, 1f)).coerceIn(0f, 1f)
+                                browserPullDownToolbar.alpha = alpha
+                                if (alpha > 0.1f && pullDownIndicator.visibility != View.VISIBLE) {
+                                    pullDownIndicator.visibility = View.VISIBLE
+                                }
+                                pullDownIndicator.alpha = alpha
+                            } else {
+                                // 水平滑动或正在选择时，保持完全不透明
+                                browserPullDownToolbar.alpha = 1f
+                                pullDownIndicator.alpha = 1f
                             }
-                            pullDownIndicator.alpha = alpha
                         }
-                        // 如果滑动距离在阈值内，保持当前alpha
                         else {
-                            // 保持当前alpha，不做改变
+                            // 滑动距离在阈值内，保持当前位置和透明度
+                            // 🔧 修复：如果之前上滑过，保持当前位置，不要回弹
+                            if (hasPulledUp) {
+                                // 保持当前上滑位置，不回弹
+                                // translationY已经在上滑时设置好了，不需要修改
+                            }
+                            // 如果是水平滑动，确保完全不透明
+                            if (isHorizontalSwipe || isSelecting) {
+                                browserPullDownToolbar.alpha = 1f
+                                pullDownIndicator.alpha = 1f
+                            }
                         }
                         
-                        // 🔧 新功能：根据手指在屏幕上的X坐标（水平位置）直接选择对应的按钮
+                        // 🔧 修复1：根据手指在屏幕上的X坐标（水平位置）直接选择对应的按钮
                         // 用户手在屏幕的哪个位置下滑，垂直对应上方的选中菜单按钮就是哪个
-                        // 只有在菜单可见度足够时，才进行选择（允许上滑后再下拉时也能选中）
-                        if (browserPullDownToolbar.alpha > 0.3f) {
+                        // 当用户左右滑动时，菜单和图标必须保持完全不透明
+                        if (browserPullDownToolbar.alpha > 0.3f || isHorizontalSwipe) {
                             isSelecting = true
                             // 获取屏幕坐标
                             val location = IntArray(2)
@@ -7363,8 +7408,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             val screenX = location[0] + event.x
                             // 根据X坐标选择按钮（手指在屏幕的水平位置对应菜单按钮）
                             updateIndicatorPositionByX(screenX)
+                            
+                            // 🔧 修复1：左右滑动时，确保菜单和图标完全不透明
+                            browserPullDownToolbar.alpha = 1f
+                            pullDownIndicator.alpha = 1f
                         }
                     } else {
+                        // 🔧 修复2：更严格地区分横向和纵向滑动，避免横向滑动误触发下拉菜单
+                        val absDeltaX = kotlin.math.abs(deltaX)
+                        val absDeltaY = kotlin.math.abs(deltaY)
+                        val isHorizontalSwipe = absDeltaX > absDeltaY * 1.5f && absDeltaX > 80f // 横向滑动：水平距离明显大于垂直距离，且水平距离超过80px
+                        
+                        // 如果检测到明显的横向滑动，不处理下拉菜单，让WebView处理横向滑动
+                        if (isHorizontalSwipe) {
+                            return@setOnTouchListener false
+                        }
+                        
                         // 只有在向下拖动（deltaY > 0）且超过阈值时才显示工具栏
                         // 如果用户上滑（deltaY < 0），直接返回，不处理
                         if (deltaY < 0) {
@@ -7387,13 +7446,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 if (!canScrollUp && scrollY <= 1) {
                                     isDragging = true
                                     menuShowY = event.y // 记录菜单显示时的Y坐标
-                                    showPullDownToolbar()
+                                    menuInitialY = event.y // 记录菜单初始Y位置
+                                    showPullDownToolbar(deltaY)
                                 }
                             } else {
                                 // 如果没有WebView，可能是功能主页，也允许下拉
                                 isDragging = true
                                 menuShowY = event.y // 记录菜单显示时的Y坐标
-                                showPullDownToolbar()
+                                menuInitialY = event.y // 记录菜单初始Y位置
+                                showPullDownToolbar(deltaY)
                             }
                         }
                     }
@@ -7410,12 +7471,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 🔧 修复：手离开屏幕时，无论alpha值如何，都应该完全隐藏菜单，不要重新亮起
                         // 立即取消所有动画，防止重新显示
                         pullDownAnimation?.cancel()
-                        // 直接隐藏，不使用动画，避免重新亮起
+                        // 重置translationY，然后隐藏
+                        browserPullDownToolbar.translationY = 0f
                         browserPullDownToolbar.alpha = 0f
                         pullDownIndicator.alpha = 0f
                         pullDownIndicator.visibility = View.GONE
                         browserPullDownToolbar.visibility = View.GONE
                         isPullDownToolbarVisible = false
+                        menuInitialY = 0f
                     }
                     isDragging = false
                     isSelecting = false
@@ -7701,9 +7764,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 显示下拉工具栏（淡入动画）
+     * 显示下拉工具栏（上滑动画，跟随手指）
      */
-    private fun showPullDownToolbar() {
+    private fun showPullDownToolbar(initialPullDistance: Float = 0f) {
         if (isPullDownToolbarVisible) return
         
         isPullDownToolbarVisible = true
@@ -7716,18 +7779,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 取消之前的动画
         pullDownAnimation?.cancel()
         
-        // 淡入动画
-        pullDownAnimation = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 200
+        // 🔧 修改：菜单从顶部向下滑动移进
+        // 确保菜单已经测量
+        if (browserPullDownToolbar.height == 0) {
+            browserPullDownToolbar.measure(
+                View.MeasureSpec.makeMeasureSpec(resources.displayMetrics.widthPixels, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+        }
+        val menuHeight = browserPullDownToolbar.height.toFloat().coerceAtLeast(100f)
+        
+        // 初始位置：从屏幕顶部开始（在屏幕上方）
+        val initialTranslationY = if (initialPullDistance > 0) {
+            // 如果已经有下拉距离，菜单从顶部向下移动相应距离
+            // 🔧 修复：下拉幅度不超过菜单总高度
+            (-menuHeight + initialPullDistance * 0.8f).coerceIn(-menuHeight, 0f)
+        } else {
+            -menuHeight // 从屏幕顶部开始（完全在屏幕外）
+        }
+        
+        browserPullDownToolbar.translationY = initialTranslationY
+        browserPullDownToolbar.alpha = 0f
+        
+        // 动画到当前位置（跟随手指，从顶部向下滑入）
+        pullDownAnimation = android.animation.ValueAnimator.ofFloat(initialTranslationY, 0f).apply {
+            duration = 150
             interpolator = android.view.animation.DecelerateInterpolator()
             addUpdateListener { animator ->
-                val alpha = animator.animatedValue as Float
-                browserPullDownToolbar.alpha = alpha
+                val translationY = animator.animatedValue as Float
+                browserPullDownToolbar.translationY = translationY
+                // 根据位置计算alpha（从顶部向下滑入时逐渐显示）
+                val progress = 1f - ((translationY - initialTranslationY) / -initialTranslationY).coerceIn(0f, 1f)
+                browserPullDownToolbar.alpha = progress
             }
             start()
         }
         
-        Log.d(TAG, "显示下拉工具栏")
+        Log.d(TAG, "显示下拉工具栏（上滑动画）")
     }
     
     /**
@@ -7768,7 +7856,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 隐藏下拉工具栏（淡出动画）
+     * 隐藏下拉工具栏（上滑动画，跟随手指）
      */
     private fun hidePullDownToolbar() {
         if (!isPullDownToolbarVisible) return
@@ -7782,21 +7870,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 取消之前的动画
         pullDownAnimation?.cancel()
         
-        // 淡出动画
-        pullDownAnimation = android.animation.ValueAnimator.ofFloat(1f, 0f).apply {
+        // 🔧 修复1：改为上滑动画，菜单彻底向上滑出屏幕
+        // 确保菜单已经测量
+        val menuHeight = if (browserPullDownToolbar.height > 0) {
+            browserPullDownToolbar.height.toFloat()
+        } else {
+            browserPullDownToolbar.measuredHeight.toFloat().coerceAtLeast(100f)
+        }
+        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+        val currentTranslationY = browserPullDownToolbar.translationY
+        val targetTranslationY = -screenHeight // 🔧 修复1：彻底滑出屏幕外（使用屏幕高度）
+        
+        pullDownAnimation = android.animation.ValueAnimator.ofFloat(currentTranslationY, targetTranslationY).apply {
             duration = 200
             interpolator = android.view.animation.AccelerateInterpolator()
             addUpdateListener { animator ->
-                val alpha = animator.animatedValue as Float
-                browserPullDownToolbar.alpha = alpha
+                val translationY = animator.animatedValue as Float
+                browserPullDownToolbar.translationY = translationY
+                // 根据位置计算alpha（向上滑出时逐渐隐藏）
+                val progress = 1f - ((currentTranslationY - translationY) / (currentTranslationY - targetTranslationY)).coerceIn(0f, 1f)
+                browserPullDownToolbar.alpha = progress
             }
             addListener(object : android.animation.Animator.AnimatorListener {
                 override fun onAnimationStart(animation: android.animation.Animator) {}
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    browserPullDownToolbar.translationY = 0f
                     browserPullDownToolbar.visibility = View.GONE
                     isPullDownToolbarVisible = false
                 }
                 override fun onAnimationCancel(animation: android.animation.Animator) {
+                    browserPullDownToolbar.translationY = 0f
                     browserPullDownToolbar.visibility = View.GONE
                     isPullDownToolbarVisible = false
                 }
@@ -7805,7 +7908,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             start()
         }
         
-        Log.d(TAG, "隐藏下拉工具栏")
+        Log.d(TAG, "隐藏下拉工具栏（上滑动画）")
     }
     
     /**
@@ -10428,30 +10531,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val currentTime = System.currentTimeMillis()
                         val timeDelta = currentTime - toolbarSwipeStartTime
                         
-                        // 如果是明显的垂直上滑手势，激活悬浮卡片系统
-                        if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
-                            absDeltaY > absDeltaX * verticalSwipeRatio) {
-                            val velocity = if (timeDelta > 0) {
-                                (deltaY / timeDelta) * 1000f
-                            } else {
-                                0f
-                            }
-                            
-                            if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
-                                isToolbarSwipeUpDetected = true
-                                Log.d(TAG, "🔧 从输入框检测到垂直上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
+                        // 🔧 修复3：检查是否在主页，如果是主页则不激活上滑隐藏标题栏功能
+                        val currentTab = paperStackWebViewManager?.getCurrentTab()
+                        val isHomePage = currentTab?.url == "home://functional" || 
+                                       currentTab?.url == "file:///android_asset/functional_home.html" ||
+                                       currentTab == null
+                        
+                        // 如果在主页，不处理上滑手势
+                        if (!isHomePage) {
+                            // 如果是明显的垂直上滑手势，激活悬浮卡片系统
+                            if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
+                                absDeltaY > absDeltaX * verticalSwipeRatio) {
+                                val velocity = if (timeDelta > 0) {
+                                    (deltaY / timeDelta) * 1000f
+                                } else {
+                                    0f
+                                }
                                 
-                                // 隐藏键盘
-                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                                imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
-                                
-                                // 激活悬浮卡片系统
-                                activateStackedCardPreview()
-                                
-                                // 提供触觉反馈
-                                vibrator?.vibrate(50)
-                                
-                                return@setOnTouchListener true // 消费事件，阻止输入框处理
+                                if (deltaY > swipeThreshold || velocity > swipeVelocityThreshold) {
+                                    isToolbarSwipeUpDetected = true
+                                    Log.d(TAG, "🔧 从输入框检测到垂直上滑手势，激活悬浮卡片系统，距离: $deltaY, 速度: $velocity")
+                                    
+                                    // 隐藏键盘
+                                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                    imm.hideSoftInputFromWindow(browserSearchInput.windowToken, 0)
+                                    
+                                    // 激活悬浮卡片系统
+                                    activateStackedCardPreview()
+                                    
+                                    // 提供触觉反馈
+                                    vibrator?.vibrate(50)
+                                    
+                                    return@setOnTouchListener true // 消费事件，阻止输入框处理
+                                }
                             }
                         }
                         false // 不是上滑手势，让输入框正常处理
@@ -10495,6 +10607,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val absDeltaY = kotlin.math.abs(deltaY)
                 val currentTime = System.currentTimeMillis()
                 val timeDelta = currentTime - toolbarSwipeStartTime
+                
+                // 🔧 修复3：检查是否在主页，如果是主页则不激活上滑隐藏标题栏功能
+                val currentTab = paperStackWebViewManager?.getCurrentTab()
+                val isHomePage = currentTab?.url == "home://functional" || 
+                               currentTab?.url == "file:///android_asset/functional_home.html" ||
+                               currentTab == null
+                
+                // 如果在主页，不处理上滑手势，让其他手势正常处理
+                if (isHomePage) {
+                    return false
+                }
                 
                 // 检测垂直上滑手势：向上滑动且距离足够，且主要是垂直方向
                 if (deltaY > swipeThreshold && !isToolbarSwipeUpDetected && timeDelta < 500 && 
