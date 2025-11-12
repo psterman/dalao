@@ -7954,7 +7954,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val currentTab = manager.getCurrentTab()
                 currentTab?.let { tab ->
                     if (tab.url != "home://functional") {
+                        // 🔧 修复：在关闭标签页之前，先保存关闭的标签页信息，以便撤回功能使用
+                        saveClosedTab(tab)
                         manager.closeTabByUrl(tab.url)
+                        // ⚡ 立即更新页面数量显示
+                        handler.post {
+                            updatePageCountDisplay()
+                        }
                     } else {
                         showMaterialToast("功能主页不能关闭")
                     }
