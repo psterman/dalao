@@ -2047,55 +2047,132 @@
                                 android:paddingHorizontal="32dp">
 
                             <!-- 撤回按钮 -->
-                            <ImageButton
+                            <LinearLayout
                                 android:id="@+id/pull_down_btn_back"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:src="@android:drawable/ic_menu_revert"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center"
                                 android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="撤回"
-                                android:layout_marginEnd="24dp"
-                                android:padding="12dp"
-                                android:tint="?attr/colorOnSurface"
-                                android:scaleType="centerInside" />
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:paddingTop="8dp"
+                                android:paddingBottom="8dp">
+                                <ImageButton
+                                    android:id="@+id/pull_down_icon_back"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@android:drawable/ic_menu_revert"
+                                    android:background="@android:color/transparent"
+                                    android:contentDescription="撤回"
+                                    android:padding="0dp"
+                                    android:tint="?attr/colorOnSurface"
+                                    android:scaleType="centerInside" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="撤回"
+                                    android:textSize="12sp"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:layout_marginTop="4dp" />
+                            </LinearLayout>
 
                             <!-- 关闭按钮 -->
-                            <ImageButton
+                            <LinearLayout
                                 android:id="@+id/pull_down_btn_close"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center"
                                 android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="关闭"
-                                android:layout_marginEnd="24dp"
-                                android:padding="12dp"
-                                android:tint="?attr/colorOnSurface"
-                                android:scaleType="centerInside" />
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:paddingTop="8dp"
+                                android:paddingBottom="8dp">
+                                <ImageButton
+                                    android:id="@+id/pull_down_icon_close"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                                    android:background="@android:color/transparent"
+                                    android:contentDescription="关闭"
+                                    android:padding="0dp"
+                                    android:tint="?attr/colorOnSurface"
+                                    android:scaleType="centerInside" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="关闭"
+                                    android:textSize="12sp"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:layout_marginTop="4dp" />
+                            </LinearLayout>
 
                             <!-- 刷新按钮 -->
-                            <ImageButton
+                            <LinearLayout
                                 android:id="@+id/pull_down_btn_refresh"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:src="@android:drawable/ic_menu_rotate"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center"
                                 android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="刷新"
-                                android:layout_marginEnd="24dp"
-                                android:padding="12dp"
-                                android:tint="?attr/colorOnSurface"
-                                android:scaleType="centerInside" />
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:paddingTop="8dp"
+                                android:paddingBottom="8dp">
+                                <ImageButton
+                                    android:id="@+id/pull_down_icon_refresh"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@android:drawable/ic_menu_rotate"
+                                    android:background="@android:color/transparent"
+                                    android:contentDescription="刷新"
+                                    android:padding="0dp"
+                                    android:tint="?attr/colorOnSurface"
+                                    android:scaleType="centerInside" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="刷新"
+                                    android:textSize="12sp"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:layout_marginTop="4dp" />
+                            </LinearLayout>
 
                             <!-- 主页按钮 -->
-                            <ImageButton
+                            <LinearLayout
                                 android:id="@+id/pull_down_btn_home"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:src="@android:drawable/ic_menu_view"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center"
                                 android:background="?attr/selectableItemBackgroundBorderless"
-                                android:contentDescription="主页"
-                                android:padding="12dp"
-                                android:tint="?attr/colorOnSurface"
-                                android:scaleType="centerInside" />
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:paddingTop="8dp"
+                                android:paddingBottom="8dp">
+                                <ImageButton
+                                    android:id="@+id/pull_down_icon_home"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@android:drawable/ic_menu_view"
+                                    android:background="@android:color/transparent"
+                                    android:contentDescription="主页"
+                                    android:padding="0dp"
+                                    android:tint="?attr/colorOnSurface"
+                                    android:scaleType="centerInside" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="主页"
+                                    android:textSize="12sp"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:layout_marginTop="4dp" />
+                            </LinearLayout>
 
                         </LinearLayout>
 

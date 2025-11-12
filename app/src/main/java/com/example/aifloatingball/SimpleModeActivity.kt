@@ -695,12 +695,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // Safari风格下拉工具栏
     private lateinit var browserPullDownToolbar: FrameLayout
     private lateinit var pullDownToolbarButtons: LinearLayout
-    private lateinit var pullDownBtnBack: ImageButton
-    private lateinit var pullDownBtnClose: ImageButton
-    private lateinit var pullDownBtnRefresh: ImageButton
-    private lateinit var pullDownBtnHome: ImageButton
+    private lateinit var pullDownBtnBack: LinearLayout
+    private lateinit var pullDownBtnClose: LinearLayout
+    private lateinit var pullDownBtnRefresh: LinearLayout
+    private lateinit var pullDownBtnHome: LinearLayout
     private lateinit var pullDownIndicator: View
-    private var pullDownButtons: Array<ImageButton>? = null
+    private var pullDownButtons: Array<LinearLayout>? = null
     private var isPullDownToolbarVisible = false
     private var pullDownAnimation: android.animation.ValueAnimator? = null
     private var selectedButtonIndex = -1 // 当前选中的按钮索引
@@ -1534,9 +1534,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             it.reset()
             Log.d(TAG, "悬浮卡片预览已停用")
         }
+        
+        // 移除外部点击监听
+        removeStackedCardPreviewOutsideClick()
 
         // 确保tab颜色状态正确更新
         updateTabColors()
+    }
+    
+    /**
+     * 设置预览窗口点击外部区域退出功能
+     */
+    private fun setupStackedCardPreviewOutsideClick() {
+        try {
+            val rootView = window.decorView.rootView
+            rootView.setOnTouchListener { view, event ->
+                if (stackedCardPreview?.visibility == View.VISIBLE) {
+                    when (event.action) {
+                        android.view.MotionEvent.ACTION_DOWN -> {
+                            // 检查点击位置是否在预览窗口外部
+                            val location = IntArray(2)
+                            stackedCardPreview?.getLocationOnScreen(location)
+                            val previewX = location[0]
+                            val previewY = location[1]
+                            val previewWidth = stackedCardPreview?.width ?: 0
+                            val previewHeight = stackedCardPreview?.height ?: 0
+                            
+                            val clickX = event.rawX
+                            val clickY = event.rawY
+                            
+                            // 如果点击位置在预览窗口外部，退出预览窗口
+                            if (clickX < previewX || clickX > previewX + previewWidth ||
+                                clickY < previewY || clickY > previewY + previewHeight) {
+                                Log.d(TAG, "点击预览窗口外部，退出预览窗口")
+                                deactivateStackedCardPreview()
+                                return@setOnTouchListener true
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            Log.d(TAG, "预览窗口外部点击监听已设置")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置预览窗口外部点击监听失败", e)
+        }
+    }
+    
+    /**
+     * 移除预览窗口外部点击监听
+     */
+    private fun removeStackedCardPreviewOutsideClick() {
+        try {
+            val rootView = window.decorView.rootView
+            rootView.setOnTouchListener(null)
+            Log.d(TAG, "预览窗口外部点击监听已移除")
+        } catch (e: Exception) {
+            Log.e(TAG, "移除预览窗口外部点击监听失败", e)
+        }
     }
 
     /**
@@ -1923,6 +1978,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         pullDownIndicator = findViewById(R.id.pull_down_indicator)
         // 初始化按钮数组，方便索引访问
         pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
+        
+        // 设置按钮点击事件（保留原有功能）
+        setupPullDownToolbarButtons()
         
         // 初始化组标签栏
         groupTabsContainer = findViewById(R.id.group_tabs_container)
@@ -4764,8 +4822,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "用户选择：恢复所有页面")
                     // 恢复保存的卡片
                     gestureCardWebViewManager?.restoreCardsState()
-                    // 延迟刷新UI状态，等待卡片恢复完成
+                    // 🔧 修复：恢复后直接进入恢复页面（激活预览窗口）
                     Handler(Looper.getMainLooper()).postDelayed({
+                        // 恢复完成后，激活预览窗口显示恢复的页面
+                        activateStackedCardPreview()
                         forceRefreshUIState()
                     }, 500)
                 }
@@ -7270,7 +7330,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 pullDownIndicator.visibility = View.GONE
                             }
                         } 
-                        // 如果用户下滑（相对于菜单显示位置），逐渐恢复菜单
+                        // 🔧 修复：如果用户下滑（相对于菜单显示位置），恢复菜单
+                        // 如果之前上滑过，现在又下滑了，清除上滑标记，允许菜单恢复和按钮选中
                         else if (relativeY > pullUpThreshold) {
                             // 如果之前上滑过，现在又下滑了，清除上滑标记
                             if (hasPulledUp) {
@@ -7293,8 +7354,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         
                         // 🔧 新功能：根据手指在屏幕上的X坐标（水平位置）直接选择对应的按钮
                         // 用户手在屏幕的哪个位置下滑，垂直对应上方的选中菜单按钮就是哪个
-                        // 只有在菜单可见度足够时，才进行选择
-                        if (browserPullDownToolbar.alpha > 0.3f && !hasPulledUp) {
+                        // 只有在菜单可见度足够时，才进行选择（允许上滑后再下拉时也能选中）
+                        if (browserPullDownToolbar.alpha > 0.3f) {
                             isSelecting = true
                             // 获取屏幕坐标
                             val location = IntArray(2)
@@ -7346,13 +7407,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 执行选中图标的操作
                             executeSelectedButtonAction(selectedButtonIndex)
                         }
-                        // 如果菜单完全隐藏（alpha接近0），直接隐藏
-                        if (browserPullDownToolbar.alpha <= 0.1f) {
-                            hidePullDownToolbar()
-                        } else {
-                            // 否则正常隐藏（带动画）
-                            hidePullDownToolbar()
-                        }
+                        // 🔧 修复：手离开屏幕时，无论alpha值如何，都应该完全隐藏菜单，不要重新亮起
+                        // 立即取消所有动画，防止重新显示
+                        pullDownAnimation?.cancel()
+                        // 直接隐藏，不使用动画，避免重新亮起
+                        browserPullDownToolbar.alpha = 0f
+                        pullDownIndicator.alpha = 0f
+                        pullDownIndicator.visibility = View.GONE
+                        browserPullDownToolbar.visibility = View.GONE
+                        isPullDownToolbarVisible = false
                     }
                     isDragging = false
                     isSelecting = false
@@ -7378,19 +7441,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
         val buttons = pullDownButtons!!
         
-        // 将屏幕宽度分成4等份，每个按钮对应一个区域
+        // 🔧 修复：支持主页时只有一个按钮的情况，也支持多个按钮的情况
+        // 将屏幕宽度分成buttons.size等份，每个按钮对应一个区域
         // 手指在屏幕的哪个位置，就选中对应区域的按钮
-        val buttonWidth = screenWidth / buttons.size
         var newSelectedIndex = -1
         
-        for (i in buttons.indices) {
-            val buttonLeft = i * buttonWidth
-            val buttonRight = (i + 1) * buttonWidth
-            
-            // 如果手指在这个按钮对应的屏幕区域内
-            if (fingerX >= buttonLeft && fingerX < buttonRight) {
-                newSelectedIndex = i
-                break
+        if (buttons.size == 1) {
+            // 主页时只有一个按钮（撤回），整个屏幕都可以选中它
+            newSelectedIndex = 0
+        } else {
+            // 多个按钮时，将屏幕分成等份
+            val buttonWidth = screenWidth / buttons.size
+            for (i in buttons.indices) {
+                val buttonLeft = i * buttonWidth
+                val buttonRight = (i + 1) * buttonWidth
+                
+                // 如果手指在这个按钮对应的屏幕区域内
+                if (fingerX >= buttonLeft && fingerX < buttonRight) {
+                    newSelectedIndex = i
+                    break
+                }
             }
         }
         
@@ -7403,9 +7473,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val toolbarLocation = IntArray(2)
             browserPullDownToolbar.getLocationOnScreen(toolbarLocation)
             
-            // 计算指示器相对于工具栏的位置
-            val indicatorX = buttonLocation[0] - toolbarLocation[0]
-            val indicatorY = buttonLocation[1] - toolbarLocation[1]
+            // 🔧 修复：指示器应该居中在图标上，而不是整个按钮
+            // 获取图标的位置（按钮内的第一个ImageButton）
+            val iconView = selectedButton.getChildAt(0) as? ImageButton
+            val iconLocation = if (iconView != null) {
+                val loc = IntArray(2)
+                iconView.getLocationOnScreen(loc)
+                loc
+            } else {
+                buttonLocation
+            }
+            
+            // 计算指示器相对于工具栏的位置（居中在图标上）
+            val indicatorX = iconLocation[0] - toolbarLocation[0]
+            val indicatorY = iconLocation[1] - toolbarLocation[1]
             
             // 获取当前指示器位置（考虑translation）
             val currentLayoutParams = pullDownIndicator.layoutParams as FrameLayout.LayoutParams
@@ -7484,7 +7565,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             
             // 如果找到了选中的按钮，更新指示器位置
-            if (newSelectedIndex >= 0 && newSelectedIndex != selectedButtonIndex) {
+            if (newSelectedIndex >= 0 && newSelectedIndex < buttons.size && newSelectedIndex != selectedButtonIndex) {
                 selectedButtonIndex = newSelectedIndex
                 val selectedButton = buttons[newSelectedIndex]
                 val buttonLocation = IntArray(2)
@@ -7492,9 +7573,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val toolbarLocation = IntArray(2)
                 browserPullDownToolbar.getLocationOnScreen(toolbarLocation)
                 
-                // 计算指示器相对于工具栏的位置
-                val indicatorX = buttonLocation[0] - toolbarLocation[0]
-                val indicatorY = buttonLocation[1] - toolbarLocation[1]
+                // 🔧 修复：指示器应该居中在图标上，而不是整个按钮
+                // 获取图标的位置（按钮内的第一个ImageButton）
+                val iconView = selectedButton.getChildAt(0) as? ImageButton
+                val iconLocation = if (iconView != null) {
+                    val loc = IntArray(2)
+                    iconView.getLocationOnScreen(loc)
+                    loc
+                } else {
+                    buttonLocation
+                }
+                
+                // 计算指示器相对于工具栏的位置（居中在图标上）
+                val indicatorX = iconLocation[0] - toolbarLocation[0]
+                val indicatorY = iconLocation[1] - toolbarLocation[1]
                 
                 // 获取当前指示器位置（考虑translation）
                 val currentLayoutParams = pullDownIndicator.layoutParams as FrameLayout.LayoutParams
@@ -7543,23 +7635,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun executeSelectedButtonAction(index: Int) {
         when (index) {
-            0 -> {
-                // 撤回
+             0 -> {
+                // 撤回：优先重新打开最近关闭的标签页，如果没有则尝试WebView后退
                 try {
-                    val handled = unifiedWebViewManager.goBack()
-                    if (!handled) {
-                        // 如果统一管理器没有处理，尝试直接操作WebView
-                        val currentWebView = getCurrentWebViewForScrollCheck()
-                        if (currentWebView?.canGoBack() == true) {
-                            currentWebView.goBack()
-                        } else {
-                            showMaterialToast("无法撤回")
+                    // 先尝试恢复最近关闭的标签页
+                    if (closedTabsHistory.isNotEmpty()) {
+                        // 🔧 修复：直接调用恢复逻辑，确保标签页被正确恢复和加载
+                        val lastClosedTab = closedTabsHistory.removeAt(closedTabsHistory.size - 1)
+                        
+                        // 恢复标签页
+                        paperStackWebViewManager?.let { manager ->
+                            // 创建新标签页并加载URL
+                            val restoredTab = manager.addTab(lastClosedTab.url, lastClosedTab.title)
+                            
+                            // 找到新标签页的索引并切换
+                            val tabIndex = manager.getTabCount() - 1 // addTab会在末尾添加，所以索引是最后一个
+                            manager.switchToTab(tabIndex)
+                            
+                            // ⚡ 立即更新页面数量显示
+                            handler.post {
+                                updatePageCountDisplay()
+                            }
+                            
+                            Log.d(TAG, "下拉工具栏：撤回关闭的标签页 - ${lastClosedTab.title}, URL: ${lastClosedTab.url}")
+                        } ?: run {
+                            // 如果管理器不可用，重新添加到历史记录
+                            closedTabsHistory.add(lastClosedTab)
+                            showMaterialToast("标签页管理器不可用")
                         }
+                    } else {
+                        // 如果没有关闭的标签页，尝试WebView后退
+                        val handled = unifiedWebViewManager.goBack()
+                        if (!handled) {
+                            // 如果统一管理器没有处理，尝试直接操作WebView
+                            val currentWebView = getCurrentWebViewForScrollCheck()
+                            if (currentWebView?.canGoBack() == true) {
+                                currentWebView.goBack()
+                            } else {
+                                showMaterialToast("无法撤回")
+                            }
+                        }
+                        Log.d(TAG, "下拉工具栏：撤回（WebView后退）")
                     }
-                    Log.d(TAG, "下拉工具栏：撤回")
                 } catch (e: Exception) {
                     Log.e(TAG, "撤回失败", e)
-                    showMaterialToast("撤回失败")
+                    showMaterialToast("撤回失败: ${e.message}")
                 }
             }
             1 -> {
@@ -7589,6 +7709,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         isPullDownToolbarVisible = true
         browserPullDownToolbar.visibility = View.VISIBLE
         
+        // 🔧 新功能：根据当前页面状态动态显示/隐藏按钮
+        // 在主页时只显示撤回按钮，其他按钮屏蔽
+        updatePullDownToolbarButtonsVisibility()
+        
         // 取消之前的动画
         pullDownAnimation?.cancel()
         
@@ -7604,6 +7728,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         
         Log.d(TAG, "显示下拉工具栏")
+    }
+    
+    /**
+     * 根据当前页面状态更新下拉工具栏按钮的可见性
+     * 在主页时只显示撤回按钮，其他按钮屏蔽
+     */
+    private fun updatePullDownToolbarButtonsVisibility() {
+        try {
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            val isHomePage = currentTab?.url == "home://functional" || 
+                           currentTab?.url == "file:///android_asset/functional_home.html" ||
+                           currentTab == null
+            
+            if (isHomePage) {
+                // 主页：只显示撤回按钮
+                pullDownBtnBack.visibility = View.VISIBLE
+                pullDownBtnClose.visibility = View.GONE
+                pullDownBtnRefresh.visibility = View.GONE
+                pullDownBtnHome.visibility = View.GONE
+                // 更新按钮数组，只包含撤回按钮
+                pullDownButtons = arrayOf(pullDownBtnBack)
+            } else {
+                // 非主页：显示所有按钮
+                pullDownBtnBack.visibility = View.VISIBLE
+                pullDownBtnClose.visibility = View.VISIBLE
+                pullDownBtnRefresh.visibility = View.VISIBLE
+                pullDownBtnHome.visibility = View.VISIBLE
+                // 更新按钮数组，包含所有按钮
+                pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
+            }
+            
+            Log.d(TAG, "更新下拉工具栏按钮可见性: 主页=$isHomePage")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新下拉工具栏按钮可见性失败", e)
+            // 出错时显示所有按钮
+            pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
+        }
     }
     
     /**
@@ -25820,6 +25981,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 显示预览器
                 visibility = View.VISIBLE
+                
+                // 🔧 新功能：添加点击外部区域退出预览窗口的功能
+                setupStackedCardPreviewOutsideClick()
 
                 Log.d(TAG, "✅ 层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
             }
