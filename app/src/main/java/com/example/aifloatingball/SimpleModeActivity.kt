@@ -6853,6 +6853,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 页面开始加载时隐藏悬浮窗
         paperStackWebViewManager?.setOnPageStartedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面开始加载: $url")
+            
+            // 更新地址栏显示当前页面URL
+            if (url != null && url.isNotEmpty()) {
+                runOnUiThread {
+                    browserSearchInput.setText(url)
+                    Log.d(TAG, "页面开始加载，更新地址栏显示URL: $url")
+                }
+            }
+            
             // 隐藏悬浮播放器
             if (::floatingVideoManager.isInitialized && floatingVideoManager.isShowing()) {
                 floatingVideoManager.hide()
@@ -6865,6 +6874,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 页面加载完成时注入视频检测脚本
         paperStackWebViewManager?.setOnPageFinishedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面加载完成: $url")
+            
+            // 更新地址栏显示当前页面URL
+            if (url != null && url.isNotEmpty()) {
+                runOnUiThread {
+                    browserSearchInput.setText(url)
+                    Log.d(TAG, "更新地址栏显示URL: $url")
+                }
+            }
+            
             injectVideoHookToWebView(tab.webView)
             
             // 🔧 修复4：页面加载完成后保存截图
@@ -8212,10 +8230,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 showToolbar()
-                // 显示tab栏（如果应该显示）
+                // 🔧 修复：确保tab栏显示（如果应该显示）
                 val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-                if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+                if (hasTabs) {
                     browserTabContainer.visibility = View.VISIBLE
+                    browserTabContainer.alpha = 1f
+                    browserTabContainer.translationY = 0f
+                }
+                // 🔧 修复：确保组标签栏也显示
+                groupTabsContainer?.let { container ->
+                    if (isToolbarVisible && currentState == UIState.BROWSER) {
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                    }
                 }
                 // 隐藏悬浮工具栏
                 showBottomNavigationAndHideQuickActions()
@@ -8473,6 +8501,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 只隐藏标题栏，不隐藏tab栏（用于下滑时只隐藏标题栏，tab栏保持显示）
+     * 🔧 修复：同时隐藏组标签栏
      */
     private fun hideToolbarOnly() {
         if (!isToolbarVisible) return
@@ -8488,20 +8517,32 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 取消之前的动画
             toolbarAnimator?.cancel()
+            groupTabsAnimator?.cancel()
 
             // 获取工具栏高度
             val toolbarHeight = browserToolbar.height.toFloat()
             if (toolbarHeight <= 0) {
                 Log.w(TAG, "工具栏高度为0，无法执行隐藏动画")
                 browserToolbar.visibility = View.GONE
+                // 🔧 修复：同时隐藏组标签栏
+                groupTabsContainer?.visibility = View.GONE
                 return
             }
 
-            // 只隐藏标题栏，不处理tab栏
+            // 🔧 修复：获取组标签栏高度
+            val groupTabsContainerRef = groupTabsContainer
+            val groupTabsContainerHeight = if (groupTabsContainerRef?.visibility == View.VISIBLE) {
+                groupTabsContainerRef.height.toFloat()
+            } else {
+                0f
+            }
+
+            // 只隐藏标题栏和组标签栏，不处理tab栏
             val originalToolbarHeight = toolbarHeight.toInt()
+            val originalGroupTabsHeight = groupTabsContainerHeight.toInt()
             val indentDistance = dpToPx(16f)
 
-            // 创建隐藏动画（只针对标题栏）
+            // 创建隐藏动画（针对标题栏和组标签栏）
             toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 280L
                 interpolator = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1.0f)
@@ -8509,10 +8550,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val progress = animator.animatedValue as Float
                     val easedProgress = progress * progress * (3f - 2f * progress)
                     
+                    // 计算总高度（标题栏+组标签栏）
+                    val totalHeight = toolbarHeight + groupTabsContainerHeight
+                    
                     // 标题栏向下移动并淡出
-                    val toolbarTranslationY = toolbarHeight * easedProgress
+                    val toolbarTranslationY = totalHeight * easedProgress
                     browserToolbar.translationY = toolbarTranslationY
                     browserToolbar.alpha = 1f - 0.95f * easedProgress
+                    
+                    // 🔧 修复：组标签栏同步向下移动并淡出
+                    groupTabsContainerRef?.let { container ->
+                        if (container.visibility == View.VISIBLE) {
+                            container.translationY = toolbarTranslationY
+                            container.alpha = 1f - 0.95f * easedProgress
+                            
+                            // 动态调整组标签栏高度
+                            val currentGroupTabsHeight = (originalGroupTabsHeight * (1f - easedProgress)).toInt()
+                            val groupTabsLayoutParams = container.layoutParams
+                            groupTabsLayoutParams.height = currentGroupTabsHeight
+                            container.layoutParams = groupTabsLayoutParams
+                        }
+                    }
                     
                     // 调整标题栏高度
                     val toolbarLayoutParams = browserToolbar.layoutParams
@@ -8527,6 +8585,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val toolbarLayoutParams = browserToolbar.layoutParams
                         toolbarLayoutParams.height = originalToolbarHeight
                         browserToolbar.layoutParams = toolbarLayoutParams
+                        
+                        // 🔧 修复：隐藏组标签栏
+                        groupTabsContainerRef?.let { container ->
+                            container.visibility = View.GONE
+                            container.translationY = 0f
+                            container.alpha = 1f
+                            val groupTabsLayoutParams = container.layoutParams
+                            groupTabsLayoutParams.height = originalGroupTabsHeight
+                            container.layoutParams = groupTabsLayoutParams
+                        }
                     }
                 })
             }
@@ -8766,6 +8834,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserToolbar.height.toFloat()
             } else {
                 dpToPx(56f)
+            }
+            
+            // 🔧 修复：如果有标签页，确保tab栏可见
+            val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
+            if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+                browserTabContainer.visibility = View.VISIBLE
             }
             
             // 获取tab栏目标高度
@@ -14359,6 +14433,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 初始用URL填充地址栏（后续收到标题再覆盖）
             try { browserSearchInput.setText(url) } catch (_: Exception) {}
+
+            // 🔧 修复：确保页面加载时，悬浮工具栏默认隐藏，tab栏默认显示
+            if (isQuickActionsBarVisible) {
+                hideQuickActionsBar()
+            }
+            // 确保tab栏显示（如果有标签页）
+            val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
+            if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+                browserTabContainer.visibility = View.VISIBLE
+            }
+            // 确保标题栏显示
+            if (!isToolbarVisible) {
+                showToolbar()
+            }
 
             // 在纸堆模式下添加新标签页
             if (paperStackWebViewManager != null) {

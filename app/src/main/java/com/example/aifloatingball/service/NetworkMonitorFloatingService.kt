@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.net.TrafficStats
 import android.os.Build
@@ -50,7 +52,11 @@ class NetworkMonitorFloatingService : Service() {
     
     private var networkSpeedTextView: TextView? = null
     private var downloadProgressTextView: TextView? = null
+    private var downloadCompleteHint: TextView? = null
     private var contentContainer: FrameLayout? = null
+    
+    // 下载完成相关：记录完成的下载数量
+    private var completedDownloadCount = 0
     
     private var isNetworkSpeedEnabled = false
     private var isDownloadProgressEnabled = false
@@ -59,11 +65,26 @@ class NetworkMonitorFloatingService : Service() {
     private var lastTxBytes = 0L
     private var lastTime = 0L
     
+    // 下载完成广播接收器
+    private val downloadCompleteReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.DOWNLOAD_COMPLETE") {
+                val downloadId = intent.getLongExtra("download_id", -1L)
+                val fileName = intent.getStringExtra("file_name") ?: ""
+                if (downloadId != -1L && fileName.isNotEmpty()) {
+                    notifyDownloadComplete(downloadId, fileName)
+                }
+            }
+        }
+    }
+    
     private val updateHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
             updateNetworkSpeed()
             updateDownloadProgress()
+            // 即使下载进度显示未启用，也要更新下载完成数字
+            updateDownloadCompleteHint()
             updateHandler.postDelayed(this, UPDATE_INTERVAL)
         }
     }
@@ -80,6 +101,14 @@ class NetworkMonitorFloatingService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         
+        // 注册下载完成广播接收器
+        val filter = IntentFilter("com.example.aifloatingball.DOWNLOAD_COMPLETE")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(downloadCompleteReceiver, filter)
+        }
+        
         // 检查悬浮窗权限（Android 6.0+需要）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!android.provider.Settings.canDrawOverlays(this)) {
@@ -95,6 +124,8 @@ class NetworkMonitorFloatingService : Service() {
         
         if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
             createFloatingView()
+            // 初始化已完成的下载数量
+            initializeCompletedDownloadCount()
             // 立即开始更新（如果悬浮窗创建成功）
             if (floatingView != null) {
                 updateHandler.post(updateRunnable)
@@ -149,6 +180,11 @@ class NetworkMonitorFloatingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "NetworkMonitorFloatingService onDestroy")
+        try {
+            unregisterReceiver(downloadCompleteReceiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "注销广播接收器失败", e)
+        }
         removeFloatingView()
         updateHandler.removeCallbacks(updateRunnable)
     }
@@ -221,11 +257,20 @@ class NetworkMonitorFloatingService : Service() {
             
             networkSpeedTextView = floatingView?.findViewById(R.id.network_speed_text)
             downloadProgressTextView = floatingView?.findViewById(R.id.download_progress_text)
+            downloadCompleteHint = floatingView?.findViewById(R.id.download_complete_hint)
             contentContainer = floatingView?.findViewById(R.id.content_container)
             
-            // 设置点击切换显示内容
-            floatingView?.setOnClickListener {
-                toggleDisplayMode()
+            // 设置下载完成提示的点击事件
+            downloadCompleteHint?.setOnClickListener {
+                openDownloadManager()
+            }
+            
+            // 设置点击切换显示内容（但下载完成提示不参与切换）
+            floatingView?.setOnClickListener { view ->
+                // 如果点击的是下载完成提示，不切换显示模式
+                if (view.id != R.id.download_complete_hint) {
+                    toggleDisplayMode()
+                }
             }
             
             // 设置拖拽
@@ -311,8 +356,17 @@ class NetworkMonitorFloatingService : Service() {
         networkSpeedTextView?.visibility = if (isNetworkSpeedEnabled) View.VISIBLE else View.GONE
         downloadProgressTextView?.visibility = if (isDownloadProgressEnabled) View.VISIBLE else View.GONE
         
+        // 下载完成提示始终可用（即使下载进度显示未启用）
+        // 如果下载完成数量大于0，显示提示
+        if (completedDownloadCount > 0) {
+            downloadCompleteHint?.text = completedDownloadCount.toString()
+            downloadCompleteHint?.visibility = View.VISIBLE
+        } else {
+            downloadCompleteHint?.visibility = View.GONE
+        }
+        
         // 如果两个都关闭，隐藏整个悬浮窗
-        if (!isNetworkSpeedEnabled && !isDownloadProgressEnabled) {
+        if (!isNetworkSpeedEnabled && !isDownloadProgressEnabled && completedDownloadCount == 0) {
             removeFloatingView()
         }
     }
@@ -395,6 +449,16 @@ class NetworkMonitorFloatingService : Service() {
      * 更新下载进度
      */
     private fun updateDownloadProgress() {
+        // 即使下载进度显示未启用，也要检查并显示下载完成数字
+        // 先更新下载完成数字的显示
+        if (completedDownloadCount > 0) {
+            downloadCompleteHint?.text = completedDownloadCount.toString()
+            downloadCompleteHint?.visibility = View.VISIBLE
+        } else {
+            downloadCompleteHint?.visibility = View.GONE
+        }
+        
+        // 如果下载进度显示未启用，只更新完成数字，不更新进度文本
         if (!isDownloadProgressEnabled || downloadProgressTextView == null) return
         
         try {
@@ -403,7 +467,15 @@ class NetworkMonitorFloatingService : Service() {
                 it.status == android.app.DownloadManager.STATUS_RUNNING 
             }
             
+            // 统计完成的下载数量（最近完成的，用于显示提示）
+            val completedDownloads = downloads.filter {
+                it.status == android.app.DownloadManager.STATUS_SUCCESSFUL
+            }
+            
             if (activeDownloads.isNotEmpty()) {
+                // 有活动下载，隐藏完成提示，显示下载进度
+                downloadCompleteHint?.visibility = View.GONE
+                
                 val download = activeDownloads.first()
                 val progress = if (download.bytesTotal > 0) {
                     (download.bytesDownloaded * 100 / download.bytesTotal).toInt()
@@ -419,12 +491,84 @@ class NetworkMonitorFloatingService : Service() {
                 val progressText = "下载: $shortFileName\n$progress%"
                 downloadProgressTextView?.text = progressText
                 Log.d(TAG, "更新下载进度: $shortFileName $progress%")
-            } else {
+            } else if (completedDownloadCount > 0) {
+                // 没有活动下载，但有完成的下载，显示完成数量
+                downloadCompleteHint?.text = completedDownloadCount.toString()
+                downloadCompleteHint?.visibility = View.VISIBLE
                 downloadProgressTextView?.text = "无下载任务"
+                Log.d(TAG, "显示下载完成数量: $completedDownloadCount")
+            } else {
+                // 没有活动下载，也没有完成的下载
+                downloadProgressTextView?.text = "无下载任务"
+                downloadCompleteHint?.visibility = View.GONE
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新下载进度失败", e)
             downloadProgressTextView?.text = "下载进度获取失败"
+            downloadCompleteHint?.visibility = View.GONE
+        }
+    }
+    
+    /**
+     * 打开下载管理界面
+     */
+    private fun openDownloadManager() {
+        try {
+            val intent = Intent(this, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            Log.d(TAG, "打开下载管理界面")
+            
+            // 重置完成数量（用户已查看）
+            completedDownloadCount = 0
+            downloadCompleteHint?.visibility = View.GONE
+        } catch (e: Exception) {
+            Log.e(TAG, "打开下载管理界面失败", e)
+        }
+    }
+    
+    /**
+     * 初始化已完成的下载数量
+     */
+    private fun initializeCompletedDownloadCount() {
+        try {
+            val downloads = downloadManager.getAllDownloads()
+            val completedDownloads = downloads.filter {
+                it.status == android.app.DownloadManager.STATUS_SUCCESSFUL
+            }
+            completedDownloadCount = completedDownloads.size
+            Log.d(TAG, "初始化完成下载数量: $completedDownloadCount")
+            // 立即更新显示
+            updateDownloadCompleteHint()
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化完成下载数量失败", e)
+        }
+    }
+    
+    /**
+     * 更新下载完成数字提示
+     */
+    private fun updateDownloadCompleteHint() {
+        if (completedDownloadCount > 0) {
+            downloadCompleteHint?.text = completedDownloadCount.toString()
+            downloadCompleteHint?.visibility = View.VISIBLE
+        } else {
+            downloadCompleteHint?.visibility = View.GONE
+        }
+    }
+    
+    /**
+     * 通知下载完成（由EnhancedDownloadManager调用）
+     */
+    fun notifyDownloadComplete(downloadId: Long, fileName: String) {
+        updateHandler.post {
+            // 增加完成数量
+            completedDownloadCount++
+            // 立即更新显示数字
+            updateDownloadCompleteHint()
+            // 立即更新显示
+            updateDownloadProgress()
+            Log.d(TAG, "下载完成，当前完成数量: $completedDownloadCount")
         }
     }
     

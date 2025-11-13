@@ -971,6 +971,10 @@ class EnhancedDownloadManager(private val context: Context) {
                         showDownloadManager()
                     }
                     toast.show()
+                    
+                    // 通知网速悬浮窗显示下载完成提示
+                    notifyFloatingServiceDownloadComplete(downloadId, fileNameDisplay)
+                    
                     downloadCallbacks[downloadId]?.onDownloadSuccess(downloadId, localUri, fileName)
                 }
                 DownloadManager.STATUS_FAILED -> {
@@ -1423,6 +1427,22 @@ class EnhancedDownloadManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "无法打开下载管理器", e)
             Toast.makeText(context, "无法打开下载管理器", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 通知网速悬浮窗服务下载完成
+     */
+    private fun notifyFloatingServiceDownloadComplete(downloadId: Long, fileName: String) {
+        try {
+            // 通过广播通知悬浮窗服务
+            val intent = Intent("com.example.aifloatingball.DOWNLOAD_COMPLETE")
+            intent.putExtra("download_id", downloadId)
+            intent.putExtra("file_name", fileName)
+            context.sendBroadcast(intent)
+            Log.d(TAG, "已发送下载完成广播: $fileName")
+        } catch (e: Exception) {
+            Log.e(TAG, "通知悬浮窗服务失败", e)
         }
     }
     

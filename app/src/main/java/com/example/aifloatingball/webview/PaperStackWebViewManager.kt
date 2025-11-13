@@ -979,10 +979,16 @@ class PaperStackWebViewManager(
                 tab.webView.scaleX = 1.0f
                 tab.webView.scaleY = 1.0f
                 tab.webView.elevation = (tabs.size + 20).toFloat()
+                // 🔧 修复：确保当前页面在最上层，其他页面在下方
+                tab.webView.bringToFront()
             } else {
                 // 非当前页面：完全隐藏，避免重叠显示
                 tab.webView.visibility = View.GONE
                 tab.webView.alpha = 0f
+                tab.webView.translationX = 0f
+                tab.webView.translationY = 0f
+                tab.webView.scaleX = 1.0f
+                tab.webView.scaleY = 1.0f
                 tab.webView.elevation = (tabs.size - stackIndex + 10).toFloat()
             }
             

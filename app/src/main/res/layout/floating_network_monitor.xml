@@ -39,6 +39,22 @@
             android:layout_marginTop="4dp"
             android:singleLine="true"
             android:ellipsize="end" />
+
+        <!-- 下载完成数字提示（可点击跳转到下载管理） -->
+        <TextView
+            android:id="@+id/download_complete_hint"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:text="1"
+            android:textSize="14sp"
+            android:textColor="#4CAF50"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="4dp"
+            android:background="#33000000"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 </FrameLayout>
 
