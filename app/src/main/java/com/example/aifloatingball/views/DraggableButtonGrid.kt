@@ -3,6 +3,7 @@ package com.example.aifloatingball.views
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Color
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.util.Log
 import android.view.DragEvent
@@ -12,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
@@ -126,14 +128,41 @@ class DraggableButtonGrid @JvmOverloads constructor(
 
     private fun setupView() {
         try {
-            // 创建RecyclerView
+            // 创建RecyclerView - iOS风格间距
             recyclerView = RecyclerView(context).apply {
-                layoutManager = GridLayoutManager(context, COLUMN_COUNT)
+                layoutManager = GridLayoutManager(context, COLUMN_COUNT).apply {
+                    // 设置item间距装饰器，实现iOS风格的间距
+                }
                 layoutParams = LayoutParams(
                     LayoutParams.MATCH_PARENT,
                     LayoutParams.WRAP_CONTENT
                 )
+                // iOS风格：增加内边距，使按钮不贴边
+                setPadding(0, 0, 0, 0)
+                clipToPadding = false
             }
+            
+            // 添加item间距装饰器，实现iOS风格的网格间距
+            recyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+                override fun getItemOffsets(
+                    outRect: android.graphics.Rect,
+                    view: View,
+                    parent: RecyclerView,
+                    state: RecyclerView.State
+                ) {
+                    val position = parent.getChildAdapterPosition(view)
+                    val column = position % COLUMN_COUNT
+                    val spacing = (12 * context.resources.displayMetrics.density).toInt() // 12dp转px
+                    
+                    // 左右间距
+                    outRect.left = if (column == 0) 0 else spacing / 2
+                    outRect.right = if (column == COLUMN_COUNT - 1) 0 else spacing / 2
+                    
+                    // 上下间距
+                    outRect.top = spacing / 2
+                    outRect.bottom = spacing / 2
+                }
+            })
             
             addView(recyclerView)
             
@@ -502,7 +531,10 @@ class DraggableButtonGrid @JvmOverloads constructor(
     ) : RecyclerView.Adapter<ButtonAdapter.ButtonViewHolder>() {
         
         class ButtonViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            val button: MaterialButton = itemView.findViewById(R.id.button_item)
+            val buttonCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.button_card)
+            val buttonContainer: LinearLayout = itemView.findViewById(R.id.button_item)
+            val buttonIcon: ImageView = itemView.findViewById(R.id.button_icon)
+            val buttonText: TextView = itemView.findViewById(R.id.button_text)
             val dragHandle: View = itemView.findViewById(R.id.drag_handle)
             val selectedIndicator: View = itemView.findViewById(R.id.selected_indicator)
         }
@@ -515,58 +547,47 @@ class DraggableButtonGrid @JvmOverloads constructor(
         
         override fun onBindViewHolder(holder: ButtonViewHolder, position: Int) {
             val buttonItem = buttons[position]
+            val context = holder.itemView.context
             
-            holder.button.apply {
-                text = buttonItem.label
-                
-                // 不显示图标
-                icon = null
-                setIconResource(0)
-                
-                // 设置文字颜色，确保可见
-                setTextColor(context.getColor(com.example.aifloatingball.R.color.simple_mode_text_primary_light))
-                
-                // 单击切换显示状态（选中/取消选中）
-                setOnClickListener {
-                    // 切换按钮可见性（选中/取消选中）
-                    val grid = (holder.itemView.parent as? RecyclerView)?.parent as? DraggableButtonGrid
-                    grid?.toggleButtonVisibility(buttonItem.type)
-                }
-                
-                // 按钮本身不处理长按，让itemView处理拖动
-                setOnLongClickListener(null)
+            // 设置图标
+            holder.buttonIcon.setImageResource(buttonItem.iconResId)
+            
+            // 设置文字
+            holder.buttonText.text = buttonItem.label
+            
+            // 设置图标颜色
+            holder.buttonIcon.setColorFilter(
+                context.getColor(com.example.aifloatingball.R.color.simple_mode_text_primary_light),
+                android.graphics.PorterDuff.Mode.SRC_IN
+            )
+            
+            // 设置文字颜色
+            holder.buttonText.setTextColor(
+                context.getColor(com.example.aifloatingball.R.color.simple_mode_text_primary_light)
+            )
+            
+            // 单击切换显示状态（选中/取消选中）
+            holder.buttonCard.setOnClickListener {
+                // 切换按钮可见性（选中/取消选中）
+                val grid = (holder.itemView.parent as? RecyclerView)?.parent as? DraggableButtonGrid
+                grid?.toggleButtonVisibility(buttonItem.type)
             }
-            
-            // 隐藏选中指示器（绿色横线）
-            holder.selectedIndicator.visibility = View.GONE
             
             // 更新按钮样式以反映选中状态
             if (buttonItem.isVisible) {
-                // 选中状态：显示边框和背景色
-                holder.button.apply {
-                    strokeWidth = 2
-                    strokeColor = android.content.res.ColorStateList.valueOf(
-                        context.getColor(com.example.aifloatingball.R.color.simple_mode_accent_light)
-                    )
-                    setBackgroundTintList(
-                        android.content.res.ColorStateList.valueOf(
-                            context.getColor(com.example.aifloatingball.R.color.simple_mode_green_100_light)
-                        )
-                    )
-                }
+                // 选中状态：显示选中指示器和高亮背景
+                holder.selectedIndicator.visibility = View.VISIBLE
+                holder.buttonCard.setCardBackgroundColor(
+                    context.getColor(com.example.aifloatingball.R.color.simple_mode_green_100_light)
+                )
+                holder.buttonCard.cardElevation = 4f
             } else {
-                // 未选中状态：只有边框，透明背景
-                holder.button.apply {
-                    strokeWidth = 1
-                    strokeColor = android.content.res.ColorStateList.valueOf(
-                        context.getColor(com.example.aifloatingball.R.color.simple_mode_text_secondary_light)
-                    )
-                    setBackgroundTintList(
-                        android.content.res.ColorStateList.valueOf(
-                            android.graphics.Color.TRANSPARENT
-                        )
-                    )
-                }
+                // 未选中状态：隐藏选中指示器，使用默认背景
+                holder.selectedIndicator.visibility = View.GONE
+                holder.buttonCard.setCardBackgroundColor(
+                    context.getColor(com.example.aifloatingball.R.color.simple_mode_surface_light)
+                )
+                holder.buttonCard.cardElevation = 2f
             }
             
             // 长按开始拖动

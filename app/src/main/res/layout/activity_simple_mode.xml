@@ -2327,17 +2327,20 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
-                            android:padding="24dp"
+                            android:paddingStart="20dp"
+                            android:paddingEnd="20dp"
+                            android:paddingTop="32dp"
+                            android:paddingBottom="32dp"
                             android:gravity="center"
                             android:background="@color/simple_mode_background_light">
 
-                        <!-- 可拖动的按钮网格布局 -->
+                        <!-- 可拖动的按钮网格布局 - iOS风格 -->
                         <com.example.aifloatingball.views.DraggableButtonGrid
                             android:id="@+id/draggable_button_grid"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="32dp"
-                            android:layout_marginBottom="32dp" />
+                            android:layout_marginTop="16dp"
+                            android:layout_marginBottom="16dp" />
 
 
 

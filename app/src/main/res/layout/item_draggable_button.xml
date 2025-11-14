@@ -3,32 +3,71 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp">
+    android:layout_margin="6dp">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/button_item"
+    <!-- iOS风格卡片式按钮 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/button_card"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:textColor="@color/simple_mode_text_primary_light"
-        app:iconGravity="top"
-        app:iconSize="32dp"
-        app:iconPadding="8dp"
-        app:iconTint="@color/simple_mode_text_primary_light"
-        app:cornerRadius="12dp"
-        app:strokeWidth="2dp"
-        app:strokeColor="@color/simple_mode_text_secondary_light"
-        app:backgroundTint="@android:color/transparent"
-        style="@style/Widget.Material3.Button.OutlinedButton" />
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/simple_mode_surface_light"
+        app:strokeWidth="0dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?android:attr/selectableItemBackground">
 
-    <!-- 选中指示器 -->
+        <LinearLayout
+            android:id="@+id/button_item"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="20dp"
+            android:minHeight="100dp">
+
+            <!-- 图标容器 -->
+            <FrameLayout
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/ios_button_icon_background"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/button_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:scaleType="fitCenter"
+                    app:tint="@color/simple_mode_text_primary_light" />
+
+            </FrameLayout>
+
+            <!-- 文字标签 -->
+            <TextView
+                android:id="@+id/button_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="normal"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:gravity="center" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 选中指示器 - iOS风格圆点 -->
     <View
         android:id="@+id/selected_indicator"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:layout_gravity="bottom"
-        android:background="@color/simple_mode_accent_light"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:background="@drawable/ios_selected_indicator"
         android:visibility="gone" />
 
     <!-- 拖动指示器 -->
