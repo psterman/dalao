@@ -21,7 +21,7 @@
             android:layout_height="16dp"
             android:src="@drawable/ic_ai"
             android:layout_marginEnd="8dp"
-            app:tint="?attr/colorPrimary" />
+            android:tint="#2196F3" />
 
         <TextView
             android:layout_width="0dp"
@@ -29,7 +29,7 @@
             android:layout_weight="1"
             android:text="AI助手中心"
             android:textSize="14sp"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="#000000"
             android:textStyle="bold" />
 
         <TextView
@@ -38,7 +38,7 @@
             android:layout_height="wrap_content"
             android:text="5个可用"
             android:textSize="10sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textColor="#666666"
             android:background="@drawable/ai_count_background"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
@@ -72,14 +72,14 @@
                 android:text="ChatGPT"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                app:backgroundTint="?attr/colorSurface"
+                app:backgroundTint="#FFFFFF"
                 app:cornerRadius="18dp"
                 app:icon="@drawable/ic_chatgpt"
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
-                app:strokeColor="?attr/colorPrimary"
+                app:strokeColor="#2196F3"
                 app:strokeWidth="1.5dp"
-                app:rippleColor="?attr/colorPrimary"
+                app:rippleColor="#2196F3"
                 android:elevation="1dp" />
 
             <!-- 状态指示器 -->
@@ -114,14 +114,14 @@
                 android:text="Kimi"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                app:backgroundTint="?attr/colorSurface"
+                app:backgroundTint="#FFFFFF"
                 app:cornerRadius="18dp"
                 app:icon="@drawable/ic_kimi"
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
-                app:strokeColor="?attr/colorPrimary"
+                app:strokeColor="#2196F3"
                 app:strokeWidth="1.5dp"
-                app:rippleColor="?attr/colorPrimary"
+                app:rippleColor="#2196F3"
                 android:elevation="1dp" />
 
             <!-- 状态指示器 -->
@@ -156,14 +156,14 @@
                 android:text="DeepSeek"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                app:backgroundTint="?attr/colorSurface"
+                app:backgroundTint="#FFFFFF"
                 app:cornerRadius="18dp"
                 app:icon="@drawable/ic_deepseek"
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
-                app:strokeColor="?attr/colorPrimary"
+                app:strokeColor="#2196F3"
                 app:strokeWidth="1.5dp"
-                app:rippleColor="?attr/colorPrimary"
+                app:rippleColor="#2196F3"
                 android:elevation="1dp" />
 
             <!-- 状态指示器 -->
@@ -205,14 +205,14 @@
                 android:text="Gemini"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                app:backgroundTint="?attr/colorSurface"
+                app:backgroundTint="#FFFFFF"
                 app:cornerRadius="18dp"
                 app:icon="@drawable/ic_gemini"
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
-                app:strokeColor="?attr/colorPrimary"
+                app:strokeColor="#2196F3"
                 app:strokeWidth="1.5dp"
-                app:rippleColor="?attr/colorPrimary"
+                app:rippleColor="#2196F3"
                 android:elevation="1dp" />
 
             <!-- 状态指示器 -->
@@ -247,14 +247,14 @@
                 android:text="Claude"
                 android:textSize="11sp"
                 android:textStyle="bold"
-                app:backgroundTint="?attr/colorSurface"
+                app:backgroundTint="#FFFFFF"
                 app:cornerRadius="18dp"
                 app:icon="@drawable/ic_claude"
                 app:iconPadding="6dp"
                 app:iconSize="16dp"
-                app:strokeColor="?attr/colorPrimary"
+                app:strokeColor="#2196F3"
                 app:strokeWidth="1.5dp"
-                app:rippleColor="?attr/colorPrimary"
+                app:rippleColor="#2196F3"
                 android:elevation="1dp" />
 
             <!-- 状态指示器 -->

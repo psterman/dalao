@@ -16,6 +16,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView.ScaleType
 import android.widget.LinearLayout
@@ -241,12 +242,25 @@ class FloatingWindowManager(
         val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
         val orientation = context.resources.configuration.orientation
         
-        val (widthRatio, heightRatio) = when (orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> {
+        // 检查是否为卡片视图模式，如果是则使用更大的窗口尺寸
+        val isCardViewMode = (service as? DualFloatingWebViewService)?.let {
+            it.currentViewMode == DualFloatingWebViewService.ViewMode.CARD_VIEW
+        } ?: false
+        
+        val (widthRatio, heightRatio) = when {
+            isCardViewMode -> {
+                // 卡片视图模式：最大化窗口，充分利用屏幕空间，高度必须占据95%
+                when (orientation) {
+                    Configuration.ORIENTATION_LANDSCAPE -> Pair(0.98f, 0.95f)
+                    Configuration.ORIENTATION_PORTRAIT -> Pair(1.0f, 0.95f)
+                    else -> Pair(0.95f, 0.95f)
+                }
+            }
+            orientation == Configuration.ORIENTATION_LANDSCAPE -> {
                 // 横屏模式：最大化利用屏幕空间
                 Pair(0.95f, 0.8f)
             }
-            Configuration.ORIENTATION_PORTRAIT -> {
+            orientation == Configuration.ORIENTATION_PORTRAIT -> {
                 // 竖屏模式：最大化利用屏幕空间
                 Pair(1.0f, 0.75f)
             }
@@ -441,9 +455,20 @@ class FloatingWindowManager(
             context.startService(intent)
         }
 
+        // 窗口数量按钮：点击切换窗口数量，长按切换视图模式
         windowCountButton?.setOnClickListener {
             val newCount = service.toggleAndReloadWindowCount()
             windowCountToggleText?.text = newCount.toString()
+        }
+        
+        windowCountButton?.setOnLongClickListener {
+            val newMode = service.toggleViewMode()
+            // 更新按钮图标或文本以反映当前模式
+            windowCountToggleText?.text = when (newMode) {
+                DualFloatingWebViewService.ViewMode.CARD_VIEW -> "卡片"
+                DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL -> "横向"
+            }
+            true
         }
 
         setupTopResizeHandle(topResizeHandle)
@@ -1102,6 +1127,49 @@ class FloatingWindowManager(
         
         // 保存新的窗口数量到SharedPreferences
         sharedPreferences.edit().putInt(DualFloatingWebViewService.KEY_WINDOW_COUNT, count).apply()
+    }
+
+    /**
+     * 获取卡片视图容器（用于卡片视图模式）
+     */
+    fun getCardViewContainer(): FrameLayout? {
+        return _floatingView?.findViewById(R.id.card_view_container)
+    }
+
+    /**
+     * 获取标签栏容器（用于卡片视图模式）
+     */
+    fun getTabBarContainer(): ViewGroup? {
+        return _floatingView?.findViewById(R.id.tab_bar_container)
+    }
+
+    /**
+     * 切换视图模式显示
+     */
+    fun switchViewMode(isCardViewMode: Boolean) {
+        val cardViewContainer = _floatingView?.findViewById<FrameLayout>(R.id.card_view_container)
+        val tabBarContainer = _floatingView?.findViewById<ViewGroup>(R.id.tab_bar_container)
+        val webviewsScrollContainer = _floatingView?.findViewById<View>(R.id.webviews_scroll_container)
+        val globalAiEngineScrollView = _floatingView?.findViewById<View>(R.id.global_ai_engine_scroll_view)
+        val globalStandardEngineScrollView = _floatingView?.findViewById<View>(R.id.global_standard_engine_scroll_view)
+        
+        if (isCardViewMode) {
+            // 卡片视图模式：显示卡片容器和标签栏，隐藏横向滚动容器
+            cardViewContainer?.visibility = View.VISIBLE
+            tabBarContainer?.visibility = View.VISIBLE
+            webviewsScrollContainer?.visibility = View.GONE
+            globalAiEngineScrollView?.visibility = View.GONE
+            globalStandardEngineScrollView?.visibility = View.GONE
+        } else {
+            // 横向拖动模式：显示横向滚动容器，隐藏卡片容器和标签栏
+            cardViewContainer?.visibility = View.GONE
+            tabBarContainer?.visibility = View.GONE
+            webviewsScrollContainer?.visibility = View.VISIBLE
+            globalAiEngineScrollView?.visibility = View.VISIBLE
+            globalStandardEngineScrollView?.visibility = View.VISIBLE
+        }
+        
+        Log.d(TAG, "切换视图模式: ${if (isCardViewMode) "卡片视图" else "横向拖动"}")
     }
 
     /**

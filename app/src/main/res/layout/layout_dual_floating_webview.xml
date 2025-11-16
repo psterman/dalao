@@ -137,11 +137,25 @@
             android:gravity="center_vertical"/>
     </HorizontalScrollView>
 
+    <!-- 标签栏容器（卡片视图模式使用） -->
+    <FrameLayout
+        android:id="@+id/tab_bar_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"/>
+
     <!-- 内容容器 -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
+        
+        <!-- 卡片视图容器（卡片视图模式使用） -->
+        <FrameLayout
+            android:id="@+id/card_view_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"/>
         
         <!-- 使用自定义的HorizontalScrollView来解决垂直和水平滚动的冲突 -->
         <com.example.aifloatingball.ui.widget.LockableHorizontalScrollView

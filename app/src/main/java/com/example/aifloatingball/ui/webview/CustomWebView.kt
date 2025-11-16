@@ -20,8 +20,10 @@ import android.webkit.SslErrorHandler
 import android.net.Uri
 import android.content.Intent
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.view.ContextThemeWrapper
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.view.WindowManager
 import android.widget.Toast
 import android.webkit.WebView
 import android.webkit.WebView.HitTestResult
@@ -148,19 +150,47 @@ class CustomWebView @JvmOverloads constructor(
         val title = if (!originHost.isNullOrBlank()) "$originHost 想启动第三方应用:" else "网页想启动第三方应用:"
         val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
 
-        AlertDialog.Builder(context)
-            .setTitle(title)
-            .setMessage(displayUrl)
-            .setNeutralButton("拷贝") { _, _ ->
-                try {
-                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.setPrimaryClip(ClipData.newPlainText("URL", targetUrl))
-                    Toast.makeText(context, "已拷贝", Toast.LENGTH_SHORT).show()
-                } catch (_: Exception) {}
+        try {
+            // 使用 ContextThemeWrapper 包装 context，设置合适的主题
+            // 优先使用 Material 主题，如果不可用则使用 AppCompat 主题
+            val dialogTheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                android.R.style.Theme_Material_Dialog_Alert
+            } else {
+                androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
             }
-            .setNegativeButton("不允许", null)
-            .setPositiveButton("允许") { _, _ -> onAllow() }
-            .show()
+            
+            val themedContext = ContextThemeWrapper(context, dialogTheme)
+            val dialog = AlertDialog.Builder(themedContext)
+                .setTitle(title)
+                .setMessage(displayUrl)
+                .setNeutralButton("拷贝") { _, _ ->
+                    try {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("URL", targetUrl))
+                        Toast.makeText(context, "已拷贝", Toast.LENGTH_SHORT).show()
+                    } catch (_: Exception) {}
+                }
+                .setNegativeButton("不允许", null)
+                .setPositiveButton("允许") { _, _ -> onAllow() }
+                .create()
+            
+            // 如果是在 Service 或悬浮窗中，需要设置窗口类型
+            // 尝试设置窗口类型，如果失败则忽略（可能是 Activity 上下文）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                } catch (e: Exception) {
+                    // 如果不是 Service 上下文，会抛出异常，这是正常的
+                    Log.d(TAG, "对话框在 Activity 上下文中显示，无需设置窗口类型")
+                }
+            }
+            
+            dialog.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示外部链接确认对话框失败", e)
+            // 降级处理：直接允许
+            onAllow()
+        }
     }
 
     private fun openByIntentUri(view: WebView?, intentUrl: String) {

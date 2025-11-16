@@ -926,6 +926,23 @@
     
     <!-- Prompt社区红色强调色 -->
     <color name="primary_red">#F44336</color>
+    
+    <!-- =============================================================== -->
+    <!-- =============== 卡片视图模式颜色 ======================== -->
+    <!-- =============================================================== -->
+    
+    <!-- 卡片相关颜色 -->
+    <!-- card_background 已在第371行定义，此处不再重复 -->
+    <color name="card_header_background">#F5F5F5</color>
+    <color name="card_webview_background">#FFFFFF</color>
+    <color name="card_title_text">#212121</color>
+    <color name="card_engine_text">#666666</color>
+    
+    <!-- 卡片视图标签栏颜色（使用不同名称避免与原有tab颜色冲突） -->
+    <color name="card_view_tab_selected_background">#FF6B35</color>
+    <color name="card_view_tab_selected_text">#FFFFFF</color>
+    <color name="card_view_tab_normal_background">#F5F5F5</color>
+    <color name="card_view_tab_normal_text">#666666</color>
 
     <color name="popup_text_light">#333333</color>
 </resources>

@@ -635,6 +635,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             putExtra("engine_key", engineName)
             putExtra("search_source", "悬浮窗")
             putExtra("startTime", System.currentTimeMillis())
+            // 从悬浮球触发搜索时，默认使用卡片视图模式
+            putExtra("use_card_view_mode", true)
         }
         startService(serviceIntent)
     }
@@ -1521,12 +1523,33 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         
         if (aiPopupView == null) {
-            val context = themedContext ?: this
-            val inflater = LayoutInflater.from(context)
-            aiPopupView = inflater.inflate(R.layout.ai_buttons_popup, null)
-            
-            // 设置AI按钮点击事件
-            setupAIButtons()
+            // 使用 AppCompat 主题来确保 Material 组件能正确解析
+            val appCompatContext = ContextThemeWrapper(
+                this,
+                androidx.appcompat.R.style.Theme_AppCompat_Light_NoActionBar
+            )
+            val inflater = LayoutInflater.from(appCompatContext)
+            try {
+                aiPopupView = inflater.inflate(R.layout.ai_buttons_popup, null)
+                // 设置AI按钮点击事件
+                setupAIButtons()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to inflate AI popup layout with AppCompat theme", e)
+                // 如果仍然失败，尝试使用 MaterialComponents 主题
+                try {
+                    val materialContext = ContextThemeWrapper(
+                        this,
+                        com.google.android.material.R.style.Theme_MaterialComponents_Light_NoActionBar
+                    )
+                    val materialInflater = LayoutInflater.from(materialContext)
+                    aiPopupView = materialInflater.inflate(R.layout.ai_buttons_popup, null)
+                    setupAIButtons()
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Failed to inflate AI popup layout with MaterialComponents theme", e2)
+                    Toast.makeText(this, "无法加载AI助手", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
         }
         
         if (aiPopupView?.parent != null) {

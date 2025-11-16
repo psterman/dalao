@@ -31,7 +31,7 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_PAGE = "home"
         private const val KEY_SEARCH_HISTORY = "search_history"
         private const val KEY_DISPLAY_MODE = "display_mode"
-        private const val DEFAULT_DISPLAY_MODE = "simple_mode"
+        private const val DEFAULT_DISPLAY_MODE = "floating_ball" // 默认使用悬浮球模式
         private const val KEY_SEARCH_ENGINE_GROUPS = "search_engine_groups"
         private const val KEY_CUSTOM_SEARCH_ENGINES = "custom_search_engines"
         private const val KEY_PROMPT_PROFILES = "prompt_profiles"

@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/simple_mode_green_100_light" />
-    <corners android:radius="12dp" />
+    <solid android:color="@color/card_view_tab_normal_background" />
+    <corners android:radius="20dp" />
 </shape>
-
-
-
 
