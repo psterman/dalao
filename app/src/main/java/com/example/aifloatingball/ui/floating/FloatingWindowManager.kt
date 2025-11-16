@@ -477,6 +477,15 @@ class FloatingWindowManager(
         // 方案核心：手动实现顶部栏的拖动，以避免事件冲突
         val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         topControlBar?.setOnTouchListener { _, event ->
+            // 先让侧滑手势检测器处理（如果已初始化）
+            swipeGestureDetector?.let { detector ->
+                if (detector.onTouchEvent(event)) {
+                    // 手势检测器已处理（侧滑返回），不继续处理拖动
+                    return@setOnTouchListener true
+                }
+            }
+            
+            // 继续原有的拖动逻辑
             val x = event.rawX
             val y = event.rawY
             when (event.action) {
@@ -520,9 +529,14 @@ class FloatingWindowManager(
             // 返回 isDragging，当且仅当正在拖动时才消费事件，否则让事件传递给子视图（按钮）
             return@setOnTouchListener isDragging
         }
+        
+        // 注意：侧滑手势检测在setupOutsideTouchHandling()中集成到_floatingView的触摸监听器
 
         // 新增：设置返回键监听器
         (_floatingView as? KeyEventInterceptorView)?.backPressListener = this
+
+        // 新增：设置侧滑手势检测
+        setupSwipeGestureDetection()
 
         // 新增：填充全局AI搜索引擎栏
         populateGlobalAIEngineIcons(globalAiContainer)
@@ -1034,9 +1048,37 @@ class FloatingWindowManager(
 
     /**
      * 实现 BackPressListener 接口来处理返回键事件
+     * 确保始终返回上一级菜单，而不是直接退出服务
      */
     override fun onBackButtonPressed(): Boolean {
         val TAG = "FloatingWindowManager"
+        
+        // 1. 首先检查是否有全屏卡片查看器正在显示
+        val cardViewModeManager = service.getCardViewModeManager()
+        if (cardViewModeManager != null) {
+            val fullScreenViewer = cardViewModeManager.getFullScreenViewer()
+            if (fullScreenViewer != null && fullScreenViewer.isShowing()) {
+                Log.d(TAG, "全屏卡片查看器正在显示，关闭全屏")
+                fullScreenViewer.dismiss()
+                return true
+            }
+        }
+        
+        // 2. 检查卡片视图模式下的WebView是否可以返回
+        if (service.currentViewMode == DualFloatingWebViewService.ViewMode.CARD_VIEW) {
+            cardViewModeManager?.let { manager ->
+                val cards = manager.getAllCards()
+                for (card in cards.reversed()) {
+                    if (card.webView.canGoBack()) {
+                        Log.d(TAG, "卡片视图模式：返回WebView上一页")
+                        card.webView.goBack()
+                        return true
+                    }
+                }
+            }
+        }
+        
+        // 3. 检查横向滚动模式下的WebView是否可以返回
         val webViews = getXmlDefinedWebViews()
         val activeWebView = webViews.getOrNull(lastActiveWebViewIndex)
 
@@ -1060,10 +1102,92 @@ class FloatingWindowManager(
             }
         }
 
-        // 如果所有WebView都不能后退，则关闭服务
-        Log.d(TAG, "No WebView can go back, stopping service.")
-        service.stopSelf()
-        return true // 事件已处理（通过关闭窗口）
+        // 4. 如果所有WebView都不能后退，弹出确认对话框询问是否退出
+        Log.d(TAG, "所有WebView都不能后退，弹出退出确认对话框")
+        showExitConfirmDialog()
+        return true // 事件已处理
+    }
+    
+    /**
+     * 显示退出确认对话框
+     */
+    private fun showExitConfirmDialog() {
+        // 检测暗色模式
+        val isDarkMode = (context.resources.configuration.uiMode and 
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        
+        // 根据暗色/亮色模式选择主题
+        val dialogTheme = if (isDarkMode) {
+            androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+        } else {
+            androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert
+        }
+        
+        val themedContext = ContextThemeWrapper(context, dialogTheme)
+        val builder = AlertDialog.Builder(themedContext)
+            .setTitle("退出确认")
+            .setMessage("是否退出搜索")
+            .setPositiveButton("退出") { _, _ ->
+                Log.d(TAG, "用户确认退出服务")
+                service.stopSelf()
+            }
+            .setNegativeButton("取消", null)
+        
+        val dialog = builder.create()
+        if (context is android.app.Service || context.javaClass.name.contains("Service")) {
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        }
+        dialog.show()
+    }
+    
+    /**
+     * 处理侧滑手势（返回上一级菜单）
+     */
+    fun handleSwipeBack(): Boolean {
+        // 复用返回键的处理逻辑
+        return onBackButtonPressed()
+    }
+    
+    /**
+     * 侧滑手势检测器
+     */
+    private var swipeGestureDetector: GestureDetector? = null
+    
+    /**
+     * 设置侧滑手势检测
+     */
+    private fun setupSwipeGestureDetection() {
+        swipeGestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 == null) return false
+                
+                val diffX = e2.x - e1.x
+                val diffY = e2.y - e1.y
+                
+                // 检测从屏幕左边缘向右滑动（返回手势）
+                val isRightSwipe = diffX > 0 && abs(diffX) > abs(diffY)
+                val isFromLeftEdge = e1.x < 50 // 从屏幕左边缘50像素内开始
+                val hasEnoughVelocity = abs(velocityX) > 1000
+                val hasEnoughDistance = abs(diffX) > 100
+                
+                if (isRightSwipe && isFromLeftEdge && hasEnoughVelocity && hasEnoughDistance) {
+                    Log.d(TAG, "检测到从左侧边缘向右滑动，触发返回上一级菜单")
+                    handleSwipeBack()
+                    return true
+                }
+                
+                return false
+            }
+        })
+        
+        // 注意：不在这里设置触摸监听器，而是在原有的拖动触摸监听器中集成手势检测
+        // 这样可以避免覆盖原有的拖动逻辑
     }
 
     /**
@@ -1516,8 +1640,17 @@ class FloatingWindowManager(
      * 设置外部触摸处理，监听用户点击悬浮窗外部的行为
      */
     private fun setupOutsideTouchHandling() {
-        // 为悬浮窗添加外部触摸监听
+        // 为悬浮窗添加外部触摸监听和侧滑手势检测
         _floatingView?.setOnTouchListener { view, event ->
+            // 1. 先让侧滑手势检测器处理（如果已初始化）
+            swipeGestureDetector?.let { detector ->
+                if (detector.onTouchEvent(event)) {
+                    // 手势检测器已处理（侧滑返回）
+                    return@setOnTouchListener true
+                }
+            }
+            
+            // 2. 处理外部触摸事件
             when (event.action) {
                 MotionEvent.ACTION_OUTSIDE -> {
                     Log.d("FloatingWindowManager", "User touched outside floating window")

@@ -23,7 +23,8 @@ import com.example.aifloatingball.ui.webview.CustomWebView
  */
 class FullScreenCardViewer(
     private val context: Context,
-    private val parentContainer: ViewGroup
+    private val parentContainer: ViewGroup,
+    private val cardViewModeManager: CardViewModeManager? = null
 ) {
     companion object {
         private const val TAG = "FullScreenCardViewer"
@@ -32,6 +33,13 @@ class FullScreenCardViewer(
     private var fullScreenContainer: FrameLayout? = null
     private var currentCardData: CardViewModeManager.SearchResultCardData? = null
     private var isShowing = false
+    
+    /**
+     * 检查是否正在显示
+     */
+    fun isShowing(): Boolean {
+        return isShowing
+    }
     private var originalWebViewParent: ViewGroup? = null
     private var originalWebViewIndex: Int = -1
 
@@ -89,6 +97,9 @@ class FullScreenCardViewer(
             }
         }
 
+        // 创建底部按钮栏（如果有对应的app）
+        val bottomButtonBar = createBottomButtonBar(container, cardData)
+        
         // 创建WebView容器
         val webViewContainer = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -96,6 +107,7 @@ class FullScreenCardViewer(
                 FrameLayout.LayoutParams.MATCH_PARENT
             ).apply {
                 topMargin = dpToPx(56) // 为工具栏留出空间
+                bottomMargin = if (bottomButtonBar != null) dpToPx(60) else 0 // 为底部按钮栏留出空间
             }
             setBackgroundColor(0xFFFFFFFF.toInt()) // 白色背景
         }
@@ -122,6 +134,7 @@ class FullScreenCardViewer(
 
         container.addView(toolbar)
         container.addView(webViewContainer)
+        bottomButtonBar?.let { container.addView(it) }
 
         // 添加到父容器
         parentContainer.addView(container)
@@ -300,6 +313,126 @@ class FullScreenCardViewer(
         toolbar.addView(closeButton)
 
         return toolbar
+    }
+
+    /**
+     * 创建底部按钮栏
+     */
+    private fun createBottomButtonBar(
+        parent: FrameLayout,
+        cardData: CardViewModeManager.SearchResultCardData
+    ): LinearLayout? {
+        // 检查是否有对应的app
+        val packageName = cardViewModeManager?.getPackageNameForEngine(cardData.engineKey)
+        if (packageName == null) {
+            // 没有对应的app，不显示按钮栏
+            return null
+        }
+        
+        val isAppInstalled = cardViewModeManager?.isAppInstalledForEngine(cardData.engineKey) == true
+        
+        // 检测暗色模式
+        val isDarkMode = (context.resources.configuration.uiMode and 
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        
+        val buttonBar = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(60)
+            ).apply {
+                gravity = Gravity.BOTTOM
+            }
+            setBackgroundColor(if (isDarkMode) 0xFF1A1A1A.toInt() else 0xFFF5F5F5.toInt())
+            setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        
+        // 第一个按钮：打开app或下载app
+        val appButton = TextView(context).apply {
+            text = if (isAppInstalled) "打开App" else "下载App"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(if (isDarkMode) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+            setPadding(dpToPx(24), dpToPx(12), dpToPx(24), dpToPx(12))
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply {
+                marginEnd = dpToPx(8)
+            }
+            
+            // 设置背景（圆角按钮）
+            val backgroundDrawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(if (isDarkMode) 0xFF2D2D2D.toInt() else 0xFFE0E0E0.toInt())
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            background = backgroundDrawable
+            
+            setOnClickListener {
+                if (isAppInstalled) {
+                    // 已安装，打开app
+                    cardViewModeManager?.tryJumpToApp(cardData.engineKey, cardData.searchQuery)
+                } else {
+                    // 未安装，跳转到应用商店下载
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            data = android.net.Uri.parse("market://details?id=$packageName")
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // 如果应用商店不可用，尝试打开浏览器
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e2: Exception) {
+                            android.widget.Toast.makeText(context, "无法打开应用商店", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 第二个按钮：在卡片内打开（默认行为，当前已经是卡片内打开）
+        val cardButton = TextView(context).apply {
+            text = "在卡片内打开"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(if (isDarkMode) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+            setPadding(dpToPx(24), dpToPx(12), dpToPx(24), dpToPx(12))
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply {
+                marginStart = dpToPx(8)
+            }
+            
+            // 设置背景（圆角按钮，绿色主题）
+            val backgroundDrawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFF4CAF50.toInt()) // 绿色背景
+                cornerRadius = dpToPx(8).toFloat()
+            }
+            background = backgroundDrawable
+            setTextColor(0xFFFFFFFF.toInt()) // 白色文字
+            
+            setOnClickListener {
+                // 已经在卡片内打开了，这个按钮可以用于刷新或重新加载
+                cardData.webView.reload()
+                android.widget.Toast.makeText(context, "已刷新", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        buttonBar.addView(appButton)
+        buttonBar.addView(cardButton)
+        
+        return buttonBar
     }
 
     /**

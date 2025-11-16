@@ -41,11 +41,27 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
                 android:text="搜索结果标题"
                 android:textSize="14sp"
                 android:textColor="@color/card_title_text"
                 android:maxLines="2"
-                android:ellipsize="end" />
+                android:ellipsize="end"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackground" />
+
+            <ImageView
+                android:id="@+id/card_app_icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="4dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="打开应用" />
 
         </LinearLayout>
 
@@ -55,7 +71,73 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:background="@color/card_webview_background" />
+            android:background="@color/card_webview_background">
+            
+            <!-- 浮动按钮容器 -->
+            <LinearLayout
+                android:id="@+id/card_floating_buttons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="12dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:elevation="8dp"
+                android:visibility="gone">
+                
+                <!-- App图标（app已安装时显示） -->
+                <ImageView
+                    android:id="@+id/card_app_icon_floating"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="8dp"
+                    android:scaleType="centerCrop"
+                    android:background="@drawable/card_floating_button_background"
+                    android:padding="8dp"
+                    android:visibility="gone"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:contentDescription="打开应用" />
+                
+                <!-- 下载按钮 -->
+                <Button
+                    android:id="@+id/card_download_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:text="下载"
+                    android:textSize="12sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:background="@drawable/card_floating_button_background"
+                    android:visibility="gone"
+                    android:contentDescription="下载app" />
+                
+                <!-- 打开按钮 -->
+                <Button
+                    android:id="@+id/card_open_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="打开"
+                    android:textSize="12sp"
+                    android:textColor="#FFFFFF"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:background="@drawable/card_floating_button_background_primary"
+                    android:contentDescription="打开" />
+                
+            </LinearLayout>
+            
+        </FrameLayout>
 
     </LinearLayout>
 

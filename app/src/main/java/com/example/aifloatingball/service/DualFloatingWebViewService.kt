@@ -220,8 +220,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         floatingWindowManager?.let { manager ->
             val container = manager.getCardViewContainer()
             if (container != null) {
-                // 创建卡片视图管理器
-                cardViewModeManager = CardViewModeManager(this, container)
+                // 创建卡片视图管理器，传入回调用于隐藏悬浮窗
+                cardViewModeManager = CardViewModeManager(this, container) {
+                    // 隐藏悬浮窗（用户点击app图标时）
+                    hideFloatingWindow()
+                }
                 
                 // 设置全屏查看器的父容器（使用浮动窗口的根视图）
                 manager.floatingView?.let { floatingView ->
@@ -480,11 +483,20 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             val engineKey = it.getStringExtra("engine_key")
             val searchSource = it.getStringExtra("search_source")
             
-            if (!searchQuery.isNullOrEmpty()) {
-                Log.d(TAG, "收到搜索请求: query='$searchQuery', engine='$engineKey', source='$searchSource'")
+            // 如果收到任何启动请求（搜索或URL），且窗口被隐藏，则重新显示
+            // 这确保用户通过悬浮球重新激活服务时，窗口都会显示
+            val hasSearchQuery = !searchQuery.isNullOrEmpty()
+            val hasUrl = !it.getStringExtra("url").isNullOrEmpty()
+            if (isWindowHidden && (hasSearchQuery || hasUrl)) {
+                showFloatingWindow()
+            }
+            
+            if (hasSearchQuery && searchQuery != null) {
+                val query = searchQuery  // 此时已经确认非空
+                Log.d(TAG, "收到搜索请求: query='$query', engine='$engineKey', source='$searchSource'")
                 
                 // 设置搜索文本到输入框
-                floatingWindowManager?.setSearchInputText(searchQuery)
+                floatingWindowManager?.setSearchInputText(query)
                 
                 // 确保输入框能获得焦点，防止被WebView内容抢夺
                 handler.postDelayed({
@@ -492,7 +504,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 }, 200)
                 
                 // 执行搜索
-                performSearch(searchQuery, engineKey ?: "google")
+                performSearch(query, engineKey ?: "google")
                 
                 // 检查是否需要显示工具栏
                 val showToolbar = it.getBooleanExtra("show_toolbar", false)
@@ -973,5 +985,51 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         handler.removeCallbacksAndMessages(null)
         
         Log.d(TAG, "DualFloatingWebViewService: 服务销毁 onDestroy()")
+    }
+    
+    // 用于跟踪悬浮窗隐藏状态
+    private var isWindowHidden = false
+    
+    /**
+     * 隐藏悬浮窗（当用户点击app图标时调用）
+     */
+    private fun hideFloatingWindow() {
+        floatingWindowManager?.let { manager ->
+            manager.floatingView?.let { view ->
+                try {
+                    // 隐藏悬浮窗
+                    view.visibility = View.GONE
+                    isWindowHidden = true
+                    android.util.Log.d(TAG, "隐藏悬浮窗（用户点击app图标）")
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "隐藏悬浮窗失败", e)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 显示悬浮窗（当用户通过悬浮球重新激活时调用）
+     */
+    private fun showFloatingWindow() {
+        floatingWindowManager?.let { manager ->
+            manager.floatingView?.let { view ->
+                try {
+                    // 显示悬浮窗
+                    view.visibility = View.VISIBLE
+                    isWindowHidden = false
+                    android.util.Log.d(TAG, "显示悬浮窗（用户重新激活）")
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "显示悬浮窗失败", e)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取卡片视图模式管理器（供外部调用）
+     */
+    fun getCardViewModeManager(): CardViewModeManager? {
+        return cardViewModeManager
     }
 } 

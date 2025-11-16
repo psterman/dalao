@@ -393,7 +393,25 @@ data class SearchEngine(
             SearchEngine(name = "weibo_book", displayName = "微博读书", url = "https://m.weibo.cn", iconResId = R.drawable.ic_weibo, description = "微博读书", searchUrl = "https://m.weibo.cn/search?containerid=100103type%3D64%26q%3D{query}%26ext%3Dbook", category = SearchEngineCategory.SOCIAL),
             SearchEngine(name = "dedao", displayName = "得到", url = "https://m.dedao.cn", iconResId = R.drawable.ic_search, description = "得到", searchUrl = "https://m.dedao.cn/search?keyword={query}", category = SearchEngineCategory.KNOWLEDGE),
             SearchEngine(name = "ximalaya", displayName = "喜马拉雅", url = "https://m.ximalaya.com", iconResId = R.drawable.ic_search, description = "喜马拉雅", searchUrl = "https://m.ximalaya.com/search/{query}", category = SearchEngineCategory.VIDEO),
-            SearchEngine(name = "kindle", displayName = "Kindle商店", url = "https://m.amazon.cn", iconResId = R.drawable.ic_search, description = "Kindle商店", searchUrl = "https://m.amazon.cn/s?k={query}", category = SearchEngineCategory.SHOPPING)
+            SearchEngine(name = "kindle", displayName = "Kindle商店", url = "https://m.amazon.cn", iconResId = R.drawable.ic_search, description = "Kindle商店", searchUrl = "https://m.amazon.cn/s?k={query}", category = SearchEngineCategory.SHOPPING),
+
+            // I24. 国际搜索引擎（新增）
+            SearchEngine(name = "yahoo", displayName = "Yahoo", url = "https://search.yahoo.com", iconResId = R.drawable.ic_search, description = "Yahoo搜索", searchUrl = "https://search.yahoo.com/search?p={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "yandex", displayName = "Yandex", url = "https://yandex.com", iconResId = R.drawable.ic_search, description = "Yandex搜索", searchUrl = "https://yandex.com/search/?text={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "ecosia", displayName = "Ecosia", url = "https://www.ecosia.org", iconResId = R.drawable.ic_search, description = "Ecosia环保搜索引擎", searchUrl = "https://www.ecosia.org/search?q={query}", category = SearchEngineCategory.GENERAL),
+
+            // I25. AI对话平台（新增）
+            SearchEngine(name = "chatgpt_web", displayName = "ChatGPT", url = "https://chat.openai.com", iconResId = R.drawable.ic_search, description = "ChatGPT网页版", searchUrl = "https://chat.openai.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "claude_web", displayName = "Claude", url = "https://claude.ai", iconResId = R.drawable.ic_search, description = "Claude网页版", searchUrl = "https://claude.ai", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "gemini_web", displayName = "Gemini", url = "https://gemini.google.com", iconResId = R.drawable.ic_search, description = "Google Gemini", searchUrl = "https://gemini.google.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "wenxin_yiyan", displayName = "文心一言", url = "https://yiyan.baidu.com", iconResId = R.drawable.ic_search, description = "百度文心一言", searchUrl = "https://yiyan.baidu.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "tongyi_qianwen", displayName = "通义千问", url = "https://tongyi.aliyun.com", iconResId = R.drawable.ic_search, description = "阿里通义千问", searchUrl = "https://tongyi.aliyun.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "kimi_web", displayName = "Kimi", url = "https://kimi.moonshot.cn", iconResId = R.drawable.ic_search, description = "Kimi智能助手", searchUrl = "https://kimi.moonshot.cn", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "deepseek_web", displayName = "DeepSeek", url = "https://www.deepseek.com", iconResId = R.drawable.ic_search, description = "DeepSeek AI", searchUrl = "https://www.deepseek.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "zhipu_ai", displayName = "智谱AI", url = "https://chatglm.cn", iconResId = R.drawable.ic_search, description = "智谱清言", searchUrl = "https://chatglm.cn", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "xinghuo_web", displayName = "讯飞星火", url = "https://xinghuo.xfyun.cn", iconResId = R.drawable.ic_search, description = "讯飞星火认知大模型", searchUrl = "https://xinghuo.xfyun.cn", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "doubao_web", displayName = "豆包", url = "https://www.doubao.com", iconResId = R.drawable.ic_search, description = "字节跳动豆包AI", searchUrl = "https://www.doubao.com", isAI = true, category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "perplexity_web", displayName = "Perplexity", url = "https://www.perplexity.ai", iconResId = R.drawable.ic_search, description = "Perplexity AI搜索", searchUrl = "https://www.perplexity.ai/search?q={query}", isAI = true, category = SearchEngineCategory.GENERAL)
         )
 
         @JvmStatic

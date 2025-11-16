@@ -73,6 +73,12 @@ class TabBarView(
     private var manageDialogMainContainer: LinearLayout? = null
     private var manageDialogEditButton: TextView? = null
     
+    // 拖拽相关变量
+    private var draggedTabView: TextView? = null
+    private var draggedTabIndex: Int = -1
+    private var dragStartY: Float = 0f
+    private var isDragging = false
+    
     // 标签数据类
     data class TabItem(
         val name: String,
@@ -91,7 +97,7 @@ class TabBarView(
             // 根据标签名称返回对应的默认搜索引擎（每个标签配置11个搜索引擎）
             return when (name) {
                 // 视频相关
-                "推荐" -> listOf("baidu", "google", "bing_cn", "sogou", "360", "quark", "shenma", "duckduckgo", "toutiao", "zhihu", "weibo")
+                "推荐" -> listOf("baidu", "google", "bing_cn", "sogou", "360", "quark", "shenma", "duckduckgo", "yahoo", "yandex", "ecosia")
                 "视频" -> listOf("douyin", "kuaishou", "bilibili", "ixigua", "weibo_video", "xiaohongshu_video", "tencent_video_search", "youku_search", "open163", "youtube_mobile", "iqiyi")
                 "直播" -> listOf("douyin_live", "kuaishou_live", "bilibili_live", "huya", "douyu", "yy", "inke", "cc_live", "egame", "now_live", "taobao_live")
                 "短剧" -> listOf("douyin_short", "kuaishou_short", "bilibili_short", "mgtv", "youku_short", "tencent_short", "ixigua_short", "weishi", "iqiyi_short", "sohu_tv", "taobao_short")
@@ -155,7 +161,7 @@ class TabBarView(
                 "科技数码" -> listOf("zhihu_tech", "xiaohongshu_tech", "bilibili_tech", "douyin_tech", "kuaishou_tech", "weibo_tech", "ithome", "pconline", "zol", "smzdm_tech", "jd_tech")
                 "头像" -> listOf("xiaohongshu_avatar", "duitang_avatar", "lofter_avatar", "douyin_avatar", "kuaishou_avatar", "bilibili_avatar", "weibo_avatar", "canva", "touxiangdaquan", "qzone", "weixin")
                 "咨询" -> listOf("toutiao", "tencent_news", "sina_news", "netease_news", "baidu", "google", "sogou", "bing_cn", "the_paper", "guancha")
-                "AI" -> listOf("google", "baidu", "bing_cn", "duckduckgo", "sogou", "360", "quark", "shenma", "zhihu", "github")
+                "AI" -> listOf("chatgpt_web", "claude_web", "gemini_web", "wenxin_yiyan", "tongyi_qianwen", "kimi_web", "deepseek_web", "zhipu_ai", "xinghuo_web", "doubao_web", "perplexity_web")
                 "婚礼" -> listOf("xiaohongshu", "baidu", "taobao", "google", "weibo", "zhihu", "dianping", "meituan", "sogou", "bing_cn")
                 "户外" -> listOf("xiaohongshu", "baidu", "dianping", "google", "meituan", "weibo", "zhihu", "sogou", "bing_cn", "toutiao")
                 "艺术" -> listOf("bilibili", "xiaohongshu", "zhihu", "baidu", "google", "weibo", "douban", "dribbble", "behance", "zcool")
@@ -853,19 +859,103 @@ class TabBarView(
                     }
                 }
                 
-                // 长按事件：编辑模式下长按拖动
-                setOnLongClickListener {
-                    if (isMyChannels && isManageDialogEditMode) {
-                        // 编辑模式下，长按开始拖动（这里需要实现拖动逻辑）
-                        // 设置标签为拖动状态（改变颜色）
-                        val dragDrawable = android.graphics.drawable.GradientDrawable().apply {
-                            cornerRadius = dpToPx(8).toFloat()
-                            setColor(0xFFFF9800.toInt()) // 橙色表示拖动状态
+                // 长按和拖动事件：编辑模式下长按拖动
+                if (isMyChannels && isManageDialogEditMode) {
+                    var startY = 0f
+                    var startX = 0f
+                    var originalIndex = index
+                    
+                    setOnTouchListener { view, event ->
+                        when (event.action) {
+                            android.view.MotionEvent.ACTION_DOWN -> {
+                                startY = event.rawY
+                                startX = event.rawX
+                                originalIndex = index
+                                true
+                            }
+                            android.view.MotionEvent.ACTION_MOVE -> {
+                                val deltaY = event.rawY - startY
+                                val deltaX = event.rawX - startX
+                                val distance = kotlin.math.sqrt(deltaX * deltaX + deltaY * deltaY)
+                                
+                                // 如果移动距离超过阈值，开始拖动
+                                if (distance > dpToPx(10) && !isDragging) {
+                                    isDragging = true
+                                    draggedTabView = this@apply
+                                    draggedTabIndex = originalIndex
+                                    dragStartY = startY
+                                    
+                                    // 设置标签为拖动状态（改变颜色）
+                                    val dragDrawable = android.graphics.drawable.GradientDrawable().apply {
+                                        cornerRadius = dpToPx(8).toFloat()
+                                        setColor(0xFFFF9800.toInt()) // 橙色表示拖动状态
+                                    }
+                                    this@apply.background = dragDrawable
+                                    this@apply.setTextColor(0xFFFFFFFF.toInt())
+                                    this@apply.elevation = dpToPx(8).toFloat() // 提升高度，显示拖动状态
+                                }
+                                
+                                if (isDragging && draggedTabView == this@apply) {
+                                    // 计算目标位置（基于触摸的Y坐标）
+                                    val targetIndex = findTargetIndexForDrag(event.rawY, originalIndex, gridContainer, itemsPerRow)
+                                    if (targetIndex != originalIndex && targetIndex >= 0 && targetIndex < tabList.size) {
+                                        // 更新tabList中的顺序
+                                        val fromPosition = originalIndex
+                                        val toPosition = targetIndex
+                                        
+                                        if (fromPosition != toPosition) {
+                                            val movedTab = tabList[fromPosition]
+                                            tabList.removeAt(fromPosition)
+                                            tabList.add(toPosition, movedTab)
+                                            
+                                            // 更新选中索引
+                                            if (selectedTabIndex == fromPosition) {
+                                                selectedTabIndex = toPosition
+                                            } else if (selectedTabIndex > fromPosition && selectedTabIndex <= toPosition) {
+                                                selectedTabIndex = selectedTabIndex - 1
+                                            } else if (selectedTabIndex < fromPosition && selectedTabIndex >= toPosition) {
+                                                selectedTabIndex = selectedTabIndex + 1
+                                            }
+                                            
+                                            // 刷新对话框以显示新位置（延迟刷新，避免频繁刷新）
+                                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                                refreshManageDialog()
+                                            }, 50)
+                                            originalIndex = toPosition
+                                            draggedTabIndex = toPosition
+                                        }
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                                if (isDragging && draggedTabView == this@apply) {
+                                    // 拖动结束，保存更改
+                                    refreshTabs()
+                                    saveTabs()
+                                    
+                                    // 重置拖动状态
+                                    isDragging = false
+                                    draggedTabView = null
+                                    draggedTabIndex = -1
+                                    
+                                    // 刷新对话框以恢复正常样式
+                                    refreshManageDialog()
+                                }
+                                false
+                            }
+                            else -> false
                         }
-                        this@apply.background = dragDrawable
-                        this@apply.setTextColor(0xFFFFFFFF.toInt())
                     }
-                    true
+                } else {
+                    setOnLongClickListener {
+                        if (isMyChannels && isManageDialogEditMode) {
+                            // 非编辑模式或非我的频道，不做处理
+                        }
+                        true
+                    }
                 }
             }
             
@@ -873,6 +963,34 @@ class TabBarView(
         }
         
         return gridContainer
+    }
+    
+    /**
+     * 根据触摸位置找到目标索引（用于拖拽）
+     */
+    private fun findTargetIndexForDrag(rawY: Float, currentIndex: Int, gridContainer: LinearLayout, itemsPerRow: Int): Int {
+        // 遍历所有行，找到触摸位置对应的标签
+        var itemCount = 0
+        for (i in 0 until gridContainer.childCount) {
+            val row = gridContainer.getChildAt(i) as? LinearLayout ?: continue
+            for (j in 0 until row.childCount) {
+                val tabView = row.getChildAt(j) as? TextView ?: continue
+                val location = IntArray(2)
+                tabView.getLocationOnScreen(location)
+                val viewY = location[1]
+                val viewHeight = tabView.height
+                
+                // 检查触摸位置是否在这个标签的范围内
+                if (rawY >= viewY && rawY <= viewY + viewHeight) {
+                    if (itemCount >= 0 && itemCount < tabList.size) {
+                        return itemCount
+                    }
+                }
+                itemCount++
+            }
+        }
+        
+        return currentIndex
     }
     
     /**
