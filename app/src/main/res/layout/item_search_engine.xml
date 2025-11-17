@@ -52,6 +52,21 @@
 
     </LinearLayout>
 
+    <!-- API配置按钮（仅在API对话标签页显示） -->
+    <Button
+        android:id="@+id/api_config_button"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginStart="8dp"
+        android:text="API"
+        android:textSize="12sp"
+        android:textColor="?attr/colorPrimary"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:minWidth="0dp"
+        android:visibility="gone"
+        style="@style/Widget.Material3.Button.OutlinedButton" />
+
     <!-- 开关按钮（可选） -->
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/engine_toggle"

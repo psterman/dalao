@@ -1125,10 +1125,12 @@ class FloatingWindowManager(
             cardViewModeManager?.let { manager ->
                 val cards = manager.getAllCards()
                 for (card in cards.reversed()) {
-                    if (card.webView.canGoBack()) {
-                        Log.d(TAG, "卡片视图模式：返回WebView上一页")
-                        card.webView.goBack()
-                        return true
+                    card.webView?.let { webView ->
+                        if (webView.canGoBack()) {
+                            Log.d(TAG, "卡片视图模式：返回WebView上一页")
+                            webView.goBack()
+                            return true
+                        }
                     }
                 }
             }

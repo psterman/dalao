@@ -114,23 +114,71 @@ class FullScreenCardViewer(
 
         // 将WebView添加到全屏容器
         val webView = cardData.webView
-        val parent = webView.parent as? ViewGroup
-        
-        // 保存原始位置信息
-        if (parent != null) {
-            originalWebViewParent = parent
-            originalWebViewIndex = parent.indexOfChild(webView)
-            parent.removeView(webView)
+        // 如果是占位卡片（没有WebView），显示提示信息
+        if (webView == null || cardData.isPlaceholder) {
+            Log.d(TAG, "占位卡片，无法全屏显示WebView")
+            // 显示占位提示
+            val placeholderView = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                setPadding(32, 32, 32, 32)
+                
+                val hintText = TextView(context).apply {
+                    text = "此内容需要在${cardData.engineName}应用中打开"
+                    textSize = 16f
+                    setTextColor(0xFF666666.toInt())
+                    gravity = Gravity.CENTER
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = 24
+                    }
+                }
+                addView(hintText)
+                
+                val openAppButton = android.widget.Button(context).apply {
+                    text = "打开${cardData.engineName}"
+                    textSize = 16f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    background = context.getDrawable(R.drawable.card_floating_button_background_primary)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = 16
+                    }
+                    setOnClickListener {
+                        cardViewModeManager?.tryJumpToApp(cardData.engineKey, cardData.searchQuery)
+                        dismiss()
+                    }
+                }
+                addView(openAppButton)
+            }
+            webViewContainer.addView(placeholderView)
+        } else {
+            val parent = webView.parent as? ViewGroup
+            
+            // 保存原始位置信息
+            if (parent != null) {
+                originalWebViewParent = parent
+                originalWebViewIndex = parent.indexOfChild(webView)
+                parent.removeView(webView)
+            }
+            
+            // 确保WebView可见且正确设置
+            webView.visibility = View.VISIBLE
+            webView.setBackgroundColor(0xFFFFFFFF.toInt()) // 设置白色背景
+            
+            webViewContainer.addView(webView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
         }
-        
-        // 确保WebView可见且正确设置
-        webView.visibility = View.VISIBLE
-        webView.setBackgroundColor(0xFFFFFFFF.toInt()) // 设置白色背景
-        
-        webViewContainer.addView(webView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
 
         container.addView(toolbar)
         container.addView(webViewContainer)
@@ -140,50 +188,52 @@ class FullScreenCardViewer(
         parentContainer.addView(container)
         fullScreenContainer = container
 
-        // 确保WebView在添加到容器后可见并正确加载
-        webView.post {
-            webView.visibility = View.VISIBLE
-            // 检查WebView的加载状态
-            val currentUrl = webView.url
-            val originalUrl = cardData.url
-            
-            // 如果WebView还没有加载内容或URL为空，尝试重新加载
-            if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
-                Log.d(TAG, "WebView URL为空或about:blank，尝试重新加载")
-                // 重新执行搜索
-                val searchEngine = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES.find { 
-                    it.name == cardData.engineKey 
-                }
-                if (searchEngine != null && !cardData.searchQuery.isNullOrEmpty()) {
-                    val searchUrl = searchEngine.getSearchUrl(cardData.searchQuery)
-                    Log.d(TAG, "重新加载URL: $searchUrl")
-                    webView.loadUrl(searchUrl)
-                } else if (!originalUrl.isNullOrEmpty() && originalUrl != "about:blank") {
-                    // 如果有原始URL，使用原始URL
-                    Log.d(TAG, "使用原始URL: $originalUrl")
-                    webView.loadUrl(originalUrl)
-                }
-            } else {
-                // 如果URL存在但页面可能是白屏，延迟检查并重新加载
-                Log.d(TAG, "WebView已有URL: $currentUrl，延迟检查内容")
-                // 延迟检查页面内容，如果仍然是白屏则重新加载
-                webView.postDelayed({
-                    // 检查页面是否真的加载了内容
-                    webView.evaluateJavascript("(function(){return document.body && document.body.innerHTML.length > 0;})()") { result ->
-                        val hasContent = result == "true"
-                        if (!hasContent) {
-                            Log.d(TAG, "页面内容为空，重新加载")
-                            // 重新加载URL
-                            if (!originalUrl.isNullOrEmpty() && originalUrl != "about:blank") {
-                                webView.loadUrl(originalUrl)
-                            } else {
-                                webView.reload()
-                            }
-                        } else {
-                            Log.d(TAG, "页面内容已加载")
-                        }
+        // 确保WebView在添加到容器后可见并正确加载（仅当WebView存在时）
+        webView?.let { wv ->
+            wv.post {
+                wv.visibility = View.VISIBLE
+                // 检查WebView的加载状态
+                val currentUrl = wv.url
+                val originalUrl = cardData.url
+                
+                // 如果WebView还没有加载内容或URL为空，尝试重新加载
+                if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+                    Log.d(TAG, "WebView URL为空或about:blank，尝试重新加载")
+                    // 重新执行搜索
+                    val searchEngine = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES.find { 
+                        it.name == cardData.engineKey 
                     }
-                }, 500) // 延迟500ms检查
+                    if (searchEngine != null && !cardData.searchQuery.isNullOrEmpty()) {
+                        val searchUrl = searchEngine.getSearchUrl(cardData.searchQuery)
+                        Log.d(TAG, "重新加载URL: $searchUrl")
+                        wv.loadUrl(searchUrl)
+                    } else if (!originalUrl.isNullOrEmpty() && originalUrl != "about:blank") {
+                        // 如果有原始URL，使用原始URL
+                        Log.d(TAG, "使用原始URL: $originalUrl")
+                        wv.loadUrl(originalUrl)
+                    }
+                } else {
+                    // 如果URL存在但页面可能是白屏，延迟检查并重新加载
+                    Log.d(TAG, "WebView已有URL: $currentUrl，延迟检查内容")
+                    // 延迟检查页面内容，如果仍然是白屏则重新加载
+                    wv.postDelayed({
+                        // 检查页面是否真的加载了内容
+                        wv.evaluateJavascript("(function(){return document.body && document.body.innerHTML.length > 0;})()") { result ->
+                            val hasContent = result == "true"
+                            if (!hasContent) {
+                                Log.d(TAG, "页面内容为空，重新加载")
+                                // 重新加载URL
+                                if (!originalUrl.isNullOrEmpty() && originalUrl != "about:blank") {
+                                    wv.loadUrl(originalUrl)
+                                } else {
+                                    wv.reload()
+                                }
+                            } else {
+                                Log.d(TAG, "页面内容已加载")
+                            }
+                        }
+                    }, 500) // 延迟500ms检查
+                }
             }
         }
 
@@ -230,8 +280,10 @@ class FullScreenCardViewer(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener { 
-                if (webView.canGoBack()) {
-                    webView.goBack()
+                webView?.let {
+                    if (it.canGoBack()) {
+                        it.goBack()
+                    }
                 }
             }
             contentDescription = "返回"
@@ -249,8 +301,10 @@ class FullScreenCardViewer(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener { 
-                if (webView.canGoForward()) {
-                    webView.goForward()
+                webView?.let {
+                    if (it.canGoForward()) {
+                        it.goForward()
+                    }
                 }
             }
             contentDescription = "前进"
@@ -268,7 +322,7 @@ class FullScreenCardViewer(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             setOnClickListener { 
-                webView.reload()
+                webView?.reload()
             }
             contentDescription = "刷新"
         }
@@ -424,7 +478,7 @@ class FullScreenCardViewer(
             
             setOnClickListener {
                 // 已经在卡片内打开了，这个按钮可以用于刷新或重新加载
-                cardData.webView.reload()
+                cardData.webView?.reload()
                 android.widget.Toast.makeText(context, "已刷新", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
@@ -475,32 +529,34 @@ class FullScreenCardViewer(
                     // 恢复WebView到原位置
                     currentCardData?.let { cardData ->
                         val webView = cardData.webView
-                        val currentParent = webView.parent as? ViewGroup
-                        currentParent?.removeView(webView)
-                        
-                        // 恢复到原始位置
-                        originalWebViewParent?.let { originalParent ->
-                            try {
-                                // 确保WebView恢复到原来的容器中
-                                val layoutParams = FrameLayout.LayoutParams(
-                                    FrameLayout.LayoutParams.MATCH_PARENT,
-                                    FrameLayout.LayoutParams.MATCH_PARENT
-                                )
-                                
-                                if (originalWebViewIndex >= 0 && originalWebViewIndex <= originalParent.childCount) {
-                                    originalParent.addView(webView, originalWebViewIndex, layoutParams)
-                                } else {
-                                    originalParent.addView(webView, layoutParams)
-                                }
-                                
-                                Log.d(TAG, "WebView已恢复到原位置")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "恢复WebView到原位置失败", e)
-                                // 如果恢复失败，尝试添加到末尾
+                        webView?.let {
+                            val currentParent = it.parent as? ViewGroup
+                            currentParent?.removeView(it)
+                            
+                            // 恢复到原始位置
+                            originalWebViewParent?.let { originalParent ->
                                 try {
-                                    originalParent.addView(webView)
-                                } catch (e2: Exception) {
-                                    Log.e(TAG, "恢复WebView失败", e2)
+                                    // 确保WebView恢复到原来的容器中
+                                    val layoutParams = FrameLayout.LayoutParams(
+                                        FrameLayout.LayoutParams.MATCH_PARENT,
+                                        FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                    
+                                    if (originalWebViewIndex >= 0 && originalWebViewIndex <= originalParent.childCount) {
+                                        originalParent.addView(it, originalWebViewIndex, layoutParams)
+                                    } else {
+                                        originalParent.addView(it, layoutParams)
+                                    }
+                                    
+                                    Log.d(TAG, "WebView已恢复到原位置")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "恢复WebView到原位置失败", e)
+                                    // 如果恢复失败，尝试添加到末尾
+                                    try {
+                                        originalParent.addView(it)
+                                    } catch (e2: Exception) {
+                                        Log.e(TAG, "恢复WebView失败", e2)
+                                    }
                                 }
                             }
                         }

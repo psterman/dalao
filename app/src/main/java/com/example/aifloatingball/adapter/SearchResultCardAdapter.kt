@@ -67,6 +67,12 @@ class SearchResultCardAdapter(
             if (isDarkMode) 0xFFFFFFFF.toInt() else 0xFF212121.toInt()
         )
         
+        // 设置引擎名称文字颜色，支持暗色/亮色模式
+        holder.engineView.text = cardData.engineName
+        holder.engineView.setTextColor(
+            if (isDarkMode) 0xFFB0B0B0.toInt() else 0xFF666666.toInt()
+        )
+        
         // 设置标题栏背景为圆角卡片样式
         val headerBackground = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = dpToPx(context, 8).toFloat()
@@ -78,7 +84,9 @@ class SearchResultCardAdapter(
             }
         }
         
-        holder.engineView.text = cardData.engineName
+        // 设置按钮文字颜色，支持暗色/亮色模式
+        holder.openButton.setTextColor(0xFFFFFFFF.toInt()) // 按钮文字始终为白色，确保在深色背景上可见
+        holder.downloadButton.setTextColor(0xFFFFFFFF.toInt()) // 按钮文字始终为白色
         
         // 检查是否有对应的app
         val hasApp = this.cardViewModeManager?.isAppInstalledForEngine(cardData.engineKey) == true
@@ -88,7 +96,7 @@ class SearchResultCardAdapter(
         // 设置浮动按钮的显示逻辑
         if (hasPackageName) {
             if (hasApp) {
-                // app已安装：显示app图标和"在卡片内打开"按钮
+                // app已安装：显示"在卡片内打开"按钮和app图标
                 holder.floatingButtonsContainer.visibility = View.VISIBLE
                 holder.appIconView.visibility = View.GONE  // 隐藏头部的app图标
                 holder.appIconFloating.visibility = View.VISIBLE  // 显示浮动区域的app图标
@@ -98,26 +106,26 @@ class SearchResultCardAdapter(
                 // 设置打开按钮文本
                 holder.openButton.text = "在卡片内打开"
                 
-                try {
-                    // 获取app图标
-                    val appIcon = context.packageManager.getApplicationIcon(packageName as String)
-                    holder.appIconFloating.setImageDrawable(appIcon)
-                } catch (e: PackageManager.NameNotFoundException) {
-                    // 如果获取图标失败，隐藏图标
-                    holder.appIconFloating.visibility = View.GONE
-                }
-                
-                // 设置app图标点击事件：跳转到app搜索
-                holder.appIconFloating.setOnClickListener {
-                    this.cardViewModeManager?.tryJumpToApp(cardData.engineKey, cardData.searchQuery)
-                }
-                
                 // 设置打开按钮点击事件：在卡片内打开
                 holder.openButton.setOnClickListener {
                     onCardClick(cardData)
                 }
                 
-                android.util.Log.d(TAG, "显示浮动按钮 - app已安装: $packageName，显示app图标和打开按钮")
+                // 加载并显示app图标
+                try {
+                    val appIcon = context.packageManager.getApplicationIcon(packageName!!)
+                    holder.appIconFloating.setImageDrawable(appIcon)
+                } catch (e: Exception) {
+                    android.util.Log.e(TAG, "获取app图标失败: $packageName", e)
+                    holder.appIconFloating.visibility = View.GONE
+                }
+                
+                // 设置app图标点击事件：尝试使用intent搜索，不支持则复制到剪贴板
+                holder.appIconFloating.setOnClickListener {
+                    this.cardViewModeManager?.openAppWithSearch(cardData.engineKey, cardData.searchQuery, packageName!!)
+                }
+                
+                android.util.Log.d(TAG, "显示浮动按钮 - app已安装: $packageName，显示打开按钮和app图标")
             } else {
                 // app未安装：显示"下载app"和"在卡片内打开"两个按钮
                 holder.floatingButtonsContainer.visibility = View.VISIBLE
@@ -161,8 +169,62 @@ class SearchResultCardAdapter(
             android.util.Log.d(TAG, "显示浮动按钮 - 无对应app，只显示打开按钮")
         }
         
-        // 设置WebView
-        val webView = cardData.webView
+        // 处理占位卡片（需要直接跳转app的搜索引擎）
+        if (cardData.isPlaceholder && cardData.packageName != null) {
+            // 占位卡片：显示提示信息和打开按钮
+            holder.webViewContainer.removeAllViews()
+            
+            // 创建占位视图
+            val placeholderView = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                setPadding(32, 32, 32, 32)
+                
+                // 添加提示文字
+                val hintText = TextView(context).apply {
+                    text = "此内容需要在${cardData.engineName}应用中打开"
+                    textSize = 14f
+                    setTextColor(if (isDarkMode) 0xFFB0B0B0.toInt() else 0xFF666666.toInt())
+                    gravity = android.view.Gravity.CENTER
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        bottomMargin = 24
+                    }
+                }
+                addView(hintText)
+                
+                // 添加打开按钮
+                val openAppButton = Button(context).apply {
+                    text = "打开${cardData.engineName}"
+                    textSize = 16f
+                    setTextColor(0xFFFFFFFF.toInt())
+                    background = context.getDrawable(R.drawable.card_floating_button_background_primary)
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = 16
+                    }
+                    setOnClickListener {
+                        cardViewModeManager?.tryJumpToApp(cardData.engineKey, cardData.searchQuery)
+                    }
+                }
+                addView(openAppButton)
+            }
+            
+            holder.webViewContainer.addView(placeholderView)
+            holder.floatingButtonsContainer.visibility = View.GONE
+            return // 占位卡片不需要WebView相关设置
+        }
+        
+        // 设置WebView（非占位卡片）
+        val webView = cardData.webView ?: return // 如果没有WebView，直接返回
         val parent = webView.parent as? ViewGroup
         parent?.removeView(webView)
         
@@ -199,7 +261,7 @@ class SearchResultCardAdapter(
         holder.floatingButtonsContainer.isClickable = true
         
         // 设置WebView不拦截按钮区域的触摸事件
-        webView.setOnTouchListener { view, event ->
+        webView.setOnTouchListener { _, event ->
             val buttonsContainer = holder.floatingButtonsContainer
             if (buttonsContainer.visibility == View.VISIBLE) {
                 val location = IntArray(2)

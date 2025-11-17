@@ -33,6 +33,7 @@ import com.example.aifloatingball.utils.SearchParams
 import com.example.aifloatingball.ui.cardview.CardViewModeManager
 import com.example.aifloatingball.ui.cardview.TabBarView
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.SearchEngineCategory
 
 /**
  * 双窗口浮动WebView服务
@@ -244,6 +245,27 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     hideFloatingWindow()
                 }
                 
+                // 设置标签切换回调（用于左右滑动切换标签）
+                cardViewModeManager?.setOnTabSwitchCallback { direction ->
+                    val currentTabIndex = tabBarView?.getSelectedTabIndex() ?: 0
+                    val allTabs = tabBarView?.getAllTabs() ?: emptyList()
+                    if (allTabs.isNotEmpty()) {
+                        val newIndex = (currentTabIndex + direction).coerceIn(0, allTabs.size - 1)
+                        if (newIndex != currentTabIndex) {
+                            tabBarView?.selectTab(newIndex)
+                            // 触发标签点击事件，加载新标签的搜索结果
+                            val newTab = allTabs[newIndex]
+                            val searchQuery = floatingWindowManager?.getSearchInputText()?.trim() ?: ""
+                            val query = if (searchQuery.isNotEmpty()) {
+                                searchQuery
+                            } else {
+                                newTab.name
+                            }
+                            loadSearchResultsForTag(query, newTab)
+                        }
+                    }
+                }
+                
                 // 设置全屏查看器的父容器（使用浮动窗口的根视图）
                 manager.floatingView?.let { floatingView ->
                     val rootView = floatingView.rootView as? ViewGroup
@@ -317,9 +339,35 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         val engineNames = tab.getDefaultEngines()
         Log.d(TAG, "标签 '${tab.name}' 对应的搜索引擎: $engineNames")
         
-        // 根据搜索引擎名称查找对应的搜索引擎对象
+        // 根据搜索引擎名称查找对应的搜索引擎对象（包括AI引擎）
         val engines = engineNames.mapNotNull { engineName ->
+            // 首先查找普通搜索引擎
             SearchEngine.DEFAULT_ENGINES.find { it.name == engineName }
+                ?: run {
+                    // 如果找不到，查找AI引擎
+                    val aiEngine = AISearchEngine.DEFAULT_AI_ENGINES.find { 
+                        it.name == engineName || 
+                        it.name.contains(engineName, ignoreCase = true) ||
+                        engineName.contains(it.name, ignoreCase = true)
+                    }
+                    // 如果找到AI引擎，需要获取增强配置（包含API配置）
+                    if (aiEngine != null) {
+                        val enhancedConfig = aiPageConfigManager.getConfigByKey(aiEngine.name) ?: aiEngine
+                        // 创建一个SearchEngine对象以便统一处理
+                        SearchEngine(
+                            name = enhancedConfig.name,
+                            displayName = enhancedConfig.displayName,
+                            url = enhancedConfig.url,
+                            iconResId = enhancedConfig.iconResId,
+                            description = enhancedConfig.description,
+                            searchUrl = enhancedConfig.searchUrl,
+                            isAI = enhancedConfig.isChatMode,
+                            category = SearchEngineCategory.GENERAL
+                        )
+                    } else {
+                        null
+                    }
+                }
         }
         
         // 如果找不到对应的搜索引擎，使用默认的11个搜索引擎
@@ -349,7 +397,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     /**
      * 显示标签编辑对话框
      */
-    private fun showTabEditDialog(tab: TabBarView.TabItem, position: Int) {
+    private fun showTabEditDialog(tab: TabBarView.TabItem, @Suppress("UNUSED_PARAMETER") position: Int) {
         // TODO: 实现标签编辑对话框
         Log.d(TAG, "显示标签编辑对话框: ${tab.name}")
     }

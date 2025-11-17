@@ -555,6 +555,11 @@ class TabBarView(
     fun getSelectedTab(): TabItem? {
         return tabList.getOrNull(selectedTabIndex)
     }
+    
+    /**
+     * 获取当前选中的标签索引
+     */
+    fun getSelectedTabIndex(): Int = selectedTabIndex
 
     /**
      * 获取所有标签

@@ -89,7 +89,8 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
     private var engines: MutableList<T>,
     private val enabledEngines: MutableSet<String>,
     private val onEngineToggled: (String, Boolean) -> Unit,
-    private val onOrderChanged: ((List<T>) -> Unit)? = null
+    private val onOrderChanged: ((List<T>) -> Unit)? = null,
+    private val onEngineClick: ((T) -> Unit)? = null
 ) : RecyclerView.Adapter<GenericSearchEngineAdapter<T>.ViewHolder>() {
     
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -97,6 +98,7 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
         val iconImageView: ImageView = view.findViewById(R.id.engine_icon)
         val toggleSwitch: SwitchCompat = view.findViewById(R.id.engine_toggle)
         val dragHandle: ImageView? = view.findViewById(R.id.drag_handle)
+        val apiConfigButton: android.widget.Button? = view.findViewById(R.id.api_config_button)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -123,6 +125,41 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
         // 显示拖拽句柄
         holder.dragHandle?.visibility = View.VISIBLE
 
+        // 设置API配置按钮（仅在API对话标签页显示）
+        if (onEngineClick != null && holder.apiConfigButton != null) {
+            holder.apiConfigButton.visibility = View.VISIBLE
+            holder.apiConfigButton.setOnClickListener {
+                onEngineClick.invoke(engine)
+            }
+            
+            // 确保按钮文字颜色在淡色和深色模式下都清晰可见
+            // 使用colorPrimary确保在淡色模式下有足够的对比度
+            try {
+                val typedValue = android.util.TypedValue()
+                val theme = context.theme
+                val attrId = context.resources.getIdentifier("colorPrimary", "attr", context.packageName)
+                if (attrId != 0 && theme.resolveAttribute(attrId, typedValue, true)) {
+                    val colorPrimary = typedValue.data
+                    holder.apiConfigButton.setTextColor(colorPrimary)
+                } else {
+                    // 如果无法获取主题颜色，使用默认的colorPrimary颜色
+                    val colorPrimary = context.getColor(R.color.colorPrimary)
+                    holder.apiConfigButton.setTextColor(colorPrimary)
+                }
+            } catch (e: Exception) {
+                // 如果出错，使用默认的colorPrimary颜色
+                try {
+                    val colorPrimary = context.getColor(R.color.colorPrimary)
+                    holder.apiConfigButton.setTextColor(colorPrimary)
+                } catch (ex: Exception) {
+                    // 最后的备选方案：使用深色文字（确保在淡色模式下可见）
+                    holder.apiConfigButton.setTextColor(android.graphics.Color.parseColor("#1976D2"))
+                }
+            }
+        } else {
+            holder.apiConfigButton?.visibility = View.GONE
+        }
+
         // 设置开关监听器
         holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -133,7 +170,11 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
             onEngineToggled(engine.name, isChecked)
         }
         holder.itemView.setOnClickListener {
-            holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
+            // 如果有点击回调（用于API对话标签页），则不处理itemView点击
+            // 否则切换开关状态
+            if (onEngineClick == null) {
+                holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
+            }
         }
     }
 
