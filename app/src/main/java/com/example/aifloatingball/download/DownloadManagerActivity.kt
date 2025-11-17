@@ -719,6 +719,45 @@ class DownloadManagerActivity : AppCompatActivity() {
     }
     
     /**
+     * 检查是否为可阅读的文档文件
+     * 支持txt、pdf、epub、mobi、azw、azw3、azw4、prc、pdb等格式
+     */
+    private fun isReadableDocumentFile(filename: String): Boolean {
+        val readableExtensions = listOf(
+            ".txt", ".pdf", 
+            ".epub", ".mobi", ".azw", ".azw3", ".azw4", ".prc", ".pdb"
+        )
+        val lowerFilename = filename.lowercase()
+        return readableExtensions.any { lowerFilename.endsWith(it) }
+    }
+    
+    /**
+     * 使用内置文件阅读器打开文档文件
+     */
+    private fun openFileWithReader(uri: Uri, filename: String) {
+        try {
+            val fileUri = when (uri.scheme) {
+                "file" -> uri
+                "content" -> uri
+                else -> {
+                    Log.e(TAG, "不支持的URI scheme: ${uri.scheme}")
+                    Toast.makeText(this, "无法打开文件", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
+            
+            // 启动内置文件阅读器
+            com.example.aifloatingball.viewer.FileReaderActivity.start(this, fileUri, filename)
+            Log.d(TAG, "启动内置文件阅读器: $filename")
+            Toast.makeText(this, "正在打开文件: $filename", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开内置文件阅读器失败", e)
+            Toast.makeText(this, "打开文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
      * 使用内置图片查看器打开图片
      */
     private fun openImageWithInternalViewer(uri: Uri, filename: String) {
@@ -979,6 +1018,13 @@ class DownloadManagerActivity : AppCompatActivity() {
                 if (isImageFile(filename)) {
                     Log.d(TAG, "检测到图片文件，使用内置查看器: $filename")
                     openImageWithInternalViewer(finalUri, filename)
+                    return
+                }
+                
+                // 检查是否为可阅读的文档文件，使用内置文件阅读器
+                if (isReadableDocumentFile(filename)) {
+                    Log.d(TAG, "检测到可阅读文档文件，使用内置文件阅读器: $filename")
+                    openFileWithReader(finalUri, filename)
                     return
                 }
                 

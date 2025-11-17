@@ -374,6 +374,12 @@
             </div>
             
             <div class="button-wrapper">
+                <button id="btn_file_reader" class="button" onclick="openFileReader()" data-button-id="file_reader" data-text="文件阅读">
+                    <span class="button-text">文件阅读</span>
+                </button>
+            </div>
+            
+            <div class="button-wrapper">
                 <button id="btn_settings" class="button" onclick="openSettings()" data-button-id="settings" data-text="➕">
                     <span class="button-text">➕</span>
                 </button>
@@ -440,13 +446,22 @@
             }
         }
         
+        function openFileReader() {
+            if (window.AndroidInterface && window.AndroidInterface.openFileReader) {
+                window.AndroidInterface.openFileReader();
+            } else {
+                alert('文件阅读功能');
+            }
+        }
+        
         // 按钮配置信息
         const buttonConfigs = {
             'new_tab': { name: '新建标签页', icon: '➕' },
             'new_group': { name: '新建标签组', icon: '📁' },
             'history': { name: '历史记录', icon: '🕐' },
             'bookmarks': { name: '收藏夹', icon: '⭐' },
-            'download': { name: '下载', icon: '⬇️' }
+            'download': { name: '下载', icon: '⬇️' },
+            'file_reader': { name: '文件阅读', icon: '📄' }
         };
         
         // 长按隐藏按钮

@@ -409,6 +409,15 @@ class PaperStackWebViewManager(
                 }
                 
                 @android.webkit.JavascriptInterface
+                fun openFileReader() {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        // 打开文件阅读器（通过回调通知外部）
+                        onFunctionalHomeActionListener?.onOpenFileReader()
+                        Log.d(TAG, "功能主页：打开文件阅读器")
+                    }
+                }
+                
+                @android.webkit.JavascriptInterface
                 fun hideButton(buttonId: String) {
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         // 隐藏按钮（通过回调通知外部）
@@ -482,6 +491,7 @@ class PaperStackWebViewManager(
         fun onOpenGroupManager()
         fun onOpenBookmarks()
         fun onOpenHistory()
+        fun onOpenFileReader()
         fun onHideButton(buttonId: String)
         fun onShowRestoreButtonsDialog()
         fun getButtonVisibility(): String

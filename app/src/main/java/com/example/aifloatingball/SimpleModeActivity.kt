@@ -179,6 +179,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_SAVED_CONTACTS = "saved_contacts"
         // Activity请求码
         private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
+        private const val REQUEST_CODE_PICK_FILE = 1102
         
         // 单例实例，用于WebViewFactory访问
         @Volatile
@@ -6660,8 +6661,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     showHistoryDialog()
                     Log.d(TAG, "成功打开历史记录对话框")
                 } catch (e: Exception) {
-                    Log.e(TAG, "历史记录按钮点击处理失败", e)
+                    Log.e(TAG, "打开历史记录对话框失败", e)
                     showMaterialToast("打开历史记录失败")
+                }
+            }
+            
+            override fun onOpenFileReader() {
+                // 打开文件选择器
+                try {
+                    Log.d(TAG, "功能主页：打开文件阅读器")
+                    openFilePicker()
+                    showMaterialToast("选择文件")
+                } catch (e: Exception) {
+                    Log.e(TAG, "打开文件选择器失败", e)
+                    showMaterialToast("打开文件选择器失败")
                 }
             }
             
@@ -10818,6 +10831,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         showMaterialToast("打开下载管理失败")
                     }
                 }
+                com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.FILE_READER -> {
+                    try {
+                        Log.d(TAG, "用户点击文件阅读按钮")
+                        // 打开文件选择器
+                        openFilePicker()
+                        showMaterialToast("选择文件")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "文件阅读按钮点击处理失败", e)
+                        showMaterialToast("打开文件选择器失败")
+                    }
+                }
                 com.example.aifloatingball.views.DraggableButtonGrid.ButtonType.HISTORY -> {
                     // TODO: 打开历史记录
                     showMaterialToast("历史记录功能开发中")
@@ -12176,6 +12200,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             } catch (e: Exception) {
                 Log.e(TAG, "下载管理按钮点击处理失败", e)
                 showMaterialToast("打开下载管理失败")
+            }
+        }
+
+        // 文件阅读按钮
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_file_reader_button)?.setOnClickListener {
+            try {
+                Log.d(TAG, "用户点击文件阅读按钮")
+
+                // 检查Activity状态
+                if (isFinishing || isDestroyed) {
+                    Log.w(TAG, "Activity正在结束或已销毁，跳过文件选择操作")
+                    return@setOnClickListener
+                }
+
+                // 打开文件选择器
+                openFilePicker()
+                
+                Log.d(TAG, "成功打开文件选择器")
+            } catch (e: Exception) {
+                Log.e(TAG, "文件阅读按钮点击处理失败", e)
+                showMaterialToast("打开文件选择器失败")
             }
         }
 
@@ -19884,7 +19929,113 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "用户取消了AI联系人选择")
                 }
             }
+            
+            REQUEST_CODE_PICK_FILE -> {
+                // 文件选择结果
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    val uri = data.data
+                    if (uri != null) {
+                        try {
+                            // 获取文件名
+                            val fileName = getFileNameFromUri(uri)
+                            Log.d(TAG, "用户选择文件: $fileName, URI: $uri")
+                            
+                            // 启动文件阅读器
+                            com.example.aifloatingball.viewer.FileReaderActivity.start(this, uri, fileName)
+                            
+                            Toast.makeText(this, "正在打开文件: $fileName", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "打开文件失败", e)
+                            Toast.makeText(this, "打开文件失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Log.w(TAG, "文件URI为空")
+                        Toast.makeText(this, "未选择文件", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.d(TAG, "用户取消了文件选择")
+                }
+            }
         }
+    }
+
+    /**
+     * 打开文件选择器
+     */
+    private fun openFilePicker() {
+        try {
+            // 支持的文件类型：txt、pdf、epub、mobi、azw、azw3、azw4、prc、pdb
+            val mimeTypes = arrayOf(
+                "text/plain",           // txt
+                "application/pdf",      // pdf
+                "application/epub+zip",  // epub
+                "application/x-mobipocket-ebook", // mobi
+                "application/vnd.amazon.ebook",  // azw, azw3, azw4
+                "application/x-palm-database",    // prc, pdb
+                "*/*"  // 允许选择所有文件类型
+            )
+            
+            val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                type = "*/*"
+                putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+                addCategory(Intent.CATEGORY_OPENABLE)
+                // 允许选择多个文件（可选）
+                // putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            }
+            
+            // 如果系统有文件管理器，使用文件管理器
+            val chooserIntent = Intent.createChooser(intent, "选择文件")
+            
+            try {
+                startActivityForResult(chooserIntent, REQUEST_CODE_PICK_FILE)
+                Log.d(TAG, "成功打开文件选择器")
+            } catch (e: ActivityNotFoundException) {
+                Log.e(TAG, "未找到文件选择器应用", e)
+                Toast.makeText(this, "未找到文件选择器应用", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "打开文件选择器失败", e)
+            Toast.makeText(this, "打开文件选择器失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 从URI获取文件名
+     */
+    private fun getFileNameFromUri(uri: Uri): String {
+        var fileName = "未知文件"
+        
+        try {
+            when (uri.scheme) {
+                "file" -> {
+                    val path = uri.path ?: ""
+                    fileName = File(path).name
+                }
+                "content" -> {
+                    // 从ContentResolver获取文件名
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (cursor.moveToFirst() && nameIndex >= 0) {
+                            fileName = cursor.getString(nameIndex)
+                        } else {
+                            // 如果无法获取，尝试从URI路径获取
+                            fileName = uri.lastPathSegment ?: "未知文件"
+                        }
+                    } ?: run {
+                        // 如果查询失败，尝试从URI路径获取
+                        fileName = uri.lastPathSegment ?: "未知文件"
+                    }
+                }
+                else -> {
+                    fileName = uri.lastPathSegment ?: "未知文件"
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取文件名失败", e)
+            fileName = uri.lastPathSegment ?: "未知文件"
+        }
+        
+        return fileName
     }
 
     /**

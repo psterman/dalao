@@ -193,6 +193,12 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
             
+        <!-- 文件阅读器 -->
+        <activity android:name=".viewer.FileReaderActivity"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+            
         <!-- FileProvider for APK installation -->
         <provider
             android:name="androidx.core.content.FileProvider"

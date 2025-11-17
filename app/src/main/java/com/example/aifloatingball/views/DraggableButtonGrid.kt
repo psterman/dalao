@@ -47,6 +47,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
         private const val BUTTON_ID_HISTORY = "history"
         private const val BUTTON_ID_BOOKMARKS = "bookmarks"
         private const val BUTTON_ID_DOWNLOAD = "download"
+        private const val BUTTON_ID_FILE_READER = "file_reader"
     }
 
     private lateinit var recyclerView: RecyclerView
@@ -78,6 +79,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
         HISTORY,         // 历史记录
         BOOKMARKS,       // 收藏夹
         DOWNLOAD,        // 下载管理
+        FILE_READER,     // 文件阅读
         GESTURE,         // 手势指南（候补）
         SETTINGS,        // 设置（候补）
         SHARE,           // 分享（候补）
@@ -94,6 +96,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
             ButtonType.HISTORY -> BUTTON_ID_HISTORY
             ButtonType.BOOKMARKS -> BUTTON_ID_BOOKMARKS
             ButtonType.DOWNLOAD -> BUTTON_ID_DOWNLOAD
+            ButtonType.FILE_READER -> BUTTON_ID_FILE_READER
             else -> this.name.lowercase()
         }
     }
@@ -108,6 +111,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
             BUTTON_ID_HISTORY -> ButtonType.HISTORY
             BUTTON_ID_BOOKMARKS -> ButtonType.BOOKMARKS
             BUTTON_ID_DOWNLOAD -> ButtonType.DOWNLOAD
+            BUTTON_ID_FILE_READER -> ButtonType.FILE_READER
             else -> null
         }
     }
@@ -215,6 +219,7 @@ class DraggableButtonGrid @JvmOverloads constructor(
             ButtonItem(ButtonType.HISTORY, R.drawable.ic_history, "历史记录", true),
             ButtonItem(ButtonType.BOOKMARKS, android.R.drawable.star_big_on, "收藏夹", true),
             ButtonItem(ButtonType.DOWNLOAD, R.drawable.ic_download, "下载", true),
+            ButtonItem(ButtonType.FILE_READER, android.R.drawable.ic_menu_view, "文件阅读", true),
             ButtonItem(ButtonType.GESTURE, R.drawable.ic_hand, "手势", false),
             ButtonItem(ButtonType.SETTINGS, R.drawable.ic_settings, "设置", false),
             ButtonItem(ButtonType.SHARE, android.R.drawable.ic_menu_share, "分享", false),
@@ -242,7 +247,8 @@ class DraggableButtonGrid @JvmOverloads constructor(
             it.type == ButtonType.NEW_GROUP ||
             it.type == ButtonType.HISTORY ||
             it.type == ButtonType.BOOKMARKS ||
-            it.type == ButtonType.DOWNLOAD
+            it.type == ButtonType.DOWNLOAD ||
+            it.type == ButtonType.FILE_READER
         }
     }
     
