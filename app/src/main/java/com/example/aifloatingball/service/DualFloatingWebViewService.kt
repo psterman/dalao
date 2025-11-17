@@ -348,8 +348,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     /**
      * 切换视图模式
+     * 切换时会保留当前搜索内容，并立即加载对应的窗口
      */
     fun toggleViewMode(): ViewMode {
+        // 保存当前搜索内容（如果存在）
+        val currentSearchText = floatingWindowManager?.getSearchInputText()?.trim() ?: ""
+        
+        // 切换模式
         currentViewMode = when (currentViewMode) {
             ViewMode.HORIZONTAL_SCROLL -> ViewMode.CARD_VIEW
             ViewMode.CARD_VIEW -> ViewMode.HORIZONTAL_SCROLL
@@ -363,7 +368,35 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         floatingWindowManager?.destroyFloatingWindow()
         createFloatingWindow()
         
-        Log.d(TAG, "切换视图模式: $currentViewMode")
+        // 恢复搜索内容（如果存在）
+        if (currentSearchText.isNotEmpty()) {
+            handler.postDelayed({
+                floatingWindowManager?.setSearchInputText(currentSearchText)
+                // 根据新模式执行搜索
+                when (currentViewMode) {
+                    ViewMode.HORIZONTAL_SCROLL -> {
+                        // 横向模式：使用默认搜索引擎执行搜索
+                        webViewManager?.performSearch(currentSearchText, "google")
+                    }
+                    ViewMode.CARD_VIEW -> {
+                        // 卡片模式：为当前标签加载搜索结果
+                        val selectedTab = tabBarView?.getSelectedTab()
+                        if (selectedTab != null) {
+                            loadSearchResultsForTag(currentSearchText, selectedTab)
+                        } else {
+                            // 如果没有选中标签，使用默认标签
+                            val defaultTab = tabBarView?.getAllTabs()?.firstOrNull()
+                            if (defaultTab != null) {
+                                tabBarView?.selectTab(0)
+                                loadSearchResultsForTag(currentSearchText, defaultTab)
+                            }
+                        }
+                    }
+                }
+            }, 300) // 延迟300ms确保窗口创建完成
+        }
+        
+        Log.d(TAG, "切换视图模式: $currentViewMode, 保留搜索内容: ${if (currentSearchText.isNotEmpty()) "是" else "否"}")
         return currentViewMode
     }
 

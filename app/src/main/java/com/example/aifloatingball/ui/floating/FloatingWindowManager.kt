@@ -379,8 +379,12 @@ class FloatingWindowManager(
         val globalStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_standard_engine_container)
 
         val initialCount = service.getCurrentWindowCount()
-        windowCountToggleText?.text = initialCount.toString()
-        android.util.Log.d("FloatingWindowManager", "初始化窗口数量显示为: $initialCount")
+        // 根据当前视图模式显示不同的文本
+        windowCountToggleText?.text = when (service.currentViewMode) {
+            DualFloatingWebViewService.ViewMode.CARD_VIEW -> "卡片"
+            DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL -> initialCount.toString()
+        }
+        android.util.Log.d("FloatingWindowManager", "初始化窗口数量显示为: $initialCount, 视图模式: ${service.currentViewMode}")
 
         closeButton?.setOnClickListener {
             service.stopSelf()
@@ -455,20 +459,72 @@ class FloatingWindowManager(
             context.startService(intent)
         }
 
-        // 窗口数量按钮：点击切换窗口数量，长按切换视图模式
-        windowCountButton?.setOnClickListener {
-            val newCount = service.toggleAndReloadWindowCount()
-            windowCountToggleText?.text = newCount.toString()
-        }
+        // 窗口数量按钮：单击切换视图模式，长按切换窗口数量
+        // 使用自定义触摸处理，确保在两种模式下都能正常工作
+        var longPressRunnable: Runnable? = null
+        val longPressHandler = Handler(Looper.getMainLooper())
+        val longPressDelay = 500L // 500ms长按延迟
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        var hasLongPressed = false // 标记是否已触发长按
         
-        windowCountButton?.setOnLongClickListener {
-            val newMode = service.toggleViewMode()
-            // 更新按钮图标或文本以反映当前模式
-            windowCountToggleText?.text = when (newMode) {
-                DualFloatingWebViewService.ViewMode.CARD_VIEW -> "卡片"
-                DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL -> "横向"
+        windowCountButton?.setOnTouchListener { view, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    // 记录初始触摸位置
+                    initialTouchX = event.x
+                    initialTouchY = event.y
+                    hasLongPressed = false
+                    
+                    // 启动长按检测（长按：切换窗口数量）
+                    longPressRunnable = Runnable {
+                        // 长按：切换窗口数量（只在横向模式下）
+                        hasLongPressed = true
+                        if (service.currentViewMode == DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL) {
+                            val newCount = service.toggleAndReloadWindowCount()
+                            windowCountToggleText?.text = newCount.toString()
+                            // 提供触觉反馈
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                            }
+                        }
+                    }
+                    longPressHandler.postDelayed(longPressRunnable!!, longPressDelay)
+                    true // 消费事件，手动处理
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    // 取消长按检测
+                    longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                    longPressRunnable = null
+                    
+                    // 如果是UP事件且没有触发长按，则处理单击事件（切换视图模式）
+                    if (event.action == android.view.MotionEvent.ACTION_UP && !hasLongPressed) {
+                        // 单击：切换视图模式
+                        val newMode = service.toggleViewMode()
+                        // 更新按钮图标或文本以反映当前模式
+                        windowCountToggleText?.text = when (newMode) {
+                            DualFloatingWebViewService.ViewMode.CARD_VIEW -> "卡片"
+                            DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL -> {
+                                // 横向模式下显示窗口数量
+                                service.getCurrentWindowCount().toString()
+                            }
+                        }
+                    }
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    // 如果移动距离过大，取消长按检测
+                    val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+                    val deltaX = kotlin.math.abs(event.x - initialTouchX)
+                    val deltaY = kotlin.math.abs(event.y - initialTouchY)
+                    if (deltaX > touchSlop || deltaY > touchSlop) {
+                        longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                        longPressRunnable = null
+                    }
+                    true
+                }
+                else -> false
             }
-            true
         }
 
         setupTopResizeHandle(topResizeHandle)
@@ -1881,8 +1937,12 @@ class FloatingWindowManager(
                     val defaultWindowCount = settingsManager.getDefaultWindowCount()
                     updateWindowCount(defaultWindowCount)
                     
-                    // 更新UI显示
-                    _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)?.text = defaultWindowCount.toString()
+                    // 更新UI显示（根据当前视图模式显示不同文本）
+                    val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
+                    windowCountToggleText?.text = when (service.currentViewMode) {
+                        DualFloatingWebViewService.ViewMode.CARD_VIEW -> "卡片"
+                        DualFloatingWebViewService.ViewMode.HORIZONTAL_SCROLL -> defaultWindowCount.toString()
+                    }
                     
                     Log.d(TAG, "=== 重置完成 === ${orientationText}: ${defaultWidth}x${defaultHeight}, 窗口数: $defaultWindowCount")
                 }
