@@ -378,6 +378,60 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("enabled_ai_engines", enabledEngines)
     }
 
+    /**
+     * 保存AI引擎排序顺序（按分类）
+     * @param category 分类名称（如"AI对话平台"、"AI搜索引擎"、"API对话"）
+     * @param engineNames 排序后的引擎名称列表
+     */
+    fun saveAIEngineOrder(category: String, engineNames: List<String>) {
+        val key = "ai_engine_order_$category"
+        prefs.edit().putString(key, engineNames.joinToString(",")).apply()
+        notifyListeners(key, engineNames)
+    }
+
+    /**
+     * 获取AI引擎排序顺序（按分类）
+     * @param category 分类名称
+     * @param defaultEngines 默认引擎列表（如果未保存过排序）
+     * @return 排序后的引擎名称列表
+     */
+    fun getAIEngineOrder(category: String, defaultEngines: List<String>): List<String> {
+        val key = "ai_engine_order_$category"
+        val savedOrder = prefs.getString(key, null)
+        return if (savedOrder != null) {
+            savedOrder.split(",").filter { it.isNotEmpty() }
+        } else {
+            defaultEngines.map { it }
+        }
+    }
+
+    /**
+     * 保存搜索引擎排序顺序（按分类）
+     * @param category 分类名称
+     * @param engineNames 排序后的引擎名称列表
+     */
+    fun saveSearchEngineOrder(category: String, engineNames: List<String>) {
+        val key = "search_engine_order_$category"
+        prefs.edit().putString(key, engineNames.joinToString(",")).apply()
+        notifyListeners(key, engineNames)
+    }
+
+    /**
+     * 获取搜索引擎排序顺序（按分类）
+     * @param category 分类名称
+     * @param defaultEngines 默认引擎列表（如果未保存过排序）
+     * @return 排序后的引擎名称列表
+     */
+    fun getSearchEngineOrder(category: String, defaultEngines: List<String>): List<String> {
+        val key = "search_engine_order_$category"
+        val savedOrder = prefs.getString(key, null)
+        return if (savedOrder != null) {
+            savedOrder.split(",").filter { it.isNotEmpty() }
+        } else {
+            defaultEngines.map { it }
+        }
+    }
+
     // 强制刷新AI引擎配置，确保Kimi被包含
     fun forceRefreshAIEngines() {
         val currentEngines = prefs.getStringSet("enabled_ai_engines", null)?.toMutableSet() ?: mutableSetOf()

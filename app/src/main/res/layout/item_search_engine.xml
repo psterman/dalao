@@ -7,6 +7,17 @@
     android:gravity="center_vertical"
     android:background="?android:attr/selectableItemBackground">
 
+    <!-- 拖拽句柄 -->
+    <ImageView
+        android:id="@+id/drag_handle"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="8dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:contentDescription="拖拽排序"
+        android:alpha="0.5"
+        android:scaleType="fitCenter" />
+
     <!-- 搜索引擎图标 -->
     <ImageView
         android:id="@+id/engine_icon"

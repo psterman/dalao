@@ -913,6 +913,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         
         updateSearchModeVisibility()
+        
+        // 确保组合搜索和应用搜索已加载
+        loadSavedCombos()
+        updateAppSearchIcons()
 
         // Make search container focusable
         params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
@@ -1172,6 +1176,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                         return@setOnClickListener
                     }
 
+                    // 如果是AI引擎，尝试跳转到对应的App
+                    if (isAiEngine) {
+                        if (tryJumpToAIApp(engineName, query)) {
+                            // 成功跳转到App，隐藏搜索界面
+                            hideSearchInterface()
+                            return@setOnClickListener
+                        }
+                        // 如果跳转失败，继续使用WebView方式
+                        Log.d(TAG, "AI App未安装或跳转失败，使用WebView方式: $engineName")
+                    }
+
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
                         putExtra("engine_key", engineName)
@@ -1228,6 +1243,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             }
             horizontalScrollView.addView(linearLayout)
             savedCombosContainer?.addView(horizontalScrollView)
+            Log.d(TAG, "组合搜索已显示，共 ${searchEngineShortcuts.size} 个组合")
+        } else {
+            Log.d(TAG, "组合搜索为空，没有保存的组合")
         }
     }
 
@@ -1260,10 +1278,28 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     private fun loadAndDisplayAppSearch() {
+        updateAppSearchIcons()
+    }
+    
+    /**
+     * 根据输入框文字智能匹配应用图标
+     */
+    private fun updateAppSearchIcons() {
         appSearchContainer?.removeAllViews()
         val enabledAppConfigs = appSearchSettings.getEnabledAppConfigs()
 
         if(enabledAppConfigs.isEmpty()) return
+
+        val query = searchInput?.text?.toString()?.trim() ?: ""
+        val appsToShow = if (query.isNotEmpty()) {
+            // 根据输入文字匹配应用
+            matchAppsByQuery(query, enabledAppConfigs)
+        } else {
+            // 如果输入框为空，显示最近使用的应用（按order排序）
+            enabledAppConfigs.take(8) // 最多显示8个
+        }
+
+        if (appsToShow.isEmpty()) return
 
         val horizontalScrollView = HorizontalScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -1281,7 +1317,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             )
         }
 
-        enabledAppConfigs.forEach { appConfig ->
+        appsToShow.forEach { appConfig ->
             val button = ImageButton(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     dpToPx(48),
@@ -1297,9 +1333,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 setBackgroundResource(R.drawable.circle_ripple)
                 contentDescription = "${appConfig.appName} 搜索"
                 setOnClickListener {
-                    val query = searchInput?.text?.toString() ?: ""
-                    if (query.isNotEmpty()) {
-                        openAppSearch(appConfig, query)
+                    val searchQuery = searchInput?.text?.toString() ?: ""
+                    if (searchQuery.isNotEmpty()) {
+                        openAppSearch(appConfig, searchQuery)
                     } else {
                         packageManager.getLaunchIntentForPackage(appConfig.packageName)?.let {
                             startActivity(it.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
@@ -1312,6 +1348,278 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         horizontalScrollView.addView(container)
         appSearchContainer?.addView(horizontalScrollView)
+        
+        Log.d(TAG, "应用搜索图标已更新，查询: '$query', 显示 ${appsToShow.size} 个应用")
+    }
+    
+    /**
+     * 根据查询文字匹配应用
+     */
+    private fun matchAppsByQuery(query: String, enabledAppConfigs: List<AppSearchConfig>): List<AppSearchConfig> {
+        val normalizedQuery = query.lowercase().trim()
+        if (normalizedQuery.isEmpty()) {
+            return enabledAppConfigs.take(8)
+        }
+        
+        // 使用AppInfoManager进行智能匹配
+        val appInfoManager = AppInfoManager.getInstance()
+        val matchedApps = if (appInfoManager.isLoaded()) {
+            val appInfos = appInfoManager.search(normalizedQuery)
+            // 将AppInfo转换为AppSearchConfig
+            appInfos.mapNotNull { appInfo ->
+                enabledAppConfigs.find { it.packageName == appInfo.packageName }
+            }
+        } else {
+            emptyList()
+        }
+        
+        // 如果AppInfoManager没有匹配到，使用简单的名称匹配
+        if (matchedApps.isEmpty()) {
+            return enabledAppConfigs.filter { config ->
+                config.appName.lowercase().contains(normalizedQuery) ||
+                config.packageName.lowercase().contains(normalizedQuery)
+            }.take(8)
+        }
+        
+        // 返回匹配的应用，最多8个
+        return matchedApps.take(8)
+    }
+
+    /**
+     * 尝试跳转到AI App
+     * @param engineName AI引擎名称
+     * @param query 搜索查询内容
+     * @return 是否成功跳转到App
+     */
+    private fun tryJumpToAIApp(engineName: String, query: String): Boolean {
+        try {
+            Log.d(TAG, "尝试跳转到AI App: $engineName, 查询: $query")
+            
+            // 获取AI应用的包名列表
+            val possiblePackages = getAIPackages(engineName)
+            if (possiblePackages.isEmpty()) {
+                Log.d(TAG, "未找到AI应用包名: $engineName")
+                return false
+            }
+            
+            // 检查是否有已安装的AI应用
+            val installedPackage = getInstalledAIPackageName(possiblePackages)
+            if (installedPackage == null) {
+                Log.d(TAG, "AI应用未安装: $engineName")
+                return false
+            }
+            
+            // 跳转到AI App并传递输入框内容
+            launchAIAppWithIntent(installedPackage, query, engineName)
+            return true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "跳转到AI App失败: $engineName", e)
+            return false
+        }
+    }
+    
+    /**
+     * 获取AI应用的包名列表
+     */
+    private fun getAIPackages(engineName: String): List<String> {
+        return when {
+            engineName.contains("DeepSeek", ignoreCase = true) -> listOf("com.deepseek.chat")
+            engineName.contains("豆包", ignoreCase = true) -> listOf("com.larus.nova")
+            engineName.contains("ChatGPT", ignoreCase = true) -> listOf("com.openai.chatgpt")
+            engineName.contains("Kimi", ignoreCase = true) -> listOf("com.moonshot.kimichat")
+            engineName.contains("腾讯元宝", ignoreCase = true) -> listOf("com.tencent.hunyuan.app.chat")
+            engineName.contains("讯飞星火", ignoreCase = true) -> listOf("com.iflytek.spark")
+            engineName.contains("智谱清言", ignoreCase = true) || engineName.contains("智谱AI", ignoreCase = true) -> listOf("com.zhipuai.qingyan")
+            engineName.contains("通义千问", ignoreCase = true) -> listOf("com.aliyun.tongyi")
+            engineName.contains("文小言", ignoreCase = true) || engineName.contains("文心一言", ignoreCase = true) -> listOf("com.baidu.newapp")
+            engineName.contains("Grok", ignoreCase = true) -> listOf("ai.x.grok")
+            engineName.contains("Perplexity", ignoreCase = true) -> listOf("ai.perplexity.app.android")
+            engineName.contains("Manus", ignoreCase = true) -> listOf("com.manus.im.app")
+            engineName.contains("秘塔AI搜索", ignoreCase = true) || engineName.contains("秘塔", ignoreCase = true) -> listOf("com.metaso")
+            engineName.contains("Poe", ignoreCase = true) -> listOf("com.poe.android")
+            engineName.contains("IMA", ignoreCase = true) -> listOf("com.tencent.ima")
+            engineName.contains("纳米AI", ignoreCase = true) -> listOf("com.qihoo.namiso")
+            engineName.contains("Gemini", ignoreCase = true) -> listOf("com.google.android.apps.gemini")
+            engineName.contains("Copilot", ignoreCase = true) -> listOf("com.microsoft.copilot")
+            else -> emptyList()
+        }
+    }
+    
+    /**
+     * 检查AI应用是否已安装
+     */
+    private fun getInstalledAIPackageName(possiblePackages: List<String>): String? {
+        for (packageName in possiblePackages) {
+            try {
+                packageManager.getPackageInfo(packageName, 0)
+                Log.d(TAG, "找到已安装的AI应用: $packageName")
+                return packageName
+            } catch (e: PackageManager.NameNotFoundException) {
+                // 继续检查下一个包名
+            }
+        }
+        return null
+    }
+    
+    /**
+     * 启动AI应用并使用Intent发送文本
+     */
+    private fun launchAIAppWithIntent(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "启动AI应用: $appName, 包名: $packageName, 查询: $query")
+            
+            // 对于特定AI应用，尝试使用Intent直接发送文本
+            if (tryIntentSendForAIApp(packageName, query, appName)) {
+                return
+            }
+            
+            // 使用通用的启动应用并自动粘贴方法
+            launchAppWithAutoPaste(packageName, query, appName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "AI应用启动失败: $appName", e)
+            Toast.makeText(this, "$appName 启动失败", Toast.LENGTH_SHORT).show()
+            sendQuestionViaClipboard(packageName, query, appName)
+        }
+    }
+    
+    /**
+     * 尝试使用Intent直接发送文本到AI应用
+     */
+    private fun tryIntentSendForAIApp(packageName: String, query: String, appName: String): Boolean {
+        try {
+            Log.d(TAG, "尝试Intent直接发送到${appName}: $query")
+            
+            // 方案1：尝试使用ACTION_SEND直接发送文本
+            val sendIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (sendIntent.resolveActivity(packageManager) != null) {
+                startActivity(sendIntent)
+                Toast.makeText(this, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName} Intent发送成功")
+                return true
+            }
+            
+            // 方案2：对于特定应用，尝试使用URL Scheme
+            val urlScheme = getAIAppUrlScheme(packageName, query)
+            if (urlScheme != null) {
+                try {
+                    val schemeIntent = Intent(Intent.ACTION_VIEW, Uri.parse(urlScheme)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (schemeIntent.resolveActivity(packageManager) != null) {
+                        startActivity(schemeIntent)
+                        Toast.makeText(this, "正在打开${appName}...", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "${appName} URL Scheme跳转成功")
+                        return true
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "${appName} URL Scheme跳转失败", e)
+                }
+            }
+            
+            Log.d(TAG, "${appName} Intent发送失败，回退到剪贴板方案")
+            return false
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "${appName} Intent发送失败", e)
+            return false
+        }
+    }
+    
+    /**
+     * 获取AI应用的URL Scheme
+     */
+    private fun getAIAppUrlScheme(packageName: String, query: String): String? {
+        return when (packageName) {
+            "com.iflytek.spark" -> "iflytek://spark?query=${Uri.encode(query)}"
+            "com.zhipuai.qingyan" -> "zhipuai://qingyan?query=${Uri.encode(query)}"
+            "com.aliyun.tongyi" -> "tongyi://aliyun?query=${Uri.encode(query)}"
+            "com.baidu.newapp" -> "wenxiaoyan://app?query=${Uri.encode(query)}"
+            "ai.x.grok" -> "grok://xai?query=${Uri.encode(query)}"
+            "ai.perplexity.app.android" -> "perplexity://ai?query=${Uri.encode(query)}"
+            "com.manus.im.app" -> "manus://app?query=${Uri.encode(query)}"
+            "com.metaso" -> "mita://ai?query=${Uri.encode(query)}"
+            "com.poe.android" -> "poe://app?query=${Uri.encode(query)}"
+            "com.qihoo.namiso" -> "nano://ai?query=${Uri.encode(query)}"
+            "com.google.android.apps.gemini" -> "gemini://google?query=${Uri.encode(query)}"
+            "com.microsoft.copilot" -> "copilot://microsoft?query=${Uri.encode(query)}"
+            else -> null
+        }
+    }
+    
+    /**
+     * 启动应用并使用自动化粘贴
+     */
+    private fun launchAppWithAutoPaste(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "启动应用并使用自动化粘贴: $appName, 问题: $query")
+            
+            // 将问题复制到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("AI问题", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动AI应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "正在启动${appName}...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName}启动成功")
+                
+                // 延迟显示悬浮窗（如果需要）
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    // 可以通过无障碍服务自动粘贴
+                    val autoPasteIntent = Intent("com.example.aifloatingball.AUTO_PASTE").apply {
+                        putExtra("package_name", packageName)
+                        putExtra("query", query)
+                        putExtra("app_name", appName)
+                    }
+                    sendBroadcast(autoPasteIntent)
+                }, 1000) // 等待1秒让应用完全加载
+                
+            } else {
+                Toast.makeText(this, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用并自动粘贴失败: ${appName}", e)
+            // 回退到剪贴板方案
+            sendQuestionViaClipboard(packageName, query, appName)
+        }
+    }
+    
+    /**
+     * 使用剪贴板发送问题
+     */
+    private fun sendQuestionViaClipboard(packageName: String, query: String, appName: String) {
+        try {
+            // 将问题复制到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("AI问题", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动AI应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "已复制问题到剪贴板，请在${appName}中粘贴", Toast.LENGTH_LONG).show()
+                Log.d(TAG, "剪贴板方案成功: $appName")
+            } else {
+                Toast.makeText(this, "$appName 未安装", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "剪贴板方案失败: $appName", e)
+            Toast.makeText(this, "$appName 启动失败", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun openAppSearch(appConfig: AppSearchConfig, query: String) {
@@ -2128,6 +2436,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 } else {
                     hideAppSearchResults()
                 }
+                // 更新应用搜索图标（根据输入文字智能匹配）
+                updateAppSearchIcons()
             }
         })
     }

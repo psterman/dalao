@@ -33,6 +33,8 @@ class TabBarView(
         private const val TAG = "TabBarView"
         private const val PREFS_NAME = "card_view_tabs"
         private const val KEY_TABS = "tabs_json"
+        private const val KEY_DATA_VERSION = "tabs_data_version"
+        private const val CURRENT_DATA_VERSION = 2 // 版本2：区分"我的频道"和"推荐频道"
         
         // 默认标签（参考图片中的频道设计，包含"我的频道"和"推荐频道"中的所有标签）
         private val DEFAULT_TABS = listOf(
@@ -48,6 +50,13 @@ class TabBarView(
             "购物", "时尚", "美妆", "数码", "生活", "健康", "教育", "财经",
             "娱乐", "军事", "历史", "探索", "育儿", "宠物", "星座", "房产",
             "设计", "科技"
+        )
+        
+        // 默认在"我的频道"中的标签（只包含部分常用标签）
+        private val DEFAULT_MY_CHANNELS = listOf(
+            "推荐", "视频", "直播", "短剧", "美食", "旅行", "穿搭", "手工",
+            "搞笑", "壁纸", "摄影", "音乐", "家装", "汽车", "情感", "家居",
+            "游戏", "影视", "科技数码", "绘画", "健身塑型", "职场", "头像", "读书"
         )
     }
 
@@ -77,7 +86,13 @@ class TabBarView(
     private var draggedTabView: TextView? = null
     private var draggedTabIndex: Int = -1
     private var dragStartY: Float = 0f
+    private var dragStartX: Float = 0f
     private var isDragging = false
+    // 保存所有标签视图的引用，用于拖动时更新位置
+    private var myChannelsTabViews: MutableList<TextView> = mutableListOf()
+    private var myChannelsGridContainer: LinearLayout? = null
+    // 保存每个标签的原始位置（在拖动开始时记录），用于准确计算目标位置
+    private var tabOriginalPositions: MutableMap<TextView, Pair<Float, Float>> = mutableMapOf()
     
     // 标签数据类
     data class TabItem(
@@ -280,6 +295,7 @@ class TabBarView(
     private fun loadTabs() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val tabsJson = prefs.getString(KEY_TABS, null)
+        val dataVersion = prefs.getInt(KEY_DATA_VERSION, 1) // 默认为版本1（旧版本）
         
         if (tabsJson != null) {
             try {
@@ -287,23 +303,62 @@ class TabBarView(
                 val savedTabs: List<TabItem> = Gson().fromJson(tabsJson, type)
                 tabList.clear()
                 tabList.addAll(savedTabs)
+                
+                // 如果是旧版本数据（版本1），且所有标签都在"我的频道"中，进行数据迁移
+                if (dataVersion < CURRENT_DATA_VERSION) {
+                    migrateOldData(savedTabs)
+                    // 更新版本号
+                    prefs.edit().putInt(KEY_DATA_VERSION, CURRENT_DATA_VERSION).apply()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "加载标签失败", e)
                 initDefaultTabs()
             }
         } else {
             initDefaultTabs()
+            // 设置版本号
+            prefs.edit().putInt(KEY_DATA_VERSION, CURRENT_DATA_VERSION).apply()
         }
         
         refreshTabs()
     }
+    
+    /**
+     * 迁移旧版本数据
+     * 如果所有标签都在"我的频道"中（可能是旧版本的数据），只保留默认的"我的频道"标签
+     */
+    private fun migrateOldData(savedTabs: List<TabItem>) {
+        // 检查是否所有默认标签都在"我的频道"中
+        val savedTabNames = savedTabs.map { it.name }.toSet()
+        val allDefaultTabsInMyChannels = DEFAULT_TABS.all { it in savedTabNames }
+        
+        if (allDefaultTabsInMyChannels && savedTabs.size >= DEFAULT_TABS.size) {
+            // 这是旧版本的数据，所有标签都在"我的频道"中
+            // 只保留默认的"我的频道"标签，其他标签移除（它们会在"推荐频道"中显示）
+            Log.d(TAG, "检测到旧版本数据，进行数据迁移：从 ${savedTabs.size} 个标签迁移到 ${DEFAULT_MY_CHANNELS.size} 个标签")
+            tabList.clear()
+            // 只添加默认的"我的频道"标签
+            DEFAULT_MY_CHANNELS.forEach { name ->
+                // 保留用户的自定义配置（如果有）
+                val existingTab = savedTabs.find { it.name == name }
+                if (existingTab != null) {
+                    tabList.add(existingTab)
+                } else {
+                    tabList.add(TabItem(name = name, isCustom = false))
+                }
+            }
+            saveTabs()
+        }
+    }
 
     /**
      * 初始化默认标签
+     * 只将部分常用标签添加到"我的频道"，其他标签在"推荐频道"中
      */
     private fun initDefaultTabs() {
         tabList.clear()
-        DEFAULT_TABS.forEach { name ->
+        // 只添加默认的"我的频道"标签
+        DEFAULT_MY_CHANNELS.forEach { name ->
             tabList.add(TabItem(name = name, isCustom = false))
         }
         saveTabs()
@@ -645,6 +700,16 @@ class TabBarView(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dpToPx(400) // 限制高度
             )
+            // 在编辑模式下，允许子视图处理触摸事件
+            setOnTouchListener { view, event ->
+                // 如果子视图请求不拦截，则允许子视图处理
+                if (isManageDialogEditMode) {
+                    // 在编辑模式下，让子视图优先处理触摸事件
+                    false
+                } else {
+                    false
+                }
+            }
             addView(mainContainer)
         }
         
@@ -737,6 +802,10 @@ class TabBarView(
             dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         }
         
+        // 设置对话框不可通过点击外部区域取消，避免误操作
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setCancelable(false) // 只能通过关闭按钮关闭
+        
         // 设置对话框宽度撑满屏幕
         dialog.window?.setLayout(
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -761,6 +830,12 @@ class TabBarView(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+        }
+        
+        // 如果是"我的频道"，保存容器引用和清空标签视图列表
+        if (isMyChannels) {
+            myChannelsGridContainer = gridContainer
+            myChannelsTabViews.clear()
         }
         
         // 每行4个标签
@@ -793,26 +868,36 @@ class TabBarView(
                 ellipsize = null // 不省略，完整显示
                 // 调整内边距，不要正方形
                 setPadding(dpToPx(10), dpToPx(6), dpToPx(10), dpToPx(6))
+                // 确保可以接收触摸事件
+                isClickable = true
+                isFocusable = true
+                // 禁用文本选择和长按菜单，避免干扰拖动操作
+                setTextIsSelectable(false) // 使用方法调用而不是属性赋值
+                setOnLongClickListener { false } // 禁用默认长按行为
                 // 不设置最小和最大宽度，让文字自然显示
                 // 使用 WRAP_CONTENT 让标签根据文字内容自适应宽度
                 // 根据暗色/亮色模式和编辑模式设置背景和文字颜色
-                // 编辑模式下使用镂空淡绿色勾边，非编辑模式使用普通背景
-                val drawable = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dpToPx(8).toFloat()
-                    if (isEditMode && isMyChannels) {
-                        // 编辑模式下：镂空淡绿色勾边
-                        setColor(android.graphics.Color.TRANSPARENT) // 透明背景
-                        setStroke(dpToPx(2), 0xFF4CAF50.toInt()) // 淡绿色勾边
-                    } else {
-                        // 非编辑模式：普通背景
+                // 编辑模式下使用拟态化效果，非编辑模式使用普通背景
+                // 使用 isManageDialogEditMode 确保与触摸事件判断一致
+                val isInEditMode = isMyChannels && isManageDialogEditMode
+                if (isInEditMode) {
+                    // 编辑模式下：使用拟态化背景，模拟实体感
+                    background = createNeumorphicDrawable(false, isDarkMode)
+                    // 添加轻微阴影，增强实体感
+                    elevation = dpToPx(2).toFloat()
+                } else {
+                    // 非编辑模式：普通背景
+                    val drawable = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dpToPx(8).toFloat()
                         val bgColor = if (isDarkMode) 0xFF2C2C2C.toInt() else 0xFFF5F5F5.toInt()
                         setColor(bgColor)
                     }
+                    background = drawable
+                    elevation = 0f
                 }
-                background = drawable
                 
                 val textColor = when {
-                    isEditMode && isMyChannels -> 0xFF4CAF50.toInt() // 编辑模式下淡绿色文字
+                    isInEditMode -> 0xFF4CAF50.toInt() // 编辑模式下淡绿色文字
                     isDarkMode -> 0xFFFFFFFF.toInt() // 暗色模式白色文字
                     else -> 0xFF000000.toInt() // 亮色模式黑色文字
                 }
@@ -830,167 +915,438 @@ class TabBarView(
                 params.topMargin = dpToPx(6)
                 params.bottomMargin = dpToPx(6)
                 layoutParams = params
-                setOnClickListener {
-                    if (isMyChannels) {
-                        if (isManageDialogEditMode) {
-                            // 编辑模式下，单击将标签移入推荐频道
-                            val position = tabList.indexOfFirst { it.name == tab.name }
-                            if (position >= 0) {
-                                tabList.removeAt(position)
-                                if (selectedTabIndex >= tabList.size) {
-                                    selectedTabIndex = tabList.size - 1
-                                }
-                                refreshTabs()
-                                saveTabs()
-                                // 直接刷新对话框，不关闭
-                                refreshManageDialog()
-                            }
-                        }
-                        // 非编辑模式下，单击不做任何操作
-                    } else {
-                        // 添加到我的频道，默认置于最前面
-                        if (!tabList.any { it.name == tab.name }) {
-                            tabList.add(0, tab) // 添加到最前面
-                            refreshTabs()
-                            saveTabs()
-                            // 直接刷新对话框，不关闭
-                            refreshManageDialog()
-                        }
-                    }
-                }
-                
                 // 长按和拖动事件：编辑模式下长按拖动
                 if (isMyChannels && isManageDialogEditMode) {
                     var startY = 0f
                     var startX = 0f
-                    var originalIndex = index
+                    var viewStartY = 0f
+                    var viewStartX = 0f
+                    var originalPosition = tabList.indexOfFirst { it.name == tab.name }
+                    var hasMoved = false
+                    var dragThreshold = dpToPx(8).toFloat() // 降低拖动阈值，更容易触发拖动
+                    var startTime = 0L // 记录按下时间，用于区分长按和点击
+                    var currentTargetIndex = -1 // 当前目标位置
                     
                     setOnTouchListener { view, event ->
                         when (event.action) {
                             android.view.MotionEvent.ACTION_DOWN -> {
                                 startY = event.rawY
                                 startX = event.rawX
-                                originalIndex = index
+                                viewStartY = view.y
+                                viewStartX = view.x
+                                startTime = System.currentTimeMillis()
+                                originalPosition = tabList.indexOfFirst { it.name == tab.name }
+                                hasMoved = false
+                                currentTargetIndex = originalPosition
+                                
+                                // 请求所有父视图不要拦截触摸事件，以便处理拖动
+                                var parentView = view.parent
+                                while (parentView != null && parentView is ViewGroup) {
+                                    (parentView as ViewGroup).requestDisallowInterceptTouchEvent(true)
+                                    parentView = parentView.parent
+                                }
+                                // 返回 true 表示我们要处理这个事件，防止触发系统默认行为
                                 true
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
+                                // 继续请求父视图不拦截，确保拖动时事件不被拦截
+                                var parentView = view.parent
+                                while (parentView != null && parentView is ViewGroup) {
+                                    (parentView as ViewGroup).requestDisallowInterceptTouchEvent(true)
+                                    parentView = parentView.parent
+                                }
+                                
                                 val deltaY = event.rawY - startY
                                 val deltaX = event.rawX - startX
                                 val distance = kotlin.math.sqrt(deltaX * deltaX + deltaY * deltaY)
+                                val elapsedTime = System.currentTimeMillis() - startTime
                                 
-                                // 如果移动距离超过阈值，开始拖动
-                                if (distance > dpToPx(10) && !isDragging) {
-                                    isDragging = true
-                                    draggedTabView = this@apply
-                                    draggedTabIndex = originalIndex
-                                    dragStartY = startY
-                                    
-                                    // 设置标签为拖动状态（改变颜色）
-                                    val dragDrawable = android.graphics.drawable.GradientDrawable().apply {
-                                        cornerRadius = dpToPx(8).toFloat()
-                                        setColor(0xFFFF9800.toInt()) // 橙色表示拖动状态
-                                    }
-                                    this@apply.background = dragDrawable
-                                    this@apply.setTextColor(0xFFFFFFFF.toInt())
-                                    this@apply.elevation = dpToPx(8).toFloat() // 提升高度，显示拖动状态
-                                }
-                                
-                                if (isDragging && draggedTabView == this@apply) {
-                                    // 计算目标位置（基于触摸的Y坐标）
-                                    val targetIndex = findTargetIndexForDrag(event.rawY, originalIndex, gridContainer, itemsPerRow)
-                                    if (targetIndex != originalIndex && targetIndex >= 0 && targetIndex < tabList.size) {
-                                        // 更新tabList中的顺序
-                                        val fromPosition = originalIndex
-                                        val toPosition = targetIndex
+                                    // 如果移动距离超过阈值，或者长按时间超过200ms，开始拖动
+                                if (distance > dragThreshold || (elapsedTime > 200 && !isDragging)) {
+                                    hasMoved = true
+                                    if (!isDragging) {
+                                        // 开始拖动：放大标签并提升高度
+                                        isDragging = true
+                                        draggedTabView = this@apply
+                                        draggedTabIndex = originalPosition
+                                        dragStartY = startY
+                                        dragStartX = startX
                                         
-                                        if (fromPosition != toPosition) {
-                                            val movedTab = tabList[fromPosition]
-                                            tabList.removeAt(fromPosition)
-                                            tabList.add(toPosition, movedTab)
-                                            
-                                            // 更新选中索引
-                                            if (selectedTabIndex == fromPosition) {
-                                                selectedTabIndex = toPosition
-                                            } else if (selectedTabIndex > fromPosition && selectedTabIndex <= toPosition) {
-                                                selectedTabIndex = selectedTabIndex - 1
-                                            } else if (selectedTabIndex < fromPosition && selectedTabIndex >= toPosition) {
-                                                selectedTabIndex = selectedTabIndex + 1
-                                            }
-                                            
-                                            // 刷新对话框以显示新位置（延迟刷新，避免频繁刷新）
-                                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                                refreshManageDialog()
-                                            }, 50)
-                                            originalIndex = toPosition
-                                            draggedTabIndex = toPosition
+                                        // 保存所有标签的原始位置（基于屏幕坐标）
+                                        tabOriginalPositions.clear()
+                                        myChannelsTabViews.forEach { tabView ->
+                                            val location = IntArray(2)
+                                            tabView.getLocationOnScreen(location)
+                                            tabOriginalPositions[tabView] = Pair(location[0].toFloat(), location[1].toFloat())
                                         }
+                                        
+                                        // 将被拖动的标签移到最上层
+                                        (view.parent as? ViewGroup)?.let { parent ->
+                                            parent.bringChildToFront(view)
+                                        }
+                                        
+                                        // 拖动时：轻微放大并提升，模拟实体被拿起的效果
+                                        view.animate()
+                                            .scaleX(1.1f)
+                                            .scaleY(1.1f)
+                                            .alpha(0.98f) // 保持高透明度，显示实体感
+                                            .setDuration(200)
+                                            .setInterpolator(android.view.animation.OvershootInterpolator(1.3f))
+                                            .start()
+                                        
+                                        // 设置标签为拖动状态：使用拟态化按压效果，模拟实体被按压
+                                        val isDarkMode = (context.resources.configuration.uiMode and 
+                                            android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+                                            android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                        this@apply.background = createNeumorphicPressedDrawable(isDarkMode)
+                                        this@apply.setTextColor(if (isDarkMode) 0xFFFFFFFF.toInt() else 0xFF000000.toInt())
+                                        // 提升高度，模拟实体被拿起的效果
+                                        this@apply.elevation = dpToPx(12).toFloat()
                                     }
-                                    true
+                                    
+                                    if (isDragging && draggedTabView == this@apply) {
+                                        // 让标签跟随手指移动
+                                        // 计算手指相对于标签原始位置的偏移
+                                        val deltaX = event.rawX - startX
+                                        val deltaY = event.rawY - startY
+                                        
+                                        // 计算标签应该移动到的位置（相对于原始位置）
+                                        view.translationX = deltaX
+                                        view.translationY = deltaY
+                                        
+                                        // 计算目标位置（基于触摸的X和Y坐标）
+                                        val currentPosition = tabList.indexOfFirst { it.name == tab.name }
+                                        val targetIndex = findTargetIndexForDrag(event.rawX, event.rawY, currentPosition, gridContainer, itemsPerRow)
+                                        
+                                        // 如果目标位置改变，更新标签位置
+                                        if (targetIndex != currentTargetIndex && targetIndex >= 0 && targetIndex < tabList.size && targetIndex != originalPosition) {
+                                            currentTargetIndex = targetIndex
+                                            animateTabsToNewPosition(originalPosition, targetIndex)
+                                        }
+                                        
+                                        true
+                                    } else {
+                                        true
+                                    }
                                 } else {
-                                    false
+                                    // 移动距离不够，但继续处理事件，防止触发其他行为
+                                    true
                                 }
                             }
                             android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                                // 允许父视图拦截触摸事件
+                                var parentView = view.parent
+                                while (parentView != null && parentView is ViewGroup) {
+                                    (parentView as ViewGroup).requestDisallowInterceptTouchEvent(false)
+                                    parentView = parentView.parent
+                                }
+                                
+                                val elapsedTime = System.currentTimeMillis() - startTime
+                                
                                 if (isDragging && draggedTabView == this@apply) {
-                                    // 拖动结束，保存更改
-                                    refreshTabs()
-                                    saveTabs()
+                                    // 拖动结束：恢复标签大小和位置
+                                    val finalPosition = if (currentTargetIndex >= 0 && currentTargetIndex < tabList.size && currentTargetIndex != originalPosition) {
+                                        currentTargetIndex
+                                    } else {
+                                        originalPosition
+                                    }
                                     
-                                    // 重置拖动状态
+                                    // 更新tabList中的顺序
+                                    if (finalPosition != originalPosition) {
+                                        val movedTab = tabList[originalPosition]
+                                        tabList.removeAt(originalPosition)
+                                        tabList.add(finalPosition, movedTab)
+                                        
+                                        // 更新选中索引
+                                        if (selectedTabIndex == originalPosition) {
+                                            selectedTabIndex = finalPosition
+                                        } else if (selectedTabIndex > originalPosition && selectedTabIndex <= finalPosition) {
+                                            selectedTabIndex = selectedTabIndex - 1
+                                        } else if (selectedTabIndex < originalPosition && selectedTabIndex >= finalPosition) {
+                                            selectedTabIndex = selectedTabIndex + 1
+                                        }
+                                        
+                                        // 保存数据
+                                        saveTabs()
+                                    }
+                                    
+                                    // 先重置拖动状态，避免在动画过程中再次触发拖动
                                     isDragging = false
                                     draggedTabView = null
                                     draggedTabIndex = -1
+                                    currentTargetIndex = -1
                                     
-                                    // 刷新对话框以恢复正常样式
-                                    refreshManageDialog()
+                                    // 清理原始位置记录
+                                    tabOriginalPositions.clear()
+                                    
+                                    // 恢复所有标签的 translation 和 scale（重置位置和大小）
+                                    // 使用弹性动画，模拟物理回弹效果
+                                    myChannelsTabViews.forEachIndexed { index, tabView ->
+                                        if (tabView != view) {
+                                            tabView.animate()
+                                                .translationX(0f)
+                                                .translationY(0f)
+                                                .scaleX(1.0f)
+                                                .scaleY(1.0f)
+                                                .setStartDelay((index * 10).toLong()) // 添加轻微延迟，模拟连锁反应
+                                                .setDuration(200)
+                                                .setInterpolator(android.view.animation.OvershootInterpolator(1.2f))
+                                                .start()
+                                        }
+                                    }
+                                    
+                                    // 恢复被拖动标签的大小、位置和透明度
+                                    // 使用弹性动画，模拟实体放置效果
+                                    val isDarkMode = (context.resources.configuration.uiMode and 
+                                        android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+                                        android.content.res.Configuration.UI_MODE_NIGHT_YES
+                                    
+                                    view.animate()
+                                        .scaleX(1.0f)
+                                        .scaleY(1.0f)
+                                        .alpha(1.0f) // 恢复透明度
+                                        .translationX(0f)
+                                        .translationY(0f)
+                                        .setDuration(250)
+                                        .setInterpolator(android.view.animation.OvershootInterpolator(1.3f))
+                                        .withStartAction {
+                                            // 恢复拟态化背景
+                                            this@apply.background = createNeumorphicDrawable(false, isDarkMode)
+                                            this@apply.elevation = dpToPx(2).toFloat()
+                                        }
+                                        .withEndAction {
+                                            // 动画结束后刷新对话框，确保所有标签正确显示
+                                            refreshTabs()
+                                            refreshManageDialog()
+                                        }
+                                        .start()
+                                    
+                                    true
+                                } else if (!hasMoved && elapsedTime < 500) {
+                                    // 没有拖动且时间较短，触发点击事件（将标签移入推荐频道）
+                                    // 如果长按时间超过500ms，不触发点击，避免误操作
+                                    handleTabClick(tab, isMyChannels)
+                                    true
+                                } else {
+                                    // 长按但没有拖动，或者已经移动过，不触发任何操作
+                                    true
                                 }
-                                false
                             }
-                            else -> false
+                            else -> true
                         }
                     }
                 } else {
-                    setOnLongClickListener {
-                        if (isMyChannels && isManageDialogEditMode) {
-                            // 非编辑模式或非我的频道，不做处理
-                        }
-                        true
+                    // 非编辑模式或推荐频道，使用普通点击
+                    setOnClickListener {
+                        handleTabClick(tab, isMyChannels)
                     }
                 }
             }
             
             currentRow?.addView(tabButton)
+            
+            // 如果是"我的频道"，保存标签视图引用
+            if (isMyChannels) {
+                myChannelsTabViews.add(tabButton)
+            }
         }
         
         return gridContainer
     }
     
     /**
-     * 根据触摸位置找到目标索引（用于拖拽）
+     * 处理标签点击事件
      */
-    private fun findTargetIndexForDrag(rawY: Float, currentIndex: Int, gridContainer: LinearLayout, itemsPerRow: Int): Int {
-        // 遍历所有行，找到触摸位置对应的标签
+    private fun handleTabClick(tab: TabItem, isMyChannels: Boolean) {
+        if (isMyChannels) {
+            if (isManageDialogEditMode) {
+                // 编辑模式下，单击将标签移入推荐频道
+                val position = tabList.indexOfFirst { it.name == tab.name }
+                if (position >= 0) {
+                    tabList.removeAt(position)
+                    if (selectedTabIndex >= tabList.size) {
+                        selectedTabIndex = tabList.size - 1
+                    }
+                    refreshTabs()
+                    saveTabs()
+                    // 直接刷新对话框，不关闭
+                    refreshManageDialog()
+                }
+            }
+            // 非编辑模式下，单击不做任何操作
+        } else {
+            // 添加到我的频道，默认置于最前面
+            if (!tabList.any { it.name == tab.name }) {
+                tabList.add(0, tab) // 添加到最前面
+                refreshTabs()
+                saveTabs()
+                // 直接刷新对话框，不关闭
+                refreshManageDialog()
+            }
+        }
+    }
+    
+    /**
+     * 动画更新标签位置，让其他标签动态让位
+     * 使用保存的原始位置计算目标位置，添加物理效果（弹性、碰撞）
+     */
+    private fun animateTabsToNewPosition(fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex || fromIndex < 0 || toIndex < 0 || 
+            fromIndex >= myChannelsTabViews.size || toIndex >= myChannelsTabViews.size) {
+            return
+        }
+        
+        // 先取消所有受影响标签的动画，确保从当前位置开始新动画
+        val affectedIndices = if (fromIndex < toIndex) {
+            (fromIndex + 1..toIndex).toList()
+        } else {
+            (toIndex until fromIndex).toList()
+        }
+        
+        // 为每个受影响的标签计算目标位置，添加物理效果
+        affectedIndices.forEachIndexed { order, currentIndex ->
+            val targetIndex = if (fromIndex < toIndex) currentIndex - 1 else currentIndex + 1
+            
+            // 使用索引直接获取视图（myChannelsTabViews的顺序与tabList一致）
+            val currentView = myChannelsTabViews.getOrNull(currentIndex) ?: return@forEachIndexed
+            val targetView = myChannelsTabViews.getOrNull(targetIndex) ?: return@forEachIndexed
+            
+            // 取消之前的动画，立即停止当前动画
+            currentView.animate().cancel()
+            currentView.clearAnimation()
+            
+            // 获取原始位置（拖动开始时保存的位置）
+            val currentOriginalPos = tabOriginalPositions[currentView]
+            val targetOriginalPos = tabOriginalPositions[targetView]
+            
+            if (currentOriginalPos == null || targetOriginalPos == null) {
+                // 如果没有原始位置记录，使用当前位置计算
+                val currentLocation = IntArray(2)
+                currentView.getLocationOnScreen(currentLocation)
+                val currentActualX = currentLocation[0].toFloat() + currentView.translationX
+                val currentActualY = currentLocation[1].toFloat() + currentView.translationY
+                
+                val targetLocation = IntArray(2)
+                targetView.getLocationOnScreen(targetLocation)
+                val targetActualX = targetLocation[0].toFloat() + targetView.translationX
+                val targetActualY = targetLocation[1].toFloat() + targetView.translationY
+                
+                val deltaX = targetActualX - currentActualX
+                val deltaY = targetActualY - currentActualY
+                
+                val targetTranslationX = currentView.translationX + deltaX
+                val targetTranslationY = currentView.translationY + deltaY
+                
+                // 使用弹性插值器，模拟物理碰撞效果
+                // 根据顺序添加延迟，模拟连锁反应
+                val delay = (order * 20).toLong()
+                currentView.animate()
+                    .translationX(targetTranslationX)
+                    .translationY(targetTranslationY)
+                    .setStartDelay(delay)
+                    .setDuration(250)
+                    .setInterpolator(android.view.animation.OvershootInterpolator(1.5f))
+                    .start()
+            } else {
+                // 使用原始位置计算目标translation
+                val deltaX = targetOriginalPos.first - currentOriginalPos.first
+                val deltaY = targetOriginalPos.second - currentOriginalPos.second
+                
+                // 添加轻微的缩放效果，模拟碰撞时的挤压
+                val scale = 0.95f
+                
+                // 根据顺序添加延迟，模拟连锁反应（物理碰撞传播）
+                val delay = (order * 20).toLong()
+                
+                // 使用弹性动画，模拟物理效果
+                currentView.animate()
+                    .translationX(deltaX)
+                    .translationY(deltaY)
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .setStartDelay(delay)
+                    .setDuration(250)
+                    .setInterpolator(android.view.animation.OvershootInterpolator(1.5f))
+                    .withEndAction {
+                        // 恢复原始大小
+                        currentView.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .setDuration(100)
+                            .setInterpolator(android.view.animation.DecelerateInterpolator())
+                            .start()
+                    }
+                    .start()
+            }
+        }
+    }
+    
+    /**
+     * 根据触摸位置找到目标索引（用于拖拽）
+     * 同时考虑X和Y坐标，基于网格布局准确计算目标位置
+     */
+    private fun findTargetIndexForDrag(rawX: Float, rawY: Float, currentIndex: Int, gridContainer: LinearLayout, itemsPerRow: Int): Int {
         var itemCount = 0
+        var minDistance = Float.MAX_VALUE
+        var closestIndex = currentIndex
+        
+        // 遍历所有行和列，找到触摸位置最接近的标签
         for (i in 0 until gridContainer.childCount) {
             val row = gridContainer.getChildAt(i) as? LinearLayout ?: continue
             for (j in 0 until row.childCount) {
                 val tabView = row.getChildAt(j) as? TextView ?: continue
+                
+                // 只处理"我的频道"中的标签（数量应该等于tabList.size）
+                if (itemCount >= tabList.size) {
+                    break
+                }
+                
+                // 跳过正在拖动的标签本身
+                if (itemCount == currentIndex) {
+                    itemCount++
+                    continue
+                }
+                
                 val location = IntArray(2)
                 tabView.getLocationOnScreen(location)
-                val viewY = location[1]
+                val viewX = location[0].toFloat()
+                val viewY = location[1].toFloat()
+                val viewWidth = tabView.width
                 val viewHeight = tabView.height
                 
-                // 检查触摸位置是否在这个标签的范围内
-                if (rawY >= viewY && rawY <= viewY + viewHeight) {
-                    if (itemCount >= 0 && itemCount < tabList.size) {
-                        return itemCount
-                    }
+                // 计算标签中心点
+                val viewCenterX = viewX + viewWidth / 2f
+                val viewCenterY = viewY + viewHeight / 2f
+                
+                // 计算触摸位置到标签中心的欧几里得距离
+                val deltaX = rawX - viewCenterX
+                val deltaY = rawY - viewCenterY
+                val distance = kotlin.math.sqrt(deltaX * deltaX + deltaY * deltaY)
+                
+                // 检查触摸位置是否在标签的扩展范围内（增加容错区域）
+                val expandX = viewWidth * 0.6f // 扩展60%的宽度范围
+                val expandY = viewHeight * 0.6f // 扩展60%的高度范围
+                val isInRange = rawX >= viewX - expandX && rawX <= viewX + viewWidth + expandX &&
+                               rawY >= viewY - expandY && rawY <= viewY + viewHeight + expandY
+                
+                if (isInRange && distance < minDistance) {
+                    minDistance = distance
+                    closestIndex = itemCount
                 }
+                
                 itemCount++
+            }
+            if (itemCount >= tabList.size) {
+                break
             }
         }
         
-        return currentIndex
+        // 确保返回的索引在有效范围内，且不等于当前索引
+        return if (closestIndex >= 0 && closestIndex < tabList.size && closestIndex != currentIndex) {
+            closestIndex
+        } else {
+            currentIndex
+        }
     }
     
     /**
@@ -1248,6 +1604,109 @@ class TabBarView(
 
     private fun dpToPx(dp: Int): Int {
         return (dp * context.resources.displayMetrics.density).toInt()
+    }
+    
+    /**
+     * 创建拟态化背景（Neumorphism风格）
+     * 使用阴影和光照效果模拟实体感
+     */
+    private fun createNeumorphicDrawable(
+        isPressed: Boolean = false,
+        isDarkMode: Boolean = false
+    ): android.graphics.drawable.Drawable {
+        val cornerRadius = dpToPx(8).toFloat()
+        
+        // 基础颜色
+        val baseColor = if (isDarkMode) 0xFF2C2C2C.toInt() else 0xFFF5F5F5.toInt()
+        
+        // 创建自定义绘制器，实现真实的拟态化效果
+        return object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            private val shadowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            private val highlightPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            
+            init {
+                // 主体画笔
+                paint.color = baseColor
+                paint.style = android.graphics.Paint.Style.FILL
+                
+                // 阴影画笔（暗色，左下）
+                shadowPaint.color = if (isDarkMode) 0x40000000 else 0x40000000
+                shadowPaint.maskFilter = android.graphics.BlurMaskFilter(
+                    dpToPx(4).toFloat(),
+                    android.graphics.BlurMaskFilter.Blur.NORMAL
+                )
+                shadowPaint.style = android.graphics.Paint.Style.FILL
+                
+                // 高光画笔（亮色，右上）
+                highlightPaint.color = if (isDarkMode) 0x30FFFFFF else 0x60FFFFFF
+                highlightPaint.maskFilter = android.graphics.BlurMaskFilter(
+                    dpToPx(3).toFloat(),
+                    android.graphics.BlurMaskFilter.Blur.NORMAL
+                )
+                highlightPaint.style = android.graphics.Paint.Style.FILL
+            }
+            
+            override fun draw(canvas: android.graphics.Canvas) {
+                val bounds = bounds
+                val rect = android.graphics.RectF(
+                    bounds.left.toFloat(),
+                    bounds.top.toFloat(),
+                    bounds.right.toFloat(),
+                    bounds.bottom.toFloat()
+                )
+                
+                // 绘制阴影（左下）
+                val shadowRect = android.graphics.RectF(
+                    rect.left + dpToPx(2).toFloat(),
+                    rect.top + dpToPx(2).toFloat(),
+                    rect.right + dpToPx(2).toFloat(),
+                    rect.bottom + dpToPx(2).toFloat()
+                )
+                canvas.drawRoundRect(shadowRect, cornerRadius, cornerRadius, shadowPaint)
+                
+                // 绘制高光（右上）
+                val highlightRect = android.graphics.RectF(
+                    rect.left - dpToPx(1).toFloat(),
+                    rect.top - dpToPx(1).toFloat(),
+                    rect.right - dpToPx(1).toFloat(),
+                    rect.bottom - dpToPx(1).toFloat()
+                )
+                canvas.drawRoundRect(highlightRect, cornerRadius, cornerRadius, highlightPaint)
+                
+                // 绘制主体
+                canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint)
+            }
+            
+            override fun setAlpha(alpha: Int) {
+                paint.alpha = alpha
+                shadowPaint.alpha = alpha
+                highlightPaint.alpha = alpha
+            }
+            
+            override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {
+                paint.colorFilter = colorFilter
+            }
+            
+            override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+        }
+    }
+    
+    /**
+     * 创建拟态化按压效果背景
+     */
+    private fun createNeumorphicPressedDrawable(isDarkMode: Boolean = false): android.graphics.drawable.Drawable {
+        val cornerRadiusValue = dpToPx(8).toFloat()
+        
+        // 按压时使用内凹效果
+        val baseColor = if (isDarkMode) 0xFF1E1E1E.toInt() else 0xFFE8E8E8.toInt()
+        
+        return android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = cornerRadiusValue
+            setColor(baseColor)
+            // 添加内阴影效果
+            setStroke(dpToPx(1), if (isDarkMode) 0xFF0A0A0A.toInt() else 0xFFD0D0D0.toInt())
+        }
     }
 }
 

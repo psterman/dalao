@@ -86,15 +86,17 @@ class SearchEngineAdapter(
  */
 class GenericSearchEngineAdapter<T : BaseSearchEngine>(
     private val context: Context,
-    private var engines: List<T>,
+    private var engines: MutableList<T>,
     private val enabledEngines: MutableSet<String>,
-    private val onEngineToggled: (String, Boolean) -> Unit
+    private val onEngineToggled: (String, Boolean) -> Unit,
+    private val onOrderChanged: ((List<T>) -> Unit)? = null
 ) : RecyclerView.Adapter<GenericSearchEngineAdapter<T>.ViewHolder>() {
     
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val nameTextView: TextView = view.findViewById(R.id.engine_name)
         val iconImageView: ImageView = view.findViewById(R.id.engine_icon)
         val toggleSwitch: SwitchCompat = view.findViewById(R.id.engine_toggle)
+        val dragHandle: ImageView? = view.findViewById(R.id.drag_handle)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -118,6 +120,9 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
         holder.toggleSwitch.visibility = View.VISIBLE
         holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
 
+        // 显示拖拽句柄
+        holder.dragHandle?.visibility = View.VISIBLE
+
         // 设置开关监听器
         holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
@@ -126,17 +131,40 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
                 enabledEngines.remove(engine.name)
             }
             onEngineToggled(engine.name, isChecked)
-            }
-            holder.itemView.setOnClickListener {
-                holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
+        }
+        holder.itemView.setOnClickListener {
+            holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
         }
     }
 
     @SuppressLint("NotifyDataSetChanged")
     fun updateEngines(newEngines: List<T>) {
-        this.engines = newEngines
+        this.engines.clear()
+        this.engines.addAll(newEngines)
         notifyDataSetChanged()
     }
+
+    /**
+     * 移动项目位置（用于拖拽排序）
+     */
+    fun moveItem(fromPosition: Int, toPosition: Int) {
+        if (fromPosition < toPosition) {
+            for (i in fromPosition until toPosition) {
+                engines[i] = engines[i + 1].also { engines[i + 1] = engines[i] }
+            }
+        } else {
+            for (i in fromPosition downTo toPosition + 1) {
+                engines[i] = engines[i - 1].also { engines[i - 1] = engines[i] }
+            }
+        }
+        notifyItemMoved(fromPosition, toPosition)
+        onOrderChanged?.invoke(engines.toList())
+    }
+
+    /**
+     * 获取当前引擎列表
+     */
+    fun getEngines(): List<T> = engines.toList()
 
     fun getEnabledEngines(): List<T> {
         return engines.filter { enabledEngines.contains(it.name) }

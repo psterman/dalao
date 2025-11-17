@@ -108,7 +108,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         }
 
         // 2. 创建并设置适配器
-        adapter = AIEngineCategoryAdapter(this, categories)
+        adapter = AIEngineCategoryAdapter(this, categories, categoryTitles)
         viewPager.adapter = adapter
 
         // 3. 关联TabLayout和ViewPager2

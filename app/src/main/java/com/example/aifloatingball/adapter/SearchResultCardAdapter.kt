@@ -88,12 +88,15 @@ class SearchResultCardAdapter(
         // 设置浮动按钮的显示逻辑
         if (hasPackageName) {
             if (hasApp) {
-                // app已安装：显示app图标和"打开"按钮
+                // app已安装：显示app图标和"在卡片内打开"按钮
                 holder.floatingButtonsContainer.visibility = View.VISIBLE
                 holder.appIconView.visibility = View.GONE  // 隐藏头部的app图标
                 holder.appIconFloating.visibility = View.VISIBLE  // 显示浮动区域的app图标
                 holder.downloadButton.visibility = View.GONE
                 holder.openButton.visibility = View.VISIBLE
+                
+                // 设置打开按钮文本
+                holder.openButton.text = "在卡片内打开"
                 
                 try {
                     // 获取app图标
@@ -116,12 +119,16 @@ class SearchResultCardAdapter(
                 
                 android.util.Log.d(TAG, "显示浮动按钮 - app已安装: $packageName，显示app图标和打开按钮")
             } else {
-                // app未安装：显示"下载"和"打开"两个按钮
+                // app未安装：显示"下载app"和"在卡片内打开"两个按钮
                 holder.floatingButtonsContainer.visibility = View.VISIBLE
                 holder.appIconView.visibility = View.GONE
                 holder.appIconFloating.visibility = View.GONE
                 holder.downloadButton.visibility = View.VISIBLE
                 holder.openButton.visibility = View.VISIBLE
+                
+                // 设置按钮文本
+                holder.downloadButton.text = "下载app"
+                holder.openButton.text = "在卡片内打开"
                 
                 // 设置下载按钮点击事件：打开应用商店
                 holder.downloadButton.setOnClickListener {
@@ -136,12 +143,15 @@ class SearchResultCardAdapter(
                 android.util.Log.d(TAG, "显示浮动按钮 - app未安装: $packageName，显示下载和打开按钮")
             }
         } else {
-            // 无对应app：只显示"打开"按钮
+            // 无对应app：只显示"在卡片内打开"按钮
             holder.appIconView.visibility = View.GONE
             holder.appIconFloating.visibility = View.GONE
             holder.floatingButtonsContainer.visibility = View.VISIBLE
             holder.downloadButton.visibility = View.GONE
             holder.openButton.visibility = View.VISIBLE
+            
+            // 设置打开按钮文本
+            holder.openButton.text = "在卡片内打开"
             
             // 设置打开按钮点击事件：在卡片内打开
             holder.openButton.setOnClickListener {

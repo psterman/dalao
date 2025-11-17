@@ -8,12 +8,14 @@ import com.example.aifloatingball.ui.settings.AIEngineListFragment
 
 class AIEngineCategoryAdapter(
     activity: FragmentActivity,
-    private val categories: List<List<AISearchEngine>>
+    private val categories: List<List<AISearchEngine>>,
+    private val categoryTitles: List<String>
 ) : FragmentStateAdapter(activity) {
 
     override fun getItemCount(): Int = categories.size
 
     override fun createFragment(position: Int): Fragment {
-        return AIEngineListFragment.newInstance(categories[position])
+        val categoryName = if (position < categoryTitles.size) categoryTitles[position] else ""
+        return AIEngineListFragment.newInstance(categories[position], categoryName)
     }
 } 
