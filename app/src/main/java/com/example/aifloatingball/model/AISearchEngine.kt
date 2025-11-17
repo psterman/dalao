@@ -217,6 +217,71 @@ data class AISearchEngine(
                 searchUrl = "file:///android_asset/zhipu_chat.html",
                 isChatMode = true
             ),
+            // 新增API对话引擎
+            AISearchEngine(
+                name = "临时专线",
+                url = "file:///android_asset/deepseek_chat.html", // 使用deepseek_chat.html作为模板
+                iconResId = R.drawable.ic_ai_search,
+                description = "免费AI服务（无需API密钥）",
+                searchUrl = "file:///android_asset/deepseek_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "Claude (API)",
+                url = "file:///android_asset/claude_chat.html",
+                iconResId = R.drawable.ic_claude,
+                description = "使用API进行Claude对话",
+                searchUrl = "file:///android_asset/claude_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "文心一言 (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html", // 使用chatgpt_chat.html作为模板
+                iconResId = R.drawable.ic_wenxin,
+                description = "自定义文心一言对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "通义千问 (API)",
+                url = "file:///android_asset/qianwen_chat.html",
+                iconResId = R.drawable.ic_ai_search,
+                description = "使用API进行通义千问对话",
+                searchUrl = "file:///android_asset/qianwen_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "智谱AI (API)",
+                url = "file:///android_asset/zhipu_chat.html",
+                iconResId = R.drawable.ic_chatglm,
+                description = "使用API进行智谱AI对话",
+                searchUrl = "file:///android_asset/zhipu_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "Gemini (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html", // 使用chatgpt_chat.html作为模板
+                iconResId = R.drawable.ic_web_default,
+                description = "自定义Gemini对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "Kimi (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html", // 使用chatgpt_chat.html作为模板
+                iconResId = R.drawable.ic_web_default,
+                description = "自定义Kimi对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "讯飞星火 (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html", // 使用chatgpt_chat.html作为模板
+                iconResId = R.drawable.ic_xinghuo,
+                description = "自定义讯飞星火对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true
+            ),
             // New Engines Added
             AISearchEngine(
                 name = "Kimi",

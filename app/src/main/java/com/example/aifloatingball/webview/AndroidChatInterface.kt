@@ -42,18 +42,24 @@ class AndroidChatInterface(
     private val settingsManager = SettingsManager.getInstance(context)
     private val aiApiManager = AIApiManager(context)
     private val chatDataManager = ChatDataManager.getInstance(context)
-    private val scope = CoroutineScope(Dispatchers.Main)
+    // 使用IO调度器处理网络请求，避免阻塞主线程
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     /**
      * 获取AI服务的显示名称
      */
     private fun getAIServiceDisplayName(serviceType: AIServiceType): String {
         return when (serviceType) {
+            AIServiceType.TEMP_SERVICE -> "临时专线"
             AIServiceType.DEEPSEEK -> "DeepSeek"
             AIServiceType.CHATGPT -> "ChatGPT"
             AIServiceType.CLAUDE -> "Claude"
             AIServiceType.QIANWEN -> "通义千问"
             AIServiceType.ZHIPU_AI -> "智谱AI"
+            AIServiceType.WENXIN -> "文心一言"
+            AIServiceType.GEMINI -> "Gemini"
+            AIServiceType.KIMI -> "Kimi"
+            AIServiceType.XINGHUO -> "讯飞星火"
             else -> serviceType.name
         }
     }
@@ -64,15 +70,21 @@ class AndroidChatInterface(
 
         // 检查API配置
         val apiKey = when (aiServiceType) {
+            AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
             AIServiceType.DEEPSEEK -> settingsManager.getDeepSeekApiKey()
             AIServiceType.CHATGPT -> settingsManager.getString("chatgpt_api_key", "") ?: ""
             AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
             AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.WENXIN -> settingsManager.getString("wenxin_api_key", "") ?: ""
+            AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
+            AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
+            AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             else -> ""
         }
 
-        if (apiKey.isBlank()) {
+        // 临时专线不需要API密钥，其他AI需要
+        if (aiServiceType != AIServiceType.TEMP_SERVICE && apiKey.isBlank()) {
             // API未配置，显示友好的配置引导
             showApiConfigurationGuide()
             return
@@ -91,6 +103,8 @@ class AndroidChatInterface(
         scope.launch {
             try {
                 val conversationHistory = chatDataManager.getMessages(currentSessionId, aiServiceType)
+                
+                Log.d(TAG, "准备调用AI API，对话历史长度: ${conversationHistory.size}")
 
                 aiApiManager.sendMessage(
                     aiServiceType,
@@ -100,30 +114,41 @@ class AndroidChatInterface(
                     },
                     object : AIApiManager.StreamingCallback {
                         override fun onChunkReceived(chunk: String) {
-                            // 流式响应，实时更新HTML页面
-                            webViewCallback?.onMessageReceived(chunk)
+                            // 流式响应，实时更新HTML页面（切换到主线程）
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                webViewCallback?.onMessageReceived(chunk)
+                            }
                         }
 
                         override fun onComplete(fullResponse: String) {
-                            // 添加AI回复到会话
-                            chatDataManager.addMessage(currentSessionId, "assistant", fullResponse, aiServiceType)
-                            // 通知WebView响应完成
-                            webViewCallback?.onMessageCompleted(fullResponse)
-                            
-                            // 发送广播通知简易模式更新AI联系人列表
-                            notifySimpleModeUpdate(fullResponse)
+                            // 切换到主线程处理UI更新
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                // 添加AI回复到会话
+                                chatDataManager.addMessage(currentSessionId, "assistant", fullResponse, aiServiceType)
+                                // 通知WebView响应完成
+                                webViewCallback?.onMessageCompleted(fullResponse)
+                                
+                                // 发送广播通知简易模式更新AI联系人列表
+                                notifySimpleModeUpdate(fullResponse)
+                            }
                         }
 
                         override fun onError(error: String) {
                             Log.e(TAG, "API调用失败: $error")
-                            handleApiError(error)
+                            // 切换到主线程处理错误
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                handleApiError(error)
+                            }
                         }
                     }
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "发送消息失败", e)
                 val errorMessage = "发送消息失败: ${e.message}"
-                webViewCallback?.onMessageReceived(errorMessage)
+                // 切换到主线程处理错误
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    webViewCallback?.onMessageReceived(errorMessage)
+                }
             }
         }
     }

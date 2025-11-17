@@ -77,19 +77,37 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var settingsManager: SettingsManager
     private lateinit var aiPageConfigManager: AIPageConfigManager
     private var androidChatInterface: AndroidChatInterface? = null
+    // 为每个WebView存储独立的AndroidChatInterface实例
+    private val webViewChatInterfaces = mutableMapOf<CustomWebView, AndroidChatInterface>()
 
     /**
      * 根据配置获取AI服务类型
      */
     private fun getAIServiceTypeFromConfig(config: AISearchEngine): AIServiceType {
         return when {
+            config.name.contains("临时专线", ignoreCase = true) -> AIServiceType.TEMP_SERVICE
             config.name.contains("DeepSeek", ignoreCase = true) -> AIServiceType.DEEPSEEK
             config.name.contains("ChatGPT", ignoreCase = true) -> AIServiceType.CHATGPT
             config.name.contains("Claude", ignoreCase = true) -> AIServiceType.CLAUDE
-            config.name.contains("通义千问", ignoreCase = true) -> AIServiceType.QIANWEN
-            config.name.contains("智谱", ignoreCase = true) -> AIServiceType.ZHIPU_AI
+            config.name.contains("通义千问", ignoreCase = true) || config.name.contains("Qianwen", ignoreCase = true) -> AIServiceType.QIANWEN
+            config.name.contains("智谱", ignoreCase = true) || config.name.contains("Zhipu", ignoreCase = true) -> AIServiceType.ZHIPU_AI
+            config.name.contains("文心一言", ignoreCase = true) || config.name.contains("Wenxin", ignoreCase = true) -> AIServiceType.WENXIN
+            config.name.contains("Gemini", ignoreCase = true) -> AIServiceType.GEMINI
+            config.name.contains("Kimi", ignoreCase = true) -> AIServiceType.KIMI
+            config.name.contains("讯飞星火", ignoreCase = true) || config.name.contains("Xinghuo", ignoreCase = true) -> AIServiceType.XINGHUO
             config.url.contains("deepseek_chat.html") -> AIServiceType.DEEPSEEK
-            config.url.contains("chatgpt_chat.html") -> AIServiceType.CHATGPT
+            config.url.contains("chatgpt_chat.html") -> {
+                // 根据配置的API URL判断是ChatGPT、文心一言、Gemini还是Kimi
+                when {
+                    config.customParams["api_url"]?.contains("openai.com") == true -> AIServiceType.CHATGPT
+                    config.customParams["api_url"]?.contains("baidubce.com") == true -> AIServiceType.WENXIN
+                    config.customParams["api_url"]?.contains("googleapis.com") == true -> AIServiceType.GEMINI
+                    config.customParams["api_url"]?.contains("moonshot.cn") == true -> AIServiceType.KIMI
+                    config.customParams["api_url"]?.contains("xf-yun.com") == true -> AIServiceType.XINGHUO
+                    config.customParams["api_url"]?.contains("818233.xyz") == true -> AIServiceType.TEMP_SERVICE
+                    else -> AIServiceType.CHATGPT // 默认
+                }
+            }
             config.url.contains("claude_chat.html") -> AIServiceType.CLAUDE
             config.url.contains("qianwen_chat.html") -> AIServiceType.QIANWEN
             config.url.contains("zhipu_chat.html") -> AIServiceType.ZHIPU_AI
@@ -581,13 +599,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 执行搜索
      */
     private fun performSearch(query: String, engineKey: String) {
+        Log.d(TAG, "performSearch: query='$query', engineKey='$engineKey', viewMode=$currentViewMode")
         when (currentViewMode) {
             ViewMode.HORIZONTAL_SCROLL -> {
                 // 横向拖动模式：使用原有逻辑
                 val customConfig = aiPageConfigManager.getConfigByKey(engineKey)
                 if (customConfig != null) {
+                    Log.d(TAG, "找到AI配置: ${customConfig.name}, url=${customConfig.url}, use_custom_html=${customConfig.customParams["use_custom_html"]}")
                     performCustomAISearch(query, customConfig)
                 } else {
+                    Log.d(TAG, "未找到AI配置，使用标准搜索: $engineKey")
                     webViewManager?.performSearch(query, engineKey)
                 }
             }
@@ -617,6 +638,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun performCustomAISearch(query: String, config: com.example.aifloatingball.model.AISearchEngine) {
         Log.d(TAG, "执行定制AI搜索: ${config.name}, query: $query")
+        Log.d(TAG, "配置详情: url=${config.url}, searchUrl=${config.searchUrl}, isChatMode=${config.isChatMode}")
+        Log.d(TAG, "自定义参数: ${config.customParams}")
 
         // 验证API配置（如果需要）
         if (config.isChatMode && !aiPageConfigManager.validateApiConfig(config.name)) {
@@ -625,12 +648,17 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         // 检查是否使用自定义HTML页面
         val useCustomHtml = config.customParams["use_custom_html"] == "true"
+        val isAssetUrl = config.url.startsWith("file:///android_asset/")
+        
+        Log.d(TAG, "use_custom_html=$useCustomHtml, isAssetUrl=$isAssetUrl, url=${config.url}")
 
-        if (useCustomHtml && config.url.startsWith("file:///android_asset/")) {
+        if (useCustomHtml && isAssetUrl) {
             // 使用自定义HTML页面
+            Log.d(TAG, "使用自定义HTML页面: ${config.url}")
             setupCustomDeepSeekPage(query, config)
         } else {
             // 使用常规URL加载
+            Log.d(TAG, "使用常规URL加载")
             val finalUrl = if (config.customParams.isNotEmpty()) {
                 aiPageConfigManager.buildUrlWithParams(config.searchUrl, config.customParams)
             } else {
@@ -647,73 +675,20 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     /**
      * 设置自定义AI页面
+     * 只在当前活动的WebView中加载自定义AI页面
      */
     private fun setupCustomDeepSeekPage(query: String, config: com.example.aifloatingball.model.AISearchEngine) {
-        Log.d(TAG, "设置自定义AI页面: ${config.name}")
+        Log.d(TAG, "设置自定义AI页面: ${config.name}，将在活动WebView中加载")
 
         webViewManager?.let { manager ->
-            val webView = manager.getFirstWebView()
-            if (webView != null) {
-                // 根据配置确定AI服务类型
-                val aiServiceType = getAIServiceTypeFromConfig(config)
-
-                // 创建AndroidChatInterface
-                androidChatInterface = AndroidChatInterface(
-                    this,
-                    object : AndroidChatInterface.WebViewCallback {
-                        override fun onMessageReceived(message: String) {
-                            // 将AI回复发送到HTML页面
-                            handler.post {
-                                val jsCode = """
-                                    if (typeof window.receiveMessage === 'function') {
-                                        window.receiveMessage('$message');
-                                    }
-                                """.trimIndent()
-                                webView.evaluateJavascript(jsCode, null)
-                            }
-                        }
-
-                        override fun onMessageCompleted(fullMessage: String) {
-                            // 消息完成时的处理
-                            handler.post {
-                                val jsCode = """
-                                    if (typeof window.onMessageCompleted === 'function') {
-                                        window.onMessageCompleted('$fullMessage');
-                                    }
-                                """.trimIndent()
-                                webView.evaluateJavascript(jsCode, null)
-                            }
-                            Log.d(TAG, "消息完成: $fullMessage")
-                        }
-
-                        override fun onNewChatStarted() {
-                            Log.d(TAG, "新对话开始")
-                        }
-
-                        override fun onSessionDeleted(sessionId: String) {
-                            Log.d(TAG, "会话已删除: $sessionId")
-                        }
-                    },
-                    aiServiceType
-                )
-
-                // 添加JavaScript接口
-                webView.addJavascriptInterface(androidChatInterface!!, "AndroidChatInterface")
-
-                // 加载自定义HTML页面
-                webView.loadUrl(config.url)
-
-                // 如果有查询，延迟发送到页面
-                if (query.isNotBlank()) {
-                    handler.postDelayed({
-                        val jsCode = """
-                            if (typeof window.setInitialQuery === 'function') {
-                                window.setInitialQuery('$query');
-                            }
-                        """.trimIndent()
-                        webView.evaluateJavascript(jsCode, null)
-                    }, 1000) // 等待页面加载完成
-                }
+            // 获取当前活动的WebView，如果没有则使用第一个WebView
+            val targetWebView = manager.getActiveWebView() ?: manager.getFirstWebView()
+            
+            if (targetWebView != null) {
+                Log.d(TAG, "在活动WebView中设置自定义AI页面")
+                setupCustomDeepSeekPageInWebView(targetWebView, query, config)
+            } else {
+                Log.e(TAG, "没有可用的WebView来加载自定义AI页面")
             }
         }
     }
@@ -857,15 +832,17 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     /**
      * 在指定WebView中设置自定义DeepSeek页面
+     * 为每个WebView创建独立的AndroidChatInterface实例
      */
     private fun setupCustomDeepSeekPageInWebView(webView: com.example.aifloatingball.ui.webview.CustomWebView, query: String, config: com.example.aifloatingball.model.AISearchEngine) {
-        Log.d(TAG, "在WebView中设置自定义DeepSeek页面")
+        Log.d(TAG, "在WebView中设置自定义DeepSeek页面: ${config.name}, url=${config.url}")
 
         // 根据配置确定AI服务类型
         val aiServiceType = getAIServiceTypeFromConfig(config)
+        Log.d(TAG, "AI服务类型: $aiServiceType")
 
-        // 创建AndroidChatInterface
-        androidChatInterface = AndroidChatInterface(
+        // 为当前WebView创建独立的AndroidChatInterface实例
+        val chatInterface = AndroidChatInterface(
             this,
             object : AndroidChatInterface.WebViewCallback {
                 private var isFirstChunk = true
@@ -911,42 +888,134 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                         webView.evaluateJavascript(jsCode, null)
                         isFirstChunk = true // 重置为下次对话准备
                     }
+                    Log.d(TAG, "WebView消息完成: $fullMessage")
                 }
 
                 override fun onNewChatStarted() {
-                    Log.d(TAG, "新对话开始")
+                    Log.d(TAG, "WebView新对话开始")
                     handler.post {
                         isFirstChunk = true
                     }
                 }
 
                 override fun onSessionDeleted(sessionId: String) {
-                    Log.d(TAG, "会话已删除: $sessionId")
+                    Log.d(TAG, "WebView会话已删除: $sessionId")
                 }
             },
             aiServiceType
         )
 
+        // 存储当前WebView的接口实例
+        webViewChatInterfaces[webView] = chatInterface
+        
+        // 为了向后兼容，也设置第一个WebView的接口为默认接口
+        if (webViewManager?.getFirstWebView() == webView) {
+            androidChatInterface = chatInterface
+        }
+
         // 添加JavaScript接口
-        webView.addJavascriptInterface(androidChatInterface!!, "AndroidChatInterface")
+        webView.addJavascriptInterface(chatInterface, "AndroidChatInterface")
+
+        // 确保WebView设置允许加载asset文件
+        webView.settings.apply {
+            allowFileAccess = true
+            allowContentAccess = true
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN) {
+                @Suppress("DEPRECATION")
+                allowFileAccessFromFileURLs = true
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                @Suppress("DEPRECATION")
+                allowUniversalAccessFromFileURLs = true
+            }
+        }
 
         // 加载自定义HTML页面
+        Log.d(TAG, "开始加载HTML页面: ${config.url}")
+        
+        // 使用延迟检查来避免覆盖WebViewClient导致递归问题
+        // 在页面加载后检查内容
+        handler.postDelayed({
+            val currentUrl = webView.url
+            if (currentUrl == config.url || currentUrl?.contains("deepseek_chat.html") == true) {
+                Log.d(TAG, "页面加载完成，检查内容: $currentUrl")
+                webView.evaluateJavascript("""
+                    (function() {
+                        try {
+                            var body = document.body;
+                            if (body && body.innerHTML.trim().length > 0) {
+                                return 'SUCCESS: Page content loaded, body length: ' + body.innerHTML.length;
+                            } else {
+                                return 'WARNING: Page body is empty';
+                            }
+                        } catch(e) {
+                            return 'ERROR: ' + e.message;
+                        }
+                    })();
+                """.trimIndent()) { result ->
+                    Log.d(TAG, "页面内容检查结果: $result")
+                }
+            }
+        }, 2000) // 延迟2秒检查，确保页面加载完成
+        
         webView.loadUrl(config.url)
 
-        // 如果有查询，延迟发送到页面
+        // 如果有查询，延迟发送到页面并自动发送
         if (query.isNotBlank()) {
             handler.postDelayed({
                 val escapedQuery = query.replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 val jsCode = """
-                    if (typeof messageInput !== 'undefined') {
-                        messageInput.textContent = '$escapedQuery';
-                        if (typeof updateSendButton === 'function') {
-                            updateSendButton();
+                    (function() {
+                        try {
+                            var messageInput = document.getElementById('messageInput');
+                            if (messageInput) {
+                                // 兼容不同的输入框类型（div或textarea）
+                                if (messageInput.tagName === 'TEXTAREA' || messageInput.tagName === 'INPUT') {
+                                    // textarea或input类型，使用value
+                                    messageInput.value = '$escapedQuery';
+                                    // 触发input事件，确保页面状态更新
+                                    var inputEvent = new Event('input', { bubbles: true });
+                                    messageInput.dispatchEvent(inputEvent);
+                                } else {
+                                    // div类型（如deepseek），使用textContent
+                                    messageInput.textContent = '$escapedQuery';
+                                }
+                                
+                                // 更新发送按钮状态
+                                if (typeof updateSendButton === 'function') {
+                                    updateSendButton();
+                                }
+                                
+                                // 调整textarea高度（如果存在此函数）
+                                if (typeof adjustTextareaHeight === 'function') {
+                                    adjustTextareaHeight();
+                                }
+                                
+                                // 等待一小段时间确保输入框已更新
+                                setTimeout(function() {
+                                    // 自动发送消息
+                                    if (typeof sendMessage === 'function') {
+                                        sendMessage();
+                                    } else {
+                                        console.log('sendMessage function not found, trying to trigger manually');
+                                        // 如果sendMessage函数不存在，尝试手动触发
+                                        var sendButton = document.getElementById('send-button');
+                                        if (sendButton && !sendButton.disabled) {
+                                            sendButton.click();
+                                        }
+                                    }
+                                }, 100);
+                            } else {
+                                console.error('messageInput element not found');
+                            }
+                        } catch(e) {
+                            console.error('Error auto-sending message: ' + e.message);
                         }
-                    }
+                    })();
                 """.trimIndent()
+                Log.d(TAG, "自动发送查询消息: $query")
                 webView.evaluateJavascript(jsCode, null)
-            }, 1500) // 等待页面加载完成
+            }, 2000) // 等待页面加载完成，增加延迟确保页面完全初始化
         }
     }
 
@@ -994,6 +1063,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 服务销毁时清理资源
      */
     override fun onDestroy() {
+        // 清理所有WebView的ChatInterface实例
+        webViewChatInterfaces.clear()
+        androidChatInterface = null
         super.onDestroy()
         isRunning = false
         

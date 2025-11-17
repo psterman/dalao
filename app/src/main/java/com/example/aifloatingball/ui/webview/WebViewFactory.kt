@@ -75,6 +75,20 @@ class WebViewFactory(private val context: Context) {
                 userAgentString = SMART_USER_AGENT
                 Log.d(TAG, "Set User-Agent to: $SMART_USER_AGENT")
                 
+                // 允许访问本地文件（asset文件）
+                allowFileAccess = true
+                allowContentAccess = true
+                
+                // 允许从file:// URL访问其他file:// URL（用于加载asset中的资源）
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                    @Suppress("DEPRECATION")
+                    allowFileAccessFromFileURLs = true
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    @Suppress("DEPRECATION")
+                    allowUniversalAccessFromFileURLs = true
+                }
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 }

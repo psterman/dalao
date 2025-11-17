@@ -79,6 +79,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.AppSearchAdapter
 import com.example.aifloatingball.manager.AppInfoManager
 import com.example.aifloatingball.model.AppInfo
+import com.example.aifloatingball.AppSelectionHistoryManager
+import com.example.aifloatingball.manager.AppSortManager
+import com.example.aifloatingball.model.AppCategory
 import com.example.aifloatingball.utils.FaviconLoader
 import com.example.aifloatingball.SearchHistoryActivity
 
@@ -1176,20 +1179,52 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                         return@setOnClickListener
                     }
 
-                    // 如果是AI引擎，尝试跳转到对应的App
+                    // 如果是AI引擎，检查是否应该使用自定义HTML页面
+                    // 对于使用自定义HTML的AI引擎（如DeepSeek (API)、ChatGPT (Custom)等），直接使用WebView方式，不跳转到App
                     if (isAiEngine) {
-                        if (tryJumpToAIApp(engineName, query)) {
-                            // 成功跳转到App，隐藏搜索界面
-                            hideSearchInterface()
-                            return@setOnClickListener
+                        val shouldUseCustomHtml = engineName.contains("Custom", ignoreCase = true) || 
+                                                  engineName.contains("API", ignoreCase = true) ||
+                                                  engineName.contains("(Custom)", ignoreCase = true) ||
+                                                  engineName.contains("(API)", ignoreCase = true)
+                        
+                        if (!shouldUseCustomHtml) {
+                            // 只有非自定义HTML的AI引擎才尝试跳转到App
+                            if (tryJumpToAIApp(engineName, query)) {
+                                // 成功跳转到App，隐藏搜索界面
+                                hideSearchInterface()
+                                return@setOnClickListener
+                            }
+                            // 如果跳转失败，继续使用WebView方式
+                            Log.d(TAG, "AI App未安装或跳转失败，使用WebView方式: $engineName")
+                        } else {
+                            Log.d(TAG, "AI引擎使用自定义HTML页面，跳过App跳转，直接使用WebView方式: $engineName")
                         }
-                        // 如果跳转失败，继续使用WebView方式
-                        Log.d(TAG, "AI App未安装或跳转失败，使用WebView方式: $engineName")
                     }
 
+                    // 标准化引擎键，确保能正确匹配
+                    val normalizedEngineKey = when {
+                        engineName.contains("临时专线", ignoreCase = true) -> "临时专线"
+                        engineName.contains("ChatGPT", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "ChatGPT (Custom)"
+                        engineName.contains("ChatGPT", ignoreCase = true) && engineName.contains("API", ignoreCase = true) -> "ChatGPT (API)"
+                        engineName.contains("DeepSeek", ignoreCase = true) && engineName.contains("API", ignoreCase = true) -> "DeepSeek (API)"
+                        engineName.contains("Claude", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "Claude (Custom)"
+                        engineName.contains("Claude", ignoreCase = true) && engineName.contains("API", ignoreCase = true) -> "Claude (API)"
+                        engineName.contains("通义千问", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "通义千问 (Custom)"
+                        engineName.contains("通义千问", ignoreCase = true) && engineName.contains("API", ignoreCase = true) -> "通义千问 (API)"
+                        engineName.contains("智谱", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "智谱AI (Custom)"
+                        engineName.contains("智谱", ignoreCase = true) && engineName.contains("API", ignoreCase = true) -> "智谱AI (API)"
+                        engineName.contains("文心一言", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "文心一言 (Custom)"
+                        engineName.contains("Gemini", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "Gemini (Custom)"
+                        engineName.contains("Kimi", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "Kimi (Custom)"
+                        engineName.contains("讯飞星火", ignoreCase = true) && engineName.contains("Custom", ignoreCase = true) -> "讯飞星火 (Custom)"
+                        else -> engineName
+                    }
+                    
+                    Log.d(TAG, "启动AI搜索: 原始引擎键='$engineName', 标准化后='$normalizedEngineKey', 查询='$query'")
+                    
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
-                        putExtra("engine_key", engineName)
+                        putExtra("engine_key", normalizedEngineKey)
                         putExtra("search_source", "悬浮窗")
                         putExtra("startTime", System.currentTimeMillis())
                     }
@@ -1333,6 +1368,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 setBackgroundResource(R.drawable.circle_ripple)
                 contentDescription = "${appConfig.appName} 搜索"
                 setOnClickListener {
+                    // 记录应用选择历史
+                    val historyManager = AppSelectionHistoryManager.getInstance(this@FloatingWindowService)
+                    historyManager.addAppSelection(appConfig)
+                    
                     val searchQuery = searchInput?.text?.toString() ?: ""
                     if (searchQuery.isNotEmpty()) {
                         openAppSearch(appConfig, searchQuery)
@@ -1354,11 +1393,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     
     /**
      * 根据查询文字匹配应用
+     * 如果无法匹配到应用，自动恢复用户最后点击历史排序的app
      */
     private fun matchAppsByQuery(query: String, enabledAppConfigs: List<AppSearchConfig>): List<AppSearchConfig> {
         val normalizedQuery = query.lowercase().trim()
         if (normalizedQuery.isEmpty()) {
-            return enabledAppConfigs.take(8)
+            // 如果输入框为空，返回按历史排序的应用
+            return getHistorySortedApps(enabledAppConfigs).take(8)
         }
         
         // 使用AppInfoManager进行智能匹配
@@ -1374,15 +1415,47 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         
         // 如果AppInfoManager没有匹配到，使用简单的名称匹配
-        if (matchedApps.isEmpty()) {
-            return enabledAppConfigs.filter { config ->
+        val simpleMatchedApps = if (matchedApps.isEmpty()) {
+            enabledAppConfigs.filter { config ->
                 config.appName.lowercase().contains(normalizedQuery) ||
                 config.packageName.lowercase().contains(normalizedQuery)
-            }.take(8)
+            }
+        } else {
+            matchedApps
+        }
+        
+        // 如果仍然没有匹配到，返回按历史排序的应用（而不是空白）
+        if (simpleMatchedApps.isEmpty()) {
+            Log.d(TAG, "无法匹配到应用，返回历史排序的应用")
+            return getHistorySortedApps(enabledAppConfigs).take(8)
         }
         
         // 返回匹配的应用，最多8个
-        return matchedApps.take(8)
+        return simpleMatchedApps.take(8)
+    }
+    
+    /**
+     * 获取按历史排序的应用列表
+     * 优先显示最近点击的应用
+     */
+    private fun getHistorySortedApps(enabledAppConfigs: List<AppSearchConfig>): List<AppSearchConfig> {
+        // 使用AppSelectionHistoryManager获取最近选择的应用
+        val historyManager = AppSelectionHistoryManager.getInstance(this)
+        val recentApps = historyManager.getRecentApps()
+        
+        if (recentApps.isNotEmpty()) {
+            // 按历史记录排序
+            val historyMap = recentApps.mapIndexed { index, item -> item.packageName to index }.toMap()
+            return enabledAppConfigs.sortedWith { a, b ->
+                val aIndex = historyMap[a.packageName] ?: Int.MAX_VALUE
+                val bIndex = historyMap[b.packageName] ?: Int.MAX_VALUE
+                aIndex.compareTo(bIndex)
+            }
+        }
+        
+        // 如果没有历史记录，使用AppSortManager按使用次数排序
+        val appSortManager = AppSortManager.getInstance(this)
+        return appSortManager.sortApps(enabledAppConfigs, AppCategory.ALL)
     }
 
     /**

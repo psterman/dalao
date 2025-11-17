@@ -157,9 +157,9 @@ class AIPageConfigManager(private val context: Context) {
                 searchUrl = "file:///android_asset/claude_chat.html",
                 isChatMode = true,
                 customParams = mapOf(
-                    "api_url" to getClaudeApiUrl(),
+                    "api_url" to getClaudeApiUrl(), // 从设置中获取，默认：https://api.anthropic.com/v1/messages
                     "api_key" to getClaudeApiKey(),
-                    "model" to "claude-3-opus",
+                    "model" to "claude-3-sonnet-20240229", // 参考建议模式使用claude-3-sonnet-20240229
                     "use_custom_html" to "true"
                 )
             ),
@@ -210,36 +210,69 @@ class AIPageConfigManager(private val context: Context) {
     
     /**
      * 根据引擎键获取定制配置
+     * 支持多种格式的引擎键匹配
      */
     fun getConfigByKey(engineKey: String): AISearchEngine? {
         Log.d(TAG, "查找引擎配置: '$engineKey'")
 
+        // 标准化引擎键（去除空格、括号等，统一格式）
+        val normalizedKey = engineKey.lowercase()
+            .replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+            .trim()
+        
+        Log.d(TAG, "标准化后的引擎键: '$normalizedKey'")
+
         // 首先在自定义配置中查找
-        val customConfig = getAllCustomAIConfigs().find {
-            it.name.lowercase().replace(" ", "_") == engineKey.lowercase() ||
-            it.name.lowercase() == engineKey.lowercase()
+        val customConfigs = getAllCustomAIConfigs()
+        Log.d(TAG, "自定义配置数量: ${customConfigs.size}")
+        val customConfig = customConfigs.find { config ->
+            val configNameNormalized = config.name.lowercase()
+                .replace(" ", "_")
+                .replace("(", "")
+                .replace(")", "")
+                .trim()
+            val matches = configNameNormalized == normalizedKey ||
+            config.name.lowercase() == engineKey.lowercase() ||
+            config.name.lowercase().replace(" ", "_") == engineKey.lowercase()
+            if (matches) {
+                Log.d(TAG, "匹配到自定义配置: ${config.name}")
+            }
+            matches
         }
 
         if (customConfig != null) {
-            Log.d(TAG, "找到自定义配置: ${customConfig.name}")
+            Log.d(TAG, "找到自定义配置: ${customConfig.name}, url=${customConfig.url}")
             return customConfig
         }
 
         // 如果没找到，在默认AI引擎中查找并检查是否需要特殊处理
-        Log.d(TAG, "在默认AI引擎中查找...")
-        val defaultEngine = AISearchEngine.DEFAULT_AI_ENGINES.find {
-            it.name.lowercase() == engineKey.lowercase() ||
-            it.name.lowercase().replace(" ", "_") == engineKey.lowercase() ||
-            it.name.lowercase().replace("(", "").replace(")", "").replace(" ", "_") == engineKey.lowercase()
+        Log.d(TAG, "在默认AI引擎中查找，默认引擎数量: ${AISearchEngine.DEFAULT_AI_ENGINES.size}")
+        val defaultEngine = AISearchEngine.DEFAULT_AI_ENGINES.find { engine ->
+            val engineNameNormalized = engine.name.lowercase()
+                .replace(" ", "_")
+                .replace("(", "")
+                .replace(")", "")
+                .trim()
+            val matches = engineNameNormalized == normalizedKey ||
+            engine.name.lowercase() == engineKey.lowercase() ||
+            engine.name.lowercase().replace(" ", "_") == engineKey.lowercase() ||
+            engine.name.lowercase().replace("(", "").replace(")", "").replace(" ", "_") == engineKey.lowercase()
+            if (matches) {
+                Log.d(TAG, "匹配到默认引擎: ${engine.name}")
+            }
+            matches
         }
 
         if (defaultEngine != null) {
-            Log.d(TAG, "找到默认引擎: ${defaultEngine.name}")
+            Log.d(TAG, "找到默认引擎: ${defaultEngine.name}, url=${defaultEngine.url}")
             // 对于特定的引擎，返回增强的配置
             return when (defaultEngine.name) {
                 "DeepSeek (API)" -> {
-                    // 为DeepSeek (API)添加自定义HTML标志
-                    AISearchEngine(
+                    // 为DeepSeek (API)添加自定义HTML配置
+                    // 参考建议模式：使用deepseek-chat模型
+                    val enhancedConfig = AISearchEngine(
                         name = defaultEngine.name,
                         url = defaultEngine.url,
                         iconResId = defaultEngine.iconResId,
@@ -248,33 +281,37 @@ class AIPageConfigManager(private val context: Context) {
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf(
-                            "api_url" to getDeepSeekApiUrl(),
+                            "api_url" to getDeepSeekApiUrl(), // 从设置中获取，默认：https://api.deepseek.com/v1/chat/completions
                             "api_key" to getDeepSeekApiKey(),
-                            "model" to "deepseek-chat",
+                            "model" to "deepseek-chat", // 参考建议模式使用deepseek-chat
                             "use_custom_html" to "true"
                         )
                     )
+                    Log.d(TAG, "返回DeepSeek (API)增强配置: url=${enhancedConfig.url}, api_url=${enhancedConfig.customParams["api_url"]}, model=${enhancedConfig.customParams["model"]}, use_custom_html=${enhancedConfig.customParams["use_custom_html"]}")
+                    enhancedConfig
                 }
                 "ChatGPT (API)" -> {
-                    // 为ChatGPT (API)添加API配置
+                    // 为ChatGPT (API)添加自定义HTML配置（使用chatgpt_chat.html）
+                    // 参考建议模式：使用gpt-3.5-turbo模型，API地址从设置中获取
                     AISearchEngine(
                         name = defaultEngine.name,
-                        url = defaultEngine.url,
+                        url = "file:///android_asset/chatgpt_chat.html",
                         iconResId = defaultEngine.iconResId,
                         description = defaultEngine.description,
-                        searchUrl = defaultEngine.searchUrl,
+                        searchUrl = "file:///android_asset/chatgpt_chat.html",
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf<String, String>(
-                            "api_url" to "https://api.openai.com/v1/chat/completions",
-                            "api_key" to (settingsManager.getString("chatgpt_api_key", "") ?: ""),
-                            "model" to "gpt-3.5-turbo",
-                            "use_custom_html" to "false"
+                            "api_url" to getChatGPTApiUrl(), // 从设置中获取，默认：https://api.openai.com/v1/chat/completions
+                            "api_key" to getChatGPTApiKey(),
+                            "model" to "gpt-3.5-turbo", // 参考建议模式使用gpt-3.5-turbo
+                            "use_custom_html" to "true"
                         )
                     )
                 }
                 "ChatGPT (Custom)" -> {
                     // 为ChatGPT (Custom)添加自定义HTML配置
+                    // 使用gpt-4模型（更高级版本）
                     AISearchEngine(
                         name = defaultEngine.name,
                         url = defaultEngine.url,
@@ -284,15 +321,16 @@ class AIPageConfigManager(private val context: Context) {
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf<String, String>(
-                            "api_url" to getChatGPTApiUrl(),
+                            "api_url" to getChatGPTApiUrl(), // 从设置中获取，默认：https://api.openai.com/v1/chat/completions
                             "api_key" to getChatGPTApiKey(),
-                            "model" to "gpt-4",
+                            "model" to "gpt-4", // Custom版本使用gpt-4
                             "use_custom_html" to "true"
                         )
                     )
                 }
                 "Claude (Custom)" -> {
                     // 为Claude (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用claude-3-sonnet-20240229模型
                     AISearchEngine(
                         name = defaultEngine.name,
                         url = defaultEngine.url,
@@ -302,15 +340,16 @@ class AIPageConfigManager(private val context: Context) {
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf<String, String>(
-                            "api_url" to getClaudeApiUrl(),
+                            "api_url" to getClaudeApiUrl(), // 从设置中获取，默认：https://api.anthropic.com/v1/messages
                             "api_key" to getClaudeApiKey(),
-                            "model" to "claude-3-opus",
+                            "model" to "claude-3-sonnet-20240229", // 参考建议模式使用claude-3-sonnet-20240229
                             "use_custom_html" to "true"
                         )
                     )
                 }
                 "通义千问 (Custom)" -> {
                     // 为通义千问 (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用qwen-turbo模型
                     AISearchEngine(
                         name = defaultEngine.name,
                         url = defaultEngine.url,
@@ -320,15 +359,16 @@ class AIPageConfigManager(private val context: Context) {
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf<String, String>(
-                            "api_url" to getQianwenApiUrl(),
+                            "api_url" to getQianwenApiUrl(), // 从设置中获取，默认：https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
                             "api_key" to getQianwenApiKey(),
-                            "model" to "qwen-turbo",
+                            "model" to "qwen-turbo", // 参考建议模式使用qwen-turbo
                             "use_custom_html" to "true"
                         )
                     )
                 }
                 "智谱AI (Custom)" -> {
                     // 为智谱AI (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用glm-4模型
                     AISearchEngine(
                         name = defaultEngine.name,
                         url = defaultEngine.url,
@@ -338,9 +378,160 @@ class AIPageConfigManager(private val context: Context) {
                         isChatMode = defaultEngine.isChatMode,
                         isEnabled = defaultEngine.isEnabled,
                         customParams = mapOf<String, String>(
-                            "api_url" to getZhipuApiUrl(),
+                            "api_url" to getZhipuApiUrl(), // 从设置中获取，默认：https://open.bigmodel.cn/api/paas/v4/chat/completions
                             "api_key" to getZhipuApiKey(),
-                            "model" to "glm-4",
+                            "model" to "glm-4", // 参考建议模式使用glm-4
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "临时专线" -> {
+                    // 临时专线配置（免费AI服务，无需API密钥）
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to "https://818233.xyz/", // 参考建议模式
+                            "api_key" to "", // 临时专线不需要API密钥
+                            "model" to "gpt-oss-20b", // 参考建议模式使用gpt-oss-20b
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "Claude (API)" -> {
+                    // 为Claude (API)添加自定义HTML配置
+                    // 参考建议模式：使用claude-3-sonnet-20240229模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getClaudeApiUrl(), // 从设置中获取，默认：https://api.anthropic.com/v1/messages
+                            "api_key" to getClaudeApiKey(),
+                            "model" to "claude-3-sonnet-20240229", // 参考建议模式使用claude-3-sonnet-20240229
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "文心一言 (Custom)" -> {
+                    // 为文心一言 (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用ernie-bot-4模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getWenxinApiUrl(), // 从设置中获取，默认：https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions
+                            "api_key" to getWenxinApiKey(),
+                            "model" to "ernie-bot-4", // 参考建议模式使用ernie-bot-4
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "通义千问 (API)" -> {
+                    // 为通义千问 (API)添加自定义HTML配置
+                    // 参考建议模式：使用qwen-turbo模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getQianwenApiUrl(), // 从设置中获取，默认：https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
+                            "api_key" to getQianwenApiKey(),
+                            "model" to "qwen-turbo", // 参考建议模式使用qwen-turbo
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "智谱AI (API)" -> {
+                    // 为智谱AI (API)添加自定义HTML配置
+                    // 参考建议模式：使用glm-4模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getZhipuApiUrl(), // 从设置中获取，默认：https://open.bigmodel.cn/api/paas/v4/chat/completions
+                            "api_key" to getZhipuApiKey(),
+                            "model" to "glm-4", // 参考建议模式使用glm-4
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "Gemini (Custom)" -> {
+                    // 为Gemini (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用gemini-pro模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getGeminiApiUrl(), // 从设置中获取，默认：https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+                            "api_key" to getGeminiApiKey(),
+                            "model" to "gemini-pro", // 参考建议模式使用gemini-pro
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "Kimi (Custom)" -> {
+                    // 为Kimi (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用moonshot-v1-8k模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getKimiApiUrl(), // 从设置中获取，默认：https://api.moonshot.cn/v1/chat/completions
+                            "api_key" to getKimiApiKey(),
+                            "model" to "moonshot-v1-8k", // 参考建议模式使用moonshot-v1-8k
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "讯飞星火 (Custom)" -> {
+                    // 为讯飞星火 (Custom)添加自定义HTML配置
+                    // 参考建议模式：使用spark-v3.1模型
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getXinghuoApiUrl(), // 从设置中获取，默认：https://spark-api.xf-yun.com/v3.1/chat
+                            "api_key" to getXinghuoApiKey(),
+                            "model" to "spark-v3.1", // 参考建议模式使用spark-v3.1
                             "use_custom_html" to "true"
                         )
                     )
@@ -438,6 +629,38 @@ class AIPageConfigManager(private val context: Context) {
 
     private fun getZhipuApiUrl(): String {
         return settingsManager.getString("zhipu_ai_api_url", "https://open.bigmodel.cn/api/paas/v4/chat/completions") ?: "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    }
+    
+    private fun getWenxinApiKey(): String {
+        return settingsManager.getString("wenxin_api_key", "") ?: ""
+    }
+    
+    private fun getWenxinApiUrl(): String {
+        return settingsManager.getString("wenxin_api_url", "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions") ?: "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
+    }
+    
+    private fun getGeminiApiKey(): String {
+        return settingsManager.getString("gemini_api_key", "") ?: ""
+    }
+    
+    private fun getGeminiApiUrl(): String {
+        return settingsManager.getString("gemini_api_url", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent") ?: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    }
+    
+    private fun getKimiApiKey(): String {
+        return settingsManager.getString("kimi_api_key", "") ?: ""
+    }
+    
+    private fun getKimiApiUrl(): String {
+        return settingsManager.getString("kimi_api_url", "https://api.moonshot.cn/v1/chat/completions") ?: "https://api.moonshot.cn/v1/chat/completions"
+    }
+    
+    private fun getXinghuoApiKey(): String {
+        return settingsManager.getString("xinghuo_api_key", "") ?: ""
+    }
+    
+    private fun getXinghuoApiUrl(): String {
+        return settingsManager.getString("xinghuo_api_url", "https://spark-api.xf-yun.com/v3.1/chat") ?: "https://spark-api.xf-yun.com/v3.1/chat"
     }
 
     /**
