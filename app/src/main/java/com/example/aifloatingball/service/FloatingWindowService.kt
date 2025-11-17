@@ -631,17 +631,41 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
-    private fun startDualSearch(query: String) {
-        val engineName = settingsManager.getSearchEngineForPosition(0)
+    private fun startDualSearch(query: String = "") {
+        // 检查DualFloatingWebViewService是否正在运行
+        if (DualFloatingWebViewService.isRunning) {
+            // 如果服务正在运行，尝试恢复卡片视图界面
+            // 确保隐藏悬浮球的搜索界面，让用户直接看到卡片搜索结果
+            if (isMenuVisible) {
+                hideSearchInterface()
+            }
+            
+            val restoreIntent = Intent(DualFloatingWebViewService.ACTION_RESTORE_CARD_VIEW).apply {
+                setPackage(packageName)
+            }
+            sendBroadcast(restoreIntent)
+            Log.d(TAG, "DualFloatingWebViewService正在运行，发送恢复卡片视图广播，隐藏悬浮球搜索界面")
+            return
+        }
+        
+        // 如果服务未运行，启动新的搜索
+        val engineName = if (query.isNotBlank()) {
+            settingsManager.getSearchEngineForPosition(0)
+        } else {
+            "" // 如果没有查询词，不指定引擎
+        }
         val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            putExtra("search_query", query)
-            putExtra("engine_key", engineName)
-            putExtra("search_source", "悬浮窗")
-            putExtra("startTime", System.currentTimeMillis())
+            if (query.isNotBlank()) {
+                putExtra("search_query", query)
+                putExtra("engine_key", engineName)
+                putExtra("search_source", "悬浮窗")
+                putExtra("startTime", System.currentTimeMillis())
+            }
             // 从悬浮球触发搜索时，默认使用卡片视图模式
             putExtra("use_card_view_mode", true)
         }
         startService(serviceIntent)
+        Log.d(TAG, "启动新的DualFloatingWebViewService搜索: $query")
     }
 
     private fun startForegroundService() {
@@ -725,7 +749,22 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private fun executeAction(action: String) {
         when (action) {
             "voice_recognize" -> showVoiceRecognition()
-            "floating_menu" -> toggleSearchInterface()
+            "floating_menu" -> {
+                // 如果DualFloatingWebViewService正在运行，优先恢复卡片视图
+                if (DualFloatingWebViewService.isRunning) {
+                    // 隐藏搜索界面，恢复卡片视图
+                    if (isMenuVisible) {
+                        hideSearchInterface()
+                    }
+                    val restoreIntent = Intent(DualFloatingWebViewService.ACTION_RESTORE_CARD_VIEW).apply {
+                        setPackage(packageName)
+                    }
+                    sendBroadcast(restoreIntent)
+                    Log.d(TAG, "DualFloatingWebViewService正在运行，点击悬浮球恢复卡片视图")
+                } else {
+                    toggleSearchInterface()
+                }
+            }
             "dual_search" -> startDualSearch()
             "island_panel" -> { /* No-op in FloatingWindowService */ }
             "settings" -> openSettings()

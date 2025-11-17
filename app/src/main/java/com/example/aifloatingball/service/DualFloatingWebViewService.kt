@@ -55,6 +55,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         const val ACTION_UPDATE_AI_ENGINES = "com.example.aifloatingball.ACTION_UPDATE_AI_ENGINES"
         const val ACTION_UPDATE_MENU = "com.example.aifloatingball.ACTION_UPDATE_MENU"
         const val ACTION_RESET_WINDOW_STATE = "com.example.aifloatingball.ACTION_RESET_WINDOW_STATE"
+        const val ACTION_RESTORE_CARD_VIEW = "com.example.aifloatingball.ACTION_RESTORE_CARD_VIEW"
         
         // 通知相关常量
         const val NOTIFICATION_ID = 2
@@ -151,6 +152,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     val script = intent.getStringExtra("script")
                     if (!script.isNullOrEmpty()) {
                         executeScriptInActiveWebView(script)
+                    }
+                }
+                ACTION_RESTORE_CARD_VIEW -> {
+                    Log.d(TAG, "收到恢复卡片视图的广播")
+                    // 如果当前是卡片视图模式且窗口被隐藏，则恢复显示
+                    if (currentViewMode == ViewMode.CARD_VIEW && isWindowHidden) {
+                        showFloatingWindow()
+                        Log.d(TAG, "恢复卡片视图界面")
                     }
                 }
             }
@@ -531,6 +540,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             addAction(ACTION_UPDATE_AI_ENGINES)
             addAction(ACTION_UPDATE_MENU)
             addAction(ACTION_RESET_WINDOW_STATE)
+            addAction(ACTION_RESTORE_CARD_VIEW)
             addAction("com.example.aifloatingball.WEBVIEW_EXECUTE_SCRIPT")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
