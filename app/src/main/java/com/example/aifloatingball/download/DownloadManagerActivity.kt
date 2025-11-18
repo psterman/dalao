@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -106,6 +107,8 @@ class DownloadManagerActivity : AppCompatActivity() {
         initViews()
         initManagers()
         setupRecyclerView()
+        // 确保样本文档存在
+        ensureSampleDocumentExists()
         startRefresh()
     }
     
@@ -153,6 +156,104 @@ class DownloadManagerActivity : AppCompatActivity() {
     private fun initManagers() {
         enhancedDownloadManager = EnhancedDownloadManager(this)
         apkInstallManager = ApkInstallManager(this)
+    }
+    
+    /**
+     * 确保样本文档存在，用于展示阅读器功能
+     */
+    private fun ensureSampleDocumentExists() {
+        try {
+            // 在后台线程创建样本文档，避免阻塞UI
+            Thread {
+                try {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val downloadFolder = File(downloadsDir, "AIFloatingBall")
+                    
+                    // 确保下载文件夹存在
+                    if (!downloadFolder.exists()) {
+                        downloadFolder.mkdirs()
+                    }
+                    
+                    val sampleFileName = "阅读器功能示例.txt"
+                    val sampleFile = File(downloadFolder, sampleFileName)
+                    
+                    // 如果文件已存在，不重复创建
+                    if (sampleFile.exists()) {
+                        Log.d(TAG, "样本文档已存在: ${sampleFile.absolutePath}")
+                        return@Thread
+                    }
+                    
+                    // 创建样本文档内容
+                    val sampleContent = """
+欢迎使用文件阅读器！
+
+这是一个示例文档，用于展示阅读器的功能和效果。
+
+📖 阅读器功能特点：
+
+1. 文本阅读
+   - 支持 .txt 格式的文本文件
+   - 自动识别文件编码（UTF-8）
+   - 支持长文本滚动阅读
+   - 清晰的排版和字体设置
+
+2. PDF 阅读
+   - 支持 .pdf 格式的文档
+   - 使用 Google Docs Viewer 在线查看
+   - 支持缩放和滚动
+
+3. 电子书格式
+   - 支持 .epub、.mobi、.azw 等格式
+   - 建议使用专门的阅读器应用打开
+
+4. 界面特性
+   - 全屏阅读体验
+   - 流畅的滚动和缩放
+   - 清晰的文字显示
+   - 简洁的操作界面
+
+💡 使用提示：
+
+• 在下载管理页面，点击文档文件即可打开阅读
+• 支持多种文档格式，自动选择合适的阅读方式
+• 可以随时返回下载管理页面查看其他文件
+
+📝 示例内容：
+
+这是一段较长的文本内容，用于测试阅读器的滚动和显示效果。
+阅读器会自动处理文本换行，确保内容完整显示。
+
+你可以：
+- 滚动查看完整内容
+- 使用缩放功能调整字体大小
+- 返回下载管理页面查看其他文件
+
+希望这个阅读器能够帮助你更好地阅读和管理下载的文档！
+
+---
+创建时间：${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}
+                    """.trimIndent()
+                    
+                    // 写入文件
+                    sampleFile.writeText(sampleContent, Charsets.UTF_8)
+                    
+                    Log.d(TAG, "✅ 样本文档创建成功: ${sampleFile.absolutePath}")
+                    
+                    // 在主线程触发刷新，确保样本文档立即显示
+                    handler.post {
+                        Log.d(TAG, "样本文档已准备就绪，可在下载管理中查看")
+                        // 延迟一小段时间后刷新，确保文件系统已更新
+                        handler.postDelayed({
+                            refreshDownloads()
+                        }, 500)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "创建样本文档失败", e)
+                }
+            }.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "确保样本文档存在时出错", e)
+        }
     }
     
     private fun setupRecyclerView() {

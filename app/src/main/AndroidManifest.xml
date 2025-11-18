@@ -199,6 +199,24 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
             
+        <!-- 书签管理 -->
+        <activity android:name=".viewer.BookmarkManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false"
+            android:label="书签管理" />
+            
+        <!-- 划线管理 -->
+        <activity android:name=".viewer.HighlightManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false"
+            android:label="我的划线" />
+            
+        <!-- 笔记管理 -->
+        <activity android:name=".viewer.NoteManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false"
+            android:label="我的笔记" />
+            
         <!-- FileProvider for APK installation -->
         <provider
             android:name="androidx.core.content.FileProvider"

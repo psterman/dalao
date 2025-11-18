@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dialogBackground"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#80000000"
+    android:clickable="true"
+    android:focusable="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="?attr/colorSurface"
+        android:elevation="16dp"
+        android:clickable="false"
+        android:focusable="false">
+
+        <!-- 标题栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical"
+            android:background="?attr/colorSurfaceVariant">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="已选择文本"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/btnClose"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关闭" />
+
+        </LinearLayout>
+
+        <!-- 选中文本显示 -->
+        <TextView
+            android:id="@+id/selectedText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp"
+            android:text="选中的文本"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:background="?attr/colorSurfaceVariant"
+            android:maxLines="3"
+            android:ellipsize="end" />
+
+        <!-- 操作按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:gravity="center">
+
+            <android.widget.Button
+                android:id="@+id/btnHighlight"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="划线"
+                android:textSize="14sp"
+                android:background="@drawable/btn_highlight_bg"
+                android:textColor="#FF9800" />
+
+            <android.widget.Button
+                android:id="@+id/btnNote"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:text="笔记"
+                android:textSize="14sp"
+                android:background="@drawable/btn_note_bg"
+                android:textColor="#2196F3" />
+
+            <android.widget.Button
+                android:id="@+id/btnCopy"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:text="复制"
+                android:textSize="14sp"
+                android:background="@drawable/btn_copy_bg"
+                android:textColor="#666666" />
+
+            <android.widget.Button
+                android:id="@+id/btnShare"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="分享"
+                android:textSize="14sp"
+                android:background="@drawable/btn_share_bg"
+                android:textColor="#4CAF50" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
+
