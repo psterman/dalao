@@ -1113,6 +1113,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (savedCardUrls?.isNotEmpty() == true) {
                 Log.d(TAG, "Found saved cards, showing browser")
                 showBrowser()
+                // 🔧 修复：确保显示浏览器时自动切换到搜索tab并加载功能主页
+                handler.postDelayed({
+                    switchToSearchTab()
+                }, 300) // 延迟300ms，确保UI完全初始化
             } else {
                 Log.d(TAG, "No saved state or cards, showing chat")
                 showChat()
@@ -4710,8 +4714,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserHomeContent.visibility = View.GONE
             browserTabContainer.visibility = View.GONE
 
-            // 不在这里自动进入纸堆模式，让switchToSearchTab来决定
-            // enterPaperStackMode() 会在switchToSearchTab中根据标签页数量决定是否调用
+            // 🔧 修复：检查是否有标签页，如果没有则自动创建功能主页
+            val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
+            if (tabCount == 0) {
+                Log.d(TAG, "显示浏览器界面：没有标签页，自动创建功能主页")
+                // 延迟一点时间确保UI完全初始化后再创建
+                handler.postDelayed({
+                    createFunctionalHomeTab()
+                }, 200)
+            } else {
+                // 有标签页，进入纸堆模式
+                Log.d(TAG, "显示浏览器界面：有 $tabCount 个标签页，进入纸堆模式")
+                enterPaperStackMode()
+            }
 
             updateTabColors()
 
@@ -4757,8 +4772,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 确保纸堆模式正确显示
                 val currentTab = paperStackWebViewManager?.getCurrentTab()
                 if (currentTab != null) {
+                    // 🔧 修复：确保WebView可见
+                    currentTab.webView.visibility = View.VISIBLE
+                    currentTab.webView.bringToFront()
+                    
                     browserSearchInput.setText(currentTab.url)
                     Log.d(TAG, "更新搜索框显示当前标签页URL: ${currentTab.url}")
+                    
+                    // 🔧 修复：如果当前标签页是功能主页但未加载，强制加载
+                    if (currentTab.url == "home://functional" && 
+                        (currentTab.webView.url.isNullOrEmpty() || 
+                         currentTab.webView.url != "file:///android_asset/functional_home.html")) {
+                        Log.d(TAG, "🔧 功能主页未正确加载，重新加载")
+                        currentTab.webView.loadUrl("file:///android_asset/functional_home.html")
+                    }
                 }
             }
             
@@ -7241,21 +7268,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val screenHeight = rootView.height
                 val keypadHeight = screenHeight - rect.bottom
                 
-                // 如果键盘高度超过屏幕高度的15%，认为键盘已显示
-                val keyboardVisible = keypadHeight > screenHeight * 0.15
+                // 🔧 优化：降低阈值，确保输入法激活时一定能检测到（从15%降到10%）
+                val keyboardVisible = keypadHeight > screenHeight * 0.10
                 
                 // 只在搜索tab中处理
                 if (currentState == UIState.BROWSER) {
+                    // 🔧 修复：无论输入法显示或隐藏，都更新文本工具栏可见性
+                    // updateSearchInputToolbarVisibility 内部会检查输入框焦点和输入法状态
+                    updateSearchInputToolbarVisibility()
                     if (keyboardVisible) {
-                        // 输入法显示，显示文本工具栏
-                        updateSearchInputToolbarVisibility()
-                        Log.d(TAG, "输入法显示，显示文本工具栏")
+                        Log.d(TAG, "输入法显示，更新文本工具栏")
                     } else {
-                        // 输入法隐藏，如果输入框没有焦点，隐藏文本工具栏
-                        if (!browserSearchInput.isFocused) {
-                            updateSearchInputToolbarVisibility()
-                            Log.d(TAG, "输入法隐藏，隐藏文本工具栏")
-                        }
+                        Log.d(TAG, "输入法隐藏，更新文本工具栏")
                     }
                 }
             }
@@ -7409,6 +7433,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     // 确保菜单可见性正确
                                     if (browserPullDownToolbar.visibility != View.VISIBLE) {
                                         browserPullDownToolbar.visibility = View.VISIBLE
+                                        // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                                        browserPullDownToolbar.bringToFront()
                                     }
                                 }
                             } else {
@@ -7418,6 +7444,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 确保菜单可见性正确
                                 if (browserPullDownToolbar.visibility != View.VISIBLE) {
                                     browserPullDownToolbar.visibility = View.VISIBLE
+                                    // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                                    browserPullDownToolbar.bringToFront()
                                 }
                             }
                         } 
@@ -7439,6 +7467,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 只有在菜单需要显示时才设置为VISIBLE
                             if (browserPullDownToolbar.visibility != View.VISIBLE && translationY > -menuHeight * 0.9f) {
                                 browserPullDownToolbar.visibility = View.VISIBLE
+                                // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                                browserPullDownToolbar.bringToFront()
                             }
                             
                             // 只有在不是水平滑动时才调整alpha
@@ -7470,6 +7500,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 🔧 修复：确保菜单可见性正确
                         if (browserPullDownToolbar.visibility != View.VISIBLE) {
                             browserPullDownToolbar.visibility = View.VISIBLE
+                            // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                            browserPullDownToolbar.bringToFront()
                         }
                         
                         // 如果是水平滑动，确保完全不透明
@@ -7987,6 +8019,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserPullDownToolbar.visibility = View.INVISIBLE
         } else {
             browserPullDownToolbar.visibility = View.VISIBLE
+            // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+            browserPullDownToolbar.bringToFront()
         }
         
         // 🔧 关键修复：只有在没有下拉距离时才执行动画，如果有下拉距离则直接跟随手势
@@ -7995,6 +8029,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 🔧 修复：确保在动画开始时菜单可见性正确
             if (browserPullDownToolbar.visibility != View.VISIBLE) {
                 browserPullDownToolbar.visibility = View.VISIBLE
+                // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                browserPullDownToolbar.bringToFront()
             }
             
             pullDownAnimation = android.animation.ValueAnimator.ofFloat(initialTranslationY, 0f).apply {
@@ -8010,6 +8046,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 🔧 修复：确保在动画过程中菜单可见性正确
                     if (browserPullDownToolbar.visibility != View.VISIBLE && progress > 0.01f) {
                         browserPullDownToolbar.visibility = View.VISIBLE
+                        // 🔧 修复：确保下拉工具栏在最上层，不被webview遮挡
+                        browserPullDownToolbar.bringToFront()
                     }
                 }
                 addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -8435,13 +8473,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 showToolbar()
-                // 🔧 修复：确保tab栏显示（如果应该显示）
-                val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-                if (hasTabs) {
-                    browserTabContainer.visibility = View.VISIBLE
-                    browserTabContainer.alpha = 1f
-                    browserTabContainer.translationY = 0f
-                }
+                // 🔧 修复：标签栏容器已永久隐藏，不再显示
+                // val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
+                // if (hasTabs) {
+                //     browserTabContainer.visibility = View.VISIBLE
+                //     browserTabContainer.alpha = 1f
+                //     browserTabContainer.translationY = 0f
+                // }
+                browserTabContainer.visibility = View.GONE
                 // 🔧 修复：确保组标签栏也显示
                 groupTabsContainer?.let { container ->
                     if (isToolbarVisible && currentState == UIState.BROWSER) {
@@ -8719,6 +8758,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         try {
             isToolbarVisible = false
+
+            // 🔧 修复：全屏浏览时隐藏文本工具栏
+            searchInputToolbarContainer?.visibility = View.GONE
 
             // 取消之前的动画
             toolbarAnimator?.cancel()
@@ -9030,6 +9072,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             isToolbarVisible = true
 
+            // 🔧 修复：显示工具栏后，根据输入框焦点和输入法状态更新文本工具栏可见性
+            updateSearchInputToolbarVisibility()
+
             // 取消之前的动画
             toolbarAnimator?.cancel()
 
@@ -9043,9 +9088,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 🔧 修复：如果有标签页，确保tab栏可见
             val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-            if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
-                browserTabContainer.visibility = View.VISIBLE
-            }
+            // 🔧 修复：标签栏容器已永久隐藏
+            // if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+            //     browserTabContainer.visibility = View.VISIBLE
+            // }
+            browserTabContainer.visibility = View.GONE
             
             // 获取tab栏目标高度
             val targetTabHeight = if (browserTabContainer.visibility == View.VISIBLE && browserTabContainer.height > 0) {
@@ -11045,7 +11092,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
     /**
      * 更新搜索输入框文字工具栏的可见性
-     * 规则：当输入框有焦点时显示工具栏，工具栏位于输入框和tab区之间
+     * 规则：
+     * 1. 只在搜索tab中显示（currentState == UIState.BROWSER）
+     * 2. 当输入框获得焦点时立即显示
+     * 3. 当输入法显示时也显示（即使输入框没有焦点，比如在WebView中输入）
+     * 4. 当输入框失去焦点且输入法隐藏时隐藏
+     * 5. 全屏浏览时隐藏工具栏
      */
     private fun updateSearchInputToolbarVisibility() {
         val container = searchInputToolbarContainer
@@ -11055,33 +11107,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return
         }
         
-        // 🔧 修复：即使预览窗口激活，如果输入框有焦点，也应该显示工具栏
-        // 🔧 新功能：如果输入法显示，也应该显示工具栏（用于WebView输入）
+        // 🔧 修复：只在搜索tab中处理
+        if (currentState != UIState.BROWSER) {
+            if (container.visibility != View.GONE) {
+                container.visibility = View.GONE
+                Log.d(TAG, "不在搜索tab中，隐藏文本工具栏")
+            }
+            return
+        }
+        
+        // 🔧 修复：全屏浏览时隐藏工具栏
+        if (!isToolbarVisible) {
+            if (container.visibility != View.GONE) {
+                container.visibility = View.GONE
+                Log.d(TAG, "全屏浏览中，隐藏文本工具栏")
+            }
+            return
+        }
+        
+        // 🔧 修复：检查输入框焦点和输入法状态
         val rootView = window.decorView.rootView
         val rect = android.graphics.Rect()
         rootView.getWindowVisibleDisplayFrame(rect)
         val screenHeight = rootView.height
         val keypadHeight = screenHeight - rect.bottom
-        val isInputMethodVisible = keypadHeight > screenHeight * 0.15
+        // 🔧 优化：降低阈值，确保输入法激活时一定能检测到（从15%降到10%）
+        val isInputMethodVisible = keypadHeight > screenHeight * 0.10
+        
+        // 🔧 优化：输入法激活时一定要显示工具栏
+        // 显示条件：输入框有焦点 或 输入法显示
         val shouldShow = browserSearchInput.isFocused || isInputMethodVisible
+        
         if (shouldShow) {
             if (container.visibility != View.VISIBLE) {
                 container.visibility = View.VISIBLE
                 loadCustomToolbarItems(layout)
             }
             
-            // 🔧 修复：工具栏现在在LinearLayout中垂直排列，不需要动态计算位置
-            // 布局已经自动处理了位置：输入框 -> 工具栏 -> tab区域
-            
             // 🔧 修复：确保工具栏不会拦截触摸事件
             container.setOnTouchListener { _, event ->
                 false // 不拦截触摸事件，让事件穿透到下层
             }
-            Log.d(TAG, "显示文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 预览窗口可见: ${stackedCardPreview?.visibility == View.VISIBLE}")
+            Log.d(TAG, "显示文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 输入法可见: $isInputMethodVisible (键盘高度: $keypadHeight, 屏幕高度: $screenHeight), 工具栏可见: $isToolbarVisible")
         } else {
             if (container.visibility != View.GONE) {
                 container.visibility = View.GONE
-                Log.d(TAG, "隐藏文本工具栏")
+                Log.d(TAG, "隐藏文本工具栏，输入框焦点: ${browserSearchInput.isFocused}, 输入法可见: $isInputMethodVisible (键盘高度: $keypadHeight, 屏幕高度: $screenHeight)")
             }
         }
     }
@@ -11219,8 +11290,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val screenHeight = rootView.height
                 val keypadHeight = screenHeight - rect.bottom
                 
-                // 如果键盘高度超过屏幕高度的15%，认为键盘已显示
-                val keyboardVisible = keypadHeight > screenHeight * 0.15
+                // 🔧 优化：降低阈值，确保输入法激活时一定能检测到（从15%降到10%）
+                val keyboardVisible = keypadHeight > screenHeight * 0.10
                 
                 if (keyboardVisible != isKeyboardVisible) {
                     isKeyboardVisible = keyboardVisible
@@ -11322,13 +11393,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 长按可以显示剪贴板历史（可选功能）
                     Toast.makeText(this@SimpleModeActivity, "剪贴板：点击粘贴，长按查看历史", Toast.LENGTH_SHORT).show()
                     true
-                }
-            }
-            
-            // 设置➕按钮点击事件（添加自定义模板）
-            findViewById<com.google.android.material.chip.Chip>(R.id.toolbar_add)?.apply {
-                setOnClickListener {
-                    showAddCustomTemplateDialog()
                 }
             }
             
@@ -11559,17 +11623,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 🔧 修复4：加载自定义工具栏词组
-     * 自定义模板会插入到➕按钮之后
+     * 加载自定义工具栏词组（已移除➕按钮功能，不再加载自定义模板）
      */
     private fun loadCustomToolbarItems(toolbarLayout: LinearLayout) {
         try {
-            // 从SharedPreferences读取自定义词组
-            val customItemsJson = settingsManager.getString("search_toolbar_custom_items", "[]")
-            val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
-            val customItems: List<String> = gson.fromJson(customItemsJson, type) ?: emptyList()
-            
             // 移除之前添加的自定义词组（保留默认的）
             val childCount = toolbarLayout.childCount
             for (i in childCount - 1 downTo 0) {
@@ -11579,55 +11636,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
-            // 找到➕按钮的位置
-            var addButtonIndex = -1
-            for (i in 0 until toolbarLayout.childCount) {
-                val child = toolbarLayout.getChildAt(i)
-                if (child.id == R.id.toolbar_add) {
-                    addButtonIndex = i
-                    break
-                }
-            }
-            
-            // 在➕按钮之后插入自定义词组
-            val insertIndex = if (addButtonIndex >= 0) addButtonIndex + 1 else toolbarLayout.childCount
-            
-            customItems.forEach { item ->
-                val chip = com.google.android.material.chip.Chip(
-                    this,
-                    null,
-                    com.google.android.material.R.style.Widget_MaterialComponents_Chip_Choice
-                ).apply {
-                    text = item
-                    textSize = 14f
-                    tag = "custom_item"
-                    setChipBackgroundColorResource(android.R.attr.colorControlHighlight)
-                    chipStrokeWidth = 0f
-                    setOnClickListener {
-                        insertTextToSearchInput(item)
-                    }
-                    setOnLongClickListener {
-                        // 长按可以编辑或删除
-                        showEditOrDeleteCustomTemplateDialog(item, customItems.indexOf(item))
-                        true
-                    }
-                }
-                val layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginEnd = dpToPx(6f).toInt()
-                }
-                chip.layoutParams = layoutParams
-                toolbarLayout.addView(chip, insertIndex + customItems.indexOf(item))
-            }
-            
-            // 重新设置拖拽排序功能，确保新添加的自定义模板也可以拖拽
-            setupToolbarDragAndDrop(toolbarLayout)
-            
-            Log.d(TAG, "加载了 ${customItems.size} 个自定义工具栏词组")
+            Log.d(TAG, "工具栏已清理自定义模板")
         } catch (e: Exception) {
-            Log.e(TAG, "加载自定义工具栏词组失败", e)
+            Log.e(TAG, "清理自定义工具栏词组失败", e)
         }
     }
     
@@ -11663,7 +11674,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     /**
      * 设置工具栏拖拽排序功能
-     * 允许长按并拖动模板来调整位置（不包括剪贴板、➕按钮、编辑按钮）
+     * 允许长按并拖动模板来调整位置（不包括剪贴板、编辑按钮）
      */
     private fun setupToolbarDragAndDrop(toolbarLayout: LinearLayout) {
         try {
@@ -11677,9 +11688,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 为所有可拖动的Chip设置触摸监听器
             // 注意：需要在每次加载自定义模板后重新设置，所以这里使用一个辅助方法
             fun setupDragListener(view: View) {
-                // 剪贴板、➕按钮、编辑按钮不可拖动
+                // 剪贴板、编辑按钮不可拖动
                 if (view.id == R.id.toolbar_clipboard || 
-                    view.id == R.id.toolbar_add || 
                     view.id == R.id.toolbar_edit) {
                     return
                 }
@@ -11701,13 +11711,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 
                                 // 找到固定按钮的索引
                                 var clipboardIndex = -1
-                                var addIndex = -1
                                 var editIndex = -1
                                 for (j in 0 until toolbarLayout.childCount) {
                                     val child = toolbarLayout.getChildAt(j)
                                     when (child.id) {
                                         R.id.toolbar_clipboard -> clipboardIndex = j
-                                        R.id.toolbar_add -> addIndex = j
                                         R.id.toolbar_edit -> editIndex = j
                                     }
                                 }
@@ -11717,7 +11725,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     val otherChild = toolbarLayout.getChildAt(j)
                                     if (otherChild != v && 
                                         otherChild.id != R.id.toolbar_clipboard && 
-                                        otherChild.id != R.id.toolbar_add && 
                                         otherChild.id != R.id.toolbar_edit) {
                                         val otherRect = android.graphics.Rect()
                                         otherChild.getGlobalVisibleRect(otherRect)
@@ -11733,7 +11740,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 
                                 // 确保不移动到固定按钮位置
                                 if (targetIndex != clipboardIndex && 
-                                    targetIndex != addIndex && 
                                     targetIndex != editIndex &&
                                     targetIndex != originalIndex) {
                                     toolbarLayout.removeView(v)
@@ -11908,9 +11914,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 编辑自定义预设文本
                         val customText = customItems[which - presetTexts.size]
                         showEditCustomPresetTextDialog(customText, which - presetTexts.size)
-                    } else {
-                        // 添加新的预设文本
-                        showAddCustomPresetTextDialog()
                     }
                 }
                 .setNegativeButton("关闭", null)
@@ -11920,43 +11923,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
     
-    /**
-     * 显示添加自定义模板对话框（用于➕按钮）
-     */
-    private fun showAddCustomTemplateDialog() {
-        try {
-            val input = android.widget.EditText(this).apply {
-                hint = "输入模板文本（如：.xyz、/path等）"
-            }
-            
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("添加自定义模板")
-                .setView(input)
-                .setPositiveButton("添加") { _, _ ->
-                    val newText = input.text.toString().trim()
-                    if (newText.isNotEmpty()) {
-                        addCustomPresetText(newText)
-                        // 重新加载工具栏，确保新模板显示在➕按钮右边
-                        searchInputToolbarLayout?.let {
-                            loadCustomToolbarItems(it)
-                        }
-                    } else {
-                        Toast.makeText(this, "模板文本不能为空", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .setNegativeButton("取消", null)
-                .show()
-        } catch (e: Exception) {
-            Log.e(TAG, "显示添加自定义模板对话框失败", e)
-        }
-    }
-    
-    /**
-     * 显示添加自定义预设文本对话框
-     */
-    private fun showAddCustomPresetTextDialog() {
-        showAddCustomTemplateDialog()
-    }
     
     /**
      * 显示编辑自定义预设文本对话框
@@ -14677,9 +14643,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             // 确保tab栏显示（如果有标签页）
             val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-            if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
-                browserTabContainer.visibility = View.VISIBLE
-            }
+            // 🔧 修复：标签栏容器已永久隐藏
+            // if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
+            //     browserTabContainer.visibility = View.VISIBLE
+            // }
+            browserTabContainer.visibility = View.GONE
             // 确保标题栏显示
             if (!isToolbarVisible) {
                 showToolbar()
@@ -24606,7 +24574,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         if (manager.getTabCount() == 0) {
                             Log.d(TAG, "纸堆模式没有标签页了，返回主页")
                             browserHomeContent.visibility = View.VISIBLE
-                            browserTabContainer.visibility = View.VISIBLE
+                            // 🔧 修复：标签栏容器已永久隐藏
+                            browserTabContainer.visibility = View.GONE
                             val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
                             paperStackLayout?.visibility = View.GONE
                         }
@@ -25035,11 +25004,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "切换到搜索tab：有 $tabCount 个标签页，进入纸堆模式")
                 enterPaperStackMode()
                 
+                // 🔧 修复：确保纸堆布局显示
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                paperStackLayout?.visibility = View.VISIBLE
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                
                 // 🔧 修复：为当前活动的WebView添加滚动监听器，确保工具栏能正常显示/隐藏
                 paperStackWebViewManager?.getCurrentTab()?.let { currentTab ->
+                    // 确保WebView可见
+                    currentTab.webView.visibility = View.VISIBLE
+                    currentTab.webView.bringToFront()
+                    
                     handler.postDelayed({
                         addScrollListenerToWebView(currentTab.webView)
                         Log.d(TAG, "为当前标签页添加滚动监听器: ${currentTab.title}")
+                        
+                        // 🔧 修复：如果当前标签页是功能主页但未加载，强制加载
+                        if (currentTab.url == "home://functional" && 
+                            (currentTab.webView.url.isNullOrEmpty() || 
+                             currentTab.webView.url != "file:///android_asset/functional_home.html")) {
+                            Log.d(TAG, "🔧 功能主页未正确加载，重新加载")
+                            currentTab.webView.loadUrl("file:///android_asset/functional_home.html")
+                        }
                     }, 100) // 延迟100ms，确保WebView已完全初始化
                 }
             }
@@ -25089,42 +25076,70 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (functionalTab != null) {
                 Log.d(TAG, "✅ 功能主页卡片创建成功: ${functionalTab.url}")
                 
+                // 🔧 修复：立即显示纸堆布局，确保用户看到内容
+                val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+                paperStackLayout?.visibility = View.VISIBLE
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                browserSearchInput.setText("")
+                
+                // 确保WebView可见并正确显示
+                functionalTab.webView.visibility = View.VISIBLE
+                functionalTab.webView.bringToFront()
+                
                 // 延迟一点时间确保标签页完全创建和加载
                 handler.postDelayed({
-                    // 立即显示纸堆布局
-                    val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
-                    paperStackLayout?.visibility = View.VISIBLE
-                    browserHomeContent.visibility = View.GONE
-                    browserTabContainer.visibility = View.GONE
-                    browserSearchInput.setText("")
-                    
                     // 确保切换到新创建的标签页
                     val tabCount = paperStackWebViewManager?.getTabCount() ?: 0
                     val currentTab = paperStackWebViewManager?.getCurrentTab()
                     
                     Log.d(TAG, "标签页数量: $tabCount, 当前标签页URL: ${currentTab?.url}")
                     
-                    if (currentTab != null && currentTab.url == functionalHomeUrl) {
-                        Log.d(TAG, "✅ 功能主页标签页已创建并切换，URL: ${currentTab.url}")
-                        // 确保WebView可见
-                        currentTab.webView.visibility = View.VISIBLE
-                        currentTab.webView.bringToFront()
+                    if (currentTab != null) {
+                        // 🔧 修复：检查URL是否为功能主页（可能是home://functional或file:///android_asset/functional_home.html）
+                        val isFunctionalHome = currentTab.url == functionalHomeUrl || 
+                                             currentTab.url == "file:///android_asset/functional_home.html"
+                        
+                        if (isFunctionalHome) {
+                            Log.d(TAG, "✅ 功能主页标签页已创建并切换，URL: ${currentTab.url}")
+                            // 确保WebView可见
+                            currentTab.webView.visibility = View.VISIBLE
+                            currentTab.webView.bringToFront()
+                            // 确保纸堆布局显示
+                            paperStackLayout?.visibility = View.VISIBLE
+                            
+                            // 🔧 修复：如果WebView还没有加载，强制重新加载
+                            if (currentTab.webView.url.isNullOrEmpty() || 
+                                (currentTab.webView.url != "file:///android_asset/functional_home.html" && 
+                                 currentTab.url == functionalHomeUrl)) {
+                                Log.d(TAG, "🔧 WebView未正确加载，重新加载功能主页")
+                                currentTab.webView.loadUrl("file:///android_asset/functional_home.html")
+                            }
+                        } else {
+                            Log.w(TAG, "⚠️ 当前标签页不是功能主页，URL: ${currentTab.url}")
+                            // 🔧 修复：如果当前标签页不是功能主页，确保至少显示纸堆布局
+                            paperStackLayout?.visibility = View.VISIBLE
+                        }
+                    } else {
+                        Log.w(TAG, "⚠️ 当前标签页为空")
                         // 确保纸堆布局显示
                         paperStackLayout?.visibility = View.VISIBLE
-                    } else {
-                        Log.w(TAG, "⚠️ 当前标签页不是功能主页，URL: ${currentTab?.url}")
                     }
-                }, 150)
+                }, 200) // 增加延迟时间，确保WebView完全初始化
             } else {
                 Log.e(TAG, "❌ 创建功能主页卡片失败，显示原生功能主页")
-                // 如果创建失败，显示原生功能主页作为后备
-                showBrowserHome()
+                // 🔧 修复：如果创建失败，立即显示原生功能主页作为后备，避免空白页面
+                handler.post {
+                    showBrowserHome()
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 创建功能主页标签页失败", e)
             e.printStackTrace()
-            // 如果创建失败，显示原生功能主页作为后备
-            showBrowserHome()
+            // 🔧 修复：如果创建失败，立即显示原生功能主页作为后备，避免空白页面
+            handler.post {
+                showBrowserHome()
+            }
         }
     }
 

@@ -22,9 +22,9 @@
         android:gravity="center_vertical"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
-        android:minHeight="32dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:minHeight="0dp"
         android:clickable="false"
         android:focusable="false"
         android:importantForAccessibility="no">
@@ -36,18 +36,6 @@
             android:layout_height="wrap_content"
             android:text="📋 粘贴"
             android:textSize="14sp"
-            android:layout_marginEnd="6dp"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            app:chipBackgroundColor="?android:attr/colorControlHighlight"
-            app:chipStrokeWidth="0dp" />
-
-        <!-- 添加自定义模板按钮 -->
-        <com.google.android.material.chip.Chip
-            android:id="@+id/toolbar_add"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="➕"
-            android:textSize="16sp"
             android:layout_marginEnd="6dp"
             style="@style/Widget.MaterialComponents.Chip.Choice"
             app:chipBackgroundColor="?android:attr/colorControlHighlight"

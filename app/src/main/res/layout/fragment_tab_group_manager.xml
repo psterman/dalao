@@ -10,30 +10,67 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:gravity="center_vertical"
+        android:orientation="vertical"
         android:background="?android:attr/colorBackground">
 
-        <TextView
-            android:id="@+id/text_group_manager_title"
-            android:layout_width="0dp"
+        <!-- 标题和新建按钮行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="标签页组管理"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="?android:attr/textColorPrimary"
-            android:clickable="true"
-            android:focusable="true" />
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical"
+            android:background="?android:attr/colorBackground">
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btn_add_group"
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/text_group_manager_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="标签页组管理"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/btn_add_group"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_input_add"
+                android:contentDescription="新建组"
+                app:tint="@android:color/white" />
+
+        </LinearLayout>
+
+        <!-- 按钮功能说明 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_input_add"
-            android:contentDescription="新建组"
-            app:tint="@android:color/white" />
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="8dp"
+            android:background="?android:attr/colorBackground">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="按钮说明："
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorSecondary"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="拖动排序  |  置顶  |  隐藏/显示  |  密码设置  |  编辑  |  删除"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:lineSpacingExtra="2dp" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
