@@ -604,7 +604,7 @@ class FileReaderActivity : AppCompatActivity() {
             Log.d(TAG, "文件大小: ${fileSize / 1024 / 1024}MB")
             
             inputStream?.use { stream ->
-                // 🔧 修复：检测文件编码并流式读取大文件
+                // 🔧 修复:检测文件编码并流式读取大文件
                 val charset = if (fileSize > 16384) {
                     // 大文件：读取前16KB检测编码，然后流式读取
                     val sampleBytes = ByteArray(16384)
@@ -622,8 +622,20 @@ class FileReaderActivity : AppCompatActivity() {
                         "content" -> contentResolver.openInputStream(uri)
                         else -> null
                     } ?: throw Exception("无法重新打开文件流")
-                    // 使用检测到的编码流式读取
-                    fullText = readTextFileStreaming(newStream, detectedCharset, maxSize = 50 * 1024 * 1024)
+                    
+                    // 🚀 优化：使用检测到的编码流式读取，带进度反馈
+                    fullText = readTextFileStreaming(
+                        newStream, 
+                        detectedCharset, 
+                        maxSize = 50 * 1024 * 1024,
+                        totalSize = fileSize
+                    ) { current, total ->
+                        // 在主线程更新进度
+                        scope.launch(Dispatchers.Main) {
+                            val progress = if (total > 0) (current * 100 / total).toInt() else 0
+                            errorTextView.text = "正在加载文件... ${current / 1024 / 1024}MB / ${total / 1024 / 1024}MB ($progress%)"
+                        }
+                    }
                     detectedCharset
                 } else {
                     // 小文件：直接读取全部内容检测编码
@@ -643,18 +655,31 @@ class FileReaderActivity : AppCompatActivity() {
                     return@withContext
                 }
                 
+                // 🚀 优化：大文件异步分页，提升加载速度
+                val textLength = fullText.length
+                Log.d(TAG, "文件内容加载成功，长度=${textLength}")
+                
                 withContext(Dispatchers.Main) {
-                    Log.d(TAG, "文件内容加载成功，长度=${fullText.length}")
-                    
-                    // 解析章节
-                    parseChapters()
-                    
-                    // 分页
-                    pages = paginateText(fullText)
-                    totalPages = pages.size
-                    
-                    Log.d(TAG, "分页结果: 共 $totalPages 页")
-                    
+                    // 显示加载提示
+                    progressBar.visibility = View.VISIBLE
+                    errorTextView.text = "正在处理文件..."
+                    errorTextView.visibility = View.VISIBLE
+                }
+                
+                // 🚀 优化1：简化章节解析 - 只解析前100KB，避免大文件卡顿
+                val chapterSampleSize = minOf(textLength, 100 * 1024)
+                val chapterSample = fullText.substring(0, chapterSampleSize)
+                parseChapters(chapterSample)
+                
+                // 🚀 优化2：异步分页 - 在后台线程执行
+                val startTime = System.currentTimeMillis()
+                pages = paginateText(fullText)
+                totalPages = pages.size
+                val paginationTime = System.currentTimeMillis() - startTime
+                
+                Log.d(TAG, "分页完成: 共 $totalPages 页，耗时 ${paginationTime}ms")
+                
+                withContext(Dispatchers.Main) {
                     if (totalPages == 0) {
                         Log.e(TAG, "分页失败，页面数为0")
                         showError("无法分页，文件可能为空")
@@ -1229,15 +1254,15 @@ class FileReaderActivity : AppCompatActivity() {
     // ==================== 章节功能 ====================
     
     /**
-     * 解析章节
+     * 解析章节（优化版：支持传入样本文本，避免大文件全文解析）
      */
-    private fun parseChapters() {
+    private fun parseChapters(sampleText: String = fullText) {
         chapters = mutableListOf<Chapter>().apply {
             // 简单的章节解析：查找"第X章"、"Chapter X"等模式
             val chapterPattern = Regex("(第[\\d一二三四五六七八九十百千万]+章|Chapter\\s+\\d+|第\\d+节)")
             var chapterIndex = 0
             
-            chapterPattern.findAll(fullText).forEach { matchResult ->
+            chapterPattern.findAll(sampleText).forEach { matchResult ->
                 val position = matchResult.range.first
                 val title = matchResult.value
                 add(Chapter(
@@ -2083,12 +2108,21 @@ class FileReaderActivity : AppCompatActivity() {
     
     /**
      * 流式读取大文件（分块读取，避免内存溢出）
+     * @param onProgress 进度回调 (已读取字节数, 总字节数)
      */
-    private fun readTextFileStreaming(inputStream: InputStream, charset: Charset, maxSize: Long = 50 * 1024 * 1024): String {
+    private fun readTextFileStreaming(
+        inputStream: InputStream, 
+        charset: Charset, 
+        maxSize: Long = 50 * 1024 * 1024,
+        totalSize: Long = 0,
+        onProgress: ((Long, Long) -> Unit)? = null
+    ): String {
         val buffer = StringBuilder()
         val reader = inputStream.bufferedReader(charset)
         val charBuffer = CharArray(8192) // 8KB缓冲区
         var totalRead = 0L
+        var lastProgressUpdate = 0L
+        val progressInterval = 1024 * 1024L // 每1MB更新一次进度
         
         try {
             while (true) {
@@ -2098,6 +2132,12 @@ class FileReaderActivity : AppCompatActivity() {
                 buffer.append(charBuffer, 0, bytesRead)
                 totalRead += bytesRead
                 
+                // 🚀 优化：定期更新进度
+                if (totalRead - lastProgressUpdate >= progressInterval) {
+                    onProgress?.invoke(totalRead, totalSize)
+                    lastProgressUpdate = totalRead
+                }
+                
                 // 🔧 修复：限制文件大小，避免内存溢出
                 if (totalRead > maxSize) {
                     Log.w(TAG, "文件过大（${totalRead}字节），只读取前${maxSize}字节")
@@ -2105,6 +2145,10 @@ class FileReaderActivity : AppCompatActivity() {
                     break
                 }
             }
+            
+            // 最终进度更新
+            onProgress?.invoke(totalRead, totalSize)
+            
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "内存不足，文件过大", e)
             // 如果已经读取了一些内容，返回部分内容
