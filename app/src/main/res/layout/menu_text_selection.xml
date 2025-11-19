@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/text_selection_menu_bg"
+    android:padding="8dp"
+    android:elevation="8dp">
+
+    <!-- 复制 -->
+    <LinearLayout
+        android:id="@+id/menuCopy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_save"
+            android:tint="#1C1C1E" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="复制"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+    <!-- 划线 -->
+    <LinearLayout
+        android:id="@+id/menuHighlightText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_edit"
+            android:tint="#FF9500" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="划线"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+    <!-- AI提问 -->
+    <LinearLayout
+        android:id="@+id/menuAI"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_dialog_info"
+            android:tint="#007AFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="AI"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+    <!-- 搜索 -->
+    <LinearLayout
+        android:id="@+id/menuSearch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_search"
+            android:tint="#1C1C1E" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="搜索"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+    <!-- 翻译 -->
+    <LinearLayout
+        android:id="@+id/menuTranslate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_sort_alphabetically"
+            android:tint="#34C759" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="翻译"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+    <!-- 分享 -->
+    <LinearLayout
+        android:id="@+id/menuShareText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_share"
+            android:tint="#1C1C1E" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="分享"
+            android:textSize="11sp"
+            android:textColor="#1C1C1E"
+            android:fontFamily="sans-serif" />
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -5,18 +5,18 @@
     android:layout_height="match_parent"
     android:background="#F5F5F5">
 
-    <!-- 顶部信息栏（文件名等） -->
+    <!-- 顶部信息栏（iOS风格） -->
     <LinearLayout
         android:id="@+id/topInfoBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="#FFFFFF"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:elevation="2dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:elevation="8dp"
         android:visibility="gone"
         android:layout_gravity="top">
 
@@ -26,7 +26,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="6dp">
 
             <TextView
                 android:id="@+id/bookTitle"
@@ -34,20 +34,22 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="书名"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="#333333"
+                android:textSize="17sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:ellipsize="end" />
 
             <ImageButton
                 android:id="@+id/btnExit"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:src="@android:drawable/ic_menu_close_clear_cancel"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="退出"
-                android:tint="#666666" />
+                android:tint="#8E8E93"
+                android:scaleType="centerInside"
+                android:padding="4dp" />
 
         </LinearLayout>
 
@@ -57,8 +59,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:text="作者"
-            android:textSize="14sp"
-            android:textColor="#666666"
+            android:textSize="13sp"
+            android:textColor="#8E8E93"
+            android:fontFamily="sans-serif"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -69,8 +72,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="第1章"
-            android:textSize="14sp"
-            android:textColor="#999999"
+            android:textSize="12sp"
+            android:textColor="#C7C7CC"
+            android:fontFamily="sans-serif"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -196,27 +200,84 @@
         android:elevation="10dp"
         android:layout_gravity="bottom">
 
-        <!-- 功能菜单（iOS风格，底部弹出） -->
+        <!-- 功能菜单（iOS风格，精简版 + 统计） -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/functionMenu"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="0dp"
-            app:cardCornerRadius="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurface">
+            app:cardBackgroundColor="#FFFFFF">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:background="?attr/colorSurface"
-                android:paddingTop="12dp"
-                android:paddingBottom="12dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp">
+                android:background="#FFFFFF"
+                android:paddingTop="16dp"
+                android:paddingBottom="20dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
 
-                <!-- 第一行按钮 -->
+                <!-- 阅读进度条 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/readingProgressText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="阅读进度"
+                            android:textSize="13sp"
+                            android:textColor="#8E8E93"
+                            android:fontFamily="sans-serif" />
+
+                        <TextView
+                            android:id="@+id/readingProgressPercent"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textSize="13sp"
+                            android:textColor="#007AFF"
+                            android:fontFamily="sans-serif-medium" />
+
+                    </LinearLayout>
+
+                    <!-- 进度条 -->
+                    <SeekBar
+                        android:id="@+id/readingProgressBar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:max="100"
+                        android:progress="0"
+                        android:progressTint="#007AFF"
+                        android:thumbTint="#007AFF"
+                        android:progressBackgroundTint="#E5E5EA" />
+
+                </LinearLayout>
+
+                <!-- 分隔线 -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="#E5E5EA" />
+
+                <!-- 功能按钮行 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -231,139 +292,59 @@
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
                         android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
+                        android:focusable="true">
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
                             android:src="@drawable/ic_menu"
                             android:contentDescription="目录"
-                            app:tint="?attr/colorOnSurface" />
+                            app:tint="#1C1C1E" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="6dp"
                             android:text="目录"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:textSize="12sp"
+                            android:textColor="#1C1C1E"
+                            android:fontFamily="sans-serif-medium" />
 
                     </LinearLayout>
 
-                    <!-- 书签 -->
+                    <!-- 统计 -->
                     <LinearLayout
-                        android:id="@+id/menuBookmark"
+                        android:id="@+id/menuStats"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
                         android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
+                        android:focusable="true">
 
                         <ImageView
-                            android:id="@+id/bookmarkMenuIcon"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@drawable/ic_bookmark_border"
-                            android:contentDescription="书签"
-                            app:tint="?attr/colorOnSurface" />
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:src="@drawable/ic_chart"
+                            android:contentDescription="统计"
+                            app:tint="#FF9500" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="书签"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:layout_marginTop="6dp"
+                            android:text="统计"
+                            android:textSize="12sp"
+                            android:textColor="#FF9500"
+                            android:fontFamily="sans-serif-medium" />
 
                     </LinearLayout>
-
-                    <!-- 划线 -->
-                    <LinearLayout
-                        android:id="@+id/menuHighlight"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
-
-                        <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@drawable/ic_edit"
-                            android:contentDescription="划线"
-                            app:tint="?attr/colorOnSurface" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="划线"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
-
-                    </LinearLayout>
-
-                    <!-- 笔记 -->
-                    <LinearLayout
-                        android:id="@+id/menuNote"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
-
-                        <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@drawable/ic_comment"
-                            android:contentDescription="笔记"
-                            app:tint="?attr/colorOnSurface" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="笔记"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-                <!-- 分隔线 -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="12dp"
-                    android:layout_marginBottom="12dp"
-                    android:background="#E0E0E0" />
-
-                <!-- 第二行：设置、听书、自动翻页、分享 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center">
 
                     <!-- 设置 -->
                     <LinearLayout
@@ -373,26 +354,26 @@
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
                         android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
+                        android:focusable="true">
 
                         <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
                             android:src="@drawable/ic_settings"
                             android:contentDescription="设置"
-                            app:tint="?attr/colorOnSurface" />
+                            app:tint="#1C1C1E" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="6dp"
                             android:text="设置"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:textSize="12sp"
+                            android:textColor="#1C1C1E"
+                            android:fontFamily="sans-serif-medium" />
 
                     </LinearLayout>
 
@@ -404,32 +385,32 @@
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
                         android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
+                        android:focusable="true">
 
                         <ImageView
                             android:id="@+id/ttsIcon"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
                             android:src="@drawable/ic_volume_on"
                             android:contentDescription="听书"
-                            app:tint="#2196F3" />
+                            app:tint="#007AFF" />
 
                         <TextView
                             android:id="@+id/ttsText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="6dp"
                             android:text="听书"
-                            android:textSize="11sp"
-                            android:textColor="#2196F3" />
+                            android:textSize="12sp"
+                            android:textColor="#007AFF"
+                            android:fontFamily="sans-serif-medium" />
 
                     </LinearLayout>
 
-                    <!-- 自动阅读 -->
+                    <!-- 自动翻页 -->
                     <LinearLayout
                         android:id="@+id/menuAutoRead"
                         android:layout_width="0dp"
@@ -437,59 +418,28 @@
                         android:layout_weight="1"
                         android:orientation="vertical"
                         android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
                         android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
+                        android:focusable="true">
 
                         <ImageView
                             android:id="@+id/autoReadIcon"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
                             android:src="@drawable/ic_play"
                             android:contentDescription="自动翻页"
-                            app:tint="#4CAF50" />
+                            app:tint="#34C759" />
 
                         <TextView
                             android:id="@+id/autoReadText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
+                            android:layout_marginTop="6dp"
                             android:text="自动"
-                            android:textSize="11sp"
-                            android:textColor="#4CAF50" />
-
-                    </LinearLayout>
-
-                    <!-- 分享 -->
-                    <LinearLayout
-                        android:id="@+id/menuShare"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:gravity="center"
-                        android:padding="6dp"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:minHeight="56dp">
-
-                        <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@drawable/ic_share"
-                            android:contentDescription="分享"
-                            app:tint="?attr/colorOnSurface" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="4dp"
-                            android:text="分享"
-                            android:textSize="11sp"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:textSize="12sp"
+                            android:textColor="#34C759"
+                            android:fontFamily="sans-serif-medium" />
 
                     </LinearLayout>
 

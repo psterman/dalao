@@ -19,10 +19,12 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
+import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -103,21 +105,28 @@ class FileReaderActivity : AppCompatActivity() {
     private lateinit var btnBookmark: ImageButton
     private lateinit var pageInfo: TextView
     
-    // 功能菜单
+    // 功能菜单（精简版 + 统计）
     private lateinit var menuContainer: LinearLayout
     private lateinit var functionMenu: View
     private lateinit var menuCatalog: LinearLayout
-    private lateinit var menuBookmark: LinearLayout
-    private lateinit var menuHighlight: LinearLayout
-    private lateinit var menuNote: LinearLayout
+    private lateinit var menuStats: LinearLayout
     private lateinit var menuSettings: LinearLayout
     private lateinit var menuTTS: LinearLayout
     private lateinit var menuAutoRead: LinearLayout
-    private lateinit var menuShare: LinearLayout
     private lateinit var ttsIcon: ImageView
     private lateinit var autoReadIcon: ImageView
     private lateinit var ttsText: TextView
     private lateinit var autoReadText: TextView
+    
+    // 阅读进度
+    private lateinit var readingProgressBar: SeekBar
+    private lateinit var readingProgressText: TextView
+    private lateinit var readingProgressPercent: TextView
+    
+    // 阅读统计
+    private var readingStartTime: Long = 0
+    private var totalReadingTime: Long = 0  // 总阅读时间（毫秒）
+    private var todayReadingTime: Long = 0  // 今日阅读时间（毫秒）
     
     // 数据管理
     private lateinit var dataManager: ReaderDataManager
@@ -167,7 +176,8 @@ class FileReaderActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 设置全屏模式，但保留状态栏空间（用于顶部信息栏）
+        // 设置沉浸式全屏模式（隐藏状态栏和导航栏）
+        // 注意：必须在 setContentView 之前设置 setDecorFitsSystemWindows
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         } else {
@@ -175,14 +185,31 @@ class FileReaderActivity : AppCompatActivity() {
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             )
         }
         
         setContentView(R.layout.activity_file_reader)
         
+        // 在 setContentView 之后设置 WindowInsetsController（此时 DecorView 已创建）
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                controller.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+        
         // 初始化数据管理器
         dataManager = ReaderDataManager(this)
         settings = dataManager.getSettings()
+        
+        // 应用保持屏幕常亮设置
+        if (settings.keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         
         // 初始化TTS
         ttsManager = TTSManager.getInstance(this)
@@ -275,21 +302,23 @@ class FileReaderActivity : AppCompatActivity() {
         btnCatalog = findViewById(R.id.btnCatalog)
         btnBookmark = findViewById(R.id.btnBookmark)
         pageInfo = findViewById(R.id.pageInfo)
-        // 功能菜单
+        // 功能菜单（精简版 + 统计）
         menuContainer = findViewById(R.id.menuContainer)
         functionMenu = findViewById(R.id.functionMenu)
         menuCatalog = findViewById(R.id.menuCatalog)
-        menuBookmark = findViewById(R.id.menuBookmark)
-        menuHighlight = findViewById(R.id.menuHighlight)
-        menuNote = findViewById(R.id.menuNote)
+        menuStats = findViewById(R.id.menuStats)
         menuSettings = findViewById(R.id.menuSettings)
         menuTTS = findViewById(R.id.menuTTS)
         menuAutoRead = findViewById(R.id.menuAutoRead)
-        menuShare = findViewById(R.id.menuShare)
         ttsIcon = findViewById(R.id.ttsIcon)
         autoReadIcon = findViewById(R.id.autoReadIcon)
         ttsText = findViewById(R.id.ttsText)
         autoReadText = findViewById(R.id.autoReadText)
+        
+        // 阅读进度
+        readingProgressBar = findViewById<SeekBar>(R.id.readingProgressBar)
+        readingProgressText = findViewById<TextView>(R.id.readingProgressText)
+        readingProgressPercent = findViewById<TextView>(R.id.readingProgressPercent)
         
         // 配置WebView（优化滚动性能）
         webView.settings.apply {
@@ -310,6 +339,29 @@ class FileReaderActivity : AppCompatActivity() {
                 allowFileAccessFromFileURLs = true
                 allowUniversalAccessFromFileURLs = true
             }
+        }
+        
+        // 禁用系统默认的文本选择菜单（黑色菜单）
+        // 注意：不设置 setOnLongClickListener，让 WebView 可以处理长按选中文字
+        
+        // 重写startActionMode以禁用ActionMode（系统文本选择菜单）
+        // 使用反射调用 setCustomSelectionActionModeCallback（兼容不同Android版本）
+        try {
+            val callback = object : android.view.ActionMode.Callback {
+                override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
+                    // 返回false，不创建ActionMode，从而禁用系统菜单
+                    return false
+                }
+                override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = false
+                override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean = false
+                override fun onDestroyActionMode(mode: android.view.ActionMode?) {}
+            }
+            // 使用反射调用方法（兼容性更好）
+            val method = webView.javaClass.getMethod("setCustomSelectionActionModeCallback", android.view.ActionMode.Callback::class.java)
+            method.invoke(webView, callback)
+        } catch (e: Exception) {
+            // 如果方法不存在或调用失败，记录警告但不影响功能
+            Log.w(TAG, "无法禁用系统文本选择菜单（可能不支持此功能）", e)
         }
         
         // 启用硬件加速（优化滚动性能）
@@ -369,15 +421,48 @@ class FileReaderActivity : AppCompatActivity() {
             override fun onDown(e: MotionEvent): Boolean {
                 touchStartX = e.x
                 touchStartY = e.y
-                return true
+                return true // 返回true表示处理了事件，但允许其他监听器继续处理
             }
             
             override fun onSingleTapUp(e: MotionEvent): Boolean {
-                // 单击：显示/隐藏菜单
-                if (!isMenuVisible) {
-                    showMenu()
-                } else {
-                    hideMenu()
+                Log.d(TAG, "onSingleTapUp 被调用: x=${e.x}, y=${e.y}")
+                
+                // 如果文本选择对话框正在显示，不处理单击
+                if (textSelectionDialog?.isShowing == true) {
+                    Log.d(TAG, "文本选择对话框正在显示，忽略单击")
+                    return false
+                }
+                
+                // 获取屏幕宽度
+                val screenWidth = resources.displayMetrics.widthPixels
+                val clickX = e.x
+                
+                // 将屏幕分为三个区域：左30%、中40%、右30%
+                when {
+                    clickX < screenWidth * 0.3f -> {
+                        // 左侧区域：上一页
+                        if (!isMenuVisible) {
+                            goToPrevPage()
+                        } else {
+                            hideMenu()
+                        }
+                    }
+                    clickX > screenWidth * 0.7f -> {
+                        // 右侧区域：下一页
+                        if (!isMenuVisible) {
+                            goToNextPage()
+                        } else {
+                            hideMenu()
+                        }
+                    }
+                    else -> {
+                        // 中间区域：显示/隐藏菜单
+                        if (!isMenuVisible) {
+                            showMenu()
+                        } else {
+                            hideMenu()
+                        }
+                    }
                 }
                 return true
             }
@@ -424,8 +509,109 @@ class FileReaderActivity : AppCompatActivity() {
             }
         })
         
-        webView.setOnTouchListener { _, event ->
-            gestureDetector?.onTouchEvent(event) ?: false
+        // 用于跟踪触摸事件，区分单击、长按和滑动
+        var touchDownTime = 0L
+        var touchDownX = 0f
+        var touchDownY = 0f
+        var isLongPress = false
+        var isScrolling = false
+        var hasHandledLongPress = false
+        val longPressThreshold = 500L // 长按阈值：500毫秒
+        val touchMoveThreshold = 30f // 移动阈值：30像素
+        
+        // 使用Handler延迟检测长按
+        val longPressHandler = Handler(Looper.getMainLooper())
+        var longPressRunnable: Runnable? = null
+        
+        webView.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchDownTime = System.currentTimeMillis()
+                    touchDownX = event.x
+                    touchDownY = event.y
+                    isLongPress = false
+                    isScrolling = false
+                    hasHandledLongPress = false
+                    
+                    // 如果文本选择对话框已显示，先关闭它
+                    if (textSelectionDialog?.isShowing == true) {
+                        hideTextSelectionDialog()
+                        // 清除WebView中的文本选择
+                        webView.evaluateJavascript("window.getSelection().removeAllRanges();", null)
+                        return@setOnTouchListener true // 拦截事件，不继续处理
+                    }
+                    
+                    // 先让 GestureDetector 处理 DOWN 事件（必须，否则无法识别手势）
+                    gestureDetector?.onTouchEvent(event)
+                    
+                    // 延迟检测长按
+                    longPressRunnable = Runnable {
+                        // 如果还在按下状态且没有移动，认为是长按
+                        if (!isScrolling && !hasHandledLongPress) {
+                            isLongPress = true
+                            hasHandledLongPress = true
+                            // 长按时，让WebView处理（返回false），这样WebView可以选中文字
+                        }
+                    }
+                    longPressHandler.postDelayed(longPressRunnable!!, longPressThreshold)
+                    
+                    // 返回false，让WebView也能接收事件（用于长按选中文字）
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    // 计算移动距离
+                    val moveDistance = Math.sqrt(
+                        Math.pow((event.x - touchDownX).toDouble(), 2.0) +
+                        Math.pow((event.y - touchDownY).toDouble(), 2.0)
+                    ).toFloat()
+                    
+                    if (moveDistance > touchMoveThreshold) {
+                        // 移动距离大，是滑动
+                        isScrolling = true
+                        // 取消长按检测
+                        longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                        // 让 GestureDetector 处理滑动
+                        gestureDetector?.onTouchEvent(event) ?: false
+                    } else {
+                        // 移动距离小，可能是长按前的微动，让WebView处理
+                        gestureDetector?.onTouchEvent(event) // 也让 GestureDetector 知道移动
+                        false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    // 取消长按检测
+                    longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                    
+                    val touchDuration = System.currentTimeMillis() - touchDownTime
+                    val moveDistance = Math.sqrt(
+                        Math.pow((event.x - touchDownX).toDouble(), 2.0) +
+                        Math.pow((event.y - touchDownY).toDouble(), 2.0)
+                    ).toFloat()
+                    
+                    // 如果已经处理了长按，让WebView处理（可能正在选中文字）
+                    if (hasHandledLongPress) {
+                        false
+                    } else if (moveDistance > touchMoveThreshold) {
+                        // 移动距离大，是滑动，让WebView处理
+                        false
+                    } else if (touchDuration < longPressThreshold && moveDistance < touchMoveThreshold) {
+                        // 短时间点击且移动距离小，是单击
+                        // 让 GestureDetector 处理单击（显示/隐藏菜单、翻页等）
+                        gestureDetector?.onTouchEvent(event) ?: false
+                    } else {
+                        // 其他情况，让 GestureDetector 处理
+                        gestureDetector?.onTouchEvent(event) ?: false
+                    }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    // 取消长按检测
+                    longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                    gestureDetector?.onTouchEvent(event) ?: false
+                }
+                else -> {
+                    gestureDetector?.onTouchEvent(event) ?: false
+                }
+            }
         }
     }
     
@@ -439,22 +625,14 @@ class FileReaderActivity : AppCompatActivity() {
         btnCatalog.setOnClickListener { showCatalogDialog() }
         btnBookmark.setOnClickListener { toggleBookmark() }
         
-        // 功能菜单按钮
+        // 功能菜单按钮（精简版 + 统计）
         menuCatalog.setOnClickListener { 
             hideMenu()
             showCatalogDialog()
         }
-        menuBookmark.setOnClickListener { 
+        menuStats.setOnClickListener {
             hideMenu()
-            showBookmarkManager()
-        }
-        menuHighlight.setOnClickListener { 
-            hideMenu()
-            showHighlightDialog()
-        }
-        menuNote.setOnClickListener { 
-            hideMenu()
-            showNoteDialog()
+            showStatsDialog()
         }
         menuSettings.setOnClickListener { 
             hideMenu()
@@ -468,10 +646,25 @@ class FileReaderActivity : AppCompatActivity() {
             hideMenu()
             toggleAutoRead()
         }
-        menuShare.setOnClickListener { 
-            hideMenu()
-            shareContent()
-        }
+        
+        // 进度条拖动监听
+        readingProgressBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    readingProgressPercent.text = "$progress%"
+                }
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                seekBar?.let {
+                    val targetPage = (it.progress * totalPages / 100).coerceIn(0, totalPages - 1)
+                    displayPage(targetPage)
+                    updatePageInfo()
+                }
+            }
+        })
     }
     
     /**
@@ -481,15 +674,29 @@ class FileReaderActivity : AppCompatActivity() {
         @JavascriptInterface
         fun onTextSelected(selectedText: String, startOffset: Int, endOffset: Int) {
             runOnUiThread {
-                showTextSelectionDialog(selectedText, startOffset, endOffset)
+                Log.d(TAG, "onTextSelected 被调用: 文本长度=${selectedText.length}, start=$startOffset, end=$endOffset")
+                if (selectedText.isNotBlank()) {
+                    showTextSelectionDialog(selectedText, startOffset, endOffset)
+                }
             }
         }
         
         @JavascriptInterface
         fun onTextSelectedSimple(selectedText: String) {
             runOnUiThread {
+                Log.d(TAG, "onTextSelectedSimple 被调用: 文本长度=${selectedText.length}")
                 // 简化版本，用于兼容
-                showTextSelectionDialog(selectedText, 0, selectedText.length)
+                if (selectedText.isNotBlank()) {
+                    showTextSelectionDialog(selectedText, 0, selectedText.length)
+                }
+            }
+        }
+        
+        @JavascriptInterface
+        fun onSelectionCleared() {
+            runOnUiThread {
+                Log.d(TAG, "onSelectionCleared 被调用")
+                hideTextSelectionDialog()
             }
         }
     }
@@ -853,6 +1060,13 @@ class FileReaderActivity : AppCompatActivity() {
     private fun generateHTML(text: String): String {
         val (backgroundColor, textColor) = getThemeColors()
         
+        // 根据设置选择字体家族
+        val fontFamily = when (settings.fontFamily) {
+            "serif" -> "Georgia, \"Times New Roman\", serif"
+            "monospace" -> "\"Courier New\", Courier, monospace"
+            else -> "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+        }
+        
         return """
             <!DOCTYPE html>
             <html>
@@ -861,7 +1075,7 @@ class FileReaderActivity : AppCompatActivity() {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                     body {
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        font-family: $fontFamily;
                         font-size: ${settings.fontSize}px;
                         line-height: ${settings.lineHeight};
                         color: $textColor;
@@ -882,68 +1096,102 @@ class FileReaderActivity : AppCompatActivity() {
             <body>
                 <div style="white-space: pre-wrap; word-wrap: break-word;">$text</div>
                 <script>
+                    // 禁用系统默认的文本选择菜单
+                    document.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
+                        return false;
+                    });
+                    
+                    // 禁用长按菜单
+                    document.addEventListener('selectstart', function(e) {
+                        // 允许选择，但阻止系统菜单
+                    });
+                    
                     // 文本选择监听
                     var lastSelection = '';
+                    var selectionTimeout = null;
                     document.addEventListener('selectionchange', function() {
-                        var selection = window.getSelection();
-                        var selectedText = selection.toString();
-                        if (selectedText.length > 0 && selectedText !== lastSelection) {
-                            lastSelection = selectedText;
-                            var range = selection.getRangeAt(0);
-                            var container = range.commonAncestorContainer;
-                            
-                            // 计算选中文本在页面中的位置
-                            var startOffset = 0;
-                            var endOffset = 0;
-                            
-                            // 获取选中文本在body中的位置
-                            var walker = document.createTreeWalker(
-                                document.body,
-                                NodeFilter.SHOW_TEXT,
-                                null,
-                                false
-                            );
-                            
-                            var node;
-                            var foundStart = false;
-                            var foundEnd = false;
-                            
-                            while (node = walker.nextNode()) {
-                                if (node === range.startContainer || node.contains(range.startContainer)) {
-                                    startOffset = range.startOffset;
-                                    if (node !== range.startContainer) {
-                                        // 需要计算前面的文本长度
-                                        var textBefore = node.textContent.substring(0, range.startOffset);
-                                        startOffset = textBefore.length;
-                                    }
-                                    foundStart = true;
-                                }
-                                
-                                if (node === range.endContainer || node.contains(range.endContainer)) {
-                                    endOffset = range.endOffset;
-                                    if (node !== range.endContainer) {
-                                        var textBefore = node.textContent.substring(0, range.endOffset);
-                                        endOffset = textBefore.length;
-                                    }
-                                    foundEnd = true;
-                                    if (foundStart) break;
-                                }
-                                
-                                if (!foundStart && !foundEnd) {
-                                    startOffset += node.textContent.length;
-                                    endOffset += node.textContent.length;
-                                } else if (foundStart && !foundEnd) {
-                                    endOffset += node.textContent.length;
-                                }
-                            }
-                            
-                            // 调用Android接口
-                            if (typeof Android !== 'undefined' && Android.onTextSelected) {
-                                Android.onTextSelected(selectedText, startOffset, endOffset);
-                            } else if (typeof Android !== 'undefined' && Android.onTextSelectedSimple) {
-                                Android.onTextSelectedSimple(selectedText);
-                            }
+                        // 延迟处理，避免抖动
+                        if (selectionTimeout) {
+                            clearTimeout(selectionTimeout);
                         }
+                        selectionTimeout = setTimeout(function() {
+                            var selection = window.getSelection();
+                            var selectedText = selection.toString();
+                            if (selectedText.length > 0 && selectedText !== lastSelection) {
+                                lastSelection = selectedText;
+                                var range = selection.getRangeAt(0);
+                                var container = range.commonAncestorContainer;
+                                
+                                // 计算选中文本在页面中的位置
+                                var startOffset = 0;
+                                var endOffset = 0;
+                                
+                                // 获取选中文本在body中的位置
+                                var walker = document.createTreeWalker(
+                                    document.body,
+                                    NodeFilter.SHOW_TEXT,
+                                    null,
+                                    false
+                                );
+                                
+                                var node;
+                                var foundStart = false;
+                                var foundEnd = false;
+                                
+                                while (node = walker.nextNode()) {
+                                    if (node === range.startContainer || node.contains(range.startContainer)) {
+                                        startOffset = range.startOffset;
+                                        if (node !== range.startContainer) {
+                                            // 需要计算前面的文本长度
+                                            var textBefore = node.textContent.substring(0, range.startOffset);
+                                            startOffset = textBefore.length;
+                                        }
+                                        foundStart = true;
+                                    }
+                                    
+                                    if (node === range.endContainer || node.contains(range.endContainer)) {
+                                        endOffset = range.endOffset;
+                                        if (node !== range.endContainer) {
+                                            var textBefore = node.textContent.substring(0, range.endOffset);
+                                            endOffset = textBefore.length;
+                                        }
+                                        foundEnd = true;
+                                        if (foundStart) break;
+                                    }
+                                    
+                                    if (!foundStart && !foundEnd) {
+                                        startOffset += node.textContent.length;
+                                        endOffset += node.textContent.length;
+                                    } else if (foundStart && !foundEnd) {
+                                        endOffset += node.textContent.length;
+                                    }
+                                }
+                                
+                                // 调用Android接口
+                                if (typeof Android !== 'undefined' && Android.onTextSelected) {
+                                    Android.onTextSelected(selectedText, startOffset, endOffset);
+                                } else if (typeof Android !== 'undefined' && Android.onTextSelectedSimple) {
+                                    Android.onTextSelectedSimple(selectedText);
+                                }
+                            }
+                        }, 50); // 延迟50ms，避免抖动但保持响应速度
+                    });
+                    
+                    // 点击其他地方时清除选择
+                    document.addEventListener('mousedown', function(e) {
+                        // 延迟检查，避免与文本选择冲突
+                        setTimeout(function() {
+                            var selection = window.getSelection();
+                            var selectedText = selection.toString();
+                            // 如果点击时没有选中文本，清除选择并关闭菜单
+                            if (selectedText.length === 0) {
+                                selection.removeAllRanges();
+                                if (typeof Android !== 'undefined' && Android.onSelectionCleared) {
+                                    Android.onSelectionCleared();
+                                }
+                            }
+                        }, 100);
                     });
                 </script>
             </body>
@@ -1149,12 +1397,17 @@ class FileReaderActivity : AppCompatActivity() {
         isTopBarVisible = true
         
         // 显示顶部信息栏（在顶部）
+        // 确保顶部信息栏在最上层
+        topInfoBar.bringToFront()
         topInfoBar.visibility = View.VISIBLE
         topInfoBar.alpha = 0f
         topInfoBar.animate()
             .alpha(1f)
             .setDuration(200)
             .start()
+        
+        // 确保顶部信息栏内容已更新
+        updateChapterInfo()
         
         // 从底部滑入工具菜单
         menuContainer.visibility = View.VISIBLE
@@ -1260,6 +1513,7 @@ class FileReaderActivity : AppCompatActivity() {
      */
     private fun updatePageInfo() {
         pageInfo.text = "${currentPageIndex + 1}/$totalPages"
+        updateReadingProgress()  // 同时更新进度条
     }
     
     // ==================== 章节功能 ====================
@@ -1391,73 +1645,189 @@ class FileReaderActivity : AppCompatActivity() {
     // ==================== 划线/笔记功能 ====================
     
     /**
-     * 显示文本选择对话框（底部弹出菜单）
-     */
-    private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endOffset: Int) {
-        if (selectedText.isBlank()) {
-            return
-        }
-        
-        // 使用底部弹出菜单，不遮挡视线
-        val dialogView = layoutInflater.inflate(R.layout.dialog_text_selection, null)
-        
-        val selectedTextView = dialogView.findViewById<TextView>(R.id.selectedText)
-        val btnHighlight = dialogView.findViewById<android.widget.Button>(R.id.btnHighlight)
-        val btnNote = dialogView.findViewById<android.widget.Button>(R.id.btnNote)
-        val btnCopy = dialogView.findViewById<android.widget.Button>(R.id.btnCopy)
-        val btnShare = dialogView.findViewById<android.widget.Button>(R.id.btnShare)
-        val btnClose = dialogView.findViewById<ImageButton>(R.id.btnClose)
-        
-        // 显示选中的文本（最多显示50个字符）
-        val displayText = if (selectedText.length > 50) {
-            "${selectedText.take(50)}..."
-        } else {
-            selectedText
-        }
-        selectedTextView.text = "\"$displayText\""
-        
-        btnHighlight.setOnClickListener {
-            addHighlight(selectedText, startOffset, endOffset)
-            hideTextSelectionDialog()
-        }
-        
-        btnNote.setOnClickListener {
-            addNote(selectedText, startOffset)
-            hideTextSelectionDialog()
-        }
-        
-        btnCopy.setOnClickListener {
-            copyText(selectedText)
-            hideTextSelectionDialog()
-        }
-        
-        btnShare.setOnClickListener {
-            shareText(selectedText)
-            hideTextSelectionDialog()
-        }
-        
-        btnClose?.setOnClickListener {
-            hideTextSelectionDialog()
-        }
-        
-        val dialog = android.app.Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
-        dialog.setContentView(dialogView)
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        dialog.window?.setGravity(android.view.Gravity.BOTTOM)
-        dialog.setCancelable(true)
-        dialog.setCanceledOnTouchOutside(true)
-        
-        // 点击背景关闭
-        dialogView.findViewById<View>(R.id.dialogBackground)?.setOnClickListener {
-            dialog.dismiss()
-        }
-        
-        textSelectionDialog = dialog
-        dialog.show()
+ * 显示文本选择对话框（iOS风格横向菜单）
+ */
+private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endOffset: Int) {
+    if (selectedText.isBlank()) {
+        return
     }
+    
+    // 使用新的横向菜单布局
+    val dialogView = layoutInflater.inflate(R.layout.menu_text_selection, null)
+    
+    // 复制
+    dialogView.findViewById<LinearLayout>(R.id.menuCopy).setOnClickListener {
+        copyText(selectedText)
+        hideTextSelectionDialog()
+        Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+    }
+    
+    // 划线
+    dialogView.findViewById<LinearLayout>(R.id.menuHighlightText).setOnClickListener {
+        showHighlightColorPicker(selectedText, startOffset, endOffset)
+    }
+    
+    // AI提问
+    dialogView.findViewById<LinearLayout>(R.id.menuAI).setOnClickListener {
+        hideTextSelectionDialog()
+        showAIDialog(selectedText)
+    }
+    
+    // 搜索
+    dialogView.findViewById<LinearLayout>(R.id.menuSearch).setOnClickListener {
+        hideTextSelectionDialog()
+        searchText(selectedText)
+    }
+    
+    // 翻译
+    dialogView.findViewById<LinearLayout>(R.id.menuTranslate).setOnClickListener {
+        hideTextSelectionDialog()
+        translateText(selectedText)
+    }
+    
+    // 分享
+    dialogView.findViewById<LinearLayout>(R.id.menuShareText).setOnClickListener {
+        shareText(selectedText)
+        hideTextSelectionDialog()
+    }
+    
+    // 如果已有对话框显示，先关闭
+    textSelectionDialog?.dismiss()
+    
+    // 创建对话框
+    val dialog = android.app.Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
+    dialog.setContentView(dialogView)
+    dialog.window?.setLayout(
+        ViewGroup.LayoutParams.WRAP_CONTENT,
+        ViewGroup.LayoutParams.WRAP_CONTENT
+    )
+    dialog.window?.setGravity(android.view.Gravity.CENTER)
+    dialog.setCancelable(true)
+    dialog.setCanceledOnTouchOutside(true)
+    
+    // 禁用对话框动画，避免抖动
+    dialog.window?.setWindowAnimations(0)
+    
+    // 点击对话框外部区域时关闭
+    dialog.setOnDismissListener {
+        // 清除WebView中的文本选择
+        webView.evaluateJavascript("window.getSelection().removeAllRanges();", null)
+    }
+    
+    textSelectionDialog = dialog
+    
+    // 立即显示对话框
+    try {
+        dialog.show()
+        Log.d(TAG, "文本选择菜单已显示，选中文本: ${selectedText.take(20)}...")
+    } catch (e: Exception) {
+        Log.e(TAG, "显示文本选择菜单失败", e)
+    }
+}
+
+/**
+ * 显示划线颜色选择器
+ */
+private fun showHighlightColorPicker(selectedText: String, startOffset: Int, endOffset: Int) {
+    val colors = arrayOf(
+        "黄色",
+        "绿色",
+        "蓝色",
+        "红色",
+        "紫色"
+    )
+    val colorValues = arrayOf(
+        "#FFEB3B",
+        "#4CAF50",
+        "#2196F3",
+        "#F44336",
+        "#9C27B0"
+    )
+    
+    AlertDialog.Builder(this)
+        .setTitle("选择划线颜色")
+        .setItems(colors) { _, which ->
+            addHighlight(selectedText, startOffset, endOffset, colorValues[which])
+            hideTextSelectionDialog()
+            Toast.makeText(this, "已添加划线", Toast.LENGTH_SHORT).show()
+        }
+        .setNegativeButton("取消") { _, _ ->
+            hideTextSelectionDialog()
+        }
+        .show()
+}
+
+/**
+ * 显示AI对话框
+ */
+private fun showAIDialog(selectedText: String) {
+    val dialogView = layoutInflater.inflate(android.R.layout.select_dialog_item, null)
+    val input = android.widget.EditText(this).apply {
+        hint = "向AI提问关于这段文字..."
+        setText("请解释：$selectedText")
+        setSelection(text.length)
+    }
+    
+    AlertDialog.Builder(this)
+        .setTitle("AI助手")
+        .setView(input)
+        .setPositiveButton("提问") { _, _ ->
+            val question = input.text.toString()
+            if (question.isNotBlank()) {
+                // TODO: 集成AI API
+                Toast.makeText(this, "AI功能开发中...\n问题: $question", Toast.LENGTH_LONG).show()
+            }
+        }
+        .setNegativeButton("取消", null)
+        .show()
+}
+
+/**
+ * 搜索文字
+ */
+private fun searchText(text: String) {
+    try {
+        val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+            putExtra(android.app.SearchManager.QUERY, text)
+        }
+        startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(this, "无法打开搜索", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * 翻译文字
+ */
+private fun translateText(text: String) {
+    try {
+        // 使用Google翻译
+        val url = "https://translate.google.com/?sl=auto&tl=zh-CN&text=${Uri.encode(text)}"
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        startActivity(intent)
+    } catch (e: Exception) {
+        Toast.makeText(this, "无法打开翻译", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * 添加划线（带颜色）
+ */
+private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: String = "#FFEB3B") {
+    val highlight = Highlight(
+        id = UUID.randomUUID().toString(),
+        filePath = filePath,
+        pageIndex = currentPageIndex,
+        startPosition = startOffset,
+        endPosition = endOffset,
+        text = text,
+        color = color
+    )
+    dataManager.addHighlight(highlight)
+    
+    // 重新显示当前页以显示划线
+    displayPage(currentPageIndex)
+}
     
     private var textSelectionDialog: android.app.Dialog? = null
     
@@ -1467,27 +1837,12 @@ class FileReaderActivity : AppCompatActivity() {
     }
     
     /**
-     * 添加划线
+     * 添加划线（兼容旧版本，使用默认颜色）
      */
     private fun addHighlight(text: String, startOffset: Int, endOffset: Int) {
-        // 在当前页添加划线，使用精确的位置信息
-        val pageText = pages[currentPageIndex]
-        val actualStart = startOffset.coerceIn(0, pageText.length)
-        val actualEnd = endOffset.coerceIn(actualStart, pageText.length)
-        
-        val highlight = Highlight(
-            id = UUID.randomUUID().toString(),
-            filePath = filePath,
-            pageIndex = currentPageIndex,
-            startPosition = actualStart,
-            endPosition = actualEnd,
-            text = text,
-            color = "#FFEB3B" // 默认黄色
-        )
-        dataManager.addHighlight(highlight)
+        // 调用带颜色参数的版本，使用默认颜色
+        addHighlight(text, startOffset, endOffset, "#FFEB3B")
         Toast.makeText(this, "已添加划线", Toast.LENGTH_SHORT).show()
-        // 重新显示当前页以应用高亮
-        displayPage(currentPageIndex)
     }
     
     /**
@@ -1504,16 +1859,29 @@ class FileReaderActivity : AppCompatActivity() {
      * 添加笔记
      */
     private fun addNote(text: String, position: Int) {
-        val note = Note(
-            id = UUID.randomUUID().toString(),
-            filePath = filePath,
-            pageIndex = currentPageIndex,
-            position = position,
-            text = text,
-            noteContent = ""
-        )
-        dataManager.addNote(note)
-        showNoteEditDialog(note)
+        val input = android.widget.EditText(this).apply {
+            hint = "输入笔记内容..."
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle("添加笔记")
+            .setMessage("原文：${text.take(50)}${if (text.length > 50) "..." else ""}")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val noteContent = input.text.toString()
+                val note = Note(
+                    id = UUID.randomUUID().toString(),
+                    filePath = filePath,
+                    pageIndex = currentPageIndex,
+                    position = position,
+                    text = text,
+                    noteContent = noteContent
+                )
+                dataManager.addNote(note)
+                Toast.makeText(this, "笔记已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     /**
@@ -1553,114 +1921,177 @@ class FileReaderActivity : AppCompatActivity() {
     // ==================== 设置功能 ====================
     
     /**
-     * 显示设置对话框（实时预览版本）
+     * 显示设置对话框（iOS风格选项式）
      */
     private fun showSettingsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_reader_settings, null)
         
-        // 字体大小滑动条
-        val fontSizeSeekBar = dialogView.findViewById<android.widget.SeekBar>(R.id.fontSizeSeekBar)
-        val fontSizeText = dialogView.findViewById<TextView>(R.id.fontSizeText)
-        fontSizeSeekBar.max = 24 - 12 // 12-24
-        fontSizeSeekBar.progress = settings.fontSize - 12
-        fontSizeText.text = "${settings.fontSize}px"
-        fontSizeSeekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    settings.fontSize = progress + 12
-                    fontSizeText.text = "${settings.fontSize}px"
-                    // 实时预览
-                    pages = paginateText(fullText)
-                    totalPages = pages.size
-                    displayPage(currentPageIndex.coerceIn(0, totalPages - 1))
-                    updatePageInfo()
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
-                dataManager.saveSettings(settings)
-            }
-        })
+        // 翻页速度选项
+        val speedSlow = dialogView.findViewById<TextView>(R.id.speedSlow)
+        val speedMedium = dialogView.findViewById<TextView>(R.id.speedMedium)
+        val speedFast = dialogView.findViewById<TextView>(R.id.speedFast)
         
-        // 行距滑动条
-        val lineHeightSeekBar = dialogView.findViewById<android.widget.SeekBar>(R.id.lineHeightSeekBar)
-        val lineHeightText = dialogView.findViewById<TextView>(R.id.lineHeightText)
-        lineHeightSeekBar.max = 8 // 1.2-2.0，步长0.1
-        lineHeightSeekBar.progress = ((settings.lineHeight - 1.2f) * 10).toInt()
-        lineHeightText.text = String.format("%.1f", settings.lineHeight)
-        lineHeightSeekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    settings.lineHeight = 1.2f + progress * 0.1f
-                    lineHeightText.text = String.format("%.1f", settings.lineHeight)
-                    // 实时预览
-                    displayPage(currentPageIndex)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
-                dataManager.saveSettings(settings)
-            }
-        })
-        
-        // 边距滑动条
-        val marginSeekBar = dialogView.findViewById<android.widget.SeekBar>(R.id.marginSeekBar)
-        val marginText = dialogView.findViewById<TextView>(R.id.marginText)
-        marginSeekBar.max = 20 // 10-30，步长1
-        marginSeekBar.progress = settings.marginHorizontal - 10
-        marginText.text = "${settings.marginHorizontal}dp"
-        marginSeekBar.setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    settings.marginHorizontal = progress + 10
-                    settings.marginVertical = progress + 10
-                    marginText.text = "${settings.marginHorizontal}dp"
-                    // 实时预览
-                    pages = paginateText(fullText)
-                    totalPages = pages.size
-                    displayPage(currentPageIndex.coerceIn(0, totalPages - 1))
-                    updatePageInfo()
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
-                dataManager.saveSettings(settings)
-            }
-        })
-        
-        // 主题选择
-        val themeGroup = dialogView.findViewById<android.widget.RadioGroup>(R.id.themeGroup)
-        when (settings.theme) {
-            ReaderTheme.LIGHT -> themeGroup.check(R.id.themeLight)
-            ReaderTheme.DARK -> themeGroup.check(R.id.themeDark)
-            ReaderTheme.SEPIA -> themeGroup.check(R.id.themeSepia)
-            ReaderTheme.GREEN -> themeGroup.check(R.id.themeGreen)
+        // 设置当前选中状态
+        listOf(speedSlow, speedMedium, speedFast).forEach { it.isSelected = false }
+        when {
+            settings.pageAnimationDuration >= 1000 -> speedSlow.isSelected = true
+            settings.pageAnimationDuration >= 500 -> speedMedium.isSelected = true
+            else -> speedFast.isSelected = true
         }
-        themeGroup.setOnCheckedChangeListener { _, checkedId ->
-            settings.theme = when (checkedId) {
-                R.id.themeLight -> ReaderTheme.LIGHT
-                R.id.themeDark -> ReaderTheme.DARK
-                R.id.themeSepia -> ReaderTheme.SEPIA
-                R.id.themeGreen -> ReaderTheme.GREEN
-                else -> ReaderTheme.LIGHT
+        
+        speedSlow.setOnClickListener {
+            settings.pageAnimationDuration = 1000
+            listOf(speedSlow, speedMedium, speedFast).forEach { it.isSelected = false }
+            speedSlow.isSelected = true
+            dataManager.saveSettings(settings)
+        }
+        speedMedium.setOnClickListener {
+            settings.pageAnimationDuration = 1500
+            listOf(speedSlow, speedMedium, speedFast).forEach { it.isSelected = false }
+            speedMedium.isSelected = true
+            dataManager.saveSettings(settings)
+        }
+        speedFast.setOnClickListener {
+            settings.pageAnimationDuration = 0
+            listOf(speedSlow, speedMedium, speedFast).forEach { it.isSelected = false }
+            speedFast.isSelected = true
+            dataManager.saveSettings(settings)
+        }
+        
+        // 字体大小选项
+        val fontSizeSmall = dialogView.findViewById<TextView>(R.id.fontSizeSmall)
+        val fontSizeMedium = dialogView.findViewById<TextView>(R.id.fontSizeMedium)
+        val fontSizeLarge = dialogView.findViewById<TextView>(R.id.fontSizeLarge)
+        val fontSizeExtraLarge = dialogView.findViewById<TextView>(R.id.fontSizeExtraLarge)
+        val fontSizePreview = dialogView.findViewById<TextView>(R.id.fontSizePreview)
+        
+        // 设置当前选中状态
+        listOf(fontSizeSmall, fontSizeMedium, fontSizeLarge, fontSizeExtraLarge).forEach { it.isSelected = false }
+        when {
+            settings.fontSize <= 14 -> {
+                fontSizeSmall.isSelected = true
+                fontSizePreview.textSize = 14f
+            }
+            settings.fontSize <= 18 -> {
+                fontSizeMedium.isSelected = true
+                fontSizePreview.textSize = 19f
+            }
+            settings.fontSize <= 22 -> {
+                fontSizeLarge.isSelected = true
+                fontSizePreview.textSize = 24f
+            }
+            else -> {
+                fontSizeExtraLarge.isSelected = true
+                fontSizePreview.textSize = 30f
+            }
+        }
+        
+        fontSizeSmall.setOnClickListener {
+            settings.fontSize = 14
+            fontSizePreview.textSize = 14f
+            listOf(fontSizeSmall, fontSizeMedium, fontSizeLarge, fontSizeExtraLarge).forEach { it.isSelected = false }
+            fontSizeSmall.isSelected = true
+            updateContent()
+        }
+        fontSizeMedium.setOnClickListener {
+            settings.fontSize = 18
+            fontSizePreview.textSize = 19f
+            listOf(fontSizeSmall, fontSizeMedium, fontSizeLarge, fontSizeExtraLarge).forEach { it.isSelected = false }
+            fontSizeMedium.isSelected = true
+            updateContent()
+        }
+        fontSizeLarge.setOnClickListener {
+            settings.fontSize = 22
+            fontSizePreview.textSize = 24f
+            listOf(fontSizeSmall, fontSizeMedium, fontSizeLarge, fontSizeExtraLarge).forEach { it.isSelected = false }
+            fontSizeLarge.isSelected = true
+            updateContent()
+        }
+        fontSizeExtraLarge.setOnClickListener {
+            settings.fontSize = 26
+            fontSizePreview.textSize = 30f
+            listOf(fontSizeSmall, fontSizeMedium, fontSizeLarge, fontSizeExtraLarge).forEach { it.isSelected = false }
+            fontSizeExtraLarge.isSelected = true
+            updateContent()
+        }
+        
+        // 字体样式选项
+        val fontStyleDefault = dialogView.findViewById<TextView>(R.id.fontStyleDefault)
+        val fontStyleSerif = dialogView.findViewById<TextView>(R.id.fontStyleSerif)
+        val fontStyleMonospace = dialogView.findViewById<TextView>(R.id.fontStyleMonospace)
+        
+        listOf(fontStyleDefault, fontStyleSerif, fontStyleMonospace).forEach { it.isSelected = false }
+        when (settings.fontFamily) {
+            "serif" -> fontStyleSerif.isSelected = true
+            "monospace" -> fontStyleMonospace.isSelected = true
+            else -> fontStyleDefault.isSelected = true
+        }
+        
+        fontStyleDefault.setOnClickListener {
+            settings.fontFamily = "sans-serif"
+            listOf(fontStyleDefault, fontStyleSerif, fontStyleMonospace).forEach { it.isSelected = false }
+            fontStyleDefault.isSelected = true
+            updateContent()
+        }
+        fontStyleSerif.setOnClickListener {
+            settings.fontFamily = "serif"
+            listOf(fontStyleDefault, fontStyleSerif, fontStyleMonospace).forEach { it.isSelected = false }
+            fontStyleSerif.isSelected = true
+            updateContent()
+        }
+        fontStyleMonospace.setOnClickListener {
+            settings.fontFamily = "monospace"
+            listOf(fontStyleDefault, fontStyleSerif, fontStyleMonospace).forEach { it.isSelected = false }
+            fontStyleMonospace.isSelected = true
+            updateContent()
+        }
+        
+        // 其他设置
+        val settingKeepScreen = dialogView.findViewById<TextView>(R.id.settingKeepScreen)
+        val settingAutoMode = dialogView.findViewById<TextView>(R.id.settingAutoMode)
+        
+        settingKeepScreen.isSelected = settings.keepScreenOn
+        settingAutoMode.isSelected = settings.isAutoReadEnabled
+        
+        settingKeepScreen.setOnClickListener {
+            settings.keepScreenOn = !settings.keepScreenOn
+            settingKeepScreen.isSelected = settings.keepScreenOn
+            if (settings.keepScreenOn) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             dataManager.saveSettings(settings)
-            // 更新系统UI（状态栏文字颜色）
-            setupSystemUI()
-            updateMenuTheme()
-            // 实时预览主题变化
-            displayPage(currentPageIndex)
         }
         
-        AlertDialog.Builder(this)
-            .setTitle("阅读设置")
-            .setView(dialogView)
-            .setPositiveButton("确定") { dialog, _ ->
-                dataManager.saveSettings(settings)
-                dialog.dismiss()
+        settingAutoMode.setOnClickListener {
+            settings.isAutoReadEnabled = !settings.isAutoReadEnabled
+            settingAutoMode.isSelected = settings.isAutoReadEnabled
+            if (settings.isAutoReadEnabled) {
+                startAutoRead()
+            } else {
+                stopAutoRead()
             }
-            .setNegativeButton("取消", null)
-            .show()
+            dataManager.saveSettings(settings)
+        }
+        
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+        
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
+    }
+    
+    /**
+     * 更新内容显示（重新分页并显示）
+     */
+    private fun updateContent() {
+        dataManager.saveSettings(settings)
+        pages = paginateText(fullText)
+        totalPages = pages.size
+        displayPage(currentPageIndex.coerceIn(0, totalPages - 1))
+        updatePageInfo()
     }
     
     // ==================== TTS功能 ====================
@@ -2308,6 +2739,100 @@ class FileReaderActivity : AppCompatActivity() {
         }
         
         return buffer.toString()
+    }
+    
+    // ==================== 统计功能 ====================
+    
+    /**
+     * 更新阅读进度条
+     */
+    private fun updateReadingProgress() {
+        if (totalPages > 0) {
+            val progress = ((currentPageIndex + 1) * 100 / totalPages).coerceIn(0, 100)
+            readingProgressBar.progress = progress
+            readingProgressPercent.text = "$progress%"
+        }
+    }
+    
+    /**
+     * 显示统计对话框
+     */
+    private fun showStatsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_reading_stats, null)
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .create()
+        
+        // 计算统计数据
+        val currentReadingTime = if (readingStartTime > 0) {
+            System.currentTimeMillis() - readingStartTime
+        } else 0
+        
+        val totalTime = totalReadingTime + currentReadingTime
+        val todayTime = todayReadingTime + currentReadingTime
+        
+        // 更新UI
+        dialogView.findViewById<TextView>(R.id.statsTodayTime).text = formatTime(todayTime)
+        dialogView.findViewById<TextView>(R.id.statsTotalTime).text = formatTime(totalTime)
+        
+        val progress = if (totalPages > 0) ((currentPageIndex + 1) * 100 / totalPages) else 0
+        dialogView.findViewById<TextView>(R.id.statsProgressPercent).text = "$progress%"
+        dialogView.findViewById<ProgressBar>(R.id.statsProgressBar).progress = progress
+        dialogView.findViewById<TextView>(R.id.statsCurrentPage).text = "第 ${currentPageIndex + 1} 页"
+        dialogView.findViewById<TextView>(R.id.statsTotalPages).text = "共 $totalPages 页"
+        
+        // 计算阅读速度（假设每页约500字）
+        val charsPerPage = 500
+        val readingSpeed = if (totalTime > 0) {
+            ((currentPageIndex + 1) * charsPerPage * 60000 / totalTime).toInt()
+        } else 350
+        dialogView.findViewById<TextView>(R.id.statsReadingSpeed).text = "${readingSpeed}字/分"
+        
+        // 计算剩余时间
+        val remainingPages = totalPages - currentPageIndex - 1
+        val remainingTime = if (readingSpeed > 0) {
+            remainingPages * charsPerPage * 60 / readingSpeed
+        } else 0
+        dialogView.findViewById<TextView>(R.id.statsRemainingTime).text = "约${remainingTime}分钟"
+        
+        dialogView.findViewById<Button>(R.id.statsCloseButton).setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.show()
+    }
+    
+    /**
+     * 格式化时间显示
+     */
+    private fun formatTime(millis: Long): String {
+        val minutes = millis / 60000
+        val hours = minutes / 60
+        return when {
+            hours > 0 -> "${hours}小时${minutes % 60}分"
+            minutes > 0 -> "${minutes}分钟"
+            else -> "${millis / 1000}秒"
+        }
+    }
+    
+    /**
+     * 开始计时
+     */
+    private fun startReadingTimer() {
+        readingStartTime = System.currentTimeMillis()
+    }
+    
+    /**
+     * 停止计时并保存
+     */
+    private fun stopReadingTimer() {
+        if (readingStartTime > 0) {
+            val duration = System.currentTimeMillis() - readingStartTime
+            totalReadingTime += duration
+            todayReadingTime += duration
+            readingStartTime = 0
+        }
     }
 }
 

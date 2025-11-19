@@ -80,7 +80,11 @@ data class ReaderSettings(
     var brightness: Float = 1.0f, // 亮度（0.0-1.0）
     var autoReadSpeed: Int = 3000, // 自动翻页速度（毫秒）
     var ttsSpeed: Float = 1.0f, // TTS语速
-    var ttsPitch: Float = 1.0f // TTS音调
+    var ttsPitch: Float = 1.0f, // TTS音调
+    var pageAnimationDuration: Int = 0, // 页面动画持续时间（毫秒，0表示无动画）
+    var fontFamily: String = "sans-serif", // 字体家族：sans-serif, serif, monospace
+    var keepScreenOn: Boolean = false, // 保持屏幕常亮
+    var isAutoReadEnabled: Boolean = false // 自动阅读是否启用
 ) : Serializable
 
 /**

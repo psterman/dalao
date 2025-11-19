@@ -1,159 +1,319 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp">
+    android:orientation="vertical"
+    android:background="#F2F2F7"
+    android:padding="20dp">
 
+    <!-- 翻页速度 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:elevation="0dp">
 
-        <!-- 字体大小 -->
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="字体大小"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:text="翻页速度"
+            android:textSize="13sp"
+            android:textColor="#8E8E93"
+            android:fontFamily="sans-serif"
+            android:layout_marginBottom="12dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
-
-            <android.widget.SeekBar
-                android:id="@+id/fontSizeSeekBar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1" />
+            android:gravity="center">
 
             <TextView
-                android:id="@+id/fontSizeText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="18px"
-                android:textSize="14sp"
-                android:minWidth="50dp"
-                android:gravity="center" />
-
-        </LinearLayout>
-
-        <!-- 行距 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="行距"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
-
-            <android.widget.SeekBar
-                android:id="@+id/lineHeightSeekBar"
+                android:id="@+id/speedSlow"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1" />
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="1s\n慢速翻页"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
 
             <TextView
-                android:id="@+id/lineHeightText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="1.6"
-                android:textSize="14sp"
-                android:minWidth="50dp"
-                android:gravity="center" />
-
-        </LinearLayout>
-
-        <!-- 边距 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="边距"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
-
-            <android.widget.SeekBar
-                android:id="@+id/marginSeekBar"
+                android:id="@+id/speedMedium"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1" />
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="1.5s\n适中"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
 
             <TextView
-                android:id="@+id/marginText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="20dp"
+                android:id="@+id/speedFast"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="0s\n瞬间"
                 android:textSize="14sp"
-                android:minWidth="50dp"
-                android:gravity="center" />
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true" />
 
         </LinearLayout>
-
-        <!-- 主题 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="主题"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
-
-        <android.widget.RadioGroup
-            android:id="@+id/themeGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginBottom="16dp">
-
-            <android.widget.RadioButton
-                android:id="@+id/themeLight"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="浅色" />
-
-            <android.widget.RadioButton
-                android:id="@+id/themeDark"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="深色" />
-
-            <android.widget.RadioButton
-                android:id="@+id/themeSepia"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="护眼" />
-
-            <android.widget.RadioButton
-                android:id="@+id/themeGreen"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="绿色" />
-
-        </android.widget.RadioGroup>
 
     </LinearLayout>
 
-</ScrollView>
+    <!-- 字体大小 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:elevation="0dp">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="字体大小"
+                android:textSize="13sp"
+                android:textColor="#8E8E93"
+                android:fontFamily="sans-serif" />
+
+            <TextView
+                android:id="@+id/fontSizePreview"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="A"
+                android:textSize="19sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/fontSizeSmall"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="小"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/fontSizeMedium"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="适中"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/fontSizeLarge"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="大"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/fontSizeExtraLarge"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="巨大"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 字体样式 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp"
+        android:elevation="0dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="字体样式"
+            android:textSize="13sp"
+            android:textColor="#8E8E93"
+            android:fontFamily="sans-serif"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/fontStyleDefault"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="字体样式1"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/fontStyleSerif"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="百行体2"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="serif"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/fontStyleMonospace"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="霞鹜方正"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="monospace"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 其他设置 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:elevation="0dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="其他"
+            android:textSize="13sp"
+            android:textColor="#8E8E93"
+            android:fontFamily="sans-serif"
+            android:layout_marginBottom="12dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/settingKeepScreen"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="保持屏幕"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/settingAutoMode"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="开启自动模式"
+                android:textSize="14sp"
+                android:textColor="#1C1C1E"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:background="@drawable/selector_setting_option"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>
