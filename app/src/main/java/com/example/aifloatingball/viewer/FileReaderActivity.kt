@@ -27,12 +27,19 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.FileProvider
 import com.example.aifloatingball.R
 import com.example.aifloatingball.tts.TTSManager
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.InputStream
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
+import java.nio.charset.CharsetDecoder
+import java.nio.charset.CodingErrorAction
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
 import java.util.*
 
 /**
@@ -97,6 +104,7 @@ class FileReaderActivity : AppCompatActivity() {
     private lateinit var pageInfo: TextView
     
     // 功能菜单
+    private lateinit var menuContainer: LinearLayout
     private lateinit var functionMenu: View
     private lateinit var menuCatalog: LinearLayout
     private lateinit var menuBookmark: LinearLayout
@@ -159,7 +167,7 @@ class FileReaderActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 设置全屏模式，但保留状态栏空间
+        // 设置全屏模式，但保留状态栏空间（用于顶部信息栏）
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         } else {
@@ -207,8 +215,31 @@ class FileReaderActivity : AppCompatActivity() {
             window.statusBarColor = android.graphics.Color.TRANSPARENT
         }
         
+        // 为顶部信息栏添加状态栏高度的padding，避免重叠
+        topInfoBar.post {
+            val statusBarHeight = getStatusBarHeight()
+            topInfoBar.setPadding(
+                topInfoBar.paddingLeft,
+                statusBarHeight + topInfoBar.paddingTop,
+                topInfoBar.paddingRight,
+                topInfoBar.paddingBottom
+            )
+        }
+        
         // 更新菜单主题
         updateMenuTheme()
+    }
+    
+    /**
+     * 获取状态栏高度
+     */
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        return result
     }
     
     /**
@@ -244,8 +275,8 @@ class FileReaderActivity : AppCompatActivity() {
         btnCatalog = findViewById(R.id.btnCatalog)
         btnBookmark = findViewById(R.id.btnBookmark)
         pageInfo = findViewById(R.id.pageInfo)
-        
         // 功能菜单
+        menuContainer = findViewById(R.id.menuContainer)
         functionMenu = findViewById(R.id.functionMenu)
         menuCatalog = findViewById(R.id.menuCatalog)
         menuBookmark = findViewById(R.id.menuBookmark)
@@ -548,10 +579,61 @@ class FileReaderActivity : AppCompatActivity() {
                 else -> null
             }
             
+            // 🔧 修复：先获取文件大小，用于优化大文件处理
+            val fileSize = when (uri.scheme) {
+                "file" -> {
+                    val file = File(uri.path ?: "")
+                    if (file.exists()) file.length() else 0L
+                }
+                "content" -> {
+                    try {
+                        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                            if (sizeIndex >= 0 && cursor.moveToFirst()) {
+                                cursor.getLong(sizeIndex)
+                            } else 0L
+                        } ?: 0L
+                    } catch (e: Exception) {
+                        Log.w(TAG, "无法获取文件大小", e)
+                        0L
+                    }
+                }
+                else -> 0L
+            }
+            
+            Log.d(TAG, "文件大小: ${fileSize / 1024 / 1024}MB")
+            
             inputStream?.use { stream ->
-                fullText = stream.bufferedReader(Charsets.UTF_8).readText()
+                // 🔧 修复：检测文件编码并流式读取大文件
+                val charset = if (fileSize > 16384) {
+                    // 大文件：读取前16KB检测编码，然后流式读取
+                    val sampleBytes = ByteArray(16384)
+                    val bytesRead = stream.read(sampleBytes)
+                    val actualSample = if (bytesRead < sampleBytes.size) {
+                        sampleBytes.sliceArray(0 until bytesRead)
+                    } else {
+                        sampleBytes
+                    }
+                    val detectedCharset = detectCharset(actualSample)
+                    // 重新打开流（因为已经读取了前16KB）
+                    stream.close()
+                    val newStream = when (uri.scheme) {
+                        "file" -> File(uri.path ?: "").inputStream()
+                        "content" -> contentResolver.openInputStream(uri)
+                        else -> null
+                    } ?: throw Exception("无法重新打开文件流")
+                    // 使用检测到的编码流式读取
+                    fullText = readTextFileStreaming(newStream, detectedCharset, maxSize = 50 * 1024 * 1024)
+                    detectedCharset
+                } else {
+                    // 小文件：直接读取全部内容检测编码
+                    val allBytes = stream.readBytes()
+                    val detectedCharset = detectCharset(allBytes)
+                    fullText = String(allBytes, detectedCharset)
+                    detectedCharset
+                }
                 
-                Log.d(TAG, "读取文件内容: 长度=${fullText.length}, 前100字符=${fullText.take(100).replace("\n", "\\n")}")
+                Log.d(TAG, "读取文件内容: 长度=${fullText.length}, 编码=${charset.name()}, 前100字符=${fullText.take(100).replace("\n", "\\n")}")
                 
                 if (fullText.isBlank()) {
                     Log.w(TAG, "文件内容为空")
@@ -1008,10 +1090,14 @@ class FileReaderActivity : AppCompatActivity() {
     /**
      * 隐藏所有UI
      */
+    /**
+     * 隐藏所有UI
+     */
     private fun hideAllUI() {
         topInfoBar.visibility = View.GONE
         bottomNavBar.visibility = View.GONE
         functionMenu.visibility = View.GONE
+        menuContainer.visibility = View.GONE
         isTopBarVisible = false
         isBottomBarVisible = false
         isMenuVisible = false
@@ -1024,17 +1110,44 @@ class FileReaderActivity : AppCompatActivity() {
         if (isMenuVisible) return
         
         isMenuVisible = true
-        hideAllUI() // 隐藏顶部和底部栏
+        isTopBarVisible = true
         
-        // 从底部滑入动画
+        // 显示顶部信息栏（在顶部）
+        topInfoBar.visibility = View.VISIBLE
+        topInfoBar.alpha = 0f
+        topInfoBar.animate()
+            .alpha(1f)
+            .setDuration(200)
+            .start()
+        
+        // 从底部滑入工具菜单
+        menuContainer.visibility = View.VISIBLE
         functionMenu.visibility = View.VISIBLE
-        functionMenu.alpha = 0f
-        // 先测量高度
-        functionMenu.post {
-            val height = functionMenu.height
-            functionMenu.translationY = if (height > 0) height.toFloat() else 200f
+        
+        // 确保菜单容器在底部，然后从下方滑入
+        menuContainer.post {
+            // 先确保菜单容器在底部位置
+            val layoutParams = menuContainer.layoutParams as? CoordinatorLayout.LayoutParams
+            layoutParams?.gravity = android.view.Gravity.BOTTOM
+            menuContainer.layoutParams = layoutParams
             
-            functionMenu.animate()
+            // 获取菜单高度
+            val menuHeight = menuContainer.height
+            if (menuHeight == 0) {
+                // 如果高度为0，先测量
+                menuContainer.measure(
+                    View.MeasureSpec.makeMeasureSpec(resources.displayMetrics.widthPixels, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+            }
+            val finalHeight = menuContainer.measuredHeight.takeIf { it > 0 } ?: menuContainer.height
+            
+            // 设置初始位置：在屏幕底部下方（向下偏移菜单高度）
+            menuContainer.translationY = finalHeight.toFloat()
+            menuContainer.alpha = 0f
+            
+            // 滑入动画：移动到屏幕底部（translationY = 0）
+            menuContainer.animate()
                 .alpha(1f)
                 .translationY(0f)
                 .setDuration(250)
@@ -1050,19 +1163,32 @@ class FileReaderActivity : AppCompatActivity() {
         if (!isMenuVisible) return
         
         isMenuVisible = false
+        isTopBarVisible = false
         
-        // 向底部滑出动画
-        val height = functionMenu.height
-        functionMenu.animate()
+        // 隐藏顶部信息栏
+        topInfoBar.animate()
             .alpha(0f)
-            .translationY(if (height > 0) height.toFloat() else 200f)
             .setDuration(200)
-            .setInterpolator(android.view.animation.AccelerateInterpolator())
             .withEndAction {
-                functionMenu.visibility = View.GONE
-                functionMenu.translationY = 0f
+                topInfoBar.visibility = View.GONE
             }
             .start()
+        
+        // 向底部滑出工具菜单
+        menuContainer.post {
+            val menuHeight = menuContainer.height
+            menuContainer.animate()
+                .alpha(0f)
+                .translationY(if (menuHeight > 0) menuHeight.toFloat() else 200f)
+                .setDuration(200)
+                .setInterpolator(android.view.animation.AccelerateInterpolator())
+                .withEndAction {
+                    menuContainer.visibility = View.GONE
+                    functionMenu.visibility = View.GONE
+                    menuContainer.translationY = 0f
+                }
+                .start()
+        }
     }
     
     // ==================== 翻页功能 ====================
@@ -1846,6 +1972,149 @@ class FileReaderActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    /**
+     * 检测文件编码（改进版，支持更多编码和更准确的检测）
+     */
+    private fun detectCharset(bytes: ByteArray): Charset {
+        // 尝试检测BOM（字节顺序标记）
+        if (bytes.size >= 3) {
+            // UTF-8 BOM: EF BB BF
+            if (bytes[0].toInt() == 0xEF && bytes[1].toInt() == 0xBB && bytes[2].toInt() == 0xBF) {
+                Log.d(TAG, "检测到UTF-8 BOM")
+                return StandardCharsets.UTF_8
+            }
+        }
+        if (bytes.size >= 2) {
+            // UTF-16 LE BOM: FF FE
+            if (bytes[0].toInt() == 0xFF && bytes[1].toInt() == 0xFE) {
+                Log.d(TAG, "检测到UTF-16LE BOM")
+                return Charset.forName("UTF-16LE")
+            }
+            // UTF-16 BE BOM: FE FF
+            if (bytes[0].toInt() == 0xFE && bytes[1].toInt() == 0xFF) {
+                Log.d(TAG, "检测到UTF-16BE BOM")
+                return Charset.forName("UTF-16BE")
+            }
+        }
+        
+        // 尝试常见编码（按优先级，中文编码优先）
+        val charsets = listOf(
+            Charset.forName("GBK"),           // 中文Windows常用
+            Charset.forName("GB2312"),        // 简体中文
+            StandardCharsets.UTF_8,            // UTF-8
+            Charset.forName("Big5"),           // 繁体中文
+            Charset.forName("GB18030"),       // 中文国家标准
+            Charset.forName("ISO-8859-1"),    // 西欧
+            Charset.forName("Windows-1252"),   // Windows西欧
+            StandardCharsets.US_ASCII         // ASCII
+        )
+        
+        // 读取前16KB用于检测（增加样本大小提高准确性）
+        val sampleSize = minOf(bytes.size, 16384)
+        val sample = bytes.sliceArray(0 until sampleSize)
+        
+        // 记录每个编码的得分（替换字符越少，得分越高）
+        val charsetScores = mutableMapOf<Charset, Int>()
+        
+        for (charset in charsets) {
+            try {
+                // 使用REPLACE模式，允许替换字符，然后统计替换字符数量
+                val decoder = charset.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPLACE)
+                    .onUnmappableCharacter(CodingErrorAction.REPLACE)
+                
+                val decoded = String(sample, charset)
+                
+                // 统计替换字符（\uFFFD）的数量
+                val replacementCharCount = decoded.count { it == '\uFFFD' }
+                val totalChars = decoded.length
+                
+                // 计算得分：替换字符越少，得分越高
+                // 如果替换字符超过5%，认为编码不匹配
+                val replacementRatio = if (totalChars > 0) replacementCharCount.toFloat() / totalChars else 1f
+                
+                if (replacementRatio < 0.05f) { // 替换字符少于5%
+                    val score = (1000 * (1 - replacementRatio)).toInt()
+                    charsetScores[charset] = score
+                    Log.d(TAG, "编码 ${charset.name()} 得分: $score (替换字符比例: ${(replacementRatio * 100).toInt()}%)")
+                } else {
+                    Log.d(TAG, "编码 ${charset.name()} 替换字符过多: ${(replacementRatio * 100).toInt()}%，跳过")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "检测编码 ${charset.name()} 失败", e)
+                // 继续尝试下一个编码
+                continue
+            }
+        }
+        
+        // 选择得分最高的编码
+        if (charsetScores.isNotEmpty()) {
+            val bestCharset = charsetScores.maxByOrNull { it.value }?.key
+            if (bestCharset != null) {
+                Log.d(TAG, "检测到最佳编码: ${bestCharset.name()} (得分: ${charsetScores[bestCharset]})")
+                return bestCharset
+            }
+        }
+        
+        // 如果所有编码都失败，尝试UTF-8（最通用）
+        Log.w(TAG, "无法检测编码，尝试UTF-8")
+        try {
+            val decoded = String(sample, StandardCharsets.UTF_8)
+            val replacementRatio = decoded.count { it == '\uFFFD' }.toFloat() / decoded.length
+            if (replacementRatio < 0.1f) { // UTF-8允许10%的替换字符（可能是特殊字符）
+                Log.d(TAG, "使用UTF-8编码")
+                return StandardCharsets.UTF_8
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "UTF-8解码失败", e)
+        }
+        
+        // 最后尝试GBK（中文文件最常用）
+        Log.w(TAG, "所有编码检测失败，默认使用GBK")
+        return try {
+            Charset.forName("GBK")
+        } catch (e: Exception) {
+            Log.e(TAG, "GBK编码不可用，使用UTF-8", e)
+            StandardCharsets.UTF_8
+        }
+    }
+    
+    /**
+     * 流式读取大文件（分块读取，避免内存溢出）
+     */
+    private fun readTextFileStreaming(inputStream: InputStream, charset: Charset, maxSize: Long = 50 * 1024 * 1024): String {
+        val buffer = StringBuilder()
+        val reader = inputStream.bufferedReader(charset)
+        val charBuffer = CharArray(8192) // 8KB缓冲区
+        var totalRead = 0L
+        
+        try {
+            while (true) {
+                val bytesRead = reader.read(charBuffer)
+                if (bytesRead == -1) break
+                
+                buffer.append(charBuffer, 0, bytesRead)
+                totalRead += bytesRead
+                
+                // 🔧 修复：限制文件大小，避免内存溢出
+                if (totalRead > maxSize) {
+                    Log.w(TAG, "文件过大（${totalRead}字节），只读取前${maxSize}字节")
+                    buffer.append("\n\n[文件过大，已截断显示前${maxSize / 1024 / 1024}MB内容]")
+                    break
+                }
+            }
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "内存不足，文件过大", e)
+            // 如果已经读取了一些内容，返回部分内容
+            if (buffer.isNotEmpty()) {
+                buffer.append("\n\n[文件过大，内存不足，已截断显示]")
+            }
+            throw e
+        }
+        
+        return buffer.toString()
     }
 }
 

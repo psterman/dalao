@@ -957,13 +957,26 @@ class EnhancedDownloadManager(private val context: Context) {
         
         if (cursor.moveToFirst()) {
             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            val localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
-            val fileName = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_FILENAME))
+            val localUriString = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+            val title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE))
+            
+            // 🔧 修复：使用COLUMN_LOCAL_URI和getFileNameFromUri替代已废弃的COLUMN_LOCAL_FILENAME
+            val fileName = if (localUriString != null && localUriString.isNotEmpty()) {
+                try {
+                    val uri = Uri.parse(localUriString)
+                    getFileNameFromUri(uri) ?: title
+                } catch (e: Exception) {
+                    Log.w(TAG, "从URI获取文件名失败，使用标题: $title", e)
+                    title
+                }
+            } else {
+                title
+            }
             
             when (status) {
                 DownloadManager.STATUS_SUCCESSFUL -> {
                     Log.d(TAG, "下载成功: $fileName")
-                    val fileNameDisplay = File(fileName).name
+                    val fileNameDisplay = fileName
                     // 显示可点击的Toast，点击后跳转到下载管理
                     val toast = Toast.makeText(context, "下载完成: $fileNameDisplay\n点击查看", Toast.LENGTH_LONG)
                     toast.view?.setOnClickListener {
@@ -975,7 +988,7 @@ class EnhancedDownloadManager(private val context: Context) {
                     // 通知网速悬浮窗显示下载完成提示
                     notifyFloatingServiceDownloadComplete(downloadId, fileNameDisplay)
                     
-                    downloadCallbacks[downloadId]?.onDownloadSuccess(downloadId, localUri, fileName)
+                    downloadCallbacks[downloadId]?.onDownloadSuccess(downloadId, localUriString, fileName)
                 }
                 DownloadManager.STATUS_FAILED -> {
                     val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))

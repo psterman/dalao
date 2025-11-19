@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>功能主页</title>
+    <title>快捷入口</title>
     <style>
         * {
             margin: 0;
@@ -87,16 +87,43 @@
         }
         
         .title {
-            font-size: 32px;
-            font-weight: bold;
+            font-size: 28px;
+            font-weight: 600;
             margin-bottom: 8px;
             text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            color: #007AFF;
         }
         
         .subtitle {
-            font-size: 16px;
-            opacity: 0.9;
+            font-size: 14px;
+            opacity: 0.7;
             margin-bottom: 48px;
+            color: #8E8E93;
+        }
+        
+        /* 添加标题容器，显示"快捷入口"标识 */
+        .title-container {
+            margin-bottom: 24px;
+            padding: 12px 20px;
+            background: rgba(0, 122, 255, 0.1);
+            border-radius: 12px;
+            border-left: 4px solid #007AFF;
+        }
+        
+        body.dark-mode .title-container {
+            background: rgba(10, 132, 255, 0.15);
+            border-left-color: #0A84FF;
+        }
+        
+        .title-container .title {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+        
+        .title-container .subtitle {
+            font-size: 13px;
+            margin-bottom: 0;
+            opacity: 0.8;
         }
         
         .button-group {
@@ -322,6 +349,10 @@
 </head>
 <body>
     <div class="container">
+        <div class="title-container">
+            <div class="title">快捷入口</div>
+            <div class="subtitle">快速访问常用功能</div>
+        </div>
         <div class="button-group" id="buttonGroup">
             <div class="button-wrapper">
                 <button id="btn_new_tab" class="button" onclick="createNewTab()" data-button-id="new_tab" data-text="新建标签页">
@@ -367,6 +398,7 @@
         </div>
         
         <p class="hint">💡 提示：上滑搜索栏可查看所有标签页</p>
+        <p class="hint" style="margin-top: 8px; font-size: 12px; opacity: 0.6;">这是快捷入口页面，用于快速访问常用功能</p>
     </div>
     
     <script>

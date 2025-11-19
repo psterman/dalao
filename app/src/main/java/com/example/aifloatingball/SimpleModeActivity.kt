@@ -11305,15 +11305,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return
         }
         
-        // 🔧 修复：全屏浏览时隐藏工具栏
-        if (!isToolbarVisible) {
-            if (container.visibility != View.GONE) {
-                container.visibility = View.GONE
-                Log.d(TAG, "全屏浏览中，隐藏文本工具栏")
-            }
-            return
-        }
-        
         // 🔧 修复：检查输入框焦点和输入法状态
         val rootView = window.decorView.rootView
         val rect = android.graphics.Rect()
@@ -11323,9 +11314,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 🔧 优化：降低阈值，确保输入法激活时一定能检测到（从15%降到10%）
         val isInputMethodVisible = keypadHeight > screenHeight * 0.10
         
-        // 🔧 优化：输入法激活时一定要显示工具栏
-        // 显示条件：输入框有焦点 或 输入法显示
+        // 🔧 修复：输入法激活时一定要显示工具栏，不受isToolbarVisible影响
+        // 显示条件：输入框有焦点 或 输入法显示（即使工具栏被隐藏也要显示）
         val shouldShow = browserSearchInput.isFocused || isInputMethodVisible
+        
+        // 🔧 修复：如果输入法激活，即使工具栏被隐藏也要显示文本工具栏
+        if (!isToolbarVisible && !shouldShow) {
+            // 工具栏被隐藏且输入法未激活，隐藏文本工具栏
+            if (container.visibility != View.GONE) {
+                container.visibility = View.GONE
+                Log.d(TAG, "全屏浏览中且输入法未激活，隐藏文本工具栏")
+            }
+            return
+        }
         
         if (shouldShow) {
             if (container.visibility != View.VISIBLE) {

@@ -1243,8 +1243,8 @@ class PaperStackWebViewManager(
     private fun loadGroupTabs(groupId: String?, onTabsLoaded: (List<WebViewTab>) -> Unit) {
         if (groupId == null) {
             // 🔧 修复：如果没有组ID，创建功能主页而不是百度首页
-            val functionalHomeUrl = "home://functional"
-            val defaultTab = addTab(functionalHomeUrl, "主页", null)
+                val functionalHomeUrl = "home://functional"
+                val defaultTab = addTab(functionalHomeUrl, "快捷入口", null)
             onTabsLoaded(listOf(defaultTab))
             return
         }
@@ -1256,7 +1256,7 @@ class PaperStackWebViewManager(
             if (tabDataList.isEmpty()) {
                 // 🔧 修复：如果没有保存的标签页，创建功能主页而不是百度首页
                 val functionalHomeUrl = "home://functional"
-                val defaultTab = addTab(functionalHomeUrl, "主页", groupId)
+                val defaultTab = addTab(functionalHomeUrl, "快捷入口", groupId)
                 onTabsLoaded(listOf(defaultTab))
             } else {
                 // 恢复标签页
@@ -1275,7 +1275,7 @@ class PaperStackWebViewManager(
                 // 🔧 修复：如果没有功能主页，创建一个
                 if (!hasFunctionalHome) {
                     val functionalHomeUrl = "home://functional"
-                    val functionalHomeTab = addTab(functionalHomeUrl, "主页", groupId)
+                    val functionalHomeTab = addTab(functionalHomeUrl, "快捷入口", groupId)
                     restoredTabs.add(0, functionalHomeTab) // 将功能主页添加到第一个位置
                     Log.d(TAG, "组 $groupId 没有功能主页，已创建")
                 }
@@ -1292,7 +1292,7 @@ class PaperStackWebViewManager(
             Log.e(TAG, "加载组标签页失败", e)
             // 🔧 修复：加载失败时，创建功能主页而不是百度首页
             val functionalHomeUrl = "home://functional"
-            val defaultTab = addTab(functionalHomeUrl, "主页", groupId)
+            val defaultTab = addTab(functionalHomeUrl, "快捷入口", groupId)
             onTabsLoaded(listOf(defaultTab))
         }
     }
@@ -1437,7 +1437,7 @@ class PaperStackWebViewManager(
             val tab = WebViewTab(
                 id = tabId,
                 webView = webView,
-                title = "主页",
+                title = "快捷入口",
                 url = functionalHomeUrl,
                 isActive = false,
                 stackIndex = tabs.size,
