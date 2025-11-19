@@ -659,7 +659,18 @@ class FileReaderActivity : AppCompatActivity() {
                 val textLength = fullText.length
                 Log.d(TAG, "文件内容加载成功，长度=${textLength}")
                 
+                // 🎯 智能识别作者
+                val detectedAuthor = extractAuthor(fullText)
+                
                 withContext(Dispatchers.Main) {
+                    // 更新作者信息
+                    if (detectedAuthor.isNotEmpty()) {
+                        bookAuthor.text = detectedAuthor
+                        Log.d(TAG, "识别到作者: $detectedAuthor")
+                    } else {
+                        bookAuthor.text = "未知作者"
+                    }
+                    
                     // 显示加载提示
                     progressBar.visibility = View.VISIBLE
                     errorTextView.text = "正在处理文件..."
@@ -1997,6 +2008,144 @@ class FileReaderActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    /**
+     * 🎯 智能提取作者信息
+     * 从TXT文件内容中识别作者，支持多种常见格式
+     */
+    private fun extractAuthor(text: String): String {
+        // 只分析前5000字符，提高性能
+        val sampleText = text.take(5000)
+        
+        // 常见的作者标识模式（按优先级排序）
+        val authorPatterns = listOf(
+            // 中文格式
+            Regex("""作\s*者[：:]\s*([^\n\r]{1,30})"""),           // 作者：XXX
+            Regex("""作\s*者[：:]\s*(.+?)(?=\n|\r|$)"""),         // 作者：XXX (到行尾)
+            Regex("""著\s*者[：:]\s*([^\n\r]{1,30})"""),           // 著者：XXX
+            Regex("""原\s*著[：:]\s*([^\n\r]{1,30})"""),           // 原著：XXX
+            Regex("""文\s*/\s*([^\n\r]{1,30})"""),                 // 文/XXX
+            Regex("""作\s*者\s+([^\n\r]{1,30})"""),                // 作者 XXX (无冒号)
+            
+            // 英文格式
+            Regex("""(?i)author[:\s]+([^\n\r]{1,50})"""),          // Author: XXX
+            Regex("""(?i)by[:\s]+([^\n\r]{1,50})"""),              // By: XXX
+            Regex("""(?i)written\s+by[:\s]+([^\n\r]{1,50})"""),    // Written by: XXX
+            
+            // 特殊格式
+            Regex("""【作者】\s*([^\n\r】]{1,30})"""),              // 【作者】XXX
+            Regex("""《.+?》\s*作者[：:]\s*([^\n\r]{1,30})"""),    // 《书名》作者：XXX
+            Regex("""书\s*名.+?作\s*者[：:]\s*([^\n\r]{1,30})""")  // 书名XXX 作者：XXX
+        )
+        
+        // 尝试匹配每个模式
+        for (pattern in authorPatterns) {
+            val match = pattern.find(sampleText)
+            if (match != null && match.groupValues.size > 1) {
+                val author = match.groupValues[1].trim()
+                
+                // 清理作者名称
+                val cleanedAuthor = cleanAuthorName(author)
+                
+                // 验证作者名称的合理性
+                if (isValidAuthorName(cleanedAuthor)) {
+                    Log.d(TAG, "通过模式 '${pattern.pattern}' 识别到作者: $cleanedAuthor")
+                    return cleanedAuthor
+                }
+            }
+        }
+        
+        // 如果没有找到，尝试从文件名提取
+        val authorFromFileName = extractAuthorFromFileName(fileName)
+        if (authorFromFileName.isNotEmpty()) {
+            Log.d(TAG, "从文件名识别到作者: $authorFromFileName")
+            return authorFromFileName
+        }
+        
+        return ""
+    }
+    
+    /**
+     * 清理作者名称
+     */
+    private fun cleanAuthorName(author: String): String {
+        return author
+            .replace(Regex("""[\r\n\t]+"""), " ")  // 移除换行和制表符
+            .replace(Regex("""\s+"""), " ")         // 合并多个空格
+            .replace(Regex("""[【】《》\[\]()（）]+"""), "")  // 移除括号
+            .replace(Regex("""^[,，、。.;；:：\s]+"""), "")   // 移除开头的标点
+            .replace(Regex("""[,，、。.;；:：\s]+$"""), "")   // 移除结尾的标点
+            .trim()
+    }
+    
+    /**
+     * 验证作者名称的合理性
+     */
+    private fun isValidAuthorName(author: String): Boolean {
+        if (author.isEmpty()) return false
+        if (author.length > 50) return false  // 太长不合理
+        if (author.length < 2) return false   // 太短不合理
+        
+        // 排除一些明显不是作者的内容
+        val invalidKeywords = listOf(
+            "未知", "佚名", "匿名", "网络", "整理", "收集", "编辑",
+            "unknown", "anonymous", "none", "n/a", "null",
+            "第一章", "第1章", "chapter", "序言", "前言", "目录"
+        )
+        
+        val lowerAuthor = author.lowercase()
+        for (keyword in invalidKeywords) {
+            if (lowerAuthor.contains(keyword.lowercase())) {
+                return false
+            }
+        }
+        
+        // 检查是否包含合理的字符（中文、英文、数字、常见符号）
+        val validPattern = Regex("""^[\u4e00-\u9fa5a-zA-Z0-9\s·\-_]+$""")
+        return validPattern.matches(author)
+    }
+    
+    /**
+     * 从文件名提取作者
+     * 支持格式: "书名-作者.txt", "作者-书名.txt", "《书名》作者.txt"
+     */
+    private fun extractAuthorFromFileName(fileName: String): String {
+        // 移除扩展名
+        val nameWithoutExt = fileName.substringBeforeLast(".")
+        
+        // 尝试各种文件名格式
+        val patterns = listOf(
+            Regex("""^(.+?)[_\-]\s*(.+?)$"""),           // 书名-作者 或 作者-书名
+            Regex("""《.+?》\s*(.+?)$"""),                // 《书名》作者
+            Regex("""^(.+?)\s*《.+?》$"""),               // 作者《书名》
+            Regex("""\[(.+?)\]"""),                       // [作者]
+            Regex("""【(.+?)】""")                        // 【作者】
+        )
+        
+        for (pattern in patterns) {
+            val match = pattern.find(nameWithoutExt)
+            if (match != null && match.groupValues.size > 1) {
+                // 对于"书名-作者"格式，尝试两个部分
+                if (pattern.pattern.contains("[_\\-]")) {
+                    val part1 = cleanAuthorName(match.groupValues[1])
+                    val part2 = cleanAuthorName(match.groupValues[2])
+                    
+                    // 通常较短的是作者名
+                    val author = if (part1.length < part2.length) part1 else part2
+                    if (isValidAuthorName(author)) {
+                        return author
+                    }
+                } else {
+                    val author = cleanAuthorName(match.groupValues[1])
+                    if (isValidAuthorName(author)) {
+                        return author
+                    }
+                }
+            }
+        }
+        
+        return ""
     }
     
     /**
