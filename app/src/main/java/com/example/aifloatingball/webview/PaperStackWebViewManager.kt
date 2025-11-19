@@ -271,6 +271,9 @@ class PaperStackWebViewManager(
         val newTabIndex = tabs.size - 1
         currentTabIndex = newTabIndex
         
+        // 🔧 修复：确保每个组至少有一个功能主页
+        ensureFunctionalHomeExists(tabGroupId)
+        
         // 更新标签页位置
         updateTabPositions()
         
@@ -1239,8 +1242,9 @@ class PaperStackWebViewManager(
      */
     private fun loadGroupTabs(groupId: String?, onTabsLoaded: (List<WebViewTab>) -> Unit) {
         if (groupId == null) {
-            // 如果没有组ID，创建默认标签页
-            val defaultTab = addTab("https://www.baidu.com", "新标签页", null)
+            // 🔧 修复：如果没有组ID，创建功能主页而不是百度首页
+            val functionalHomeUrl = "home://functional"
+            val defaultTab = addTab(functionalHomeUrl, "主页", null)
             onTabsLoaded(listOf(defaultTab))
             return
         }
@@ -1250,18 +1254,33 @@ class PaperStackWebViewManager(
             val tabDataList = groupTabDataManager.restoreGroupTabs(groupId)
             
             if (tabDataList.isEmpty()) {
-                // 如果没有保存的标签页，创建默认标签页
-                val defaultTab = addTab("https://www.baidu.com", "新标签页", groupId)
+                // 🔧 修复：如果没有保存的标签页，创建功能主页而不是百度首页
+                val functionalHomeUrl = "home://functional"
+                val defaultTab = addTab(functionalHomeUrl, "主页", groupId)
                 onTabsLoaded(listOf(defaultTab))
             } else {
                 // 恢复标签页
                 val restoredTabs = mutableListOf<WebViewTab>()
+                var hasFunctionalHome = false
+                
                 tabDataList.forEach { tabData ->
+                    // 检查是否已经有功能主页
+                    if (tabData.url == "home://functional" || tabData.url == "file:///android_asset/functional_home.html") {
+                        hasFunctionalHome = true
+                    }
                     val restoredTab = addTab(tabData.url, tabData.title, groupId)
                     restoredTabs.add(restoredTab)
                 }
                 
-                // 切换到第一个标签页
+                // 🔧 修复：如果没有功能主页，创建一个
+                if (!hasFunctionalHome) {
+                    val functionalHomeUrl = "home://functional"
+                    val functionalHomeTab = addTab(functionalHomeUrl, "主页", groupId)
+                    restoredTabs.add(0, functionalHomeTab) // 将功能主页添加到第一个位置
+                    Log.d(TAG, "组 $groupId 没有功能主页，已创建")
+                }
+                
+                // 切换到第一个标签页（功能主页）
                 if (restoredTabs.isNotEmpty()) {
                     switchToTab(0)
                 }
@@ -1271,8 +1290,9 @@ class PaperStackWebViewManager(
             }
         } catch (e: Exception) {
             Log.e(TAG, "加载组标签页失败", e)
-            // 加载失败，创建默认标签页
-            val defaultTab = addTab("https://www.baidu.com", "新标签页", groupId)
+            // 🔧 修复：加载失败时，创建功能主页而不是百度首页
+            val functionalHomeUrl = "home://functional"
+            val defaultTab = addTab(functionalHomeUrl, "主页", groupId)
             onTabsLoaded(listOf(defaultTab))
         }
     }
@@ -1393,6 +1413,49 @@ class PaperStackWebViewManager(
         onTabSwitchedListener = listener
     }
 
+    /**
+     * 确保功能主页存在（每个组至少有一个功能主页）
+     */
+    private fun ensureFunctionalHomeExists(groupId: String?) {
+        if (groupId == null) return
+        
+        // 检查当前组是否已经有功能主页
+        val hasFunctionalHome = tabs.any { tab ->
+            tab.groupId == groupId && 
+            (tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html")
+        }
+        
+        // 如果没有功能主页，创建一个
+        if (!hasFunctionalHome) {
+            val functionalHomeUrl = "home://functional"
+            // 注意：这里不能直接调用addTab，因为会导致递归调用
+            // 应该创建一个新的标签页，但不触发ensureFunctionalHomeExists
+            val tabId = "tab_${System.currentTimeMillis()}"
+            val webView = PaperWebView(context)
+            webView.setupWebView()
+            
+            val tab = WebViewTab(
+                id = tabId,
+                webView = webView,
+                title = "主页",
+                url = functionalHomeUrl,
+                isActive = false,
+                stackIndex = tabs.size,
+                groupId = groupId,
+                isLazyLoaded = false
+            )
+            
+            container.addView(webView)
+            tabs.add(0, tab) // 将功能主页添加到第一个位置
+            
+            // 设置功能主页接口
+            setupFunctionalHomeInterface(webView)
+            webView.loadUrl("file:///android_asset/functional_home.html")
+            
+            Log.d(TAG, "组 $groupId 缺少功能主页，已自动创建")
+        }
+    }
+    
     /**
      * 清理所有标签页
      */

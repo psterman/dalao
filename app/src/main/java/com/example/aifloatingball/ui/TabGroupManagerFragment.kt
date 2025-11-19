@@ -52,13 +52,17 @@ class TabGroupManagerFragment : Fragment() {
             onGroupClick = { group ->
                 // 点击组，检查密码后切换到该组
                 if (group.passwordHash != null) {
+                    // 🔧 修复：加密组必须先验证密码，验证通过后才切换组
                     showPasswordVerificationDialog(group) { verified ->
                         if (verified) {
+                            // 密码验证通过后，才切换组并显示标签页
                             groupManager.setCurrentGroup(group.id)
                             onGroupSelectedListener?.invoke(group)
                         }
+                        // 如果验证失败，不执行任何操作，保持当前组不变
                     }
                 } else {
+                    // 无密码的组，直接切换
                     groupManager.setCurrentGroup(group.id)
                     onGroupSelectedListener?.invoke(group)
                 }
@@ -194,17 +198,50 @@ class TabGroupManagerFragment : Fragment() {
      * 显示删除组对话框
      */
     private fun showDeleteGroupDialog(group: TabGroup) {
-        AlertDialog.Builder(requireContext())
-            .setTitle("删除组")
-            .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
-            .setPositiveButton("删除") { _, _ ->
-                if (groupManager.deleteGroup(group.id)) {
-                    refreshGroups()
-                    Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
-                }
+        // 🔧 新功能：如果组有密码，删除前需要验证密码
+        if (group.passwordHash != null) {
+            val passwordInput = EditText(requireContext()).apply {
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                hint = "请输入密码以删除此组"
             }
-            .setNegativeButton("取消", null)
-            .show()
+            
+            AlertDialog.Builder(requireContext())
+                .setTitle("删除加密组")
+                .setMessage("组「${group.name}」已加密，删除前需要验证密码。组内的所有标签页将被删除。")
+                .setView(passwordInput)
+                .setPositiveButton("删除") { _, _ ->
+                    val password = passwordInput.text.toString()
+                    if (password.isEmpty()) {
+                        Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    
+                    // 验证密码
+                    if (groupManager.verifyGroupPassword(group.id, password)) {
+                        if (groupManager.deleteGroup(group.id)) {
+                            refreshGroups()
+                            Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(requireContext(), "密码错误，无法删除", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } else {
+            // 没有密码的组，直接删除
+            AlertDialog.Builder(requireContext())
+                .setTitle("删除组")
+                .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
+                .setPositiveButton("删除") { _, _ ->
+                    if (groupManager.deleteGroup(group.id)) {
+                        refreshGroups()
+                        Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
     }
     
     /**

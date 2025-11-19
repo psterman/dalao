@@ -701,6 +701,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var pullDownBtnClose: LinearLayout
     private lateinit var pullDownBtnRefresh: LinearLayout
     private lateinit var pullDownBtnHome: LinearLayout
+    private lateinit var pullDownBtnSecret: LinearLayout
     private lateinit var pullDownIndicator: View
     private var pullDownButtons: Array<LinearLayout>? = null
     private var isPullDownToolbarVisible = false
@@ -1981,6 +1982,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         pullDownBtnClose = findViewById(R.id.pull_down_btn_close)
         pullDownBtnRefresh = findViewById(R.id.pull_down_btn_refresh)
         pullDownBtnHome = findViewById(R.id.pull_down_btn_home)
+        pullDownBtnSecret = findViewById(R.id.pull_down_btn_secret)
         pullDownIndicator = findViewById(R.id.pull_down_indicator)
         // 初始化按钮数组，方便索引访问
         pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
@@ -6396,6 +6398,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         Log.d(TAG, "Activity正在销毁，清理所有资源")
         
+        // 🔧 退出暗道模式（应用退出时）
+        try {
+            val groupManager = TabGroupManager.getInstance(this)
+            if (groupManager.isSecretModeActive()) {
+                groupManager.deactivateSecretMode()
+                Log.d(TAG, "onDestroy: 已退出暗道模式")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onDestroy: 退出暗道模式失败", e)
+        }
+        
         // 清理单例实例
         INSTANCE = null
 
@@ -6580,6 +6593,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onPause() {
         super.onPause()
+        
+        // 🔧 退出暗道模式（应用进入后台时）
+        try {
+            val groupManager = TabGroupManager.getInstance(this)
+            if (groupManager.isSecretModeActive()) {
+                groupManager.deactivateSecretMode()
+                Log.d(TAG, "onPause: 已退出暗道模式")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "onPause: 退出暗道模式失败", e)
+        }
         
         // 保存恢复数据（应用进入后台时保存，确保即使被强制关闭也能恢复）
         try {
@@ -7898,8 +7922,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 执行选中按钮的操作
      */
     private fun executeSelectedButtonAction(index: Int) {
-        when (index) {
-             0 -> {
+        // 🔧 修复：根据实际的按钮数组来判断执行什么操作，而不是硬编码索引
+        val buttons = pullDownButtons ?: return
+        if (index < 0 || index >= buttons.size) {
+            Log.w(TAG, "按钮索引超出范围: $index, 按钮数量: ${buttons.size}")
+            return
+        }
+        
+        val selectedButton = buttons[index]
+        
+        // 根据按钮ID判断执行什么操作
+        when (selectedButton.id) {
+            R.id.pull_down_btn_back -> {
                 // 撤回：优先重新打开最近关闭的标签页，如果没有则尝试WebView后退
                 try {
                     // 先尝试恢复最近关闭的标签页
@@ -7946,20 +7980,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     showMaterialToast("撤回失败: ${e.message}")
                 }
             }
-            1 -> {
+            R.id.pull_down_btn_close -> {
                 // 关闭
                 closeCurrentTab()
                 Log.d(TAG, "下拉工具栏：关闭")
             }
-            2 -> {
+            R.id.pull_down_btn_refresh -> {
                 // 刷新
                 refreshCurrentWebPage()
                 Log.d(TAG, "下拉工具栏：刷新")
             }
-            3 -> {
+            R.id.pull_down_btn_home -> {
                 // 主页
                 goToHomePage()
                 Log.d(TAG, "下拉工具栏：主页")
+            }
+            R.id.pull_down_btn_secret -> {
+                // 暗道
+                showSecretModeDialog()
+                Log.d(TAG, "下拉工具栏：暗道")
+            }
+            else -> {
+                Log.w(TAG, "未知的按钮ID: ${selectedButton.id}")
             }
         }
     }
@@ -8091,19 +8133,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                            currentTab == null
             
             if (isHomePage) {
-                // 主页：只显示撤回按钮
+                // 主页：显示撤回和暗道按钮
                 pullDownBtnBack.visibility = View.VISIBLE
                 pullDownBtnClose.visibility = View.GONE
                 pullDownBtnRefresh.visibility = View.GONE
                 pullDownBtnHome.visibility = View.GONE
-                // 更新按钮数组，只包含撤回按钮
-                pullDownButtons = arrayOf(pullDownBtnBack)
+                pullDownBtnSecret.visibility = View.VISIBLE
+                // 更新按钮数组，包含撤回和暗道按钮
+                pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnSecret)
             } else {
-                // 非主页：显示所有按钮
+                // 非主页：显示所有按钮（不包括暗道）
                 pullDownBtnBack.visibility = View.VISIBLE
                 pullDownBtnClose.visibility = View.VISIBLE
                 pullDownBtnRefresh.visibility = View.VISIBLE
                 pullDownBtnHome.visibility = View.VISIBLE
+                pullDownBtnSecret.visibility = View.GONE
                 // 更新按钮数组，包含所有按钮
                 pullDownButtons = arrayOf(pullDownBtnBack, pullDownBtnClose, pullDownBtnRefresh, pullDownBtnHome)
             }
@@ -8202,6 +8246,151 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hidePullDownToolbar()
             goToHomePage()
             Log.d(TAG, "下拉工具栏：主页")
+        }
+        
+        // 暗道按钮
+        pullDownBtnSecret.setOnClickListener {
+            hidePullDownToolbar()
+            showSecretModeDialog()
+            Log.d(TAG, "下拉工具栏：暗道")
+        }
+    }
+    
+    /**
+     * 显示暗道密码验证对话框
+     */
+    private fun showSecretModeDialog() {
+        val groupManager = TabGroupManager.getInstance(this)
+        
+        // 如果已经在暗道模式，显示退出选项
+        if (groupManager.isSecretModeActive()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("退出暗道")
+                .setMessage("确定要退出暗道模式吗？退出后将无法查看隐藏的标签组。")
+                .setPositiveButton("退出") { _, _ ->
+                    groupManager.deactivateSecretMode()
+                    Toast.makeText(this, "已退出暗道模式", Toast.LENGTH_SHORT).show()
+                    // 刷新组列表（deactivateSecretMode已经触发了notifyGroupChanged，这里确保UI刷新）
+                    refreshGroupTabsForSecretMode()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return
+        }
+        
+        // 🔧 新功能：检查是否已设置暗道密码
+        val hiddenGroups = groupManager.getAllGroupsIncludingHidden().filter { it.isHidden }
+        val hasSecretModePassword = groupManager.hasSecretModePassword()
+        
+        if (!hasSecretModePassword && hiddenGroups.isEmpty()) {
+            // 第一次进入且没有隐藏组，提示用户设置密码
+            android.app.AlertDialog.Builder(this)
+                .setTitle("设置暗道密码")
+                .setMessage("这是您第一次使用暗道功能。请设置一个密码，用于查看隐藏的标签组。")
+                .setPositiveButton("设置密码") { _, _ ->
+                    showSetSecretModePasswordDialog()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return
+        }
+        
+        // 显示密码输入对话框
+        val passwordInput = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入暗道密码"
+        }
+        
+        android.app.AlertDialog.Builder(this)
+            .setTitle("进入暗道")
+            .setMessage("输入密码以查看所有标签组（包括隐藏的组）")
+            .setView(passwordInput)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                if (password.isEmpty()) {
+                    Toast.makeText(this, "密码不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                
+                // 验证密码
+                if (groupManager.verifySecretModePassword(password)) {
+                    groupManager.activateSecretMode()
+                    Toast.makeText(this, "已进入暗道模式", Toast.LENGTH_SHORT).show()
+                    // 刷新组列表（activateSecretMode已经触发了notifyGroupChanged，这里确保UI刷新）
+                    refreshGroupTabsForSecretMode()
+                } else {
+                    Toast.makeText(this, "密码错误", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示设置暗道密码对话框
+     */
+    private fun showSetSecretModePasswordDialog() {
+        val passwordInput = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请输入密码"
+        }
+        
+        val confirmPasswordInput = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "请再次输入密码"
+        }
+        
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(50, 20, 50, 20)
+            addView(passwordInput)
+            addView(confirmPasswordInput)
+        }
+        
+        android.app.AlertDialog.Builder(this)
+            .setTitle("设置暗道密码")
+            .setMessage("请设置一个密码，用于进入暗道模式查看隐藏的标签组。")
+            .setView(container)
+            .setPositiveButton("确定") { _, _ ->
+                val password = passwordInput.text.toString()
+                val confirmPassword = confirmPasswordInput.text.toString()
+                
+                if (password.isEmpty()) {
+                    Toast.makeText(this, "密码不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                
+                if (password != confirmPassword) {
+                    Toast.makeText(this, "两次输入的密码不一致", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                
+                val groupManager = TabGroupManager.getInstance(this)
+                groupManager.setSecretModePassword(password)
+                Toast.makeText(this, "暗道密码设置成功", Toast.LENGTH_SHORT).show()
+                
+                // 设置密码后自动激活暗道模式
+                groupManager.activateSecretMode()
+                refreshGroupTabsForSecretMode()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 刷新组标签显示（用于暗道模式）
+     * 注意：实际的refreshGroupTabs实现在32575行，这里只是触发刷新
+     */
+    private fun refreshGroupTabsForSecretMode() {
+        try {
+            // 由于activateSecretMode/deactivateSecretMode已经调用了notifyGroupChanged
+            // 所以Fragment会自动刷新，这里只需要确保组标签栏也刷新
+            handler.post {
+                // 调用实际的refreshGroupTabs方法（在32575行）
+                refreshGroupTabs()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新组标签失败", e)
         }
     }
     
@@ -13110,16 +13299,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 检查是否是baidu首页
                 val isBaiduHome = tab.url == "https://www.baidu.com" && tab.title == "百度"
                 
+                // 🔧 修复：检查是否是功能主页（默认主页），功能主页必须显示
+                val isFunctionalHome = tab.url == "home://functional" || 
+                                      tab.url == "file:///android_asset/functional_home.html" ||
+                                      (tab.url?.startsWith("home://") == true)
+                
                 // 检查是否已存在相同的卡片
                 val isDuplicate = allCards.any { existingCard ->
                     existingCard.url == tab.url && existingCard.url?.isNotEmpty() == true
                 }
                 
                 // StackedCardPreview的智能决策：
-                // 1. 如果有用户主动创建的内容，优先显示用户内容
-                // 2. 如果有非baidu的标签页，优先显示非baidu内容
-                // 3. 只有在没有任何其他内容时才显示baidu首页
+                // 1. 功能主页（默认主页）必须显示，不受其他条件影响
+                // 2. 如果有用户主动创建的内容，优先显示用户内容
+                // 3. 如果有非baidu的标签页，优先显示非baidu内容
+                // 4. 只有在没有任何其他内容时才显示baidu首页
                 val shouldInclude = when {
+                    isFunctionalHome -> true // 🔧 修复：功能主页必须显示
                     isBaiduHome -> !hasUserContent && !hasNonBaiduTabs
                     else -> !isDuplicate
                 }
@@ -32160,6 +32356,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         } else {
                             // 正常切换到该组（只有在非解锁模式或已解锁的情况下才切换）
                             if (!isUnlockMode || unlockedGroupIds.contains(group.id) || (!group.isHidden && group.passwordHash == null)) {
+                                // 🔧 修复：加密组必须先验证密码，验证通过后才切换组
+                                // 密码验证在Fragment中完成，这里只处理验证通过后的切换
                                 groupManager.setCurrentGroup(group.id)
                                 paperStackWebViewManager?.switchToGroup(group.id) { tabs ->
                                     Log.d(TAG, "切换到组 ${group.name}，加载 ${tabs.size} 个标签页")

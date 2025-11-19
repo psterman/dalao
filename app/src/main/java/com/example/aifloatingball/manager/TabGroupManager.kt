@@ -42,6 +42,10 @@ class TabGroupManager private constructor(private val context: Context) {
     // 组变化监听器
     private val groupChangeListeners = mutableListOf<() -> Unit>()
     
+    // 暗道模式状态（只在内存中，不持久化）
+    private var isSecretModeActive: Boolean = false
+    private var secretModePasswordHash: String? = null
+    
     init {
         loadGroups()
     }
@@ -68,10 +72,14 @@ class TabGroupManager private constructor(private val context: Context) {
     }
     
     /**
-     * 获取所有组（默认只返回可见的组）
+     * 获取所有组（默认只返回可见的组，暗道模式下返回所有组包括隐藏的）
      */
     fun getAllGroups(): List<TabGroup> {
-        return getVisibleGroups()
+        return if (isSecretModeActive) {
+            getAllGroupsIncludingHidden()
+        } else {
+            getVisibleGroups()
+        }
     }
     
     /**
@@ -347,6 +355,75 @@ class TabGroupManager private constructor(private val context: Context) {
      */
     private fun saveCurrentGroupId() {
         prefs.edit().putString(KEY_CURRENT_GROUP_ID, currentGroupId).apply()
+    }
+    
+    /**
+     * 设置暗道密码（用于验证进入暗道）
+     */
+    fun setSecretModePassword(password: String) {
+        secretModePasswordHash = hashPassword(password)
+        // 保存到SharedPreferences，以便持久化
+        prefs.edit().putString("secret_mode_password_hash", secretModePasswordHash).apply()
+        Log.d(TAG, "设置暗道密码")
+    }
+    
+    /**
+     * 检查是否已设置暗道密码
+     */
+    fun hasSecretModePassword(): Boolean {
+        if (secretModePasswordHash != null) return true
+        // 从SharedPreferences加载
+        secretModePasswordHash = prefs.getString("secret_mode_password_hash", null)
+        return secretModePasswordHash != null
+    }
+    
+    /**
+     * 验证暗道密码
+     */
+    fun verifySecretModePassword(password: String): Boolean {
+        // 先从SharedPreferences加载（如果内存中没有）
+        if (secretModePasswordHash == null) {
+            secretModePasswordHash = prefs.getString("secret_mode_password_hash", null)
+        }
+        
+        if (secretModePasswordHash == null) {
+            // 如果没有设置暗道密码，使用第一个隐藏组的密码作为默认密码
+            val hiddenGroups = getAllGroupsIncludingHidden().filter { it.isHidden }
+            if (hiddenGroups.isNotEmpty()) {
+                val firstHiddenGroup = hiddenGroups.first()
+                if (firstHiddenGroup.passwordHash != null) {
+                    return firstHiddenGroup.passwordHash == hashPassword(password)
+                }
+            }
+            // 如果没有隐藏组或隐藏组没有密码，返回false
+            return false
+        }
+        return secretModePasswordHash == hashPassword(password)
+    }
+    
+    /**
+     * 激活暗道模式
+     */
+    fun activateSecretMode() {
+        isSecretModeActive = true
+        notifyGroupChanged()
+        Log.d(TAG, "激活暗道模式")
+    }
+    
+    /**
+     * 退出暗道模式
+     */
+    fun deactivateSecretMode() {
+        isSecretModeActive = false
+        notifyGroupChanged()
+        Log.d(TAG, "退出暗道模式")
+    }
+    
+    /**
+     * 检查暗道模式是否激活
+     */
+    fun isSecretModeActive(): Boolean {
+        return isSecretModeActive
     }
 }
 

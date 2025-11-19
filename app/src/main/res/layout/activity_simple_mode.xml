@@ -2174,6 +2174,39 @@
                                     android:layout_marginTop="4dp" />
                             </LinearLayout>
 
+                            <!-- 暗道按钮（仅在首页显示） -->
+                            <LinearLayout
+                                android:id="@+id/pull_down_btn_secret"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:paddingTop="8dp"
+                                android:paddingBottom="8dp"
+                                android:visibility="gone">
+                                <ImageButton
+                                    android:id="@+id/pull_down_icon_secret"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@drawable/ic_lock"
+                                    android:background="@android:color/transparent"
+                                    android:contentDescription="暗道"
+                                    android:padding="0dp"
+                                    android:tint="?attr/colorOnSurface"
+                                    android:scaleType="centerInside" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="暗道"
+                                    android:textSize="12sp"
+                                    android:textColor="?attr/colorOnSurface"
+                                    android:layout_marginTop="4dp" />
+                            </LinearLayout>
+
                         </LinearLayout>
 
                             <!-- 选中指示器（跟随手指移动） -->
