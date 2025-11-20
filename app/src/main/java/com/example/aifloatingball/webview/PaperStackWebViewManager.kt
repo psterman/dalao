@@ -110,6 +110,11 @@ class PaperStackWebViewManager(
     private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
         EnhancedDownloadManager(context)
     }
+    
+    // 悬浮视频播放器管理器
+    private val systemOverlayVideoManager: com.example.aifloatingball.video.SystemOverlayVideoManager by lazy {
+        com.example.aifloatingball.video.SystemOverlayVideoManager(context)
+    }
 
     private val historyPrefs: SharedPreferences = context.getSharedPreferences("browser_history", Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -1791,29 +1796,24 @@ class PaperStackWebViewManager(
         
         val lowerUrl = url.lowercase()
         
-        // 检测文件扩展名
+        // 检测文件扩展名（移除视频和音频，优先使用悬浮播放器）
         val downloadExtensions = listOf(
             ".apk", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2",
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm",
-            ".mp3", ".wav", ".flac", ".aac", ".ogg",
-            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"
+            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"
         )
         
         if (downloadExtensions.any { lowerUrl.endsWith(it) }) {
             return true
         }
         
-        // 检测Content-Type
+        // 检测Content-Type（移除video/和audio/，优先使用悬浮播放器）
         contentType?.let {
             val lowerContentType = it.lowercase()
             if (lowerContentType.contains("application/octet-stream") ||
                 lowerContentType.contains("application/zip") ||
                 lowerContentType.contains("application/x-rar-compressed") ||
                 lowerContentType.contains("application/pdf") ||
-                lowerContentType.startsWith("application/vnd.android.package-archive") ||
-                lowerContentType.startsWith("video/") ||
-                lowerContentType.startsWith("audio/")) {
+                lowerContentType.startsWith("application/vnd.android.package-archive")) {
                 return true
             }
         }
@@ -1824,6 +1824,36 @@ class PaperStackWebViewManager(
             lowerUrl.contains("/download/") ||
             lowerUrl.contains("/file/")) {
             return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * 判断URL是否为视频或音频文件
+     */
+    private fun isMediaUrl(url: String, contentType: String?): Boolean {
+        if (url.isBlank()) return false
+        
+        val lowerUrl = url.lowercase()
+        
+        // 检测视频和音频扩展名
+        val mediaExtensions = listOf(
+            ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm", ".m3u8",
+            ".mp3", ".wav", ".flac", ".aac", ".ogg"
+        )
+        
+        if (mediaExtensions.any { lowerUrl.contains(it) }) {
+            return true
+        }
+        
+        // 检测Content-Type
+        contentType?.let {
+            val lowerContentType = it.lowercase()
+            if (lowerContentType.startsWith("video/") ||
+                lowerContentType.startsWith("audio/")) {
+                return true
+            }
         }
         
         return false
@@ -2195,54 +2225,37 @@ class PaperStackWebViewManager(
                 setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
             }
             
-            // 设置WebChromeClient监听favicon
-            webChromeClient = object : android.webkit.WebChromeClient() {
-                override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
-                    super.onReceivedIcon(view, icon)
-                    // 查找对应的标签页并通知监听器
-                    if (view != null) {
-                        val tab = tabs.find { it.webView == view }
-                        if (tab != null) {
-                            onFaviconReceivedListener?.invoke(tab, icon)
-                        }
-                    }
-                }
-                
-                override fun onReceivedTitle(view: WebView?, title: String?) {
-                    super.onReceivedTitle(view, title)
-                    // 更新标签页标题
-                    if (view != null) {
-                        val tab = tabs.find { it.webView == view }
-                        if (tab != null) {
-                            if (title != null) {
-                                tab.title = title
-                            }
-                            // 通知标题更新监听器
-                            onTitleReceivedListener?.invoke(tab, title)
-                        }
-                    }
-                }
-            }
-            
-            // 设置下载监听器 - 这是处理下载的正确方式
-            setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
-                Log.d(TAG, "🔽 WebView下载请求: url=$url, mimeType=$mimeType, contentLength=$contentLength")
-                handleDownloadRequest(url, userAgent, contentDisposition, mimeType, contentLength)
-            }
-            
-            // 设置WebViewClient
+            // 设置WebViewClient处理URL拦截和页面加载
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?
+                ): Boolean {
                     val url = request?.url?.toString()
                     Log.d(TAG, "PaperWebView URL加载拦截: $url")
                     
                     if (url != null) {
-                        // 检测是否为下载链接
-                        if (isDownloadUrl(url, request?.requestHeaders?.get("Content-Type"))) {
+                        val contentType = request?.requestHeaders?.get("Content-Type")
+                        
+                        // 优先检测是否为媒体URL（视频/音频），使用悬浮播放器播放
+                        if (isMediaUrl(url, contentType)) {
+                            Log.d(TAG, "🎬 检测到媒体文件，使用悬浮播放器播放: $url")
+                            try {
+                                systemOverlayVideoManager.show(url)
+                                return true // 拦截URL，不在WebView中加载
+                            } catch (e: Exception) {
+                                Log.e(TAG, "启动悬浮播放器失败", e)
+                                // 如果悬浮播放器启动失败，继续正常流程
+                            }
+                        }
+                        
+                        // 检测是否为下载链接（排除媒体文件）
+                        if (isDownloadUrl(url, contentType)) {
                             Log.d(TAG, "🔽 检测到下载链接，拦截并下载: $url")
                             handleDownloadRequest(url, "", "", "", 0)
                             return true
                         }
+                        
                         return handleSpecialSchemeUrl(url, view)
                     }
                     return false
@@ -2253,12 +2266,25 @@ class PaperStackWebViewManager(
                     Log.d(TAG, "PaperWebView URL加载拦截 (legacy): $url")
                     
                     if (url != null) {
-                        // 检测是否为下载链接
+                        // 优先检测是否为媒体URL（视频/音频），使用悬浮播放器播放
+                        if (isMediaUrl(url, null)) {
+                            Log.d(TAG, "🎬 检测到媒体文件，使用悬浮播放器播放: $url")
+                            try {
+                                systemOverlayVideoManager.show(url)
+                                return true // 拦截URL，不在WebView中加载
+                            } catch (e: Exception) {
+                                Log.e(TAG, "启动悬浮播放器失败", e)
+                                // 如果悬浮播放器启动失败，继续正常流程
+                            }
+                        }
+                        
+                        // 检测是否为下载链接（排除媒体文件）
                         if (isDownloadUrl(url, null)) {
                             Log.d(TAG, "🔽 检测到下载链接，拦截并下载: $url")
                             handleDownloadRequest(url, "", "", "", 0)
                             return true
                         }
+                        
                         return handleSpecialSchemeUrl(url, view)
                     }
                     return false
@@ -2352,13 +2378,19 @@ class PaperStackWebViewManager(
                                     }
                                 }, true);
                                 
-                                // 拦截所有a标签的点击，检测下载链接
+                                // 拦截所有a标签的点击，检测下载链接（排除视频和音频，优先使用悬浮播放器）
                                 var links = document.querySelectorAll('a[href]');
                                 links.forEach(function(link) {
                                     link.addEventListener('click', function(e) {
                                         var href = this.href;
-                                        // 检测是否为下载链接
-                                        if (href.match(/\.(apk|zip|rar|7z|tar|gz|pdf|doc|docx|xls|xlsx|ppt|pptx|mp4|avi|mkv|mov|mp3|wav|flac)$/i) ||
+                                        // 排除视频和音频扩展名，这些应该由悬浮播放器处理
+                                        var mediaExtensions = /\.(mp4|avi|mkv|mov|wmv|flv|webm|m3u8|mp3|wav|flac|aac|ogg)$/i;
+                                        if (mediaExtensions.test(href)) {
+                                            // 视频/音频链接，不拦截，让系统处理
+                                            return true;
+                                        }
+                                        // 检测是否为下载链接（仅非媒体文件）
+                                        if (href.match(/\.(apk|zip|rar|7z|tar|gz|pdf|doc|docx|xls|xlsx|ppt|pptx)$/i) ||
                                             this.download ||
                                             this.getAttribute('download')) {
                                             e.preventDefault();
@@ -2473,6 +2505,35 @@ class PaperStackWebViewManager(
                     }
                     
                     super.onReceivedError(view, errorCode, description, failingUrl)
+                }
+            }
+            
+            // 设置WebChromeClient监听favicon和标题
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
+                    super.onReceivedIcon(view, icon)
+                    // 查找对应的标签页并通知监听器
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            onFaviconReceivedListener?.invoke(tab, icon)
+                        }
+                    }
+                }
+                
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    // 更新标签页标题
+                    if (view != null) {
+                        val tab = tabs.find { it.webView == view }
+                        if (tab != null) {
+                            if (title != null) {
+                                tab.title = title
+                            }
+                            // 通知标题更新监听器
+                            onTitleReceivedListener?.invoke(tab, title)
+                        }
+                    }
                 }
             }
         }
