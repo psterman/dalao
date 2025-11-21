@@ -45,8 +45,8 @@ object VideoInterceptionHelper {
                     
                     if (!videoUrl.isNullOrBlank()) {
                         Log.d(TAG, "提取到视频URL: $videoUrl")
-                        // 使用悬浮播放器播放
-                        systemOverlayVideoManager.show(videoUrl)
+                        // 使用悬浮播放器播放（无法获取位置，使用默认值）
+                        systemOverlayVideoManager.show(videoUrl, -1, -1, -1, -1, null)
                         return
                     }
                     
@@ -70,10 +70,11 @@ object VideoInterceptionHelper {
                                 })();
                             """.trimIndent()) { result ->
                                 try {
-                                    val videoUrl = result?.trim('"', '\'', ' ')
-                                    if (!videoUrl.isNullOrBlank() && videoUrl != "null") {
-                                        Log.d(TAG, "通过 JavaScript 获取到视频URL: $videoUrl")
-                                        systemOverlayVideoManager.show(videoUrl)
+                                    val extractedUrl = result?.trim('"', '\'', ' ')
+                                    if (!extractedUrl.isNullOrBlank() && extractedUrl != "null") {
+                                        Log.d(TAG, "通过 JavaScript 获取到视频URL: $extractedUrl")
+                                        // 无法获取位置，使用默认值
+                                        systemOverlayVideoManager.show(extractedUrl, -1, -1, -1, -1, null)
                                     } else {
                                         Log.w(TAG, "无法通过 JavaScript 获取视频URL")
                                     }
@@ -139,10 +140,10 @@ object VideoInterceptionHelper {
             }
             
             // 添加 JavaScript 接口
-            val bridge = VideoDetectionBridge { videoUrl ->
-                Log.d(TAG, "JavaScript 检测到视频播放: $videoUrl")
+            val bridge = VideoDetectionBridge { videoUrl, x, y, width, height, pageTitle ->
+                Log.d(TAG, "JavaScript 检测到视频播放: $videoUrl, 位置: ($x, $y), 尺寸: ${width}x${height}, 标题: $pageTitle")
                 if (!videoUrl.isNullOrBlank()) {
-                    systemOverlayVideoManager.show(videoUrl)
+                    systemOverlayVideoManager.show(videoUrl, x, y, width, height, pageTitle)
                 }
             }
             webView.addJavascriptInterface(bridge, "VideoInterceptionBridge")
@@ -174,25 +175,29 @@ object VideoInterceptionHelper {
                 (function() {
                     'use strict';
                     
-                    // 全局拦截所有 video 元素的自动播放
+                    // 全局拦截所有 video 元素的自动播放（更早拦截）
                     function preventAutoplay() {
                         const videos = document.querySelectorAll('video');
                         videos.forEach(function(video) {
-                            // 移除自动播放属性
+                            // 移除自动播放属性（在视频加载前就移除）
                             if (video.hasAttribute('autoplay')) {
                                 video.removeAttribute('autoplay');
                                 video.autoplay = false;
                             }
                             
-                            // 如果视频正在自动播放，立即暂停
-                            if (!video.paused && video.readyState >= 2) {
-                                const url = video.src || video.currentSrc || 
-                                           (video.querySelector('source') && video.querySelector('source').src);
-                                if (url && url.startsWith('http')) {
+                            // 获取视频 URL（在加载时就获取）
+                            const url = video.src || video.currentSrc || 
+                                       (video.querySelector('source') && video.querySelector('source').src);
+                            
+                            // 如果视频已经有 URL，立即通知原生代码（不等待播放）
+                            if (url && url.startsWith('http')) {
+                                // 如果视频正在自动播放或准备自动播放，立即暂停并通知
+                                if (!video.paused || video.autoplay || video.hasAttribute('autoplay')) {
                                     video.pause();
-                                    if (typeof VideoInterceptionBridge !== 'undefined') {
-                                        VideoInterceptionBridge.onVideoPlay(url);
-                                    }
+                                    video.removeAttribute('autoplay');
+                                    video.autoplay = false;
+                                    
+                                    notifyVideoPlay(video, url);
                                 }
                             }
                         });
@@ -200,6 +205,47 @@ object VideoInterceptionHelper {
                     
                     // 立即执行一次，阻止已存在的自动播放视频
                     preventAutoplay();
+                    
+                    // 在 DOM 加载前就拦截（通过监听 DOMContentLoaded 之前的事件）
+                    if (document.readyState === 'loading') {
+                        // 页面还在加载，立即拦截
+                        const earlyObserver = new MutationObserver(function() {
+                            preventAutoplay();
+                        });
+                        earlyObserver.observe(document, {
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                            attributeFilter: ['autoplay']
+                        });
+                    }
+                    
+                    // 辅助函数：获取视频位置并通知原生代码
+                    function notifyVideoPlay(video, videoUrl) {
+                        try {
+                            // 获取视频元素的位置和尺寸
+                            const rect = video.getBoundingClientRect();
+                            const videoX = Math.round(rect.left + window.scrollX);
+                            const videoY = Math.round(rect.top + window.scrollY);
+                            const videoWidth = Math.round(rect.width);
+                            const videoHeight = Math.round(rect.height);
+                            
+                            // 获取网页标题
+                            const pageTitle = document.title || '';
+                            
+                            // 通知原生代码（传递位置信息和标题）
+                            if (typeof VideoInterceptionBridge !== 'undefined') {
+                                VideoInterceptionBridge.onVideoPlay(videoUrl, videoX, videoY, videoWidth, videoHeight, pageTitle);
+                            }
+                        } catch (err) {
+                            console.error('获取视频位置失败: ' + err);
+                            // 如果获取位置失败，仍然通知原生代码（使用默认位置）
+                            const pageTitle = document.title || '';
+                            if (typeof VideoInterceptionBridge !== 'undefined') {
+                                VideoInterceptionBridge.onVideoPlay(videoUrl, -1, -1, -1, -1, pageTitle);
+                            }
+                        }
+                    }
                     
                     // 拦截所有 video 元素的播放事件
                     function interceptVideoPlay() {
@@ -226,11 +272,35 @@ object VideoInterceptionHelper {
                                 // 如果视频已经自动播放，立即暂停并通知
                                 if (!video.paused) {
                                     video.pause();
-                                    if (typeof VideoInterceptionBridge !== 'undefined') {
-                                        VideoInterceptionBridge.onVideoPlay(videoUrl);
-                                    }
+                                    notifyVideoPlay(video, videoUrl);
                                 }
                             }
+                            
+                            // 监听视频加载开始（最早拦截时机）
+                            video.addEventListener('loadstart', function(e) {
+                                try {
+                                    const url = this.src || this.currentSrc || 
+                                               (this.querySelector('source') && this.querySelector('source').src);
+                                    if (url && url.startsWith('http')) {
+                                        console.log('视频加载开始，URL: ' + url);
+                                        
+                                        // 立即阻止自动播放
+                                        this.removeAttribute('autoplay');
+                                        this.autoplay = false;
+                                        
+                                        // 如果视频已经尝试自动播放，立即暂停并通知
+                                        if (!this.paused) {
+                                            this.pause();
+                                            const pageTitle = document.title || '';
+                                            if (typeof VideoInterceptionBridge !== 'undefined') {
+                                                VideoInterceptionBridge.onVideoPlay(url, -1, -1, -1, -1, pageTitle);
+                                            }
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('处理视频加载开始失败: ' + err);
+                                }
+                            }, true);
                             
                             // 监听视频元数据加载完成（此时可以获取 URL）
                             video.addEventListener('loadedmetadata', function(e) {
@@ -246,8 +316,9 @@ object VideoInterceptionHelper {
                                             this.removeAttribute('autoplay');
                                             this.autoplay = false;
                                             
+                                            const pageTitle = document.title || '';
                                             if (typeof VideoInterceptionBridge !== 'undefined') {
-                                                VideoInterceptionBridge.onVideoPlay(url);
+                                                VideoInterceptionBridge.onVideoPlay(url, -1, -1, -1, -1, pageTitle);
                                             }
                                         }
                                     }
@@ -338,8 +409,9 @@ object VideoInterceptionHelper {
                                             e.preventDefault();
                                             e.stopPropagation();
                                             
+                                            const pageTitle = document.title || '';
                                             if (typeof VideoInterceptionBridge !== 'undefined') {
-                                                VideoInterceptionBridge.onVideoPlay(url);
+                                                VideoInterceptionBridge.onVideoPlay(url, -1, -1, -1, -1, pageTitle);
                                             }
                                             
                                             return false;

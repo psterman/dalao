@@ -24,6 +24,8 @@ import android.widget.PopupMenu
 import android.widget.VideoView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
+import com.example.aifloatingball.download.EnhancedDownloadManager
+import com.example.aifloatingball.R
 
 /**
  * 系统级悬浮窗视频播放器管理器
@@ -41,6 +43,22 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var closeBtn: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
     private var isShowing = false
+    
+    // 原视频位置信息（用于覆盖原视频）
+    private var sourceVideoX = -1
+    private var sourceVideoY = -1
+    private var sourceVideoWidth = -1
+    private var sourceVideoHeight = -1
+    
+    // 下载管理器
+    private val downloadManager: EnhancedDownloadManager by lazy {
+        EnhancedDownloadManager(context)
+    }
+    
+    // 播放列表管理器
+    private val playlistManager: VideoPlaylistManager by lazy {
+        VideoPlaylistManager(context)
+    }
 
     // 拖拽相关
     private var dX = 0f
@@ -58,7 +76,16 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var fullscreenBtn: ImageButton? = null
     private var speedBtn: Button? = null
     private var loopBtn: ImageButton? = null
-    private var screenshotBtn: ImageButton? = null
+    private var gifRecordBtn: ImageButton? = null
+    private var playlistBtn: ImageButton? = null
+    
+    // GIF录制相关
+    private var isRecordingGif = false
+    private val gifFrames = mutableListOf<android.graphics.Bitmap>()
+    private var gifRecordHandler: android.os.Handler? = null
+    private var gifRecordRunnable: Runnable? = null
+    private val GIF_FRAME_INTERVAL = 100L // 每100ms捕获一帧
+    private val MAX_GIF_DURATION = 5000L // 最大录制时长5秒
     private var progressBar: android.widget.SeekBar? = null
     private var currentTimeText: android.widget.TextView? = null // 当前播放时间（左侧）
     private var totalTimeText: android.widget.TextView? = null // 总时长（右侧）
@@ -87,6 +114,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var videoHeight = 0
     private var isVideoPortrait = false // 视频是否为竖屏
     private var hasAutoMaximized = false // 是否已经自动最大化过
+    private var lastScreenOrientation = Configuration.ORIENTATION_UNDEFINED // 上次屏幕方向
     
     // 手势控制相关
     private var gestureDetector: GestureDetector? = null
@@ -154,8 +182,14 @@ class SystemOverlayVideoManager(private val context: Context) {
 
     /**
      * 显示悬浮窗播放器
+     * 
+     * @param videoUrl 视频URL
+     * @param sourceX 原视频在屏幕上的X坐标（可选，用于覆盖原视频位置）
+     * @param sourceY 原视频在屏幕上的Y坐标（可选，用于覆盖原视频位置）
+     * @param sourceWidth 原视频宽度（可选）
+     * @param sourceHeight 原视频高度（可选）
      */
-    fun show(videoUrl: String?) {
+    fun show(videoUrl: String?, sourceX: Int = -1, sourceY: Int = -1, sourceWidth: Int = -1, sourceHeight: Int = -1, pageTitle: String? = null) {
         if (videoUrl.isNullOrBlank()) {
             Log.w(TAG, "视频URL为空，无法播放")
             return
@@ -168,24 +202,183 @@ class SystemOverlayVideoManager(private val context: Context) {
         }
 
         try {
+            // 保存原视频位置信息
+            sourceVideoX = sourceX
+            sourceVideoY = sourceY
+            sourceVideoWidth = sourceWidth
+            sourceVideoHeight = sourceHeight
+            
             createFloatingView()
             val url = videoUrl.trim()
             
-            Log.d(TAG, "准备播放视频: $url")
+            Log.d(TAG, "准备播放视频: $url, 原视频位置: ($sourceX, $sourceY), 尺寸: ${sourceWidth}x${sourceHeight}")
             
             currentVideoUrl = url
             hasAutoMaximized = false // 重置自动最大化标志
-            videoView?.setVideoURI(Uri.parse(url))
+            
+            // 添加到播放列表（使用网页标题或从URL提取）
+            val title = pageTitle?.takeIf { it.isNotBlank() } ?: extractVideoTitle(url)
+            playlistManager.addVideo(url, title, 0L, 0L)
+            
+            // 设置视频源，对于 HTTP/HTTPS URL 使用 setVideoPath，对于 content:// 使用 setVideoURI
+            try {
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    // HTTP/HTTPS URL：使用 setVideoPath
+                    videoView?.setVideoPath(url)
+                } else if (url.startsWith("content://") || url.startsWith("file://")) {
+                    // Content URI 或 File URI：使用 setVideoURI
+                    videoView?.setVideoURI(Uri.parse(url))
+                } else {
+                    // 其他情况：尝试作为路径处理
+                    videoView?.setVideoPath(url)
+                }
+                Log.d(TAG, "视频源已设置: $url")
+            } catch (e: Exception) {
+                Log.e(TAG, "设置视频源失败: $url", e)
+                Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
+                hide()
+                return
+            }
             videoView?.setOnPreparedListener { mediaPlayer ->
                 try {
                     mediaPlayer.isLooping = isLooping
                     
+                    // 设置视频缩放模式（在视频准备完成后设置，使视频填满屏幕无空白）
+                    try {
+                        mediaPlayer.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                        Log.d(TAG, "已设置视频缩放模式为SCALE_TO_FIT_WITH_CROPPING")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置视频缩放模式失败", e)
+                    }
+                    
                     // 检测视频尺寸和宽高比
                     try {
-                        videoWidth = mediaPlayer.videoWidth
-                        videoHeight = mediaPlayer.videoHeight
-                        isVideoPortrait = videoHeight > videoWidth
-                        Log.d(TAG, "视频尺寸: ${videoWidth}x${videoHeight}, 是否为竖屏: $isVideoPortrait")
+                        val newVideoWidth = mediaPlayer.videoWidth
+                        val newVideoHeight = mediaPlayer.videoHeight
+                        val newIsVideoPortrait = newVideoHeight > newVideoWidth
+                        
+                        // 如果视频方向发生变化（从竖屏切换到横屏或反之），需要重置状态
+                        val videoOrientationChanged = (isVideoPortrait != newIsVideoPortrait) && (videoWidth > 0 && videoHeight > 0)
+                        
+                        videoWidth = newVideoWidth
+                        videoHeight = newVideoHeight
+                        isVideoPortrait = newIsVideoPortrait
+                        Log.d(TAG, "视频尺寸: ${videoWidth}x${videoHeight}, 是否为竖屏: $isVideoPortrait, 方向是否变化: $videoOrientationChanged")
+                        
+                        // 如果视频方向发生变化，重置全屏状态和自动最大化标志
+                        if (videoOrientationChanged) {
+                            isFullscreen = false
+                            hasAutoMaximized = false
+                            Log.d(TAG, "视频方向已变化，重置全屏状态")
+                        }
+                        
+                        // 根据视频方向调整窗口大小
+                        if (params != null && floatingView != null && windowManager != null) {
+                            val displayMetrics = context.resources.displayMetrics
+                            val currentScreenWidth = displayMetrics.widthPixels
+                            val currentScreenHeight = displayMetrics.heightPixels
+                            val isScreenLandscape = currentScreenWidth > currentScreenHeight
+                            
+                            if (isVideoPortrait) {
+                                // 竖屏视频：使用屏幕宽度，高度为屏幕高度的70%，靠近顶部
+                                val targetWidth = currentScreenWidth
+                                val targetHeight = (currentScreenHeight * 0.7f).toInt()
+                                
+                                params?.width = targetWidth
+                                params?.height = targetHeight
+                                params?.x = 0
+                                params?.y = 0 // 靠近顶部
+                                
+                                floatingView?.layoutParams?.width = targetWidth
+                                floatingView?.layoutParams?.height = targetHeight
+                                
+                                // 确保VideoView填满整个容器
+                                videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                                videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                                
+                                windowManager?.updateViewLayout(floatingView, params)
+                                isFullscreen = false
+                                hasAutoMaximized = true
+                                
+                                // 更新原始尺寸和位置（固定位置）
+                                originalWidth = targetWidth
+                                originalHeight = targetHeight
+                                originalX = 0
+                                originalY = 0
+                                
+                                // 确保全屏按钮可见
+                                adjustFullscreenControls()
+                                
+                                Log.d(TAG, "竖屏视频已调整为靠近顶部播放: ${targetWidth}x${targetHeight}, 位置: (0, 0)")
+                            } else {
+                                // 横屏视频：根据屏幕方向调整
+                                if (isScreenLandscape) {
+                                    // 屏幕横屏：横屏视频全屏
+                                    params?.width = currentScreenWidth
+                                    params?.height = currentScreenHeight
+                                    params?.x = 0
+                                    params?.y = 0
+                                    
+                                    floatingView?.layoutParams?.width = currentScreenWidth
+                                    floatingView?.layoutParams?.height = currentScreenHeight
+                                    
+                                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                                    
+                                    windowManager?.updateViewLayout(floatingView, params)
+                                    isFullscreen = true
+                                    hasAutoMaximized = true
+                                    
+                                    originalWidth = currentScreenWidth
+                                    originalHeight = currentScreenHeight
+                                    originalX = 0
+                                    originalY = 0
+                                    
+                                    adjustFullscreenControls()
+                                    Log.d(TAG, "横屏视频在横屏屏幕上已全屏: ${currentScreenWidth}x${currentScreenHeight}")
+                                } else {
+                                    // 屏幕竖屏：横屏视频填满宽度，高度按16:9，垂直居中
+                                    val targetWidth = currentScreenWidth
+                                    val targetHeight = (currentScreenWidth * 9 / 16).coerceAtMost(currentScreenHeight)
+                                    val targetX = 0
+                                    val targetY = (currentScreenHeight - targetHeight) / 2
+                                    
+                                    params?.width = targetWidth
+                                    params?.height = targetHeight
+                                    params?.x = targetX
+                                    params?.y = targetY
+                                    
+                                    floatingView?.layoutParams?.width = targetWidth
+                                    floatingView?.layoutParams?.height = targetHeight
+                                    
+                                    // 确保VideoView填满容器（关键：避免黑色边）
+                                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                                    
+                                    // 再次设置视频缩放模式，确保填满窗口（避免黑色边）
+                                    try {
+                                        val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                                        mediaPlayerField?.isAccessible = true
+                                        val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                                        mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                                        Log.d(TAG, "横屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING")
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "设置视频缩放模式失败", e)
+                                    }
+                                    
+                                    windowManager?.updateViewLayout(floatingView, params)
+                                    isFullscreen = false
+                                    hasAutoMaximized = true
+                                    
+                                    originalWidth = targetWidth
+                                    originalHeight = targetHeight
+                                    originalX = targetX
+                                    originalY = targetY
+                                    
+                                    Log.d(TAG, "横屏视频在竖屏屏幕上已调整: ${targetWidth}x${targetHeight}, 位置: ($targetX, $targetY)")
+                                }
+                            }
+                        }
                     } catch (e: Exception) {
                         Log.w(TAG, "无法获取视频尺寸", e)
                         videoWidth = 0
@@ -196,6 +389,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                     // 更新控制条状态
                     val duration = mediaPlayer.duration
                     Log.d(TAG, "视频准备完成，时长: ${duration}ms")
+                    
+                    // 更新播放列表中的视频信息（保持原有标题）
+                    val currentUrl = currentVideoUrl
+                    if (currentUrl != null && duration > 0) {
+                        val existingItem = playlistManager.getPlaylist().firstOrNull { it.url == currentUrl }
+                        val videoTitle = existingItem?.title ?: extractVideoTitle(currentUrl)
+                        playlistManager.addVideo(currentUrl, videoTitle, duration.toLong(), 0L)
+                    }
                     
                     if (duration > 0) {
                         progressBar?.max = 100
@@ -218,27 +419,85 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     // 启动进度更新任务
                                     updateHandler = android.os.Handler(android.os.Looper.getMainLooper())
                                     updateRunnable = object : Runnable {
+                                        private var lastProgress = -1
+                                        private var stuckCount = 0
+                                        
                                         override fun run() {
                                             try {
+                                                // 确保在主线程执行
+                                                if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                                                    updateHandler?.post(this)
+                                                    return
+                                                }
+                                                
                                                 val vv = videoView
-                                                if (vv != null && vv.isPlaying && vv.duration > 0) {
-                                                    val current = vv.currentPosition
-                                                    val total = vv.duration
-                                                    val progressPercent = (current * 100 / total).coerceIn(0, 100)
-                                                    progressBar?.progress = progressPercent
-                                                    currentTimeText?.text = formatTime(current)
-                                                    totalTimeText?.text = formatTime(total)
-                                                    
-                                                    // 定期检查屏幕方向变化（每1秒检查一次，减少性能开销）
-                                                    val currentTime = System.currentTimeMillis()
-                                                    if (currentTime - lastScreenOrientationCheck > SCREEN_ORIENTATION_CHECK_INTERVAL) {
-                                                        lastScreenOrientationCheck = currentTime
-                                                        adjustVideoWindowSize()
+                                                if (vv != null) {
+                                                    // 检测假死：如果视频应该播放但进度不更新
+                                                    if (vv.isPlaying && vv.duration > 0) {
+                                                        val current = vv.currentPosition
+                                                        val total = vv.duration
+                                                        val progressPercent = (current * 100 / total).coerceIn(0, 100)
+                                                        
+                                                        // 检测进度是否卡住
+                                                        if (current == lastProgress && lastProgress > 0) {
+                                                            stuckCount++
+                                                            if (stuckCount > 10) { // 5秒没有进度更新（10次 * 500ms）
+                                                                Log.w(TAG, "检测到视频假死，尝试重启")
+                                                                stuckCount = 0
+                                                                // 确保重启也在主线程执行
+                                                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                                    restartVideoPlayer()
+                                                                }
+                                                                return
+                                                            }
+                                                        } else {
+                                                            stuckCount = 0
+                                                            lastProgress = current
+                                                        }
+                                                        
+                                                        // 安全更新UI（已在主线程）
+                                                        try {
+                                                            progressBar?.progress = progressPercent
+                                                            currentTimeText?.text = formatTime(current)
+                                                            totalTimeText?.text = formatTime(total)
+                                                        } catch (e: Exception) {
+                                                            Log.e(TAG, "更新UI失败", e)
+                                                        }
+                                                        
+                                                        // 检查屏幕方向变化（实时检测）- 确保在主线程
+                                                        try {
+                                                            checkAndHandleOrientationChange()
+                                                        } catch (e: Exception) {
+                                                            Log.e(TAG, "检查屏幕方向变化失败", e)
+                                                        }
+                                                    } else if (!vv.isPlaying && vv.duration > 0 && vv.currentPosition > 0) {
+                                                        // 视频应该播放但没有播放，可能是假死
+                                                        stuckCount++
+                                                        if (stuckCount > 6) { // 3秒
+                                                            Log.w(TAG, "检测到视频停止播放，尝试重启")
+                                                            stuckCount = 0
+                                                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                                restartVideoPlayer()
+                                                            }
+                                                            return
+                                                        }
+                                                    } else {
+                                                        stuckCount = 0
                                                     }
                                                 }
                                                 updateHandler?.postDelayed(this, 500)
                                             } catch (e: Exception) {
                                                 Log.e(TAG, "更新播放进度失败", e)
+                                                // 如果更新失败，也尝试重启（确保在主线程）
+                                                stuckCount++
+                                                if (stuckCount > 6) {
+                                                    stuckCount = 0
+                                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                        restartVideoPlayer()
+                                                    }
+                                                    return
+                                                }
+                                                updateHandler?.postDelayed(this, 500)
                                             }
                                         }
                                     }
@@ -269,7 +528,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             videoView?.setOnErrorListener { _, what, extra ->
                 Log.e(TAG, "视频播放错误: what=$what, extra=$extra")
                 updateRunnable?.let { updateHandler?.removeCallbacks(it) }
-                hide()
+                // 不立即隐藏，而是尝试重启播放器（确保在主线程）
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(context, "视频播放错误，尝试重启...", Toast.LENGTH_SHORT).show()
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        restartVideoPlayer()
+                    }, 500)
+                }
                 true
             }
             
@@ -326,23 +591,24 @@ class SystemOverlayVideoManager(private val context: Context) {
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
         
-        // 全屏宽度，高度按16:9比例计算
-        val videoWidth = screenWidth
-        val videoHeight = (screenWidth * 9 / 16) // 16:9 比例
+        // 初始尺寸：如果是竖屏视频，使用全屏；否则使用16:9比例
+        // 注意：此时视频尺寸可能还未检测到，所以先使用16:9，视频准备完成后会调整
+        val overlayWidth = screenWidth
+        val overlayHeight = (screenWidth * 9 / 16) // 默认16:9 比例，视频准备完成后会根据实际视频方向调整
         
         // 保存屏幕尺寸用于拖动限制
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
         
         // 保存原始尺寸（用于全屏切换）
-        originalWidth = videoWidth
-        originalHeight = videoHeight
+        originalWidth = overlayWidth
+        originalHeight = overlayHeight
         
         // 创建视频容器（作为主容器，直接添加到WindowManager）
         val container = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
-                videoWidth,
-                videoHeight
+                overlayWidth,
+                overlayHeight
             )
             setBackgroundColor(0xFF000000.toInt())
         }
@@ -353,6 +619,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
             )
+            // 设置VideoView的缩放模式（通过反射设置MediaPlayer的缩放）
+            try {
+                // VideoView内部使用SurfaceView，我们需要确保视频填满容器
+                // 通过设置布局参数为MATCH_PARENT，视频会自动缩放
+            } catch (e: Exception) {
+                Log.w(TAG, "设置VideoView缩放模式失败", e)
+            }
         }
         
         container.addView(vv)
@@ -372,18 +645,40 @@ class SystemOverlayVideoManager(private val context: Context) {
         }
         
         params = WindowManager.LayoutParams(
-            videoWidth,  // 全屏宽度
-            videoHeight, // 按16:9比例的高度
+            overlayWidth,  // 全屏宽度
+            overlayHeight, // 按16:9比例的高度
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                    or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+                    or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许触摸事件穿透到下层，不遮盖下拉菜单
             android.graphics.PixelFormat.TRANSLUCENT
         ).apply {
-            // 初始位置：屏幕居中
             gravity = Gravity.TOP or Gravity.START
-            x = (screenWidth - videoWidth) / 2 // 水平居中
-            y = (screenHeight - videoHeight) / 2 // 垂直居中
+            
+            // 如果提供了原视频位置，覆盖在原视频上方；否则屏幕居中
+            if (sourceVideoX >= 0 && sourceVideoY >= 0) {
+                // 计算覆盖原视频的位置（居中覆盖）
+                val overlayX = if (sourceVideoWidth > 0) {
+                    sourceVideoX + (sourceVideoWidth - overlayWidth) / 2
+                } else {
+                    sourceVideoX
+                }
+                val overlayY = if (sourceVideoHeight > 0) {
+                    sourceVideoY + (sourceVideoHeight - overlayHeight) / 2
+                } else {
+                    sourceVideoY
+                }
+                
+                x = overlayX.coerceIn(0, screenWidth - overlayWidth)
+                y = overlayY.coerceIn(0, screenHeight - overlayHeight)
+                Log.d(TAG, "悬浮窗位置设置为覆盖原视频: x=$x, y=$y (原视频位置: x=$sourceVideoX, y=$sourceVideoY)")
+            } else {
+                // 默认位置：屏幕居中
+                x = (screenWidth - overlayWidth) / 2
+                y = (screenHeight - overlayHeight) / 2
+                Log.d(TAG, "悬浮窗位置设置为屏幕居中: x=$x, y=$y")
+            }
         }
         
         // 保存原始位置
@@ -461,8 +756,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(0x80000000.toInt()) // 提高透明度，减少遮挡
             visibility = View.VISIBLE
-            // 缩小蒙版背景高度到一半：原来padding是4dp上下，现在改为2dp上下
-            setPadding(dpToPx(4), dpToPx(1), dpToPx(4), dpToPx(1))
+            // 降低播放条背景高度：减少上下padding
+            setPadding(dpToPx(4), dpToPx(0), dpToPx(4), dpToPx(0))
         }
         
         // 创建底部控制条容器（按钮在底部）
@@ -477,7 +772,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0x80000000.toInt()) // 提高透明度，减少遮挡
             visibility = View.VISIBLE
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            // 降低播放条背景高度：减少上下padding
+            setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
         }
         
         // 进度条行不再单独创建，直接添加到顶部控制条
@@ -606,14 +902,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f // 占据剩余空间
             ).apply {
-                setMargins(0, dpToPx(8), 0, dpToPx(8))
+                // 进度条背景高度改成原来的一半
+                setMargins(0, dpToPx(4), 0, dpToPx(4))
             }
             max = 100
             progress = 0
             thumb = normalThumbDrawable
             thumbOffset = 0
-            // 增加进度条的触摸区域
-            setPadding(dpToPx(14), dpToPx(14), dpToPx(14), dpToPx(14))
+            // 减少进度条的触摸区域padding（高度减半）
+            setPadding(dpToPx(14), dpToPx(7), dpToPx(14), dpToPx(7))
             setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser && videoView.duration > 0) {
@@ -736,17 +1033,17 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建循环播放按钮
+        // 创建循环播放按钮（重新设计样式）
         loopBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
-                dpToPx(36),
-                dpToPx(36)
+                dpToPx(40),
+                dpToPx(40)
             ).apply {
                 setMargins(dpToPx(4), 0, dpToPx(4), 0)
             }
             setImageResource(android.R.drawable.ic_menu_revert)
-            setBackgroundColor(0x80000000.toInt())
-            setPadding(dpToPx(6), dpToPx(6), dpToPx(6), dpToPx(6))
+            applyMaterialStyle(this, false) // 使用 Material Design 风格
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setOnClickListener {
                 isLooping = !isLooping
                 try {
@@ -757,11 +1054,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                         val setIsLoopingMethod = mediaPlayer.javaClass.getDeclaredMethod("setLooping", Boolean::class.java)
                         setIsLoopingMethod.invoke(mediaPlayer, isLooping)
                         
-                        // 更新按钮外观
+                        // 更新按钮外观（重新设计）
                         if (isLooping) {
-                            setBackgroundColor(0xCC008000.toInt()) // 绿色背景表示开启
+                            // 开启状态：使用 Material Design 的激活状态
+                            applyMaterialStyle(this, true)
+                            setColorFilter(0xFF4CAF50.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 绿色图标
                         } else {
-                            setBackgroundColor(0x80000000.toInt()) // 半透明背景表示关闭
+                            // 关闭状态：使用默认样式
+                            applyMaterialStyle(this, false)
+                            setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 白色图标
                         }
                         Log.d(TAG, "循环播放已${if (isLooping) "开启" else "关闭"}")
                     }
@@ -771,8 +1072,24 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建截图按钮（Material Design风格）
-        screenshotBtn = ImageButton(context).apply {
+        // 创建播放列表按钮（Material Design风格）
+        playlistBtn = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(40),
+                dpToPx(40)
+            ).apply {
+                setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            setImageResource(android.R.drawable.ic_menu_sort_by_size)
+            applyMaterialStyle(this)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setOnClickListener {
+                showPlaylistDialog()
+            }
+        }
+        
+        // 创建GIF录制按钮（Material Design风格，替代截图功能）
+        gifRecordBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 dpToPx(40),
                 dpToPx(40)
@@ -783,7 +1100,23 @@ class SystemOverlayVideoManager(private val context: Context) {
             applyMaterialStyle(this)
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setOnClickListener {
-                captureScreenshot()
+                toggleGifRecording()
+            }
+        }
+        
+        // 创建下载按钮（Material Design风格）
+        val downloadBtn = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(40),
+                dpToPx(40)
+            ).apply {
+                setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            setImageResource(R.drawable.ic_download)
+            applyMaterialStyle(this)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setOnClickListener {
+                downloadVideo()
             }
         }
         
@@ -857,7 +1190,9 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(playPauseBtn)
         buttonRow.addView(speedBtn)
         buttonRow.addView(loopBtn)
-        buttonRow.addView(screenshotBtn)
+        buttonRow.addView(fullscreenBtn) // 全屏按钮移到前面（与播放列表按钮交换位置）
+        buttonRow.addView(gifRecordBtn)
+        buttonRow.addView(downloadBtn)
         buttonRow.addView(shareBtn)
         
         // 添加弹性空间
@@ -871,7 +1206,24 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(spacer)
         
         buttonRow.addView(muteBtn)
-        buttonRow.addView(fullscreenBtn)
+        buttonRow.addView(playlistBtn) // 播放列表按钮移到后面（与全屏按钮交换位置）
+        
+        // 添加重启按钮（用于修复假死问题）
+        val restartBtn = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(48),
+                dpToPx(48)
+            ).apply {
+                setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            setImageResource(android.R.drawable.ic_menu_revert)
+            setBackgroundColor(0x80000000.toInt())
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setOnClickListener {
+                restartVideoPlayer()
+            }
+        }
+        buttonRow.addView(restartBtn)
         
         // 添加按钮行到底部控制条
         controlBarContainer.addView(buttonRow)
@@ -913,31 +1265,415 @@ class SystemOverlayVideoManager(private val context: Context) {
     }
     
     /**
-     * 截图当前视频帧
+     * 切换GIF录制状态
      */
-    private fun captureScreenshot() {
+    private fun toggleGifRecording() {
+        if (isRecordingGif) {
+            stopGifRecording()
+        } else {
+            startGifRecording()
+        }
+    }
+    
+    /**
+     * 开始GIF录制
+     */
+    private fun startGifRecording() {
         try {
-            val vv = videoView ?: return
+            val videoViewRef = videoView ?: return
             
-            // 通过反射获取VideoView的Surface或当前帧
-            // VideoView没有直接的截图API，需要通过MediaPlayer或View截图
-            // 方法1：对整个VideoView截图
-            vv.isDrawingCacheEnabled = true
-            vv.buildDrawingCache()
-            val bitmap = vv.drawingCache
-            if (bitmap != null) {
-                // 保存截图
-                saveScreenshot(bitmap)
-                vv.isDrawingCacheEnabled = false
-                Toast.makeText(context, "截图已保存", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "截图成功")
+            if (!videoViewRef.isPlaying) {
+                Toast.makeText(context, "请先播放视频", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            isRecordingGif = true
+            gifFrames.clear()
+            gifRecordHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            val startTime = System.currentTimeMillis()
+            
+            // 更新按钮状态
+            gifRecordBtn?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            gifRecordBtn?.setColorFilter(0xFFFF0000.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 红色表示录制中
+            
+            Toast.makeText(context, "开始录制GIF...", Toast.LENGTH_SHORT).show()
+            
+            // 定期捕获帧
+            gifRecordRunnable = object : Runnable {
+                override fun run() {
+                    if (!isRecordingGif) {
+                        return
+                    }
+                    
+                    val elapsed = System.currentTimeMillis() - startTime
+                    if (elapsed >= MAX_GIF_DURATION) {
+                        stopGifRecording()
+                        return
+                    }
+                    
+                    val currentVideoView = videoView
+                    if (currentVideoView != null) {
+                        try {
+                            // 捕获当前帧（使用已弃用的API，但兼容性更好）
+                            @Suppress("DEPRECATION")
+                            currentVideoView.isDrawingCacheEnabled = true
+                            @Suppress("DEPRECATION")
+                            currentVideoView.buildDrawingCache()
+                            @Suppress("DEPRECATION")
+                            val bitmap = currentVideoView.drawingCache
+                            if (bitmap != null) {
+                                // 创建副本（drawingCache可能被重用）
+                                val frame = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                                gifFrames.add(frame)
+                                Log.d(TAG, "已捕获GIF帧: ${gifFrames.size}")
+                            }
+                            @Suppress("DEPRECATION")
+                            currentVideoView.isDrawingCacheEnabled = false
+                        } catch (e: Exception) {
+                            Log.e(TAG, "捕获GIF帧失败", e)
+                        }
+                    }
+                    
+                    // 继续录制
+                    gifRecordHandler?.postDelayed(this, GIF_FRAME_INTERVAL)
+                }
+            }
+            
+            gifRecordHandler?.post(gifRecordRunnable!!)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "开始GIF录制失败", e)
+            Toast.makeText(context, "开始录制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            isRecordingGif = false
+        }
+    }
+    
+    /**
+     * 停止GIF录制并生成GIF文件
+     */
+    private fun stopGifRecording() {
+        try {
+            isRecordingGif = false
+            gifRecordRunnable?.let { gifRecordHandler?.removeCallbacks(it) }
+            
+            // 恢复按钮状态
+            gifRecordBtn?.setImageResource(android.R.drawable.ic_menu_camera)
+            gifRecordBtn?.setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN)
+            
+            if (gifFrames.isEmpty()) {
+                Toast.makeText(context, "未捕获到帧", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Toast.makeText(context, "正在生成GIF...", Toast.LENGTH_SHORT).show()
+            
+            // 在后台线程生成GIF
+            Thread {
+                try {
+                    val gifFile = generateGif(gifFrames)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        if (gifFile != null) {
+                            // 使用MediaStore API保存到公共相册（Android 10+）
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                try {
+                                    val contentValues = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, gifFile.name)
+                                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/gif")
+                                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                                    }
+                                    
+                                    val resolver = context.contentResolver
+                                    val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                                    
+                                    if (uri != null) {
+                                        resolver.openOutputStream(uri)?.use { out ->
+                                            java.io.FileInputStream(gifFile).use { input ->
+                                                input.copyTo(out)
+                                            }
+                                        }
+                                        
+                                        // 删除临时文件
+                                        gifFile.delete()
+                                        
+                                        // 显示Toast并提供查看选项
+                                        val toast = Toast.makeText(context, "GIF已保存到相册，点击查看", Toast.LENGTH_LONG)
+                                        toast.view?.setOnClickListener {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                setDataAndType(uri, "image/gif")
+                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            try {
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Log.e(TAG, "打开GIF失败", e)
+                                                Toast.makeText(context, "请到相册查看GIF", Toast.LENGTH_SHORT).show()
+                                            }
+                                            toast.cancel()
+                                        }
+                                        toast.show()
+                                        
+                                        Log.d(TAG, "GIF已保存到相册: $uri")
+                                    } else {
+                                        Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
+                                        Log.d(TAG, "GIF已保存到: ${gifFile.absolutePath}")
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "保存GIF到相册失败", e)
+                                    e.printStackTrace()
+                                    Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
+                                }
+                            } else {
+                                // Android 9及以下：通知媒体库更新
+                                try {
+                                    @Suppress("DEPRECATION")
+                                    val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
+                                    val uri = android.net.Uri.fromFile(gifFile)
+                                    mediaScanIntent.data = uri
+                                    context.sendBroadcast(mediaScanIntent)
+                                    
+                                    // 显示Toast并提供查看选项
+                                    val toast = Toast.makeText(context, "GIF已保存到相册，点击查看", Toast.LENGTH_LONG)
+                                    toast.view?.setOnClickListener {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, "image/gif")
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "打开GIF失败", e)
+                                            Toast.makeText(context, "请到相册查看GIF", Toast.LENGTH_SHORT).show()
+                                        }
+                                        toast.cancel()
+                                    }
+                                    toast.show()
+                                    
+                                    Log.d(TAG, "GIF已保存: ${gifFile.absolutePath}")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "通知媒体库更新失败", e)
+                                    Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "GIF生成失败", Toast.LENGTH_SHORT).show()
+                        }
+                        // 清理帧数据
+                        gifFrames.forEach { it.recycle() }
+                        gifFrames.clear()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "生成GIF失败", e)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "GIF生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        // 清理帧数据
+                        gifFrames.forEach { it.recycle() }
+                        gifFrames.clear()
+                    }
+                }
+            }.start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "停止GIF录制失败", e)
+        }
+    }
+    
+    /**
+     * 生成GIF文件
+     */
+    private fun generateGif(frames: List<android.graphics.Bitmap>): java.io.File? {
+        if (frames.isEmpty()) {
+            Log.w(TAG, "没有帧数据，无法生成GIF")
+            return null
+        }
+        
+        try {
+            val timestamp = System.currentTimeMillis()
+            val fileName = "video_gif_$timestamp.gif"
+            
+            // 先保存到临时文件
+            val tempFile = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
+                if (dir != null && !dir.exists()) {
+                    dir.mkdirs()
+                }
+                java.io.File(dir, fileName)
             } else {
-                Log.w(TAG, "无法获取视频截图")
-                Toast.makeText(context, "截图失败", Toast.LENGTH_SHORT).show()
+                val file = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
+                if (!file.exists()) {
+                    file.mkdirs()
+                }
+                java.io.File(file, fileName)
+            }
+            
+            Log.d(TAG, "开始生成GIF，帧数: ${frames.size}, 保存路径: ${tempFile.absolutePath}")
+            
+            // 使用简单的GIF编码
+            val gifEncoder = SimpleGifEncoder()
+            if (!gifEncoder.start(tempFile.absolutePath)) {
+                Log.e(TAG, "GIF编码器启动失败")
+                return null
+            }
+            
+            gifEncoder.setRepeat(0) // 不循环
+            gifEncoder.setDelay((GIF_FRAME_INTERVAL).toInt())
+            gifEncoder.setQuality(10) // 质量（1-10，10最好）
+            
+            // 添加所有帧
+            var frameCount = 0
+            for (frame in frames) {
+                if (!frame.isRecycled) {
+                    if (gifEncoder.addFrame(frame)) {
+                        frameCount++
+                    } else {
+                        Log.w(TAG, "添加帧失败: $frameCount")
+                    }
+                }
+            }
+            
+            gifEncoder.finish()
+            
+            // 检查文件是否生成成功
+            if (!tempFile.exists() || tempFile.length() == 0L) {
+                Log.e(TAG, "GIF文件生成失败或文件为空")
+                tempFile.delete()
+                return null
+            }
+            
+            Log.d(TAG, "GIF生成成功，文件大小: ${tempFile.length()} 字节，帧数: $frameCount")
+            
+            // 通知媒体库更新（Android 9及以下）
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
+                    val uri = android.net.Uri.fromFile(tempFile)
+                    mediaScanIntent.data = uri
+                    context.sendBroadcast(mediaScanIntent)
+                    Log.d(TAG, "已通知媒体库更新")
+                } catch (e: Exception) {
+                    Log.e(TAG, "通知媒体库更新失败", e)
+                }
+            }
+            
+            return tempFile
+        } catch (e: Exception) {
+            Log.e(TAG, "生成GIF文件失败", e)
+            e.printStackTrace()
+            return null
+        }
+    }
+    
+    /**
+     * 显示播放列表对话框
+     */
+    private fun showPlaylistDialog() {
+        try {
+            val playlist = playlistManager.getRecentVideos(20)
+            
+            if (playlist.isEmpty()) {
+                Toast.makeText(context, "播放列表为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 格式化显示：只显示标题 + 文件扩展名（去掉URL）
+            val items = playlist.map { item ->
+                val title = if (item.title.isNotBlank() && !item.title.startsWith("视频")) {
+                    // 如果标题不是默认的"视频"，使用原标题
+                    val ext = extractFileExtension(item.url)
+                    if (ext.isNotBlank() && !item.title.endsWith(".$ext")) {
+                        "${item.title}.$ext"
+                    } else {
+                        item.title
+                    }
+                } else {
+                    // 使用默认格式：视频.扩展名
+                    extractVideoTitle(item.url)
+                }
+                // 只显示标题，不显示URL
+                title
+            }.toTypedArray()
+            
+            val builder = android.app.AlertDialog.Builder(context)
+            builder.setTitle("播放列表 (${playlist.size})")
+            builder.setItems(items) { _, which ->
+                val item = playlist[which]
+                show(item.url, -1, -1, -1, -1, item.title)
+            }
+            builder.setNegativeButton("关闭", null)
+            builder.setNeutralButton("清空列表") { _, _ ->
+                playlistManager.clearPlaylist()
+                Toast.makeText(context, "播放列表已清空", Toast.LENGTH_SHORT).show()
+            }
+            
+            val dialog = builder.create()
+            // 确保对话框可以在系统悬浮窗中显示
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            }
+            dialog.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示播放列表失败", e)
+            Toast.makeText(context, "显示播放列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 从URL提取文件扩展名
+     */
+    private fun extractFileExtension(url: String): String {
+        return try {
+            val fileName = url.substringAfterLast("/").substringBefore("?")
+            if (fileName.contains(".")) {
+                fileName.substringAfterLast(".").lowercase()
+            } else {
+                when {
+                    url.contains(".mp4") -> "mp4"
+                    url.contains(".webm") -> "webm"
+                    url.contains(".m3u8") -> "m3u8"
+                    url.contains(".flv") -> "flv"
+                    else -> ""
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "截图失败", e)
-            Toast.makeText(context, "截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            ""
+        }
+    }
+    
+    /**
+     * 从URL提取视频标题（显示网页标题+文件扩展名）
+     */
+    private fun extractVideoTitle(url: String): String {
+        return try {
+            // 提取文件扩展名
+            val fileName = url.substringAfterLast("/").substringBefore("?")
+            val extension = if (fileName.contains(".")) {
+                fileName.substringAfterLast(".")
+            } else {
+                ""
+            }
+            
+            // 如果没有扩展名，尝试从URL路径判断
+            val ext = if (extension.isBlank()) {
+                when {
+                    url.contains(".mp4") -> "mp4"
+                    url.contains(".webm") -> "webm"
+                    url.contains(".m3u8") -> "m3u8"
+                    url.contains(".flv") -> "flv"
+                    else -> ""
+                }
+            } else {
+                extension
+            }
+            
+            // 返回格式：视频.扩展名
+            if (ext.isNotBlank()) {
+                "视频.$ext"
+            } else {
+                "视频"
+            }
+        } catch (e: Exception) {
+            "视频"
         }
     }
     
@@ -957,19 +1693,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                 originalWidth = params?.width ?: screenWidth
                 originalHeight = params?.height ?: (screenWidth * 9 / 16)
                 
-                // 检测屏幕方向
+                // 无论横屏还是竖屏，都使用屏幕宽高全屏
+                // 重新获取屏幕尺寸（可能屏幕方向已改变）
                 val displayMetrics = context.resources.displayMetrics
-                val isLandscape = displayMetrics.widthPixels > displayMetrics.heightPixels
+                val currentScreenWidth = displayMetrics.widthPixels
+                val currentScreenHeight = displayMetrics.heightPixels
                 
-                if (isLandscape) {
-                    // 横屏全屏：使用屏幕宽高
-                    params?.width = screenWidth
-                    params?.height = screenHeight
-                } else {
-                    // 竖屏全屏：使用屏幕宽高
-                    params?.width = screenWidth
-                    params?.height = screenHeight
-                }
+                params?.width = currentScreenWidth
+                params?.height = currentScreenHeight
                 
                 params?.x = 0
                 params?.y = 0
@@ -978,17 +1709,17 @@ class SystemOverlayVideoManager(private val context: Context) {
                 floatingView?.layoutParams?.width = params?.width ?: screenWidth
                 floatingView?.layoutParams?.height = params?.height ?: screenHeight
                 
-                // 调整控制条位置（全屏时靠近视频底部和顶部）
+                // 调整控制条位置（全屏时紧贴屏幕边缘，无空白）
                 controlBar?.layoutParams?.let { layoutParams ->
                     if (layoutParams is FrameLayout.LayoutParams) {
-                        layoutParams.bottomMargin = dpToPx(16) // 全屏时控制条距离底部16dp
+                        layoutParams.bottomMargin = 0 // 全屏时控制条紧贴底部
                     }
                 }
                 
-                // 调整顶部控制条位置
+                // 调整顶部控制条位置（全屏时紧贴屏幕边缘，无空白）
                 topControlBarContainer?.layoutParams?.let { layoutParams ->
                     if (layoutParams is FrameLayout.LayoutParams) {
-                        layoutParams.topMargin = dpToPx(16) // 全屏时顶部控制条距离顶部16dp
+                        layoutParams.topMargin = 0 // 全屏时顶部控制条紧贴顶部
                     }
                 }
                 
@@ -1006,14 +1737,39 @@ class SystemOverlayVideoManager(private val context: Context) {
                 Toast.makeText(context, "全屏模式", Toast.LENGTH_SHORT).show()
             } else {
                 // 退出全屏：恢复原始尺寸和位置
-                params?.width = originalWidth
-                params?.height = originalHeight
-                params?.x = originalX
-                params?.y = originalY
+                // 如果是竖屏视频，使用80%屏幕尺寸作为窗口模式
+                val displayMetrics = context.resources.displayMetrics
+                val currentScreenWidth = displayMetrics.widthPixels
+                val currentScreenHeight = displayMetrics.heightPixels
                 
-                // 更新容器尺寸
-                floatingView?.layoutParams?.width = originalWidth
-                floatingView?.layoutParams?.height = originalHeight
+                if (isVideoPortrait) {
+                    // 竖屏视频退出全屏：使用80%屏幕尺寸
+                    val windowWidth = (currentScreenWidth * 0.8f).toInt()
+                    val windowHeight = (currentScreenHeight * 0.8f).toInt()
+                    
+                    params?.width = windowWidth
+                    params?.height = windowHeight
+                    params?.x = (currentScreenWidth - windowWidth) / 2
+                    params?.y = (currentScreenHeight - windowHeight) / 2
+                    
+                    floatingView?.layoutParams?.width = windowWidth
+                    floatingView?.layoutParams?.height = windowHeight
+                    
+                    // 更新原始尺寸
+                    originalWidth = windowWidth
+                    originalHeight = windowHeight
+                    originalX = params?.x ?: 0
+                    originalY = params?.y ?: 0
+                } else {
+                    // 横屏视频退出全屏：恢复原始尺寸
+                    params?.width = originalWidth
+                    params?.height = originalHeight
+                    params?.x = originalX
+                    params?.y = originalY
+                    
+                    floatingView?.layoutParams?.width = originalWidth
+                    floatingView?.layoutParams?.height = originalHeight
+                }
                 
                 // 恢复控制条位置
                 controlBar?.layoutParams?.let { layoutParams ->
@@ -1103,6 +1859,47 @@ class SystemOverlayVideoManager(private val context: Context) {
     /**
      * 分享视频URL
      */
+    /**
+     * 下载视频
+     */
+    private fun downloadVideo() {
+        val videoUrl = currentVideoUrl
+        if (videoUrl.isNullOrBlank()) {
+            Toast.makeText(context, "无法获取视频地址", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        try {
+            Log.d(TAG, "开始下载视频: $videoUrl")
+            downloadManager.downloadSmart(videoUrl, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d(TAG, "视频下载成功: $fileName")
+                    Toast.makeText(context, "视频下载完成: $fileName", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    val reasonText = when (reason) {
+                        android.app.DownloadManager.ERROR_CANNOT_RESUME -> "无法恢复下载"
+                        android.app.DownloadManager.ERROR_DEVICE_NOT_FOUND -> "存储设备未找到"
+                        android.app.DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "文件已存在"
+                        android.app.DownloadManager.ERROR_FILE_ERROR -> "文件错误"
+                        android.app.DownloadManager.ERROR_HTTP_DATA_ERROR -> "HTTP数据错误"
+                        android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE -> "存储空间不足"
+                        android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "重定向过多"
+                        android.app.DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "HTTP错误"
+                        android.app.DownloadManager.ERROR_UNKNOWN -> "未知错误"
+                        else -> "下载失败 (错误码: $reason)"
+                    }
+                    Log.e(TAG, "视频下载失败: $reasonText")
+                    Toast.makeText(context, "视频下载失败: $reasonText", Toast.LENGTH_SHORT).show()
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "下载视频失败", e)
+            Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     private fun shareVideo() {
         try {
             val url = currentVideoUrl
@@ -1320,30 +2117,27 @@ class SystemOverlayVideoManager(private val context: Context) {
                             return@setOnTouchListener true
                         }
                         
-                        // 快速滑动：按住时间短，认为是快速手势
-                        if (elapsedTime <= DRAG_DELAY_THRESHOLD) {
-                            // 检查是水平滑动还是垂直滑动
-                            if (kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) && kotlin.math.abs(deltaX) > MIN_SWIPE_DISTANCE) {
-                                // 水平滑动：快进/后退
-                                isSeeking = true
-                                brightnessControlView?.visibility = View.GONE
+                        // 检查是水平滑动还是垂直滑动（持续处理，不限制时间）
+                        if (kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) && kotlin.math.abs(deltaX) > MIN_SWIPE_DISTANCE) {
+                            // 水平滑动：快进/后退
+                            isSeeking = true
+                            brightnessControlView?.visibility = View.GONE
+                            volumeControlView?.visibility = View.GONE
+                            handleSeek(deltaX, containerWidth)
+                        } else if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) && kotlin.math.abs(deltaY) > MIN_SWIPE_DISTANCE) {
+                            // 垂直滑动：透明度或音量控制（持续处理，确保连续性）
+                            isSeeking = false
+                            seekControlView?.visibility = View.GONE
+                            if (x < leftRegion) {
+                                // 左侧上下滑动：调节透明度
+                                brightnessControlView?.visibility = View.VISIBLE
                                 volumeControlView?.visibility = View.GONE
-                                handleSeek(deltaX, containerWidth)
-                            } else if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) && kotlin.math.abs(deltaY) > MIN_SWIPE_DISTANCE) {
-                                // 垂直滑动：亮度或音量控制
-                                isSeeking = false
-                                seekControlView?.visibility = View.GONE
-                                if (x < leftRegion) {
-                                    // 左侧上下滑动：调节亮度
-                                    brightnessControlView?.visibility = View.VISIBLE
-                                    volumeControlView?.visibility = View.GONE
-                                    handleBrightnessChange(y, containerHeight)
-                                } else if (x > rightRegion) {
-                                    // 右侧上下滑动：调节音量
-                                    volumeControlView?.visibility = View.VISIBLE
-                                    brightnessControlView?.visibility = View.GONE
-                                    handleVolumeChange(y, containerHeight)
-                                }
+                                handleBrightnessChange(y, containerHeight)
+                            } else if (x > rightRegion) {
+                                // 右侧上下滑动：调节音量
+                                volumeControlView?.visibility = View.VISIBLE
+                                brightnessControlView?.visibility = View.GONE
+                                handleVolumeChange(y, containerHeight)
                             }
                         }
                         true
@@ -1370,35 +2164,53 @@ class SystemOverlayVideoManager(private val context: Context) {
      * 创建控制提示视图
      */
     private fun createControlHintViews(container: FrameLayout) {
-        // 亮度控制提示视图
+        // 亮度控制提示视图（带图标和动画）
         brightnessControlView = android.widget.TextView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER
             )
-            textSize = 24f
+            textSize = 28f
             setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundColor(0xCC000000.toInt())
-            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            
+            // 使用圆角背景
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xE6000000.toInt())
+                cornerRadius = dpToPx(12).toFloat()
+            }
+            background = drawable
+            
+            setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
             visibility = View.GONE
             gravity = Gravity.CENTER
+            
+            // 不添加图标，只显示数值
         }
         container.addView(brightnessControlView)
         
-        // 音量控制提示视图
+        // 音量控制提示视图（带图标和动画）
         volumeControlView = android.widget.TextView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER
             )
-            textSize = 24f
+            textSize = 28f
             setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundColor(0xCC000000.toInt())
-            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+            
+            // 使用圆角背景
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xE6000000.toInt())
+                cornerRadius = dpToPx(12).toFloat()
+            }
+            background = drawable
+            
+            setPadding(dpToPx(24), dpToPx(16), dpToPx(24), dpToPx(16))
             visibility = View.GONE
             gravity = Gravity.CENTER
+            
+            // 不添加图标，只显示数值
         }
         container.addView(volumeControlView)
         
@@ -1456,47 +2268,51 @@ class SystemOverlayVideoManager(private val context: Context) {
     }
     
     /**
-     * 处理亮度调节
+     * 处理透明度调节（原亮度调节改为透明度调节）
      */
     private fun handleBrightnessChange(y: Float, containerHeight: Int) {
         try {
-            // 计算亮度变化（向上滑动减少亮度，向下滑动增加亮度）
+            // 计算透明度变化（向上滑动减少透明度，向下滑动增加透明度）
             val ratio = 1.0f - (y / containerHeight) // 0在顶部，1在底部
-            val newBrightness = ratio.coerceIn(0.1f, 1.0f) // 亮度范围10%-100%
+            val newAlpha = ratio.coerceIn(0.3f, 1.0f) // 透明度范围30%-100%
             
-            // 设置系统亮度
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (Settings.System.canWrite(context)) {
-                    val brightnessValue = (newBrightness * 255).toInt().coerceIn(10, 255)
-                    Settings.System.putInt(
-                        context.contentResolver,
-                        Settings.System.SCREEN_BRIGHTNESS,
-                        brightnessValue
-                    )
-                    currentBrightness = newBrightness
-                } else {
-                    // 如果没有权限，尝试设置窗口亮度（仅对当前窗口有效）
-                    (context as? Activity)?.window?.attributes = (context as? Activity)?.window?.attributes?.apply {
-                        screenBrightness = newBrightness
-                    }
-                    currentBrightness = newBrightness
+            // 设置整个悬浮窗的透明度（包括视频和控制条）
+            // 使用setAlpha方法确保透明度正确应用到所有子视图
+            floatingView?.alpha = newAlpha
+            
+            // 确保VideoView也应用透明度（VideoView可能需要特殊处理）
+            videoView?.let { vv ->
+                vv.alpha = newAlpha
+                // 如果VideoView内部有SurfaceView，也需要设置透明度
+                try {
+                    // 通过反射获取VideoView内部的SurfaceView并设置透明度
+                    val surfaceViewField = vv.javaClass.getDeclaredField("mSurfaceView")
+                    surfaceViewField.isAccessible = true
+                    val surfaceView = surfaceViewField.get(vv) as? android.view.SurfaceView
+                    surfaceView?.alpha = newAlpha
+                } catch (e: Exception) {
+                    // 反射失败不影响，使用默认alpha
+                    Log.d(TAG, "无法通过反射设置SurfaceView透明度: ${e.message}")
                 }
-            } else {
-                val brightnessValue = (newBrightness * 255).toInt().coerceIn(10, 255)
-                Settings.System.putInt(
-                    context.contentResolver,
-                    Settings.System.SCREEN_BRIGHTNESS,
-                    brightnessValue
-                )
-                currentBrightness = newBrightness
             }
             
-            // 显示亮度提示
-            brightnessControlView?.text = "${(newBrightness * 100).toInt()}%"
+            // 确保控制条也应用透明度
+            controlBar?.alpha = newAlpha
+            topControlBarContainer?.alpha = newAlpha
             
-            Log.d(TAG, "亮度调节: ${(newBrightness * 100).toInt()}%")
+            // 显示透明度提示（只显示数值，实时更新）
+            val alphaPercent = (newAlpha * 100).toInt()
+            brightnessControlView?.text = "${alphaPercent}%"
+            
+            // 确保提示视图可见（实时显示，不添加动画延迟）
+            if (brightnessControlView?.visibility != View.VISIBLE) {
+                brightnessControlView?.alpha = 1f
+                brightnessControlView?.visibility = View.VISIBLE
+            }
+            
+            Log.d(TAG, "透明度调节: ${alphaPercent}%")
         } catch (e: Exception) {
-            Log.e(TAG, "处理亮度调节失败", e)
+            Log.e(TAG, "处理透明度调节失败", e)
         }
     }
     
@@ -1515,9 +2331,15 @@ class SystemOverlayVideoManager(private val context: Context) {
             am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVolume, 0)
             currentVolume = targetVolume
             
-            // 显示音量提示
+            // 显示音量提示（只显示数值，实时更新）
             val volumePercent = (targetVolume * 100 / maxVolume)
             volumeControlView?.text = "${volumePercent}%"
+            
+            // 确保提示视图可见（实时显示，不添加动画延迟）
+            if (volumeControlView?.visibility != View.VISIBLE) {
+                volumeControlView?.alpha = 1f
+                volumeControlView?.visibility = View.VISIBLE
+            }
             
             Log.d(TAG, "音量调节: ${volumePercent}%")
         } catch (e: Exception) {
@@ -1533,12 +2355,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             val p = params ?: return
             val wm = windowManager ?: return
             
-            // 计算新位置（使用原始触摸坐标）
-            val dampingFactor = 0.85f // 阻尼系数，0.85表示85%的移动量，产生阻尼感
-            val rawNewY = (initialTouchY + rawDeltaY - dY).toInt()
-            val deltaYFromInitial = rawNewY - initialY
-            val dampedDeltaY = (deltaYFromInitial * dampingFactor).toInt()
-            var newY = (initialY + dampedDeltaY).coerceIn(0, screenHeight - p.height)
+            // 计算新位置（直接跟随手指，无阻尼）
+            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, screenHeight - p.height).toInt()
             
             // 只允许垂直拖动，保持X坐标不变（居中）
             p.x = originalX
@@ -1553,50 +2371,6 @@ class SystemOverlayVideoManager(private val context: Context) {
         }
     }
     
-    /**
-     * 保存截图到文件
-     */
-    private fun saveScreenshot(bitmap: android.graphics.Bitmap) {
-        try {
-            val timestamp = System.currentTimeMillis()
-            val fileName = "video_screenshot_$timestamp.png"
-            
-            val screenshotFile = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                // Android 10+ 使用应用私有目录
-                val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
-                if (dir != null && !dir.exists()) {
-                    dir.mkdirs()
-                }
-                java.io.File(dir, fileName)
-            } else {
-                // Android 9及以下使用公共Pictures目录
-                val file = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
-                if (!file.exists()) {
-                    file.mkdirs()
-                }
-                java.io.File(file, fileName)
-            }
-            
-            val fos = java.io.FileOutputStream(screenshotFile)
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, fos)
-            fos.flush()
-            fos.close()
-            
-            // 通知媒体库更新（Android 10+需要MediaStore API）
-            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-                val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-                val uri = android.net.Uri.fromFile(screenshotFile)
-                mediaScanIntent.data = uri
-                context.sendBroadcast(mediaScanIntent)
-            }
-            
-            Log.d(TAG, "截图已保存到: ${screenshotFile.absolutePath}")
-            Toast.makeText(context, "截图已保存: ${screenshotFile.name}", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Log.e(TAG, "保存截图失败", e)
-            Toast.makeText(context, "保存截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
     
     /**
      * 启用拖拽功能（带阻尼感）
@@ -1741,7 +2515,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             fullscreenBtn = null
             speedBtn = null
             loopBtn = null
-            screenshotBtn = null
+            gifRecordBtn = null
+            playlistBtn = null
+            
+            // 停止GIF录制
+            if (isRecordingGif) {
+                stopGifRecording()
+            }
             progressBar = null
             currentTimeText = null
             totalTimeText = null
@@ -1798,9 +2578,18 @@ class SystemOverlayVideoManager(private val context: Context) {
     
     /**
      * 隐藏控制条
+     * 必须在主线程调用
      */
     private fun hideControls() {
         try {
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    hideControls()
+                }
+                return
+            }
+            
             topControlBarContainer?.visibility = View.GONE
             controlBar?.visibility = View.GONE
             cancelHideControls() // 取消自动隐藏任务
@@ -1812,15 +2601,31 @@ class SystemOverlayVideoManager(private val context: Context) {
     
     /**
      * 安排自动隐藏控制条
+     * 必须在主线程调用
      */
     private fun scheduleHideControls() {
         try {
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    scheduleHideControls()
+                }
+                return
+            }
+            
             // 取消之前的任务
             cancelHideControls()
             
-            // 创建新的隐藏任务
+            // 创建新的隐藏任务（确保在主线程执行）
             hideControlsRunnable = Runnable {
-                hideControls()
+                // 再次检查是否在主线程
+                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                    hideControls()
+                } else {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        hideControls()
+                    }
+                }
             }
             
             // 3秒后自动隐藏
@@ -1878,80 +2683,398 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
             
             if (isVideoPortrait) {
-                // 竖屏视频：自动最大化
-                if (!hasAutoMaximized && !isFullscreen) {
+                // 竖屏视频：靠近顶部播放，留出下方操作空间（固定位置）
+                if (!hasAutoMaximized || params?.width != screenWidth || params?.height != (screenHeight * 0.7f).toInt() || params?.x != 0 || params?.y != 0) {
                     hasAutoMaximized = true
-                    params?.width = screenWidth
-                    params?.height = screenHeight
+                    
+                    // 竖屏视频：使用屏幕宽度，高度为屏幕高度的70%，靠近顶部
+                    val targetWidth = screenWidth
+                    val targetHeight = (screenHeight * 0.7f).toInt()
+                    
+                    params?.width = targetWidth
+                    params?.height = targetHeight
                     params?.x = 0
-                    params?.y = 0
+                    params?.y = 0 // 固定位置：靠近顶部
                     
-                    floatingView?.layoutParams?.width = screenWidth
-                    floatingView?.layoutParams?.height = screenHeight
+                    floatingView?.layoutParams?.width = targetWidth
+                    floatingView?.layoutParams?.height = targetHeight
                     
-                    windowManager?.updateViewLayout(floatingView, params)
-                    isFullscreen = true
-                    Log.d(TAG, "竖屏视频已自动最大化")
-                }
-            } else {
-                // 横屏视频：居中播放
-                if (!hasAutoMaximized && !isFullscreen) {
-                    hasAutoMaximized = true
-                    // 保持16:9比例，但居中显示
-                    val videoWidth = screenWidth
-                    val videoHeight = (screenWidth * 9 / 16)
+                    // 确保VideoView填满整个容器
+                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
                     
-                    params?.width = videoWidth
-                    params?.height = videoHeight
-                    params?.x = (screenWidth - videoWidth) / 2 // 水平居中
-                    params?.y = (screenHeight - videoHeight) / 2 // 垂直居中
-                    
-                    floatingView?.layoutParams?.width = videoWidth
-                    floatingView?.layoutParams?.height = videoHeight
-                    
-                    // 更新原始尺寸和位置
-                    originalWidth = videoWidth
-                    originalHeight = videoHeight
-                    originalX = params?.x ?: 0
-                    originalY = params?.y ?: 0
-                    
-                    windowManager?.updateViewLayout(floatingView, params)
-                    Log.d(TAG, "横屏视频已居中播放")
-                }
-                
-                // 如果用户横屏，自动最大化
-                if (isScreenLandscape && !isFullscreen) {
-                    params?.width = screenWidth
-                    params?.height = screenHeight
-                    params?.x = 0
-                    params?.y = 0
-                    
-                    floatingView?.layoutParams?.width = screenWidth
-                    floatingView?.layoutParams?.height = screenHeight
-                    
-                    windowManager?.updateViewLayout(floatingView, params)
-                    isFullscreen = true
-                    Log.d(TAG, "用户横屏，横屏视频已自动最大化")
-                } else if (!isScreenLandscape && isFullscreen && !isVideoPortrait) {
-                    // 用户竖屏回来，恢复窗口模式（仅对横屏视频）
-                    val videoWidth = screenWidth
-                    val videoHeight = (screenWidth * 9 / 16)
-                    
-                    params?.width = videoWidth
-                    params?.height = videoHeight
-                    params?.x = (screenWidth - videoWidth) / 2
-                    params?.y = (screenHeight - videoHeight) / 2
-                    
-                    floatingView?.layoutParams?.width = videoWidth
-                    floatingView?.layoutParams?.height = videoHeight
+                    // 设置视频缩放模式
+                    try {
+                        val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                        mediaPlayerField?.isAccessible = true
+                        val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                        mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置视频缩放模式失败", e)
+                    }
                     
                     windowManager?.updateViewLayout(floatingView, params)
                     isFullscreen = false
-                    Log.d(TAG, "用户竖屏回来，横屏视频恢复窗口模式")
+                    
+                    // 更新原始尺寸和位置（固定位置）
+                    originalWidth = targetWidth
+                    originalHeight = targetHeight
+                    originalX = 0
+                    originalY = 0
+                    
+                    // 确保全屏按钮可见
+                    adjustFullscreenControls()
+                    
+                    Log.d(TAG, "竖屏视频已调整为靠近顶部播放: ${targetWidth}x${targetHeight}, 位置: (0, 0)")
+                }
+            } else {
+                // 横屏视频：需要确保填满屏幕宽度，不要有空白
+                // 如果之前是竖屏视频全屏状态，需要强制调整
+                if (!hasAutoMaximized || (isFullscreen && params?.width != screenWidth)) {
+                    hasAutoMaximized = true
+                    
+                    if (isScreenLandscape) {
+                        // 屏幕横屏：横屏视频应该全屏
+                        params?.width = screenWidth
+                        params?.height = screenHeight
+                        params?.x = 0
+                        params?.y = 0
+                        
+                        floatingView?.layoutParams?.width = screenWidth
+                        floatingView?.layoutParams?.height = screenHeight
+                        
+                        // 确保VideoView填满容器
+                        videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                        videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                        
+                        // 设置视频缩放模式，确保填满屏幕
+                        try {
+                            val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                            mediaPlayerField?.isAccessible = true
+                            val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                            mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "设置视频缩放模式失败", e)
+                        }
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        isFullscreen = true
+                        
+                        // 更新原始尺寸
+                        originalWidth = screenWidth
+                        originalHeight = screenHeight
+                        originalX = 0
+                        originalY = 0
+                        
+                        adjustFullscreenControls()
+                        Log.d(TAG, "横屏视频在横屏屏幕上已全屏: ${screenWidth}x${screenHeight}")
+                    } else {
+                        // 屏幕竖屏：横屏视频应该填满屏幕宽度，高度按比例，固定位置（居中）
+                        val targetWidth = screenWidth
+                        val targetHeight = (screenWidth * 9 / 16).coerceAtMost(screenHeight)
+                        val targetX = 0 // 固定位置：左对齐
+                        val targetY = (screenHeight - targetHeight) / 2 // 固定位置：垂直居中
+                        
+                        params?.width = targetWidth
+                        params?.height = targetHeight
+                        params?.x = targetX
+                        params?.y = targetY
+                        
+                        floatingView?.layoutParams?.width = targetWidth
+                        floatingView?.layoutParams?.height = targetHeight
+                        
+                        // 确保VideoView填满容器
+                        videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                        videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                        
+                        // 设置视频缩放模式，确保填满宽度
+                        try {
+                            val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                            mediaPlayerField?.isAccessible = true
+                            val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                            mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "设置视频缩放模式失败", e)
+                        }
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        isFullscreen = false
+                        
+                        // 更新原始尺寸和位置（固定位置）
+                        originalWidth = targetWidth
+                        originalHeight = targetHeight
+                        originalX = targetX
+                        originalY = targetY
+                        
+                        Log.d(TAG, "横屏视频在竖屏屏幕上已调整（固定位置）: ${targetWidth}x${targetHeight}, 位置: ($targetX, $targetY)")
+                    }
+                } else if (isScreenLandscape && !isFullscreen) {
+                    // 如果屏幕横屏但视频不是全屏，自动最大化
+                    params?.width = screenWidth
+                    params?.height = screenHeight
+                    params?.x = 0
+                    params?.y = 0
+                    
+                    floatingView?.layoutParams?.width = screenWidth
+                    floatingView?.layoutParams?.height = screenHeight
+                    
+                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                    
+                    try {
+                        val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                        mediaPlayerField?.isAccessible = true
+                        val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                        mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置视频缩放模式失败", e)
+                    }
+                    
+                    windowManager?.updateViewLayout(floatingView, params)
+                    isFullscreen = true
+                    adjustFullscreenControls()
+                    Log.d(TAG, "用户横屏，横屏视频已自动最大化")
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "自动调整视频窗口大小失败", e)
+        }
+    }
+    
+    /**
+     * 检查并处理屏幕方向变化
+     * 必须在主线程调用
+     */
+    private fun checkAndHandleOrientationChange() {
+        try {
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    checkAndHandleOrientationChange()
+                }
+                return
+            }
+            
+            val currentOrientation = context.resources.configuration.orientation
+            if (currentOrientation != lastScreenOrientation && lastScreenOrientation != Configuration.ORIENTATION_UNDEFINED) {
+                // 屏幕方向已改变
+                Log.d(TAG, "检测到屏幕方向变化: $lastScreenOrientation -> $currentOrientation")
+                
+                // 更新记录的屏幕方向
+                lastScreenOrientation = currentOrientation
+                
+                // 如果当前是全屏模式，重新调整窗口尺寸以适应新方向
+                if (isFullscreen && params != null && floatingView != null && windowManager != null) {
+                    val displayMetrics = context.resources.displayMetrics
+                    val newScreenWidth = displayMetrics.widthPixels
+                    val newScreenHeight = displayMetrics.heightPixels
+                    val isNewScreenLandscape = newScreenWidth > newScreenHeight
+                    
+                    // 更新屏幕尺寸
+                    screenWidth = newScreenWidth
+                    screenHeight = newScreenHeight
+                    
+                    // 如果从竖屏切换到横屏，且视频是横屏视频，需要恢复横屏状态（不要有空白区域）
+                    if (isNewScreenLandscape && !isVideoPortrait) {
+                        // 横屏视频在横屏屏幕上：使用全屏，但确保视频填满（无空白）
+                        params?.width = newScreenWidth
+                        params?.height = newScreenHeight
+                        params?.x = 0
+                        params?.y = 0
+                        
+                        floatingView?.layoutParams?.width = newScreenWidth
+                        floatingView?.layoutParams?.height = newScreenHeight
+                        
+                        // 确保VideoView填满容器
+                        videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                        videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        
+                        Log.d(TAG, "竖屏切换到横屏，横屏视频已调整为全屏: ${newScreenWidth}x${newScreenHeight}")
+                    } else {
+                        // 其他情况：重新设置全屏尺寸
+                        params?.width = newScreenWidth
+                        params?.height = newScreenHeight
+                        params?.x = 0
+                        params?.y = 0
+                        
+                        floatingView?.layoutParams?.width = newScreenWidth
+                        floatingView?.layoutParams?.height = newScreenHeight
+                        
+                        // 确保VideoView填满容器
+                        videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
+                        videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        
+                        Log.d(TAG, "屏幕方向变化后已调整窗口尺寸: ${newScreenWidth}x${newScreenHeight}")
+                    }
+                } else {
+                    // 非全屏模式，也调整窗口以适应新方向
+                    adjustVideoWindowSize()
+                }
+            } else if (lastScreenOrientation == Configuration.ORIENTATION_UNDEFINED) {
+                // 首次记录屏幕方向
+                lastScreenOrientation = currentOrientation
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查屏幕方向变化失败", e)
+        }
+    }
+    
+    /**
+     * 重启视频播放器（修复假死问题）
+     */
+    private fun restartVideoPlayer() {
+        try {
+            val url = currentVideoUrl
+            if (url.isNullOrBlank()) {
+                Toast.makeText(context, "无法重启：视频URL为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d(TAG, "重启视频播放器: $url")
+            Toast.makeText(context, "正在重启播放器...", Toast.LENGTH_SHORT).show()
+            
+            // 保存当前播放位置
+            val currentPosition = videoView?.currentPosition ?: 0
+            val wasPlaying = videoView?.isPlaying ?: false
+            
+            // 停止当前播放
+            videoView?.stopPlayback()
+            videoView?.setOnPreparedListener(null)
+            videoView?.setOnCompletionListener(null)
+            videoView?.setOnErrorListener(null)
+            
+            // 清理进度更新
+            updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+            updateRunnable = null
+            
+            // 重新设置视频源，对于 HTTP/HTTPS URL 使用 setVideoPath
+            try {
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    videoView?.setVideoPath(url)
+                } else if (url.startsWith("content://") || url.startsWith("file://")) {
+                    videoView?.setVideoURI(Uri.parse(url))
+                } else {
+                    videoView?.setVideoPath(url)
+                }
+                Log.d(TAG, "重启时视频源已设置: $url")
+            } catch (e: Exception) {
+                Log.e(TAG, "重启时设置视频源失败: $url", e)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+            
+            // 重新设置监听器
+            videoView?.setOnPreparedListener { mediaPlayer ->
+                try {
+                    mediaPlayer.isLooping = isLooping
+                    
+                    // 设置视频缩放模式
+                    try {
+                        mediaPlayer.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "设置视频缩放模式失败", e)
+                    }
+                    
+                    // 恢复播放位置
+                    if (currentPosition > 0 && currentPosition < mediaPlayer.duration) {
+                        mediaPlayer.seekTo(currentPosition)
+                    }
+                    
+                    // 如果之前正在播放，继续播放
+                    if (wasPlaying) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            videoView?.start()
+                            playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                        }, 100)
+                    }
+                    
+                    // 重新启动进度更新
+                    updateHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                    updateRunnable = object : Runnable {
+                        private var lastProgress = -1
+                        private var stuckCount = 0
+                        
+                        override fun run() {
+                            try {
+                                // 确保在主线程执行
+                                if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                                    updateHandler?.post(this)
+                                    return
+                                }
+                                
+                                val vv = videoView
+                                if (vv != null && vv.isPlaying && vv.duration > 0) {
+                                    val current = vv.currentPosition
+                                    val total = vv.duration
+                                    val progressPercent = (current * 100 / total).coerceIn(0, 100)
+                                    
+                                    // 检测假死
+                                    if (current == lastProgress && lastProgress > 0) {
+                                        stuckCount++
+                                        if (stuckCount > 10) {
+                                            Log.w(TAG, "检测到视频假死，尝试重启")
+                                            stuckCount = 0
+                                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                restartVideoPlayer()
+                                            }
+                                            return
+                                        }
+                                    } else {
+                                        stuckCount = 0
+                                        lastProgress = current
+                                    }
+                                    
+                                    // 安全更新UI（已在主线程）
+                                    try {
+                                        progressBar?.progress = progressPercent
+                                        currentTimeText?.text = formatTime(current)
+                                        totalTimeText?.text = formatTime(total)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "更新UI失败", e)
+                                    }
+                                    
+                                    // 检查屏幕方向变化（确保在主线程）
+                                    try {
+                                        checkAndHandleOrientationChange()
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "检查屏幕方向变化失败", e)
+                                    }
+                                }
+                                updateHandler?.postDelayed(this, 500)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "更新播放进度失败", e)
+                                updateHandler?.postDelayed(this, 500)
+                            }
+                        }
+                    }
+                    updateHandler?.post(updateRunnable!!)
+                    
+                    Log.d(TAG, "视频播放器重启成功")
+                    Toast.makeText(context, "播放器已重启", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "重启视频播放器失败", e)
+                    Toast.makeText(context, "重启失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            videoView?.setOnErrorListener { _, what, extra ->
+                Log.e(TAG, "重启后视频播放错误: what=$what, extra=$extra")
+                Toast.makeText(context, "播放错误，请检查网络或视频源", Toast.LENGTH_LONG).show()
+                true
+            }
+            
+            // 开始准备视频
+            videoView?.requestFocus()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "重启视频播放器失败", e)
+            Toast.makeText(context, "重启失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     

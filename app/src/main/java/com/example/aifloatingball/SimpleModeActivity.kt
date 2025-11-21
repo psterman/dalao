@@ -15209,7 +15209,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val tag = webView.getTag(R.id.tag_video_bridge_injected)
             if (tag != true) {
                 webView.addJavascriptInterface(
-                    VideoDetectionBridge { url ->
+                    VideoDetectionBridge { url, x, y, width, height, pageTitle ->
                         runOnUiThread {
                             try {
                                 // 停止页面内播放并隐藏原视频，避免双声道
@@ -15218,7 +15218,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                             // 优先使用系统级悬浮窗播放器
                             if (systemOverlayVideoManager.canDrawOverlays()) {
-                                systemOverlayVideoManager.show(url)
+                                systemOverlayVideoManager.show(url, x, y, width, height, pageTitle)
                             } else {
                                 // 无权限则提示并使用Activity内悬浮窗作为降级
                                 systemOverlayVideoManager.requestOverlayPermission()

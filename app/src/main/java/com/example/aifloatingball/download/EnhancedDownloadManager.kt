@@ -109,19 +109,60 @@ class EnhancedDownloadManager(private val context: Context) {
         }
     }
     
+    // 标记接收器是否已注册，避免重复注册
+    private var isReceiverRegistered = false
+    
     init {
-        // 注册广播接收器
-        val downloadCompleteFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-        val downloadNotificationFilter = IntentFilter(DownloadManager.ACTION_NOTIFICATION_CLICKED)
+        // 注册广播接收器（只注册一次）
+        registerReceivers()
+    }
+    
+    /**
+     * 注册广播接收器（防止重复注册）
+     */
+    private fun registerReceivers() {
+        if (isReceiverRegistered) {
+            Log.w(TAG, "广播接收器已注册，跳过重复注册")
+            return
+        }
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ 需要指定RECEIVER_NOT_EXPORTED
-            context.registerReceiver(downloadCompleteReceiver, downloadCompleteFilter, Context.RECEIVER_NOT_EXPORTED)
-            context.registerReceiver(downloadNotificationReceiver, downloadNotificationFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            // Android 12及以下使用传统方式
-            context.registerReceiver(downloadCompleteReceiver, downloadCompleteFilter)
-            context.registerReceiver(downloadNotificationReceiver, downloadNotificationFilter)
+        try {
+            val downloadCompleteFilter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            val downloadNotificationFilter = IntentFilter(DownloadManager.ACTION_NOTIFICATION_CLICKED)
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                // Android 13+ 需要指定RECEIVER_NOT_EXPORTED
+                context.registerReceiver(downloadCompleteReceiver, downloadCompleteFilter, Context.RECEIVER_NOT_EXPORTED)
+                context.registerReceiver(downloadNotificationReceiver, downloadNotificationFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                // Android 12及以下使用传统方式
+                context.registerReceiver(downloadCompleteReceiver, downloadCompleteFilter)
+                context.registerReceiver(downloadNotificationReceiver, downloadNotificationFilter)
+            }
+            
+            isReceiverRegistered = true
+            Log.d(TAG, "广播接收器注册成功")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册广播接收器失败", e)
+            // 如果注册失败，不标记为已注册，允许重试
+        }
+    }
+    
+    /**
+     * 注销广播接收器
+     */
+    fun unregisterReceivers() {
+        if (!isReceiverRegistered) {
+            return
+        }
+        
+        try {
+            context.unregisterReceiver(downloadCompleteReceiver)
+            context.unregisterReceiver(downloadNotificationReceiver)
+            isReceiverRegistered = false
+            Log.d(TAG, "广播接收器已注销")
+        } catch (e: Exception) {
+            Log.e(TAG, "注销广播接收器失败", e)
         }
     }
     
@@ -2537,8 +2578,7 @@ class EnhancedDownloadManager(private val context: Context) {
         try {
             progressHandler.removeCallbacks(networkCheckRunnable)
             dismissProgressDialog()
-            context.unregisterReceiver(downloadCompleteReceiver)
-            context.unregisterReceiver(downloadNotificationReceiver)
+            unregisterReceivers()
         } catch (e: Exception) {
             Log.e(TAG, "清理下载管理器失败", e)
         }

@@ -333,7 +333,7 @@ class MobileCardManager(
                 if (com.example.aifloatingball.video.VideoInterceptionHelper.isMediaUrl(url, contentType)) {
                     Log.d(TAG, "🎬 检测到媒体文件，使用悬浮播放器播放: $url")
                     try {
-                        systemOverlayVideoManager.show(url)
+                        systemOverlayVideoManager.show(url, -1, -1, -1, -1)
                         return true // 拦截URL，不在WebView中加载
                     } catch (e: Exception) {
                         Log.e(TAG, "启动悬浮播放器失败", e)
