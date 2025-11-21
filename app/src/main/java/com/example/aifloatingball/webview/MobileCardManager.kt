@@ -47,6 +47,11 @@ class MobileCardManager(
     // WebView创建监听器
     private var onWebViewCreatedListener: ((android.webkit.WebView) -> Unit)? = null
     
+    // 悬浮视频播放器管理器
+    private val systemOverlayVideoManager: com.example.aifloatingball.video.SystemOverlayVideoManager by lazy {
+        com.example.aifloatingball.video.SystemOverlayVideoManager(context)
+    }
+    
     /**
      * 卡片变化监听器
      */
@@ -241,6 +246,12 @@ class MobileCardManager(
 
             // 设置高级触摸处理
             setupAdvancedTouchHandling(this)
+            
+            // 在 WebView 创建时就设置视频拦截的 JavaScript 接口
+            com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                this,
+                systemOverlayVideoManager
+            )
 
             // 通知WebView创建监听器
             onWebViewCreatedListener?.invoke(this)
@@ -254,6 +265,21 @@ class MobileCardManager(
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                
+                // 页面刷新时，重新设置 JavaScript 接口（确保接口存在）
+                if (view != null) {
+                    try {
+                        // 每次页面加载时都重新设置接口，因为页面刷新可能清除接口
+                        com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                            view,
+                            systemOverlayVideoManager
+                        )
+                        Log.d(TAG, "已在页面开始加载时重新设置视频拦截接口: $url")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重新设置视频拦截接口失败", e)
+                    }
+                }
+                
                 cardData.url = url ?: ""
                 cardData.title = "加载中..."
                 cardData.favicon = favicon
@@ -261,6 +287,33 @@ class MobileCardManager(
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                
+                // 页面加载完成时，确保 JavaScript 接口已设置并注入拦截脚本
+                if (view != null) {
+                    try {
+                        // 再次确保接口已设置（防止页面刷新时接口被清除）
+                        com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                            view,
+                            systemOverlayVideoManager
+                        )
+                        
+                        // 延迟注入脚本，确保 DOM 已完全加载
+                        view.postDelayed({
+                            try {
+                                com.example.aifloatingball.video.VideoInterceptionHelper.injectVideoInterceptionScript(
+                                    view,
+                                    systemOverlayVideoManager
+                                )
+                                Log.d(TAG, "已在页面加载完成时注入视频拦截脚本: $url")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "注入视频拦截脚本失败", e)
+                            }
+                        }, 100) // 延迟 100ms 确保 DOM 已准备好
+                    } catch (e: Exception) {
+                        Log.e(TAG, "设置视频拦截失败", e)
+                    }
+                }
+                
                 cardData.url = url ?: ""
                 cardData.title = view?.title ?: "未知页面"
 
@@ -274,6 +327,19 @@ class MobileCardManager(
                 if (url == null) return false
 
                 Log.d(TAG, "WebView URL loading: $url")
+                
+                // 优先检测是否为媒体URL（视频/音频），使用悬浮播放器播放
+                val contentType: String? = null // 这里无法获取 Content-Type，但可以通过 URL 判断
+                if (com.example.aifloatingball.video.VideoInterceptionHelper.isMediaUrl(url, contentType)) {
+                    Log.d(TAG, "🎬 检测到媒体文件，使用悬浮播放器播放: $url")
+                    try {
+                        systemOverlayVideoManager.show(url)
+                        return true // 拦截URL，不在WebView中加载
+                    } catch (e: Exception) {
+                        Log.e(TAG, "启动悬浮播放器失败", e)
+                        // 如果悬浮播放器启动失败，继续正常流程
+                    }
+                }
 
                 return when {
                     // 处理移动应用URL scheme重定向
@@ -306,6 +372,14 @@ class MobileCardManager(
                 }
             }
         }
+        
+        // 创建拦截视频播放的 WebChromeClient
+        // 传递 WebView 引用，以便在全屏视频时能通过 JavaScript 获取视频 URL
+        webView.webChromeClient = com.example.aifloatingball.video.VideoInterceptionHelper.createVideoInterceptingChromeClient(
+            systemOverlayVideoManager,
+            null,
+            webView
+        )
     }
 
     /**

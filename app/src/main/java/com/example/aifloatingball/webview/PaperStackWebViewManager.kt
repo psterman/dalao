@@ -2225,6 +2225,12 @@ class PaperStackWebViewManager(
                 setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
             }
             
+            // 在 WebView 创建时就设置视频拦截的 JavaScript 接口
+            com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                this,
+                systemOverlayVideoManager
+            )
+            
             // 设置WebViewClient处理URL拦截和页面加载
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
@@ -2293,6 +2299,20 @@ class PaperStackWebViewManager(
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     
+                    // 页面刷新时，重新设置 JavaScript 接口（确保接口存在）
+                    if (view != null) {
+                        try {
+                            // 每次页面加载时都重新设置接口，因为页面刷新可能清除接口
+                            com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                                view,
+                                systemOverlayVideoManager
+                            )
+                            Log.d(TAG, "已在页面开始加载时重新设置视频拦截接口: $url")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "重新设置视频拦截接口失败", e)
+                        }
+                    }
+                    
                     // 新页面开始加载：重置错误状态，恢复透明背景
                     if (view is PaperWebView) {
                         Log.d(TAG, "页面开始加载，重置错误状态并恢复透明背景: $url")
@@ -2312,6 +2332,32 @@ class PaperStackWebViewManager(
                 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    
+                    // 页面加载完成时，确保 JavaScript 接口已设置并注入拦截脚本
+                    if (view != null) {
+                        try {
+                            // 再次确保接口已设置（防止页面刷新时接口被清除）
+                            com.example.aifloatingball.video.VideoInterceptionHelper.setupVideoInterceptionInterface(
+                                view,
+                                systemOverlayVideoManager
+                            )
+                            
+                            // 延迟注入脚本，确保 DOM 已完全加载
+                            view.postDelayed({
+                                try {
+                                    com.example.aifloatingball.video.VideoInterceptionHelper.injectVideoInterceptionScript(
+                                        view,
+                                        systemOverlayVideoManager
+                                    )
+                                    Log.d(TAG, "已在页面加载完成时注入视频拦截脚本: $url")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "注入视频拦截脚本失败", e)
+                                }
+                            }, 100) // 延迟 100ms 确保 DOM 已准备好
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置视频拦截失败", e)
+                        }
+                    }
                     
                     // 页面加载完成：如果成功加载（非错误状态），确保背景透明
                     if (view is PaperWebView && !view.isErrorState) {
@@ -2508,8 +2554,8 @@ class PaperStackWebViewManager(
                 }
             }
             
-            // 设置WebChromeClient监听favicon和标题
-            webChromeClient = object : android.webkit.WebChromeClient() {
+            // 设置WebChromeClient监听favicon和标题，并拦截视频播放
+            val originalChromeClient = object : android.webkit.WebChromeClient() {
                 override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
                     super.onReceivedIcon(view, icon)
                     // 查找对应的标签页并通知监听器
@@ -2536,6 +2582,14 @@ class PaperStackWebViewManager(
                     }
                 }
             }
+            
+            // 使用视频拦截辅助工具创建拦截视频播放的 WebChromeClient
+            // 传递 WebView 引用，以便在全屏视频时能通过 JavaScript 获取视频 URL
+            webChromeClient = com.example.aifloatingball.video.VideoInterceptionHelper.createVideoInterceptingChromeClient(
+                systemOverlayVideoManager,
+                originalChromeClient,
+                this
+            )
         }
         
         override fun onDraw(canvas: Canvas) {
