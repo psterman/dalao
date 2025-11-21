@@ -76,16 +76,14 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var fullscreenBtn: ImageButton? = null
     private var speedBtn: Button? = null
     private var loopBtn: ImageButton? = null
-    private var gifRecordBtn: ImageButton? = null
     private var playlistBtn: ImageButton? = null
     
-    // GIF录制相关
-    private var isRecordingGif = false
-    private val gifFrames = mutableListOf<android.graphics.Bitmap>()
-    private var gifRecordHandler: android.os.Handler? = null
-    private var gifRecordRunnable: Runnable? = null
-    private val GIF_FRAME_INTERVAL = 100L // 每100ms捕获一帧
-    private val MAX_GIF_DURATION = 5000L // 最大录制时长5秒
+    // 迷你模式相关（拖拽到屏幕中间以下时启用）
+    private var isMiniMode = false
+    private var miniModeCloseBtn: ImageButton? = null
+    private var miniModePlayPauseBtn: ImageButton? = null
+    private var miniModeRestoreBtn: ImageButton? = null
+    private var miniModeExpandBtn: ImageButton? = null
     private var progressBar: android.widget.SeekBar? = null
     private var currentTimeText: android.widget.TextView? = null // 当前播放时间（左侧）
     private var totalTimeText: android.widget.TextView? = null // 总时长（右侧）
@@ -239,6 +237,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 hide()
                 return
             }
+            
             videoView?.setOnPreparedListener { mediaPlayer ->
                 try {
                     mediaPlayer.isLooping = isLooping
@@ -292,9 +291,21 @@ class SystemOverlayVideoManager(private val context: Context) {
                                 floatingView?.layoutParams?.width = targetWidth
                                 floatingView?.layoutParams?.height = targetHeight
                                 
-                                // 确保VideoView填满整个容器
+                                // 确保VideoView填满整个容器（宽度和高度都填满，避免黑边）
                                 videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
                                 videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                                
+                                // 设置视频缩放模式，确保竖屏视频填满宽度（避免右边黑边）
+                                try {
+                                    val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
+                                    mediaPlayerField?.isAccessible = true
+                                    val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                                    // 使用 SCALE_TO_FIT_WITH_CROPPING 确保视频填满容器宽度，避免右边黑边
+                                    mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                                    Log.d(TAG, "竖屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING，确保宽度最大化，避免右边黑边")
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "设置视频缩放模式失败", e)
+                                }
                                 
                                 windowManager?.updateViewLayout(floatingView, params)
                                 isFullscreen = false
@@ -851,7 +862,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建全屏按钮（放在时间轴左侧）
+        // 创建全屏按钮（放在时间轴左侧，更换样式）
         val topFullscreenBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 dpToPx(28),
@@ -859,10 +870,16 @@ class SystemOverlayVideoManager(private val context: Context) {
             ).apply {
                 setMargins(0, 0, dpToPx(4), 0)
             }
-            setImageResource(android.R.drawable.ic_menu_crop)
+            // 更换样式：使用展开图标
+            setImageResource(android.R.drawable.ic_menu_view)
             setBackgroundColor(0x80000000.toInt())
             setPadding(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
             setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN)
+            // 添加圆角背景
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0x80000000.toInt())
+                cornerRadius = dpToPx(4).toFloat()
+            }
             setOnClickListener {
                 toggleFullscreen()
             }
@@ -1088,22 +1105,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建GIF录制按钮（Material Design风格，替代截图功能）
-        gifRecordBtn = ImageButton(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                dpToPx(40),
-                dpToPx(40)
-            ).apply {
-                setMargins(dpToPx(4), 0, dpToPx(4), 0)
-            }
-            setImageResource(android.R.drawable.ic_menu_camera)
-            applyMaterialStyle(this)
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-            setOnClickListener {
-                toggleGifRecording()
-            }
-        }
-        
         // 创建下载按钮（Material Design风格）
         val downloadBtn = ImageButton(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -1170,28 +1171,14 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 创建全屏按钮（Material Design风格）
-        fullscreenBtn = ImageButton(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                dpToPx(40),
-                dpToPx(40)
-            ).apply {
-                setMargins(dpToPx(4), 0, dpToPx(8), 0)
-            }
-            setImageResource(android.R.drawable.ic_menu_crop)
-            applyMaterialStyle(this)
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-            setOnClickListener {
-                toggleFullscreen()
-            }
-        }
+        // 全屏按钮已移除，下方按钮替换为播放列表按钮
+        fullscreenBtn = null
         
         // 添加按钮到第二行
         buttonRow.addView(playPauseBtn)
         buttonRow.addView(speedBtn)
         buttonRow.addView(loopBtn)
-        buttonRow.addView(fullscreenBtn) // 全屏按钮移到前面（与播放列表按钮交换位置）
-        buttonRow.addView(gifRecordBtn)
+        // 全屏按钮已移除，不再添加
         buttonRow.addView(downloadBtn)
         buttonRow.addView(shareBtn)
         
@@ -1206,7 +1193,8 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(spacer)
         
         buttonRow.addView(muteBtn)
-        buttonRow.addView(playlistBtn) // 播放列表按钮移到后面（与全屏按钮交换位置）
+        // 下方全屏按钮替换成播放列表按钮
+        buttonRow.addView(playlistBtn) // 播放列表按钮替换原来的全屏按钮位置
         
         // 添加重启按钮（用于修复假死问题）
         val restartBtn = ImageButton(context).apply {
@@ -1267,301 +1255,193 @@ class SystemOverlayVideoManager(private val context: Context) {
     /**
      * 切换GIF录制状态
      */
-    private fun toggleGifRecording() {
-        if (isRecordingGif) {
-            stopGifRecording()
-        } else {
-            startGifRecording()
-        }
-    }
-    
     /**
-     * 开始GIF录制
+     * 进入迷你模式（缩小一倍，只显示四个按钮）
      */
-    private fun startGifRecording() {
-        try {
-            val videoViewRef = videoView ?: return
-            
-            if (!videoViewRef.isPlaying) {
-                Toast.makeText(context, "请先播放视频", Toast.LENGTH_SHORT).show()
-                return
-            }
-            
-            isRecordingGif = true
-            gifFrames.clear()
-            gifRecordHandler = android.os.Handler(android.os.Looper.getMainLooper())
-            val startTime = System.currentTimeMillis()
-            
-            // 更新按钮状态
-            gifRecordBtn?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            gifRecordBtn?.setColorFilter(0xFFFF0000.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 红色表示录制中
-            
-            Toast.makeText(context, "开始录制GIF...", Toast.LENGTH_SHORT).show()
-            
-            // 定期捕获帧
-            gifRecordRunnable = object : Runnable {
-                override fun run() {
-                    if (!isRecordingGif) {
-                        return
-                    }
-                    
-                    val elapsed = System.currentTimeMillis() - startTime
-                    if (elapsed >= MAX_GIF_DURATION) {
-                        stopGifRecording()
-                        return
-                    }
-                    
-                    val currentVideoView = videoView
-                    if (currentVideoView != null) {
-                        try {
-                            // 捕获当前帧（使用已弃用的API，但兼容性更好）
-                            @Suppress("DEPRECATION")
-                            currentVideoView.isDrawingCacheEnabled = true
-                            @Suppress("DEPRECATION")
-                            currentVideoView.buildDrawingCache()
-                            @Suppress("DEPRECATION")
-                            val bitmap = currentVideoView.drawingCache
-                            if (bitmap != null) {
-                                // 创建副本（drawingCache可能被重用）
-                                val frame = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-                                gifFrames.add(frame)
-                                Log.d(TAG, "已捕获GIF帧: ${gifFrames.size}")
-                            }
-                            @Suppress("DEPRECATION")
-                            currentVideoView.isDrawingCacheEnabled = false
-                        } catch (e: Exception) {
-                            Log.e(TAG, "捕获GIF帧失败", e)
-                        }
-                    }
-                    
-                    // 继续录制
-                    gifRecordHandler?.postDelayed(this, GIF_FRAME_INTERVAL)
-                }
-            }
-            
-            gifRecordHandler?.post(gifRecordRunnable!!)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "开始GIF录制失败", e)
-            Toast.makeText(context, "开始录制失败: ${e.message}", Toast.LENGTH_SHORT).show()
-            isRecordingGif = false
-        }
-    }
-    
-    /**
-     * 停止GIF录制并生成GIF文件
-     */
-    private fun stopGifRecording() {
-        try {
-            isRecordingGif = false
-            gifRecordRunnable?.let { gifRecordHandler?.removeCallbacks(it) }
-            
-            // 恢复按钮状态
-            gifRecordBtn?.setImageResource(android.R.drawable.ic_menu_camera)
-            gifRecordBtn?.setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN)
-            
-            if (gifFrames.isEmpty()) {
-                Toast.makeText(context, "未捕获到帧", Toast.LENGTH_SHORT).show()
-                return
-            }
-            
-            Toast.makeText(context, "正在生成GIF...", Toast.LENGTH_SHORT).show()
-            
-            // 在后台线程生成GIF
-            Thread {
-                try {
-                    val gifFile = generateGif(gifFrames)
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        if (gifFile != null) {
-                            // 使用MediaStore API保存到公共相册（Android 10+）
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                try {
-                                    val contentValues = android.content.ContentValues().apply {
-                                        put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, gifFile.name)
-                                        put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/gif")
-                                        put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
-                                    }
-                                    
-                                    val resolver = context.contentResolver
-                                    val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                                    
-                                    if (uri != null) {
-                                        resolver.openOutputStream(uri)?.use { out ->
-                                            java.io.FileInputStream(gifFile).use { input ->
-                                                input.copyTo(out)
-                                            }
-                                        }
-                                        
-                                        // 删除临时文件
-                                        gifFile.delete()
-                                        
-                                        // 显示Toast并提供查看选项
-                                        val toast = Toast.makeText(context, "GIF已保存到相册，点击查看", Toast.LENGTH_LONG)
-                                        toast.view?.setOnClickListener {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                                setDataAndType(uri, "image/gif")
-                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            try {
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                Log.e(TAG, "打开GIF失败", e)
-                                                Toast.makeText(context, "请到相册查看GIF", Toast.LENGTH_SHORT).show()
-                                            }
-                                            toast.cancel()
-                                        }
-                                        toast.show()
-                                        
-                                        Log.d(TAG, "GIF已保存到相册: $uri")
-                                    } else {
-                                        Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
-                                        Log.d(TAG, "GIF已保存到: ${gifFile.absolutePath}")
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "保存GIF到相册失败", e)
-                                    e.printStackTrace()
-                                    Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
-                                }
-                            } else {
-                                // Android 9及以下：通知媒体库更新
-                                try {
-                                    @Suppress("DEPRECATION")
-                                    val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-                                    val uri = android.net.Uri.fromFile(gifFile)
-                                    mediaScanIntent.data = uri
-                                    context.sendBroadcast(mediaScanIntent)
-                                    
-                                    // 显示Toast并提供查看选项
-                                    val toast = Toast.makeText(context, "GIF已保存到相册，点击查看", Toast.LENGTH_LONG)
-                                    toast.view?.setOnClickListener {
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uri, "image/gif")
-                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        try {
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Log.e(TAG, "打开GIF失败", e)
-                                            Toast.makeText(context, "请到相册查看GIF", Toast.LENGTH_SHORT).show()
-                                        }
-                                        toast.cancel()
-                                    }
-                                    toast.show()
-                                    
-                                    Log.d(TAG, "GIF已保存: ${gifFile.absolutePath}")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "通知媒体库更新失败", e)
-                                    Toast.makeText(context, "GIF已保存: ${gifFile.absolutePath}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        } else {
-                            Toast.makeText(context, "GIF生成失败", Toast.LENGTH_SHORT).show()
-                        }
-                        // 清理帧数据
-                        gifFrames.forEach { it.recycle() }
-                        gifFrames.clear()
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "生成GIF失败", e)
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        Toast.makeText(context, "GIF生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                        // 清理帧数据
-                        gifFrames.forEach { it.recycle() }
-                        gifFrames.clear()
-                    }
-                }
-            }.start()
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "停止GIF录制失败", e)
-        }
-    }
-    
-    /**
-     * 生成GIF文件
-     */
-    private fun generateGif(frames: List<android.graphics.Bitmap>): java.io.File? {
-        if (frames.isEmpty()) {
-            Log.w(TAG, "没有帧数据，无法生成GIF")
-            return null
-        }
+    private fun enterMiniMode() {
+        val currentParams = params ?: return
+        val currentFloatingView = floatingView ?: return
+        val currentWindowManager = windowManager ?: return
+        
+        if (isMiniMode) return
         
         try {
-            val timestamp = System.currentTimeMillis()
-            val fileName = "video_gif_$timestamp.gif"
+            isMiniMode = true
             
-            // 先保存到临时文件
-            val tempFile = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                val dir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)
-                if (dir != null && !dir.exists()) {
-                    dir.mkdirs()
-                }
-                java.io.File(dir, fileName)
-            } else {
-                val file = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
-                if (!file.exists()) {
-                    file.mkdirs()
-                }
-                java.io.File(file, fileName)
+            // 保存当前尺寸
+            val currentWidth = currentParams.width
+            val currentHeight = currentParams.height
+            val currentX = currentParams.x
+            val currentY = currentParams.y
+            
+            // 缩小一倍
+            val miniWidth = currentWidth / 2
+            val miniHeight = currentHeight / 2
+            
+            currentParams.width = miniWidth
+            currentParams.height = miniHeight
+            currentParams.x = currentX
+            currentParams.y = currentY
+            
+            currentFloatingView.layoutParams?.width = miniWidth
+            currentFloatingView.layoutParams?.height = miniHeight
+            
+            // 隐藏所有控制条和按钮
+            topControlBarContainer?.visibility = View.GONE
+            controlBar?.visibility = View.GONE
+            
+            // 创建迷你模式按钮（如果还没有创建）
+            if (miniModeCloseBtn == null) {
+                createMiniModeButtons()
             }
             
-            Log.d(TAG, "开始生成GIF，帧数: ${frames.size}, 保存路径: ${tempFile.absolutePath}")
+            // 显示迷你模式按钮
+            miniModeCloseBtn?.visibility = View.VISIBLE
+            miniModePlayPauseBtn?.visibility = View.VISIBLE
+            miniModeRestoreBtn?.visibility = View.VISIBLE
+            miniModeExpandBtn?.visibility = View.VISIBLE
             
-            // 使用简单的GIF编码
-            val gifEncoder = SimpleGifEncoder()
-            if (!gifEncoder.start(tempFile.absolutePath)) {
-                Log.e(TAG, "GIF编码器启动失败")
-                return null
-            }
+            currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
             
-            gifEncoder.setRepeat(0) // 不循环
-            gifEncoder.setDelay((GIF_FRAME_INTERVAL).toInt())
-            gifEncoder.setQuality(10) // 质量（1-10，10最好）
-            
-            // 添加所有帧
-            var frameCount = 0
-            for (frame in frames) {
-                if (!frame.isRecycled) {
-                    if (gifEncoder.addFrame(frame)) {
-                        frameCount++
-                    } else {
-                        Log.w(TAG, "添加帧失败: $frameCount")
-                    }
-                }
-            }
-            
-            gifEncoder.finish()
-            
-            // 检查文件是否生成成功
-            if (!tempFile.exists() || tempFile.length() == 0L) {
-                Log.e(TAG, "GIF文件生成失败或文件为空")
-                tempFile.delete()
-                return null
-            }
-            
-            Log.d(TAG, "GIF生成成功，文件大小: ${tempFile.length()} 字节，帧数: $frameCount")
-            
-            // 通知媒体库更新（Android 9及以下）
-            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-                try {
-                    val mediaScanIntent = android.content.Intent(android.content.Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-                    val uri = android.net.Uri.fromFile(tempFile)
-                    mediaScanIntent.data = uri
-                    context.sendBroadcast(mediaScanIntent)
-                    Log.d(TAG, "已通知媒体库更新")
-                } catch (e: Exception) {
-                    Log.e(TAG, "通知媒体库更新失败", e)
-                }
-            }
-            
-            return tempFile
+            Log.d(TAG, "已进入迷你模式: ${miniWidth}x${miniHeight}")
         } catch (e: Exception) {
-            Log.e(TAG, "生成GIF文件失败", e)
-            e.printStackTrace()
-            return null
+            Log.e(TAG, "进入迷你模式失败", e)
         }
     }
+    
+    /**
+     * 退出迷你模式（恢复原尺寸，显示所有按钮）
+     */
+    private fun exitMiniMode() {
+        val currentParams = params ?: return
+        val currentFloatingView = floatingView ?: return
+        val currentWindowManager = windowManager ?: return
+        
+        if (!isMiniMode) return
+        
+        try {
+            isMiniMode = false
+            
+            // 恢复原始尺寸
+            currentParams.width = originalWidth
+            currentParams.height = originalHeight
+            currentParams.x = originalX
+            currentParams.y = originalY
+            
+            currentFloatingView.layoutParams?.width = originalWidth
+            currentFloatingView.layoutParams?.height = originalHeight
+            
+            // 隐藏迷你模式按钮
+            miniModeCloseBtn?.visibility = View.GONE
+            miniModePlayPauseBtn?.visibility = View.GONE
+            miniModeRestoreBtn?.visibility = View.GONE
+            miniModeExpandBtn?.visibility = View.GONE
+            
+            // 显示所有控制条和按钮
+            topControlBarContainer?.visibility = View.VISIBLE
+            controlBar?.visibility = View.VISIBLE
+            
+            currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
+            
+            Log.d(TAG, "已退出迷你模式: ${originalWidth}x${originalHeight}")
+        } catch (e: Exception) {
+            Log.e(TAG, "退出迷你模式失败", e)
+        }
+    }
+    
+    /**
+     * 创建迷你模式按钮（关闭、暂停、恢复、拉伸）
+     */
+    private fun createMiniModeButtons() {
+        try {
+            val container = floatingView ?: return
+            
+            // 创建关闭按钮
+            miniModeCloseBtn = ImageButton(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(32),
+                    dpToPx(32),
+                    Gravity.TOP or Gravity.END
+                ).apply {
+                    setMargins(0, dpToPx(4), dpToPx(4), 0)
+                }
+                setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+                setBackgroundColor(0xCC000000.toInt())
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                setOnClickListener { hide() }
+                visibility = View.GONE
+            }
+            container.addView(miniModeCloseBtn)
+            
+            // 创建暂停/播放按钮
+            miniModePlayPauseBtn = ImageButton(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(40),
+                    dpToPx(40),
+                    Gravity.CENTER
+                ).apply {
+                    setMargins(0, 0, 0, dpToPx(60))
+                }
+                setImageResource(android.R.drawable.ic_media_play)
+                setBackgroundColor(0xCC000000.toInt())
+                setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+                setOnClickListener {
+                    val vv = videoView ?: return@setOnClickListener
+                    if (vv.isPlaying) {
+                        vv.pause()
+                        setImageResource(android.R.drawable.ic_media_play)
+                    } else {
+                        vv.start()
+                        setImageResource(android.R.drawable.ic_media_pause)
+                    }
+                }
+                visibility = View.GONE
+            }
+            container.addView(miniModePlayPauseBtn)
+            
+            // 创建恢复按钮（退出迷你模式）
+            miniModeRestoreBtn = ImageButton(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(32),
+                    dpToPx(32),
+                    Gravity.BOTTOM or Gravity.START
+                ).apply {
+                    setMargins(dpToPx(4), 0, 0, dpToPx(4))
+                }
+                setImageResource(android.R.drawable.ic_menu_revert)
+                setBackgroundColor(0xCC000000.toInt())
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                setOnClickListener { exitMiniMode() }
+                visibility = View.GONE
+            }
+            container.addView(miniModeRestoreBtn)
+            
+            // 创建拉伸按钮（全屏）
+            miniModeExpandBtn = ImageButton(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    dpToPx(32),
+                    dpToPx(32),
+                    Gravity.BOTTOM or Gravity.END
+                ).apply {
+                    setMargins(0, 0, dpToPx(4), dpToPx(4))
+                }
+                setImageResource(android.R.drawable.ic_menu_crop)
+                setBackgroundColor(0xCC000000.toInt())
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                setOnClickListener { toggleFullscreen() }
+                visibility = View.GONE
+            }
+            container.addView(miniModeExpandBtn)
+            
+            Log.d(TAG, "迷你模式按钮已创建")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建迷你模式按钮失败", e)
+        }
+    }
+    
+    /**
+     * GIF录制功能已移除
+     */
     
     /**
      * 显示播放列表对话框
@@ -1726,12 +1606,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 // 全屏时，确保退出全屏按钮可见
                 adjustFullscreenControls()
                 
-                fullscreenBtn?.setImageResource(android.R.drawable.ic_menu_revert)
-                // 更新顶部全屏按钮图标
+                // 全屏按钮已移除，只更新顶部全屏按钮图标
                 topControlBarContainer?.let { container ->
                     if (container.childCount > 0) {
                         val topFullscreenBtn = container.getChildAt(0) as? ImageButton
-                        topFullscreenBtn?.setImageResource(android.R.drawable.ic_menu_revert)
+                        topFullscreenBtn?.setImageResource(android.R.drawable.ic_menu_view)
                     }
                 }
                 Toast.makeText(context, "全屏模式", Toast.LENGTH_SHORT).show()
@@ -1781,12 +1660,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 // 恢复按钮位置
                 restoreNormalControls()
                 
-                fullscreenBtn?.setImageResource(android.R.drawable.ic_menu_crop)
-                // 更新顶部全屏按钮图标
+                // 全屏按钮已移除，只更新顶部全屏按钮图标
                 topControlBarContainer?.let { container ->
                     if (container.childCount > 0) {
                         val topFullscreenBtn = container.getChildAt(0) as? ImageButton
-                        topFullscreenBtn?.setImageResource(android.R.drawable.ic_menu_crop)
+                        topFullscreenBtn?.setImageResource(android.R.drawable.ic_menu_view)
                     }
                 }
                 Toast.makeText(context, "窗口模式", Toast.LENGTH_SHORT).show()
@@ -1807,29 +1685,10 @@ class SystemOverlayVideoManager(private val context: Context) {
         try {
             // 获取关闭按钮和全屏按钮
             val closeBtn = this.closeBtn
-            val fullscreenBtn = this.fullscreenBtn
-            
-            if (closeBtn != null && fullscreenBtn != null) {
-                // 全屏时，确保全屏按钮可见
-                fullscreenBtn.visibility = View.VISIBLE
-                
-                // 尝试将全屏按钮移到关闭按钮旁边（右上角）
-                // 但保持按钮在控制条中可见，而不是完全移除
-                val buttonParams = fullscreenBtn.layoutParams as? LinearLayout.LayoutParams
-                if (buttonParams != null) {
-                    // 保持按钮在控制条中，但确保可见
-                    fullscreenBtn.visibility = View.VISIBLE
-                    Log.d(TAG, "全屏按钮保持 visible，在控制条中")
-                } else {
-                    // 如果已经是FrameLayout.LayoutParams，移动到右上角
-                    val fullscreenParams = fullscreenBtn.layoutParams as? FrameLayout.LayoutParams
-                    if (fullscreenParams != null) {
-                        fullscreenParams.gravity = Gravity.TOP or Gravity.END
-                        fullscreenParams.setMargins(0, dpToPx(4), closeBtn.width + dpToPx(8), 0)
-                        fullscreenBtn.layoutParams = fullscreenParams
-                        fullscreenBtn.visibility = View.VISIBLE
-                    }
-                }
+            // 全屏按钮已移除，不再处理
+            if (closeBtn != null) {
+                // 全屏时，确保关闭按钮可见
+                closeBtn.visibility = View.VISIBLE
             }
         } catch (e: Exception) {
             Log.e(TAG, "调整全屏控制按钮失败", e)
@@ -1841,24 +1700,14 @@ class SystemOverlayVideoManager(private val context: Context) {
      */
     private fun restoreNormalControls() {
         try {
-            // 全屏按钮回到控制条中
-            val fullscreenBtn = this.fullscreenBtn
-            if (fullscreenBtn != null) {
-                val buttonParams = fullscreenBtn.layoutParams as? LinearLayout.LayoutParams
-                if (buttonParams != null) {
-                    // 恢复为按钮行的布局参数
-                    buttonParams.setMargins(dpToPx(4), 0, dpToPx(8), 0)
-                    fullscreenBtn.layoutParams = buttonParams
-                }
-            }
+            // 全屏按钮已移除，不再处理
+            // 其他按钮的布局参数保持不变
+            // 无需额外操作
         } catch (e: Exception) {
             Log.e(TAG, "恢复普通模式控制按钮失败", e)
         }
     }
     
-    /**
-     * 分享视频URL
-     */
     /**
      * 下载视频
      */
@@ -2087,6 +1936,28 @@ class SystemOverlayVideoManager(private val context: Context) {
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
+                        // 如果处于迷你模式，禁用所有手势控制，只允许拖拽窗口（全屏移动）
+                        if (isMiniMode) {
+                            // 迷你模式下，任何移动都视为拖拽窗口，不触发其他手势
+                            isDraggingWindow = true
+                            val rawDeltaY = event.rawY - initialTouchY
+                            val rawDeltaX = event.rawX - initialTouchX
+                            
+                            // 允许全屏移动（X和Y都可以移动）
+                            val currentParams = params ?: return@setOnTouchListener false
+                            val currentWindowManager = windowManager ?: return@setOnTouchListener false
+                            
+                            val newX = (initialX + rawDeltaX.toInt()).coerceIn(0, screenWidth - currentParams.width)
+                            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, screenHeight - currentParams.height)
+                            
+                            currentParams.x = newX
+                            currentParams.y = newY
+                            
+                            currentWindowManager.updateViewLayout(floatingView, currentParams)
+                            
+                            return@setOnTouchListener true
+                        }
+                        
                         // 如果手势检测器已经处理了（双击或单击），不处理滑动
                         if (gestureHandled) {
                             return@setOnTouchListener false
@@ -2362,10 +2233,22 @@ class SystemOverlayVideoManager(private val context: Context) {
             p.x = originalX
             p.y = newY
             
+            // 检查是否拖拽到屏幕中间以下，如果是则进入迷你模式
+            val screenCenterY = screenHeight / 2
+            val shouldBeMiniMode = newY > screenCenterY
+            
+            if (shouldBeMiniMode && !isMiniMode) {
+                // 进入迷你模式
+                enterMiniMode()
+            } else if (!shouldBeMiniMode && isMiniMode) {
+                // 退出迷你模式
+                exitMiniMode()
+            }
+            
             // 更新窗口位置
             wm.updateViewLayout(floatingView, p)
             
-            Log.d(TAG, "窗口拖拽: y=${p.y}")
+            Log.d(TAG, "窗口拖拽: y=${p.y}, 迷你模式: $isMiniMode")
         } catch (e: Exception) {
             Log.e(TAG, "处理窗口拖拽失败", e)
         }
@@ -2515,13 +2398,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             fullscreenBtn = null
             speedBtn = null
             loopBtn = null
-            gifRecordBtn = null
             playlistBtn = null
             
-            // 停止GIF录制
-            if (isRecordingGif) {
-                stopGifRecording()
+            // 退出迷你模式
+            if (isMiniMode) {
+                exitMiniMode()
             }
+            
             progressBar = null
             currentTimeText = null
             totalTimeText = null
@@ -2699,16 +2582,18 @@ class SystemOverlayVideoManager(private val context: Context) {
                     floatingView?.layoutParams?.width = targetWidth
                     floatingView?.layoutParams?.height = targetHeight
                     
-                    // 确保VideoView填满整个容器
+                    // 确保VideoView填满整个容器（宽度和高度都填满，避免黑边）
                     videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
                     videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
                     
-                    // 设置视频缩放模式
+                    // 设置视频缩放模式，确保竖屏视频填满宽度（避免右边黑边）
                     try {
                         val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
                         mediaPlayerField?.isAccessible = true
                         val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
+                        // 使用 SCALE_TO_FIT_WITH_CROPPING 确保视频填满容器宽度，避免右边黑边
                         mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                        Log.d(TAG, "竖屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING，确保宽度最大化，避免右边黑边")
                     } catch (e: Exception) {
                         Log.w(TAG, "设置视频缩放模式失败", e)
                     }
@@ -2725,7 +2610,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                     // 确保全屏按钮可见
                     adjustFullscreenControls()
                     
-                    Log.d(TAG, "竖屏视频已调整为靠近顶部播放: ${targetWidth}x${targetHeight}, 位置: (0, 0)")
+                    Log.d(TAG, "竖屏视频已调整为靠近顶部播放（宽度最大化）: ${targetWidth}x${targetHeight}, 位置: (0, 0)")
                 }
             } else {
                 // 横屏视频：需要确保填满屏幕宽度，不要有空白
@@ -2806,7 +2691,19 @@ class SystemOverlayVideoManager(private val context: Context) {
                         originalX = targetX
                         originalY = targetY
                         
-                        Log.d(TAG, "横屏视频在竖屏屏幕上已调整（固定位置）: ${targetWidth}x${targetHeight}, 位置: ($targetX, $targetY)")
+                        // 调整控制条位置：菜单靠近屏幕正下方
+                        controlBar?.layoutParams?.let { layoutParams ->
+                            if (layoutParams is FrameLayout.LayoutParams) {
+                                layoutParams.bottomMargin = 0 // 紧贴屏幕底部
+                            }
+                        }
+                        topControlBarContainer?.layoutParams?.let { layoutParams ->
+                            if (layoutParams is FrameLayout.LayoutParams) {
+                                layoutParams.topMargin = 0 // 紧贴屏幕顶部
+                            }
+                        }
+                        
+                        Log.d(TAG, "横屏视频在竖屏屏幕上已调整（固定位置，菜单靠近屏幕正下方）: ${targetWidth}x${targetHeight}, 位置: ($targetX, $targetY)")
                     }
                 } else if (isScreenLandscape && !isFullscreen) {
                     // 如果屏幕横屏但视频不是全屏，自动最大化
