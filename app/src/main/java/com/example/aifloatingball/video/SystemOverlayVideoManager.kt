@@ -24,6 +24,7 @@ import android.widget.PopupMenu
 import android.widget.VideoView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.R
 
@@ -85,6 +86,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var miniModeRestoreBtn: ImageButton? = null
     private var miniModeExpandBtn: ImageButton? = null
     private var progressBar: android.widget.SeekBar? = null
+    private var isMiniModeControlsVisible = false // 迷你模式下按钮和进度条的显示状态
     private var currentTimeText: android.widget.TextView? = null // 当前播放时间（左侧）
     private var totalTimeText: android.widget.TextView? = null // 总时长（右侧）
     private val normalThumbSize: Int get() = dpToPx(28) // 正常thumb大小
@@ -200,6 +202,31 @@ class SystemOverlayVideoManager(private val context: Context) {
         }
 
         try {
+            val url = videoUrl.trim()
+            
+            // 如果播放器已存在但隐藏，且是同一个视频URL，则重新显示并继续播放
+            if (isShowing && floatingView != null && videoView != null && currentVideoUrl == url) {
+                Log.d(TAG, "播放器已存在，重新显示并继续播放: $url")
+                floatingView?.visibility = View.VISIBLE
+                isShowing = true
+                
+                // 确保控制条显示（正常模式下）
+                if (!isMiniMode) {
+                    showControls()
+                }
+                
+                // 如果视频已暂停，继续播放
+                videoView?.let { vv ->
+                    if (!vv.isPlaying && vv.duration > 0) {
+                        vv.start()
+                        playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                        miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                        Log.d(TAG, "视频继续播放")
+                    }
+                }
+                return
+            }
+            
             // 保存原视频位置信息
             sourceVideoX = sourceX
             sourceVideoY = sourceY
@@ -207,7 +234,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             sourceVideoHeight = sourceHeight
             
             createFloatingView()
-            val url = videoUrl.trim()
             
             Log.d(TAG, "准备播放视频: $url, 原视频位置: ($sourceX, $sourceY), 尺寸: ${sourceWidth}x${sourceHeight}")
             
@@ -1256,7 +1282,7 @@ class SystemOverlayVideoManager(private val context: Context) {
      * 切换GIF录制状态
      */
     /**
-     * 进入迷你模式（缩小一倍，只显示四个按钮）
+     * 进入迷你模式（缩小一倍，隐藏进度条，四个按钮淡化消失）
      */
     private fun enterMiniMode() {
         val currentParams = params ?: return
@@ -1267,6 +1293,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         
         try {
             isMiniMode = true
+            isMiniModeControlsVisible = false // 初始状态为隐藏
             
             // 保存当前尺寸
             val currentWidth = currentParams.width
@@ -1286,7 +1313,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             currentFloatingView.layoutParams?.width = miniWidth
             currentFloatingView.layoutParams?.height = miniHeight
             
-            // 隐藏所有控制条和按钮
+            // 隐藏所有控制条
             topControlBarContainer?.visibility = View.GONE
             controlBar?.visibility = View.GONE
             
@@ -1295,11 +1322,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                 createMiniModeButtons()
             }
             
-            // 显示迷你模式按钮
-            miniModeCloseBtn?.visibility = View.VISIBLE
-            miniModePlayPauseBtn?.visibility = View.VISIBLE
-            miniModeRestoreBtn?.visibility = View.VISIBLE
-            miniModeExpandBtn?.visibility = View.VISIBLE
+            // 让四个按钮淡化消失
+            hideMiniModeControls()
             
             currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
             
@@ -1321,6 +1345,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         
         try {
             isMiniMode = false
+            isMiniModeControlsVisible = false
             
             // 恢复原始尺寸
             currentParams.width = originalWidth
@@ -1337,15 +1362,135 @@ class SystemOverlayVideoManager(private val context: Context) {
             miniModeRestoreBtn?.visibility = View.GONE
             miniModeExpandBtn?.visibility = View.GONE
             
-            // 显示所有控制条和按钮
+            // 显示所有控制条和按钮（包括进度条）
             topControlBarContainer?.visibility = View.VISIBLE
             controlBar?.visibility = View.VISIBLE
+            progressBar?.visibility = View.VISIBLE
             
             currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
             
             Log.d(TAG, "已退出迷你模式: ${originalWidth}x${originalHeight}")
         } catch (e: Exception) {
             Log.e(TAG, "退出迷你模式失败", e)
+        }
+    }
+    
+    /**
+     * 显示迷你模式控制按钮（带淡入动画）
+     * 迷你模式不显示进度条
+     * 必须在主线程调用
+     */
+    private fun showMiniModeControls() {
+        if (!isMiniMode || isMiniModeControlsVisible) return
+        
+        // 确保在主线程执行
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                showMiniModeControls()
+            }
+            return
+        }
+        
+        try {
+            isMiniModeControlsVisible = true
+            
+            // 迷你模式不显示进度条，topControlBarContainer 保持隐藏
+            
+            // 显示四个按钮（带淡入动画）
+            val buttons = listOf(
+                miniModeCloseBtn,
+                miniModePlayPauseBtn,
+                miniModeRestoreBtn,
+                miniModeExpandBtn
+            )
+            
+            buttons.forEach { button ->
+                button?.let { btn ->
+                    btn.visibility = View.VISIBLE
+                    btn.alpha = 0f
+                    btn.animate()
+                        .alpha(1f)
+                        .setDuration(300)
+                        .setInterpolator(FastOutSlowInInterpolator())
+                        .start()
+                }
+            }
+            
+            Log.d(TAG, "迷你模式控制已显示")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示迷你模式控制失败", e)
+        }
+    }
+    
+    /**
+     * 隐藏迷你模式控制按钮和进度条（带淡出动画）
+     * 必须在主线程调用
+     */
+    private fun hideMiniModeControls() {
+        if (!isMiniMode || !isMiniModeControlsVisible) return
+        
+        // 确保在主线程执行
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                hideMiniModeControls()
+            }
+            return
+        }
+        
+        try {
+            isMiniModeControlsVisible = false
+            
+            // 隐藏 topControlBarContainer（包含进度条）- 迷你模式不显示进度条，所以不需要隐藏
+            // topControlBarContainer 在进入迷你模式时已经隐藏了
+            
+            // 隐藏四个按钮（带淡出动画）
+            val buttons = listOf(
+                miniModeCloseBtn,
+                miniModePlayPauseBtn,
+                miniModeRestoreBtn,
+                miniModeExpandBtn
+            )
+            
+            buttons.forEach { button ->
+                button?.let { btn ->
+                    animateButtonHide(btn)
+                }
+            }
+            
+            Log.d(TAG, "迷你模式控制已隐藏")
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏迷你模式控制失败", e)
+        }
+    }
+    
+    /**
+     * 执行按钮隐藏动画（确保在主线程）
+     */
+    private fun animateButtonHide(btn: View) {
+        try {
+            // 确保在主线程
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                btn.post { animateButtonHide(btn) }
+                return
+            }
+            
+            btn.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .setInterpolator(FastOutSlowInInterpolator())
+                .withEndAction {
+                    // withEndAction 回调应该已经在主线程，但为了安全起见，使用 View.post
+                    btn.post {
+                        btn.visibility = View.GONE
+                    }
+                }
+                .start()
+        } catch (e: Exception) {
+            Log.e(TAG, "执行按钮隐藏动画失败", e)
+            // 如果动画失败，直接隐藏
+            btn.post {
+                btn.visibility = View.GONE
+            }
         }
     }
     
@@ -1856,7 +2001,26 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
                 
                 override fun onSingleTapUp(e: MotionEvent): Boolean {
-                    // 单击显示/隐藏控制条（只有在没有其他手势时才触发）
+                    // 迷你模式下，单击显示按钮（如果已显示则隐藏）
+                    if (isMiniMode) {
+                        gestureHandled = true
+                        if (isMiniModeControlsVisible) {
+                            // 如果按钮已显示，隐藏它们
+                            hideMiniModeControls()
+                        } else {
+                            // 如果按钮未显示，显示它们
+                            showMiniModeControls()
+                            // 安排自动隐藏（3秒后）
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                if (isMiniMode && !isDraggingWindow && isMiniModeControlsVisible) {
+                                    hideMiniModeControls()
+                                }
+                            }, 3000)
+                        }
+                        return true
+                    }
+                    
+                    // 正常模式下，单击显示/隐藏控制条（只有在没有其他手势时才触发）
                     if (!isSeeking && 
                         brightnessControlView?.visibility != View.VISIBLE &&
                         volumeControlView?.visibility != View.VISIBLE &&
@@ -1882,6 +2046,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                         gestureHandled = false
                         isDraggingWindow = false
                         
+                        // 迷你模式下，点击时不自动显示按钮（由单击手势处理）
+                        
                         // 检查是否点击在控制条或按钮上
                         val x = event.x.toInt()
                         val y = event.y.toInt()
@@ -1904,6 +2070,27 @@ class SystemOverlayVideoManager(private val context: Context) {
                             val barBottom = bar.bottom
                             if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
                                 isOnControl = true
+                            }
+                        }
+                        
+                        // 检查是否点击在迷你模式按钮上
+                        if (isMiniMode) {
+                            val buttons = listOf(
+                                miniModeCloseBtn,
+                                miniModePlayPauseBtn,
+                                miniModeRestoreBtn,
+                                miniModeExpandBtn
+                            )
+                            buttons.forEach { button ->
+                                button?.let { btn ->
+                                    val btnLeft = btn.left
+                                    val btnRight = btn.right
+                                    val btnTop = btn.top
+                                    val btnBottom = btn.bottom
+                                    if (x >= btnLeft && x <= btnRight && y >= btnTop && y <= btnBottom) {
+                                        isOnControl = true
+                                    }
+                                }
                             }
                         }
                         
@@ -1938,6 +2125,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                     MotionEvent.ACTION_MOVE -> {
                         // 如果处于迷你模式，禁用所有手势控制，只允许拖拽窗口（全屏移动）
                         if (isMiniMode) {
+                            // 迷你模式下，移动时显示按钮（如果还未显示）
+                            if (!isMiniModeControlsVisible) {
+                                showMiniModeControls()
+                            }
+                            
                             // 迷你模式下，任何移动都视为拖拽窗口，不触发其他手势
                             isDraggingWindow = true
                             val rawDeltaY = event.rawY - initialTouchY
@@ -2020,6 +2212,16 @@ class SystemOverlayVideoManager(private val context: Context) {
                         seekControlView?.visibility = View.GONE
                         isSeeking = false
                         gestureHandled = false
+                        
+                        // 迷你模式下，停止移动后延迟隐藏按钮（3秒后）
+                        if (isMiniMode && isDraggingWindow) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                if (isMiniMode && !isDraggingWindow && isMiniModeControlsVisible) {
+                                    hideMiniModeControls()
+                                }
+                            }, 3000)
+                        }
+                        
                         isDraggingWindow = false
                         true
                     }
