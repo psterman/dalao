@@ -190,6 +190,14 @@ class SystemOverlayVideoManager(private val context: Context) {
      * @param sourceHeight 原视频高度（可选）
      */
     fun show(videoUrl: String?, sourceX: Int = -1, sourceY: Int = -1, sourceWidth: Int = -1, sourceHeight: Int = -1, pageTitle: String? = null) {
+        // 确保在主线程中执行所有UI操作
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                show(videoUrl, sourceX, sourceY, sourceWidth, sourceHeight, pageTitle)
+            }
+            return
+        }
+        
         if (videoUrl.isNullOrBlank()) {
             Log.w(TAG, "视频URL为空，无法播放")
             return
@@ -331,7 +339,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                 sourceVideoWidth = sourceWidth
                 sourceVideoHeight = sourceHeight
                 
-                createFloatingView()
+                // 确保在主线程中创建视图
+                if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        createFloatingView()
+                    }
+                } else {
+                    createFloatingView()
+                }
             }
             
             // 保存原视频位置信息（如果之前没有保存）
@@ -353,20 +368,48 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             // 设置视频源，对于 HTTP/HTTPS URL 使用 setVideoPath，对于 content:// 使用 setVideoURI
             try {
+                val vv = videoView
+                if (vv == null) {
+                    Log.e(TAG, "videoView为null，无法设置视频源")
+                    hide()
+                    return
+                }
+                
                 if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // HTTP/HTTPS URL：使用 setVideoPath
-                    videoView?.setVideoPath(url)
+                    // HTTP/HTTPS URL：直接使用 setVideoURI，避免 setVideoPath 内部调用 ContentResolver 导致失败
+                    // setVideoPath 内部会尝试通过 ContentResolver 打开，对于 HTTP URL 会失败
+                    try {
+                        vv.setVideoURI(Uri.parse(url))
+                        Log.d(TAG, "视频源已设置（setVideoURI）: $url")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "setVideoURI失败，尝试使用setVideoPath: $url", e)
+                        try {
+                            vv.setVideoPath(url)
+                            Log.d(TAG, "视频源已设置（setVideoPath）: $url")
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "设置视频源失败: $url", e2)
+                            throw e2
+                        }
+                    }
                 } else if (url.startsWith("content://") || url.startsWith("file://")) {
                     // Content URI 或 File URI：使用 setVideoURI
-                    videoView?.setVideoURI(Uri.parse(url))
+                    vv.setVideoURI(Uri.parse(url))
+                    Log.d(TAG, "视频源已设置（setVideoURI）: $url")
                 } else {
                     // 其他情况：尝试作为路径处理
-                    videoView?.setVideoPath(url)
+                    vv.setVideoPath(url)
+                    Log.d(TAG, "视频源已设置（setVideoPath）: $url")
                 }
-                Log.d(TAG, "视频源已设置: $url")
             } catch (e: Exception) {
                 Log.e(TAG, "设置视频源失败: $url", e)
-                Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
+                // 确保在主线程显示 Toast
+                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                    Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
+                } else {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
                 hide()
                 return
             }
@@ -599,11 +642,29 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                             lastProgress = current
                                                         }
                                                         
-                                                        // 安全更新UI（已在主线程）
+                                                        // 安全更新UI（使用View.post确保在视图创建线程中执行）
                                                         try {
-                                                            progressBar?.progress = progressPercent
-                                                            currentTimeText?.text = formatTime(current)
-                                                            totalTimeText?.text = formatTime(total)
+                                                            progressBar?.post {
+                                                                try {
+                                                                    progressBar?.progress = progressPercent
+                                                                } catch (e: Exception) {
+                                                                    Log.e(TAG, "更新进度条失败", e)
+                                                                }
+                                                            }
+                                                            currentTimeText?.post {
+                                                                try {
+                                                                    currentTimeText?.text = formatTime(current)
+                                                                } catch (e: Exception) {
+                                                                    Log.e(TAG, "更新当前时间失败", e)
+                                                                }
+                                                            }
+                                                            totalTimeText?.post {
+                                                                try {
+                                                                    totalTimeText?.text = formatTime(total)
+                                                                } catch (e: Exception) {
+                                                                    Log.e(TAG, "更新总时长失败", e)
+                                                                }
+                                                            }
                                                         } catch (e: Exception) {
                                                             Log.e(TAG, "更新UI失败", e)
                                                         }
@@ -684,6 +745,11 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             floatingView?.visibility = View.VISIBLE
             isShowing = true
+            
+            // 确保控制条显示（正常模式下）
+            if (!isMiniMode) {
+                showControls()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "显示悬浮窗播放器失败", e)
             hide()
@@ -695,24 +761,73 @@ class SystemOverlayVideoManager(private val context: Context) {
      */
     fun hide() {
         try {
-            videoView?.stopPlayback()
-            // 清理进度更新任务
-            updateRunnable?.let { updateHandler?.removeCallbacks(it) }
-            updateHandler = null
-            updateRunnable = null
-            // 清理自动隐藏任务
-            cancelHideControls()
-            hideControlsHandler = null
-            hideControlsRunnable = null
-            videoView?.setOnPreparedListener(null)
-            videoView?.setOnCompletionListener(null)
-            
-            // 如果处于迷你模式，退出迷你模式
-            if (isMiniMode) {
-                exitMiniMode()
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    hide()
+                }
+                return
             }
             
-            floatingView?.visibility = View.GONE
+            // 停止视频播放
+            try {
+                videoView?.stopPlayback()
+            } catch (e: Exception) {
+                Log.w(TAG, "停止视频播放失败", e)
+            }
+            
+            // 清理进度更新任务
+            try {
+                updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+                updateHandler = null
+                updateRunnable = null
+            } catch (e: Exception) {
+                Log.w(TAG, "清理进度更新任务失败", e)
+            }
+            
+            // 清理自动隐藏任务
+            try {
+                cancelHideControls()
+                hideControlsHandler = null
+                hideControlsRunnable = null
+            } catch (e: Exception) {
+                Log.w(TAG, "清理自动隐藏任务失败", e)
+            }
+            
+            // 清理视频监听器
+            try {
+                videoView?.setOnPreparedListener(null)
+                videoView?.setOnCompletionListener(null)
+                videoView?.setOnErrorListener(null)
+            } catch (e: Exception) {
+                Log.w(TAG, "清理视频监听器失败", e)
+            }
+            
+            // 如果处于迷你模式，退出迷你模式
+            try {
+                if (isMiniMode) {
+                    exitMiniMode()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "退出迷你模式失败", e)
+            }
+            
+            // 隐藏视图（确保在主线程）
+            try {
+                val view = floatingView
+                if (view != null) {
+                    view.visibility = View.GONE
+                    // 确保视图真正隐藏
+                    view.post {
+                        if (view.visibility != View.GONE) {
+                            view.visibility = View.GONE
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "隐藏视图失败", e)
+            }
+            
             isShowing = false
             hasAutoMaximized = false // 重置自动最大化标志
             Log.d(TAG, "悬浮窗播放器已隐藏")
@@ -730,6 +845,14 @@ class SystemOverlayVideoManager(private val context: Context) {
      * 创建悬浮窗视图
      */
     private fun createFloatingView() {
+        // 确保在主线程中创建视图
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                createFloatingView()
+            }
+            return
+        }
+        
         if (floatingView != null) {
             return
         }
@@ -820,8 +943,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                     sourceVideoY
                 }
                 
-                x = overlayX.coerceIn(0, screenWidth - overlayWidth)
-                y = overlayY.coerceIn(0, screenHeight - overlayHeight)
+                // 计算有效范围，避免范围无效导致的异常
+                val maxX = (screenWidth - overlayWidth).coerceAtLeast(0)
+                val maxY = (screenHeight - overlayHeight).coerceAtLeast(0)
+                x = overlayX.coerceIn(0, maxX)
+                y = overlayY.coerceIn(0, maxY)
                 Log.d(TAG, "悬浮窗位置设置为覆盖原视频: x=$x, y=$y (原视频位置: x=$sourceVideoX, y=$sourceVideoY)")
             } else {
                 // 默认位置：屏幕居中
@@ -908,6 +1034,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             visibility = View.VISIBLE
             // 降低播放条背景高度：减少上下padding
             setPadding(dpToPx(4), dpToPx(0), dpToPx(4), dpToPx(0))
+            // 确保控制条可以接收触摸事件
+            isClickable = true
+            isFocusable = false
         }
         
         // 创建底部控制条容器（按钮在底部）
@@ -924,6 +1053,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             visibility = View.VISIBLE
             // 降低播放条背景高度：减少上下padding
             setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+            // 确保控制条可以接收触摸事件
+            isClickable = true
+            isFocusable = false
         }
         
         // 进度条行不再单独创建，直接添加到顶部控制条
@@ -1095,8 +1227,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                     progressBar?.thumb = normalThumbDrawable
                     progressBar?.invalidate() // 强制重绘
                     
-                    // 重新安排自动隐藏
-                    scheduleHideControls()
+                    // 不再自动隐藏控制条，让控制条始终可见
+                    // scheduleHideControls()
                     
                     Log.d(TAG, "结束拖动进度条，thumb已恢复")
                 }
@@ -1133,7 +1265,10 @@ class SystemOverlayVideoManager(private val context: Context) {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             setBackgroundColor(0xCC000000.toInt()) // 更明显的背景色
             setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-            setOnClickListener { hide() }
+            setOnClickListener { 
+                Log.d(TAG, "关闭按钮被点击")
+                hide() 
+            }
         }
         
         // 将关闭按钮添加到顶部控制条
@@ -1141,6 +1276,9 @@ class SystemOverlayVideoManager(private val context: Context) {
         
         // 保存关闭按钮引用
         this.closeBtn = closeBtn
+        
+        // 保存全屏按钮引用（用于后续更新图标）
+        this.fullscreenBtn = topFullscreenBtn
         
         // 创建播放速度按钮（Material Design风格）
         speedBtn = Button(context).apply {
@@ -1310,8 +1448,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 全屏按钮已移除，下方按钮替换为播放列表按钮
-        fullscreenBtn = null
+        // 全屏按钮现在在顶部控制条，不再单独设置
+        // fullscreenBtn 已在上面设置为 topFullscreenBtn
         
         // 添加按钮到第二行
         buttonRow.addView(playPauseBtn)
@@ -1370,10 +1508,10 @@ class SystemOverlayVideoManager(private val context: Context) {
         //     toggleControls()
         // }
         
-        // 初始化：控制条默认显示，3秒后自动隐藏
+        // 初始化：控制条默认显示，永久显示（不自动隐藏）
         hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        showControls() // 默认显示控制条
-        scheduleHideControls() // 3秒后自动隐藏
+        showControls() // 默认显示控制条（永久显示）
+        // scheduleHideControls() // 已禁用自动隐藏，让控制条始终可见
         
         // 设置控制条的初始状态
         playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
@@ -1406,7 +1544,6 @@ class SystemOverlayVideoManager(private val context: Context) {
         
         try {
             isMiniMode = true
-            isMiniModeControlsVisible = false // 初始状态为隐藏
             
             // 保存当前尺寸
             val currentWidth = currentParams.width
@@ -1435,8 +1572,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                 createMiniModeButtons()
             }
             
-            // 让四个按钮淡化消失
-            hideMiniModeControls()
+            // 显示四个按钮（初始状态为显示）
+            showMiniModeControls()
             
             currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
             
@@ -1475,10 +1612,8 @@ class SystemOverlayVideoManager(private val context: Context) {
             miniModeRestoreBtn?.visibility = View.GONE
             miniModeExpandBtn?.visibility = View.GONE
             
-            // 显示所有控制条和按钮（包括进度条）
-            topControlBarContainer?.visibility = View.VISIBLE
-            controlBar?.visibility = View.VISIBLE
-            progressBar?.visibility = View.VISIBLE
+            // 恢复正常模式的所有控制条和按钮（调用showControls确保所有按钮都显示）
+            showControls()
             
             currentWindowManager.updateViewLayout(currentFloatingView, currentParams)
             
@@ -1509,18 +1644,24 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             // 迷你模式不显示进度条，topControlBarContainer 保持隐藏
             
-            // 更新暂停/播放按钮图标以反映当前播放状态
+            // 更新暂停/播放按钮图标以反映当前播放状态（使用View.post确保在视图创建线程中执行）
             videoView?.let { vv ->
                 miniModePlayPauseBtn?.let { btn ->
-                    if (vv.isPlaying) {
-                        btn.setImageResource(android.R.drawable.ic_media_pause)
-                    } else {
-                        btn.setImageResource(android.R.drawable.ic_media_play)
+                    btn.post {
+                        try {
+                            if (vv.isPlaying) {
+                                btn.setImageResource(android.R.drawable.ic_media_pause)
+                            } else {
+                                btn.setImageResource(android.R.drawable.ic_media_play)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新迷你模式播放按钮失败", e)
+                        }
                     }
                 }
             }
             
-            // 显示四个按钮（带淡入动画）
+            // 显示四个按钮（带淡入动画，使用View.post确保在视图创建线程中执行）
             val buttons = listOf(
                 miniModeCloseBtn,
                 miniModePlayPauseBtn,
@@ -1530,13 +1671,35 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             buttons.forEach { button ->
                 button?.let { btn ->
-                    btn.visibility = View.VISIBLE
-                    btn.alpha = 0f
-                    btn.animate()
-                        .alpha(1f)
-                        .setDuration(300)
-                        .setInterpolator(FastOutSlowInInterpolator())
-                        .start()
+                    btn.post {
+                        try {
+                            // 确保按钮可以接收点击事件
+                            btn.isClickable = true
+                            btn.isFocusable = true
+                            btn.isEnabled = true
+                            // 确保按钮在最上层
+                            btn.bringToFront()
+                            btn.visibility = View.VISIBLE
+                            btn.alpha = 0f
+                            btn.animate()
+                                .alpha(1f)
+                                .setDuration(300)
+                                .setInterpolator(FastOutSlowInInterpolator())
+                                .start()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "显示迷你模式按钮失败", e)
+                        }
+                    }
+                }
+            }
+            
+            // 确保容器可以接收触摸事件（使用View.post确保在视图创建线程中执行）
+            floatingView?.post {
+                try {
+                    floatingView?.isClickable = true
+                    floatingView?.isFocusable = false
+                } catch (e: Exception) {
+                    Log.e(TAG, "设置容器触摸事件失败", e)
                 }
             }
             
@@ -1594,26 +1757,43 @@ class SystemOverlayVideoManager(private val context: Context) {
         try {
             // 确保在主线程
             if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
-                btn.post { animateButtonHide(btn) }
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    animateButtonHide(btn)
+                }
                 return
             }
+            
+            // 使用主线程Handler确保回调在主线程执行
+            val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
             
             btn.animate()
                 .alpha(0f)
                 .setDuration(300)
                 .setInterpolator(FastOutSlowInInterpolator())
                 .withEndAction {
-                    // withEndAction 回调应该已经在主线程，但为了安全起见，使用 View.post
-                    btn.post {
-                        btn.visibility = View.GONE
+                    // 使用Handler确保在主线程执行
+                    mainHandler.post {
+                        try {
+                            if (btn.visibility != View.GONE) {
+                                btn.visibility = View.GONE
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置按钮visibility失败", e)
+                        }
                     }
                 }
                 .start()
         } catch (e: Exception) {
             Log.e(TAG, "执行按钮隐藏动画失败", e)
-            // 如果动画失败，直接隐藏
-            btn.post {
-                btn.visibility = View.GONE
+            // 如果动画失败，直接隐藏（确保在主线程）
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    if (btn.visibility != View.GONE) {
+                        btn.visibility = View.GONE
+                    }
+                } catch (ex: Exception) {
+                    Log.e(TAG, "设置按钮visibility失败", ex)
+                }
             }
         }
     }
@@ -1637,6 +1817,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                // 确保按钮可以接收点击事件
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener { 
                     Log.d(TAG, "迷你模式关闭按钮被点击")
                     hide() 
@@ -1644,6 +1829,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 visibility = View.GONE
             }
             container.addView(miniModeCloseBtn)
+            miniModeCloseBtn?.bringToFront() // 确保按钮在最上层
             
             // 创建暂停/播放按钮（左上角）
             miniModePlayPauseBtn = ImageButton(context).apply {
@@ -1663,6 +1849,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                // 确保按钮可以接收点击事件
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener {
                     Log.d(TAG, "迷你模式暂停/播放按钮被点击")
                     val vv = videoView ?: return@setOnClickListener
@@ -1670,10 +1861,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                         if (vv.isPlaying) {
                             vv.pause()
                             setImageResource(android.R.drawable.ic_media_play)
+                            miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
                             Log.d(TAG, "视频已暂停")
                         } else {
                             vv.start()
                             setImageResource(android.R.drawable.ic_media_pause)
+                            miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                             Log.d(TAG, "视频开始播放")
                         }
                     } catch (e: Exception) {
@@ -1683,6 +1876,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 visibility = View.GONE
             }
             container.addView(miniModePlayPauseBtn)
+            miniModePlayPauseBtn?.bringToFront() // 确保按钮在最上层
             
             // 创建恢复按钮（退出迷你模式，左下角）
             miniModeRestoreBtn = ImageButton(context).apply {
@@ -1696,6 +1890,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_revert)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                // 确保按钮可以接收点击事件
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener { 
                     Log.d(TAG, "迷你模式恢复按钮被点击")
                     exitMiniMode() 
@@ -1703,6 +1902,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 visibility = View.GONE
             }
             container.addView(miniModeRestoreBtn)
+            miniModeRestoreBtn?.bringToFront() // 确保按钮在最上层
             
             // 创建拉伸按钮（全屏，右下角）
             miniModeExpandBtn = ImageButton(context).apply {
@@ -1716,6 +1916,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_crop)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                // 确保按钮可以接收点击事件
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener { 
                     Log.d(TAG, "迷你模式拉伸按钮被点击")
                     toggleFullscreen() 
@@ -1723,6 +1928,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 visibility = View.GONE
             }
             container.addView(miniModeExpandBtn)
+            miniModeExpandBtn?.bringToFront() // 确保按钮在最上层
             
             Log.d(TAG, "迷你模式按钮已创建")
         } catch (e: Exception) {
@@ -2143,8 +2349,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     updateHandler?.post(updateRunnable!!)
                                 }
                             }
-                            showControls() // 显示控制条
-                            scheduleHideControls() // 3秒后自动隐藏
+                            showControls() // 显示控制条（永久显示）
+                            // scheduleHideControls() // 已禁用自动隐藏
                         } catch (e: Exception) {
                             Log.e(TAG, "双击控制失败", e)
                         }
@@ -2153,21 +2359,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
                 
                 override fun onSingleTapUp(e: MotionEvent): Boolean {
-                    // 迷你模式下，单击显示按钮（如果已显示则隐藏）
+                    // 迷你模式下，单击切换按钮显示状态（不自动隐藏，保持显示直到用户再次点击）
                     if (isMiniMode) {
                         gestureHandled = true
                         if (isMiniModeControlsVisible) {
                             // 如果按钮已显示，隐藏它们
                             hideMiniModeControls()
                         } else {
-                            // 如果按钮未显示，显示它们
+                            // 如果按钮未显示，显示它们（保持显示，不自动隐藏）
                             showMiniModeControls()
-                            // 安排自动隐藏（3秒后）
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                if (isMiniMode && !isDraggingWindow && isMiniModeControlsVisible) {
-                                    hideMiniModeControls()
-                                }
-                            }, 3000)
                         }
                         return true
                     }
@@ -2205,28 +2405,31 @@ class SystemOverlayVideoManager(private val context: Context) {
                         val y = event.y.toInt()
                         var isOnControl = false
                         
-                        controlBar?.let { bar ->
-                            val barLeft = bar.left
-                            val barRight = bar.right
-                            val barTop = bar.top
-                            val barBottom = bar.bottom
-                            if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
-                                isOnControl = true
+                        // 迷你模式下，不检查控制条（因为控制条已隐藏）
+                        if (!isMiniMode) {
+                            controlBar?.let { bar ->
+                                val barLeft = bar.left
+                                val barRight = bar.right
+                                val barTop = bar.top
+                                val barBottom = bar.bottom
+                                if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
+                                    isOnControl = true
+                                }
+                            }
+                            
+                            topControlBarContainer?.let { bar ->
+                                val barLeft = bar.left
+                                val barRight = bar.right
+                                val barTop = bar.top
+                                val barBottom = bar.bottom
+                                if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
+                                    isOnControl = true
+                                }
                             }
                         }
                         
-                        topControlBarContainer?.let { bar ->
-                            val barLeft = bar.left
-                            val barRight = bar.right
-                            val barTop = bar.top
-                            val barBottom = bar.bottom
-                            if (x >= barLeft && x <= barRight && y >= barTop && y <= barBottom) {
-                                isOnControl = true
-                            }
-                        }
-                        
-                        // 检查是否点击在迷你模式按钮上
-                        if (isMiniMode && isMiniModeControlsVisible) {
+                        // 检查是否点击在迷你模式按钮上（无论按钮是否可见，都要检查，因为按钮可能刚显示）
+                        if (isMiniMode) {
                             val buttons = listOf(
                                 miniModeCloseBtn,
                                 miniModePlayPauseBtn,
@@ -2235,15 +2438,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                             )
                             buttons.forEach { button ->
                                 button?.let { btn ->
-                                    // 只检查可见的按钮
-                                    if (btn.visibility == View.VISIBLE) {
+                                    // 检查按钮是否可见或正在显示动画
+                                    if (btn.visibility == View.VISIBLE || btn.alpha > 0f) {
                                         val btnLeft = btn.left
                                         val btnRight = btn.right
                                         val btnTop = btn.top
                                         val btnBottom = btn.bottom
                                         if (x >= btnLeft && x <= btnRight && y >= btnTop && y <= btnBottom) {
                                             isOnControl = true
-                                            Log.d(TAG, "点击在迷你模式按钮上: ${btn.javaClass.simpleName}")
+                                            Log.d(TAG, "点击在迷你模式按钮上: ${btn.javaClass.simpleName}, visibility=${btn.visibility}, alpha=${btn.alpha}")
                                         }
                                     }
                                 }
@@ -2276,6 +2479,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                         brightnessControlView?.visibility = View.GONE
                         volumeControlView?.visibility = View.GONE
                         seekControlView?.visibility = View.GONE
+                        
+                        // 迷你模式下，返回false让手势检测器处理单击事件
+                        if (isMiniMode) {
+                            return@setOnTouchListener gestureResult
+                        }
+                        
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -2292,8 +2501,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                             val currentParams = params ?: return@setOnTouchListener false
                             val currentWindowManager = windowManager ?: return@setOnTouchListener false
                             
-                            val newX = (initialX + rawDeltaX.toInt()).coerceIn(0, screenWidth - currentParams.width)
-                            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, screenHeight - currentParams.height)
+                            // 计算有效范围，避免范围无效导致的异常
+                            val maxX = (screenWidth - currentParams.width).coerceAtLeast(0)
+                            val maxY = (screenHeight - currentParams.height).coerceAtLeast(0)
+                            
+                            val newX = (initialX + rawDeltaX.toInt()).coerceIn(0, maxX)
+                            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, maxY)
                             
                             currentParams.x = newX
                             currentParams.y = newY
@@ -2364,17 +2577,53 @@ class SystemOverlayVideoManager(private val context: Context) {
                         volumeControlView?.visibility = View.GONE
                         seekControlView?.visibility = View.GONE
                         isSeeking = false
-                        gestureHandled = false
                         
-                        // 迷你模式下，停止移动后延迟隐藏按钮（3秒后）
-                        if (isMiniMode && isDraggingWindow) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                if (isMiniMode && !isDraggingWindow && isMiniModeControlsVisible) {
-                                    hideMiniModeControls()
+                        // 检查是否点击在迷你模式按钮上（在ACTION_UP时也要检查，确保按钮点击不被拦截）
+                        if (isMiniMode) {
+                            val x = event.x.toInt()
+                            val y = event.y.toInt()
+                            val buttons = listOf(
+                                miniModeCloseBtn,
+                                miniModePlayPauseBtn,
+                                miniModeRestoreBtn,
+                                miniModeExpandBtn
+                            )
+                            buttons.forEach { button ->
+                                button?.let { btn ->
+                                    // 检查按钮是否可见或正在显示动画
+                                    if (btn.visibility == View.VISIBLE || btn.alpha > 0f) {
+                                        val btnLeft = btn.left
+                                        val btnRight = btn.right
+                                        val btnTop = btn.top
+                                        val btnBottom = btn.bottom
+                                        if (x >= btnLeft && x <= btnRight && y >= btnTop && y <= btnBottom) {
+                                            // 点击在按钮上，不处理手势，让按钮正常响应
+                                            gestureHandled = false
+                                            isDraggingWindow = false
+                                            return@setOnTouchListener false
+                                        }
+                                    }
                                 }
-                            }, 3000)
+                            }
                         }
                         
+                        // 迷你模式下，如果手势检测器处理了单击事件，确保按钮显示/隐藏
+                        if (isMiniMode && gestureHandled && !isDraggingWindow) {
+                            // 手势检测器已经处理了单击，按钮应该已经显示/隐藏
+                            // 按钮保持显示，不自动隐藏（由用户点击切换）
+                            gestureHandled = false
+                            isDraggingWindow = false
+                            return@setOnTouchListener true
+                        }
+                        
+                        // 如果手势检测器已经处理了（双击或单击），不处理其他逻辑
+                        if (gestureHandled) {
+                            gestureHandled = false
+                            isDraggingWindow = false
+                            return@setOnTouchListener false
+                        }
+                        
+                        gestureHandled = false
                         isDraggingWindow = false
                         true
                     }
@@ -2582,7 +2831,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             val wm = windowManager ?: return
             
             // 计算新位置（直接跟随手指，无阻尼）
-            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, screenHeight - p.height).toInt()
+            // 计算有效范围，避免范围无效导致的异常
+            val maxY = (screenHeight - p.height).coerceAtLeast(0)
+            val newY = (initialY + rawDeltaY.toInt()).coerceIn(0, maxY).toInt()
             
             // 只允许垂直拖动，保持X坐标不变（居中）
             p.x = originalX
@@ -2711,7 +2962,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                         
                         // 限制Y坐标在屏幕范围内（不能移出屏幕）
                         val currentHeight = it.height
-                        newY = newY.coerceIn(0, screenHeight - currentHeight)
+                        // 计算有效范围，避免范围无效导致的异常
+                        val maxY = (screenHeight - currentHeight).coerceAtLeast(0)
+                        newY = newY.coerceIn(0, maxY)
                         
                         it.x = currentX
                         it.y = newY
@@ -2802,13 +3055,28 @@ class SystemOverlayVideoManager(private val context: Context) {
     
     /**
      * 显示控制条
+     * 必须在主线程调用
      */
     private fun showControls() {
         try {
-            topControlBarContainer?.visibility = View.VISIBLE
-            controlBar?.visibility = View.VISIBLE
-            scheduleHideControls() // 3秒后自动隐藏
-            Log.d(TAG, "控制条已显示")
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    showControls()
+                }
+                return
+            }
+            
+            // 只在非迷你模式下显示控制条
+            if (!isMiniMode) {
+                topControlBarContainer?.visibility = View.VISIBLE
+                controlBar?.visibility = View.VISIBLE
+                // 不再自动隐藏控制条，让进度条、关闭按钮、全屏按钮始终可见
+                // scheduleHideControls() // 已禁用自动隐藏
+                Log.d(TAG, "控制条已显示（永久显示）")
+            } else {
+                Log.d(TAG, "迷你模式下不显示控制条")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "显示控制条失败", e)
         }
@@ -2828,8 +3096,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                 return
             }
             
-            topControlBarContainer?.visibility = View.GONE
-            controlBar?.visibility = View.GONE
+            // 再次检查视图是否仍然有效
+            val topBar = topControlBarContainer
+            val bottomBar = controlBar
+            if (topBar != null && bottomBar != null) {
+                topBar.visibility = View.GONE
+                bottomBar.visibility = View.GONE
+            }
             cancelHideControls() // 取消自动隐藏任务
             Log.d(TAG, "控制条已隐藏")
         } catch (e: Exception) {
@@ -2854,15 +3127,24 @@ class SystemOverlayVideoManager(private val context: Context) {
             // 取消之前的任务
             cancelHideControls()
             
+            // 确保 Handler 已初始化
+            if (hideControlsHandler == null) {
+                hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            }
+            
             // 创建新的隐藏任务（确保在主线程执行）
             hideControlsRunnable = Runnable {
-                // 再次检查是否在主线程
-                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-                    hideControls()
-                } else {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                // Runnable 已经在主线程的 Handler 中执行，但为了安全再次检查
+                try {
+                    if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
                         hideControls()
+                    } else {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            hideControls()
+                        }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "自动隐藏控制条失败", e)
                 }
             }
             
