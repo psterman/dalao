@@ -204,7 +204,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         try {
             val url = videoUrl.trim()
             
-            // 如果播放器已存在但隐藏，且是同一个视频URL，则重新显示并继续播放
+            // 如果播放器已存在且是同一个视频URL，则重新显示并继续播放
             if (isShowing && floatingView != null && videoView != null && currentVideoUrl == url) {
                 Log.d(TAG, "播放器已存在，重新显示并继续播放: $url")
                 floatingView?.visibility = View.VISIBLE
@@ -227,13 +227,120 @@ class SystemOverlayVideoManager(private val context: Context) {
                 return
             }
             
-            // 保存原视频位置信息
-            sourceVideoX = sourceX
-            sourceVideoY = sourceY
-            sourceVideoWidth = sourceWidth
-            sourceVideoHeight = sourceHeight
+            // 如果播放器视图存在但被隐藏了（hide()后重新显示），需要重新显示并设置视频源
+            if (!isShowing && floatingView != null && videoView != null) {
+                Log.d(TAG, "播放器视图存在但被隐藏，重新显示: $url")
+                
+                // 重新显示视图
+                floatingView?.visibility = View.VISIBLE
+                isShowing = true
+                
+                // 退出迷你模式（如果处于迷你模式）
+                if (isMiniMode) {
+                    exitMiniMode()
+                }
+                
+                // 确保控制条显示（正常模式下）
+                if (!isMiniMode) {
+                    showControls()
+                }
+                
+                // 播放器被隐藏后重新显示，无论URL是否相同，都需要重新设置视频源
+                // 因为hide()时调用了stopPlayback()，可能导致视频状态丢失，无法正常播放
+                var needResetVideoSource = true
+                if (currentVideoUrl == url) {
+                    Log.d(TAG, "播放器重新显示，重新设置视频源（相同URL）: $url")
+                } else {
+                    // 不同视频，需要重新设置视频源
+                    Log.d(TAG, "检测到新视频URL，切换播放: 从 $currentVideoUrl 切换到 $url")
+                }
+                
+                // 如果需要重新设置视频源，清理旧状态
+                if (needResetVideoSource) {
+                    // 停止当前播放
+                    videoView?.stopPlayback()
+                    
+                    // 清理旧的监听器和进度更新
+                    updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+                    updateRunnable = null
+                    videoView?.setOnPreparedListener(null)
+                    videoView?.setOnCompletionListener(null)
+                    videoView?.setOnErrorListener(null)
+                    
+                    // 重置播放状态
+                    playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                    miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                    progressBar?.progress = 0
+                    currentTimeText?.text = formatTime(0)
+                    totalTimeText?.text = formatTime(0)
+                    
+                    // 重置视频尺寸相关状态，以便新视频能够正确检测和调整大小
+                    videoWidth = 0
+                    videoHeight = 0
+                    isVideoPortrait = false
+                    hasAutoMaximized = false
+                    isFullscreen = false
+                    
+                    // 继续执行后续代码设置新视频源
+                }
+            }
             
-            createFloatingView()
+            // 如果播放器已存在但URL不同，需要切换播放新视频
+            if (isShowing && floatingView != null && videoView != null && currentVideoUrl != null && currentVideoUrl != url) {
+                Log.d(TAG, "检测到新视频URL，切换播放: 从 $currentVideoUrl 切换到 $url")
+                
+                // 停止当前播放
+                videoView?.stopPlayback()
+                
+                // 清理旧的监听器和进度更新
+                updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+                updateRunnable = null
+                videoView?.setOnPreparedListener(null)
+                videoView?.setOnCompletionListener(null)
+                videoView?.setOnErrorListener(null)
+                
+                // 重置播放状态
+                playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                progressBar?.progress = 0
+                currentTimeText?.text = formatTime(0)
+                totalTimeText?.text = formatTime(0)
+                
+                // 重置视频尺寸相关状态，以便新视频能够正确检测和调整大小
+                videoWidth = 0
+                videoHeight = 0
+                isVideoPortrait = false
+                hasAutoMaximized = false
+                isFullscreen = false
+                
+                // 确保播放器可见
+                floatingView?.visibility = View.VISIBLE
+                isShowing = true
+                
+                // 确保控制条显示（正常模式下）
+                if (!isMiniMode) {
+                    showControls()
+                }
+                
+                // 继续执行后续代码设置新视频源
+            } else {
+                // 播放器不存在，需要创建
+                // 保存原视频位置信息
+                sourceVideoX = sourceX
+                sourceVideoY = sourceY
+                sourceVideoWidth = sourceWidth
+                sourceVideoHeight = sourceHeight
+                
+                createFloatingView()
+            }
+            
+            // 保存原视频位置信息（如果之前没有保存）
+            if (sourceVideoX < 0) {
+                sourceVideoX = sourceX
+                sourceVideoY = sourceY
+                sourceVideoWidth = sourceWidth
+                sourceVideoHeight = sourceHeight
+            }
             
             Log.d(TAG, "准备播放视频: $url, 原视频位置: ($sourceX, $sourceY), 尺寸: ${sourceWidth}x${sourceHeight}")
             
@@ -599,6 +706,12 @@ class SystemOverlayVideoManager(private val context: Context) {
             hideControlsRunnable = null
             videoView?.setOnPreparedListener(null)
             videoView?.setOnCompletionListener(null)
+            
+            // 如果处于迷你模式，退出迷你模式
+            if (isMiniMode) {
+                exitMiniMode()
+            }
+            
             floatingView?.visibility = View.GONE
             isShowing = false
             hasAutoMaximized = false // 重置自动最大化标志
@@ -1396,6 +1509,17 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             // 迷你模式不显示进度条，topControlBarContainer 保持隐藏
             
+            // 更新暂停/播放按钮图标以反映当前播放状态
+            videoView?.let { vv ->
+                miniModePlayPauseBtn?.let { btn ->
+                    if (vv.isPlaying) {
+                        btn.setImageResource(android.R.drawable.ic_media_pause)
+                    } else {
+                        btn.setImageResource(android.R.drawable.ic_media_play)
+                    }
+                }
+            }
+            
             // 显示四个按钮（带淡入动画）
             val buttons = listOf(
                 miniModeCloseBtn,
@@ -1416,7 +1540,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
             }
             
-            Log.d(TAG, "迷你模式控制已显示")
+            Log.d(TAG, "迷你模式控制已显示，按钮位置：关闭(右上)、暂停(左上)、恢复(左下)、拉伸(右下)")
         } catch (e: Exception) {
             Log.e(TAG, "显示迷你模式控制失败", e)
         }
@@ -1501,7 +1625,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         try {
             val container = floatingView ?: return
             
-            // 创建关闭按钮
+            // 创建关闭按钮（右上角）
             miniModeCloseBtn = ImageButton(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     dpToPx(32),
@@ -1513,38 +1637,54 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-                setOnClickListener { hide() }
+                setOnClickListener { 
+                    Log.d(TAG, "迷你模式关闭按钮被点击")
+                    hide() 
+                }
                 visibility = View.GONE
             }
             container.addView(miniModeCloseBtn)
             
-            // 创建暂停/播放按钮
+            // 创建暂停/播放按钮（左上角）
             miniModePlayPauseBtn = ImageButton(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
-                    dpToPx(40),
-                    dpToPx(40),
-                    Gravity.CENTER
+                    dpToPx(32),
+                    dpToPx(32),
+                    Gravity.TOP or Gravity.START
                 ).apply {
-                    setMargins(0, 0, 0, dpToPx(60))
+                    setMargins(dpToPx(4), dpToPx(4), 0, 0)
                 }
-                setImageResource(android.R.drawable.ic_media_play)
+                // 根据当前播放状态设置图标
+                val vv = videoView
+                if (vv != null && vv.isPlaying) {
+                    setImageResource(android.R.drawable.ic_media_pause)
+                } else {
+                    setImageResource(android.R.drawable.ic_media_play)
+                }
                 setBackgroundColor(0xCC000000.toInt())
-                setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                 setOnClickListener {
+                    Log.d(TAG, "迷你模式暂停/播放按钮被点击")
                     val vv = videoView ?: return@setOnClickListener
-                    if (vv.isPlaying) {
-                        vv.pause()
-                        setImageResource(android.R.drawable.ic_media_play)
-                    } else {
-                        vv.start()
-                        setImageResource(android.R.drawable.ic_media_pause)
+                    try {
+                        if (vv.isPlaying) {
+                            vv.pause()
+                            setImageResource(android.R.drawable.ic_media_play)
+                            Log.d(TAG, "视频已暂停")
+                        } else {
+                            vv.start()
+                            setImageResource(android.R.drawable.ic_media_pause)
+                            Log.d(TAG, "视频开始播放")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "暂停/播放按钮操作失败", e)
                     }
                 }
                 visibility = View.GONE
             }
             container.addView(miniModePlayPauseBtn)
             
-            // 创建恢复按钮（退出迷你模式）
+            // 创建恢复按钮（退出迷你模式，左下角）
             miniModeRestoreBtn = ImageButton(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     dpToPx(32),
@@ -1556,12 +1696,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_revert)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-                setOnClickListener { exitMiniMode() }
+                setOnClickListener { 
+                    Log.d(TAG, "迷你模式恢复按钮被点击")
+                    exitMiniMode() 
+                }
                 visibility = View.GONE
             }
             container.addView(miniModeRestoreBtn)
             
-            // 创建拉伸按钮（全屏）
+            // 创建拉伸按钮（全屏，右下角）
             miniModeExpandBtn = ImageButton(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     dpToPx(32),
@@ -1573,7 +1716,10 @@ class SystemOverlayVideoManager(private val context: Context) {
                 setImageResource(android.R.drawable.ic_menu_crop)
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-                setOnClickListener { toggleFullscreen() }
+                setOnClickListener { 
+                    Log.d(TAG, "迷你模式拉伸按钮被点击")
+                    toggleFullscreen() 
+                }
                 visibility = View.GONE
             }
             container.addView(miniModeExpandBtn)
@@ -1945,7 +2091,13 @@ class SystemOverlayVideoManager(private val context: Context) {
             // 创建手势检测器
             gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    // 双击暂停/播放
+                    // 迷你模式下，屏蔽双击显示按钮的功能
+                    if (isMiniMode) {
+                        gestureHandled = true
+                        return true
+                    }
+                    
+                    // 双击暂停/播放（仅正常模式）
                     gestureHandled = true
                     val vv = videoView
                     if (vv != null) {
@@ -2074,7 +2226,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                         }
                         
                         // 检查是否点击在迷你模式按钮上
-                        if (isMiniMode) {
+                        if (isMiniMode && isMiniModeControlsVisible) {
                             val buttons = listOf(
                                 miniModeCloseBtn,
                                 miniModePlayPauseBtn,
@@ -2083,12 +2235,16 @@ class SystemOverlayVideoManager(private val context: Context) {
                             )
                             buttons.forEach { button ->
                                 button?.let { btn ->
-                                    val btnLeft = btn.left
-                                    val btnRight = btn.right
-                                    val btnTop = btn.top
-                                    val btnBottom = btn.bottom
-                                    if (x >= btnLeft && x <= btnRight && y >= btnTop && y <= btnBottom) {
-                                        isOnControl = true
+                                    // 只检查可见的按钮
+                                    if (btn.visibility == View.VISIBLE) {
+                                        val btnLeft = btn.left
+                                        val btnRight = btn.right
+                                        val btnTop = btn.top
+                                        val btnBottom = btn.bottom
+                                        if (x >= btnLeft && x <= btnRight && y >= btnTop && y <= btnBottom) {
+                                            isOnControl = true
+                                            Log.d(TAG, "点击在迷你模式按钮上: ${btn.javaClass.simpleName}")
+                                        }
                                     }
                                 }
                             }
@@ -2125,10 +2281,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                     MotionEvent.ACTION_MOVE -> {
                         // 如果处于迷你模式，禁用所有手势控制，只允许拖拽窗口（全屏移动）
                         if (isMiniMode) {
-                            // 迷你模式下，移动时显示按钮（如果还未显示）
-                            if (!isMiniModeControlsVisible) {
-                                showMiniModeControls()
-                            }
+                            // 迷你模式下，移动时不自动显示按钮，只有单击时才显示
                             
                             // 迷你模式下，任何移动都视为拖拽窗口，不触发其他手势
                             isDraggingWindow = true
