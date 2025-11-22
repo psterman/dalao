@@ -25,6 +25,7 @@ import android.widget.VideoView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
+import androidx.media3.common.util.UnstableApi
 import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.R
 
@@ -34,13 +35,17 @@ import com.example.aifloatingball.R
  * 使用 WindowManager + TYPE_APPLICATION_OVERLAY 显示可拖拽小窗，
  * 支持关闭、播放完成自动隐藏。
  * 
+ * 已迁移到 ExoPlayer，提供更强大的功能和更好的稳定性。
+ * 
  * @author AI Floating Ball
  */
+@UnstableApi
 class SystemOverlayVideoManager(private val context: Context) {
 
     private var windowManager: WindowManager? = null
     private var floatingView: ViewGroup? = null
-    private var videoView: VideoView? = null
+    private var videoView: VideoView? = null // 保留用于兼容性，实际使用 exoPlayerManager
+    private var exoPlayerManager: ExoPlayerManager? = null // ExoPlayer 管理器
     private var closeBtn: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
     private var isShowing = false
@@ -147,6 +152,48 @@ class SystemOverlayVideoManager(private val context: Context) {
         private const val MIN_SWIPE_DISTANCE = 50 // 最小滑动距离（像素）
         private const val SEEK_SPEED_FACTOR = 2.0f // 快进/后退速度因子
     }
+    
+    /**
+     * 辅助方法：获取当前播放位置
+     */
+    private fun getCurrentPosition(): Int {
+        return exoPlayerManager?.getCurrentPosition() ?: 0
+    }
+    
+    /**
+     * 辅助方法：获取视频总时长
+     */
+    private fun getDuration(): Int {
+        return exoPlayerManager?.getDuration() ?: 0
+    }
+    
+    /**
+     * 辅助方法：是否正在播放
+     */
+    private fun isVideoPlaying(): Boolean {
+        return exoPlayerManager?.isPlaying() ?: false
+    }
+    
+    /**
+     * 辅助方法：开始播放
+     */
+    private fun startVideo() {
+        exoPlayerManager?.start()
+    }
+    
+    /**
+     * 辅助方法：暂停播放
+     */
+    private fun pauseVideo() {
+        exoPlayerManager?.pause()
+    }
+    
+    /**
+     * 辅助方法：跳转到指定位置
+     */
+    private fun seekToVideo(position: Int) {
+        exoPlayerManager?.seekTo(position)
+    }
 
     init {
         if (context is Activity) {
@@ -220,7 +267,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             val url = videoUrl.trim()
             
             // 如果播放器已存在且是同一个视频URL，则重新显示并继续播放
-            if (isShowing && floatingView != null && videoView != null && currentVideoUrl == url) {
+            if (isShowing && floatingView != null && exoPlayerManager != null && currentVideoUrl == url) {
                 Log.d(TAG, "播放器已存在，重新显示并继续播放: $url")
                 floatingView?.visibility = View.VISIBLE
                 isShowing = true
@@ -231,9 +278,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
                 
                 // 如果视频已暂停，继续播放
-                videoView?.let { vv ->
-                    if (!vv.isPlaying && vv.duration > 0) {
-                        vv.start()
+                exoPlayerManager?.let { exo ->
+                    if (!exo.isPlaying() && exo.getDuration() > 0) {
+                        exo.start()
                         playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                         miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                         Log.d(TAG, "视频继续播放")
@@ -373,71 +420,34 @@ class SystemOverlayVideoManager(private val context: Context) {
             val title = pageTitle?.takeIf { it.isNotBlank() } ?: extractVideoTitle(url)
             playlistManager.addVideo(url, title, 0L, 0L)
             
-            // 设置视频源，对于 HTTP/HTTPS URL 使用 setVideoPath，对于 content:// 使用 setVideoURI
+            // 使用 ExoPlayer 设置视频源
             try {
-                val vv = videoView
-                if (vv == null) {
-                    Log.e(TAG, "videoView为null，无法设置视频源")
+                val exoManager = exoPlayerManager
+                if (exoManager == null) {
+                    Log.e(TAG, "ExoPlayerManager为null，无法设置视频源")
                     hide()
                     return
                 }
                 
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    // HTTP/HTTPS URL：直接使用 setVideoURI，避免 setVideoPath 内部调用 ContentResolver 导致失败
-                    // setVideoPath 内部会尝试通过 ContentResolver 打开，对于 HTTP URL 会失败
+                // ExoPlayer 统一使用 setVideoPath，内部会处理各种 URL 格式
+                exoManager.setVideoPath(url)
+                Log.d(TAG, "视频源已设置（ExoPlayer）: $url")
+                
+                // 设置监听器
+                exoManager.setOnPreparedListener {
                     try {
-                        vv.setVideoURI(Uri.parse(url))
-                        Log.d(TAG, "视频源已设置（setVideoURI）: $url")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "setVideoURI失败，尝试使用setVideoPath: $url", e)
-                        try {
-                            vv.setVideoPath(url)
-                            Log.d(TAG, "视频源已设置（setVideoPath）: $url")
-                        } catch (e2: Exception) {
-                            Log.e(TAG, "设置视频源失败: $url", e2)
-                            throw e2
-                        }
-                    }
-                } else if (url.startsWith("content://") || url.startsWith("file://")) {
-                    // Content URI 或 File URI：使用 setVideoURI
-                    vv.setVideoURI(Uri.parse(url))
-                    Log.d(TAG, "视频源已设置（setVideoURI）: $url")
-                } else {
-                    // 其他情况：尝试作为路径处理
-                    vv.setVideoPath(url)
-                    Log.d(TAG, "视频源已设置（setVideoPath）: $url")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "设置视频源失败: $url", e)
-                // 确保在主线程显示 Toast
-                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-                    Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
-                } else {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        Toast.makeText(context, "无法加载视频: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                hide()
-                return
-            }
-            
-            videoView?.setOnPreparedListener { mediaPlayer ->
-                try {
-                    mediaPlayer.isLooping = isLooping
-                    
-                    // 设置视频缩放模式（在视频准备完成后设置，使视频填满屏幕无空白）
-                    try {
-                        mediaPlayer.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+                        // 设置循环播放
+                        exoManager.setLooping(isLooping)
+                        
+                        // 设置视频缩放模式（ExoPlayer 使用 PlayerView 的 resizeMode）
+                        exoManager.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
                         Log.d(TAG, "已设置视频缩放模式为SCALE_TO_FIT_WITH_CROPPING")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "设置视频缩放模式失败", e)
-                    }
-                    
-                    // 检测视频尺寸和宽高比
-                    try {
-                        val newVideoWidth = mediaPlayer.videoWidth
-                        val newVideoHeight = mediaPlayer.videoHeight
-                        val newIsVideoPortrait = newVideoHeight > newVideoWidth
+                        
+                        // 检测视频尺寸和宽高比
+                        try {
+                            val newVideoWidth = exoManager.getVideoWidth()
+                            val newVideoHeight = exoManager.getVideoHeight()
+                            val newIsVideoPortrait = newVideoHeight > newVideoWidth
                         
                         // 如果视频方向发生变化（从竖屏切换到横屏或反之），需要重置状态
                         val videoOrientationChanged = (isVideoPortrait != newIsVideoPortrait) && (videoWidth > 0 && videoHeight > 0)
@@ -474,21 +484,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                                 floatingView?.layoutParams?.width = targetWidth
                                 floatingView?.layoutParams?.height = targetHeight
                                 
-                                // 确保VideoView填满整个容器（宽度和高度都填满，避免黑边）
-                                videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
-                                videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
-                                
-                                // 设置视频缩放模式，确保竖屏视频填满宽度（避免右边黑边）
-                                try {
-                                    val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
-                                    mediaPlayerField?.isAccessible = true
-                                    val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
-                                    // 使用 SCALE_TO_FIT_WITH_CROPPING 确保视频填满容器宽度，避免右边黑边
-                                    mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
-                                    Log.d(TAG, "竖屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING，确保宽度最大化，避免右边黑边")
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "设置视频缩放模式失败", e)
-                                }
+                                // ExoPlayer 的 PlayerView 会自动填满容器，无需手动设置
+                                // 缩放模式已在 onPrepared 中设置
+                                Log.d(TAG, "竖屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING，确保宽度最大化，避免右边黑边")
                                 
                                 windowManager?.updateViewLayout(floatingView, params)
                                 isFullscreen = false
@@ -516,8 +514,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     floatingView?.layoutParams?.width = currentScreenWidth
                                     floatingView?.layoutParams?.height = currentScreenHeight
                                     
-                                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
-                                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
+                                    // ExoPlayer 的 PlayerView 会自动填满容器
                                     
                                     windowManager?.updateViewLayout(floatingView, params)
                                     isFullscreen = true
@@ -545,20 +542,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     floatingView?.layoutParams?.width = targetWidth
                                     floatingView?.layoutParams?.height = targetHeight
                                     
-                                    // 确保VideoView填满容器（关键：避免黑色边）
-                                    videoView?.layoutParams?.width = FrameLayout.LayoutParams.MATCH_PARENT
-                                    videoView?.layoutParams?.height = FrameLayout.LayoutParams.MATCH_PARENT
-                                    
-                                    // 再次设置视频缩放模式，确保填满窗口（避免黑色边）
-                                    try {
-                                        val mediaPlayerField = videoView?.javaClass?.getDeclaredField("mMediaPlayer")
-                                        mediaPlayerField?.isAccessible = true
-                                        val mediaPlayer = mediaPlayerField?.get(videoView) as? android.media.MediaPlayer
-                                        mediaPlayer?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
-                                        Log.d(TAG, "横屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING")
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "设置视频缩放模式失败", e)
-                                    }
+                                    // ExoPlayer 的 PlayerView 会自动填满容器，缩放模式已在 onPrepared 中设置
+                                    Log.d(TAG, "横屏视频已设置缩放模式为SCALE_TO_FIT_WITH_CROPPING")
                                     
                                     windowManager?.updateViewLayout(floatingView, params)
                                     isFullscreen = false
@@ -581,7 +566,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                     }
                     
                     // 更新控制条状态
-                    val duration = mediaPlayer.duration
+                    val duration = exoManager.getDuration()
                     Log.d(TAG, "视频准备完成，时长: ${duration}ms")
                     
                     // 更新播放列表中的视频信息（保持原有标题）
@@ -626,16 +611,16 @@ class SystemOverlayVideoManager(private val context: Context) {
                     // 延迟一下再自动播放，确保VideoView已完全准备好
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         try {
-                            val vv = videoView
-                            if (vv != null) {
-                                if (!vv.isPlaying) {
+                            val exoManager = exoPlayerManager
+                            if (exoManager != null) {
+                                if (!exoManager.isPlaying()) {
                                     // 如果有恢复位置，先跳转到该位置
                                     if (resumePosition > 0) {
-                                        vv.seekTo(resumePosition.toInt())
+                                        exoManager.seekTo(resumePosition.toInt())
                                         Log.d(TAG, "已跳转到恢复位置: ${formatTime(resumePosition.toInt())}")
                                     }
                                     
-                                    vv.start()
+                                    exoManager.start()
                                     Log.d(TAG, "视频开始自动播放")
                                     
                                     // 启动进度更新任务
@@ -653,19 +638,19 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                     return
                                                 }
                                                 
-                                                val vv = videoView
-                                                if (vv != null) {
-                                                    // 检测假死：如果视频应该播放但进度不更新
-                                                    if (vv.isPlaying && vv.duration > 0) {
-                                                        val current = vv.currentPosition
-                                                        val total = vv.duration
+                                                val exoManager = exoPlayerManager
+                                                if (exoManager != null) {
+                                                    // ExoPlayer 更稳定，假死检测可以简化
+                                                    if (exoManager.isPlaying() && exoManager.getDuration() > 0) {
+                                                        val current = exoManager.getCurrentPosition()
+                                                        val total = exoManager.getDuration()
                                                         val progressPercent = (current * 100 / total).coerceIn(0, 100)
                                                         
-                                                        // 检测进度是否卡住
+                                                        // 检测进度是否卡住（ExoPlayer 更稳定，阈值可以放宽）
                                                         if (current == lastProgress && lastProgress > 0) {
                                                             stuckCount++
-                                                            if (stuckCount > 10) { // 5秒没有进度更新（10次 * 500ms）
-                                                                Log.w(TAG, "检测到视频假死，尝试重启")
+                                                            if (stuckCount > 20) { // 10秒没有进度更新（20次 * 500ms）
+                                                                Log.w(TAG, "检测到视频可能卡住，尝试重启")
                                                                 stuckCount = 0
                                                                 // 确保重启也在主线程执行
                                                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -733,8 +718,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                         } catch (e: Exception) {
                                                             Log.e(TAG, "检查屏幕方向变化失败", e)
                                                         }
-                                                    } else if (!vv.isPlaying && vv.duration > 0 && vv.currentPosition > 0) {
-                                                        // 视频应该播放但没有播放，可能是假死
+                                                    } else if (!exoManager.isPlaying() && exoManager.getDuration() > 0 && exoManager.getCurrentPosition() > 0) {
+                                                        // 视频应该播放但没有播放，可能是暂停或结束
                                                         stuckCount++
                                                         if (stuckCount > 6) { // 3秒
                                                             Log.w(TAG, "检测到视频停止播放，尝试重启")
@@ -775,30 +760,47 @@ class SystemOverlayVideoManager(private val context: Context) {
                         } catch (e: Exception) {
                             Log.e(TAG, "自动播放失败", e)
                         }
-                    }, 200) // 延迟200ms确保VideoView完全准备好
+                    }, 200) // 延迟200ms确保ExoPlayer完全准备好
                 } catch (e: Exception) {
                     Log.e(TAG, "视频准备监听器错误", e)
                 }
-            }
-            
-            videoView?.setOnCompletionListener {
-                Log.d(TAG, "视频播放完成，自动隐藏")
-                updateRunnable?.let { updateHandler?.removeCallbacks(it) }
-                playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
-                hide()
-            }
-            
-            videoView?.setOnErrorListener { _, what, extra ->
-                Log.e(TAG, "视频播放错误: what=$what, extra=$extra")
-                updateRunnable?.let { updateHandler?.removeCallbacks(it) }
-                // 不立即隐藏，而是尝试重启播放器（确保在主线程）
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    Toast.makeText(context, "视频播放错误，尝试重启...", Toast.LENGTH_SHORT).show()
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        restartVideoPlayer()
-                    }, 500)
+                } // 结束 setOnPreparedListener lambda
+                
+                // 设置播放完成监听器
+                exoManager.setOnCompletionListener {
+                    Log.d(TAG, "视频播放完成，自动隐藏")
+                    updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+                    playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                    miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                    hide()
                 }
-                true
+                
+                // 设置错误监听器
+                exoManager.setOnErrorListener { errorCode, extra ->
+                    Log.e(TAG, "视频播放错误: errorCode=$errorCode, extra=$extra")
+                    updateRunnable?.let { updateHandler?.removeCallbacks(it) }
+                    // 不立即隐藏，而是尝试重启播放器（确保在主线程）
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(context, "视频播放错误，尝试重启...", Toast.LENGTH_SHORT).show()
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            restartVideoPlayer()
+                        }, 500)
+                    }
+                    true
+                }
+                
+                // 设置视频尺寸变化监听器
+                exoManager.setOnVideoSizeChangedListener { width, height ->
+                    Log.d(TAG, "视频尺寸变化: ${width}x${height}")
+                    videoWidth = width
+                    videoHeight = height
+                    isVideoPortrait = height > width
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "设置视频源或监听器失败", e)
+                Toast.makeText(context, "设置视频源失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                hide()
+                return
             }
             
             floatingView?.visibility = View.VISIBLE
@@ -829,7 +831,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             // 停止视频播放
             try {
-                videoView?.stopPlayback()
+                exoPlayerManager?.stopPlayback()
             } catch (e: Exception) {
                 Log.w(TAG, "停止视频播放失败", e)
             }
@@ -854,9 +856,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             
             // 清理视频监听器
             try {
-                videoView?.setOnPreparedListener(null)
-                videoView?.setOnCompletionListener(null)
-                videoView?.setOnErrorListener(null)
+                exoPlayerManager?.setOnPreparedListener { }
+                exoPlayerManager?.setOnCompletionListener { }
+                exoPlayerManager?.setOnErrorListener { _, _ -> false }
             } catch (e: Exception) {
                 Log.w(TAG, "清理视频监听器失败", e)
             }
@@ -944,28 +946,18 @@ class SystemOverlayVideoManager(private val context: Context) {
             setBackgroundColor(0xFF000000.toInt())
         }
         
-        // 创建 VideoView
-        val vv = VideoView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            // 设置VideoView的缩放模式（通过反射设置MediaPlayer的缩放）
-            try {
-                // VideoView内部使用SurfaceView，我们需要确保视频填满容器
-                // 通过设置布局参数为MATCH_PARENT，视频会自动缩放
-            } catch (e: Exception) {
-                Log.w(TAG, "设置VideoView缩放模式失败", e)
-            }
-        }
+        // 创建 ExoPlayer 管理器
+        exoPlayerManager = ExoPlayerManager(context)
+        val playerView = exoPlayerManager!!.initialize(container)
         
-        container.addView(vv)
+        // 为了兼容性，保留 videoView 引用（但实际使用 ExoPlayer）
+        // 这样其他地方的代码可以继续工作
+        videoView = null // VideoView 不再使用
         
         // 创建自定义视频控制条（不依赖MediaController，因为系统级悬浮窗不支持）
-        createCustomControls(container, vv)
+        createCustomControls(container, null) // 传入 null，因为使用 ExoPlayer
         
         floatingView = container
-        videoView = vv
         
         // 创建 WindowManager.LayoutParams
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1075,8 +1067,10 @@ class SystemOverlayVideoManager(private val context: Context) {
     
     /**
      * 创建自定义视频控制条
+     * @param container 容器
+     * @param videoView VideoView（已废弃，保留用于兼容性，实际使用 ExoPlayer）
      */
-    private fun createCustomControls(container: FrameLayout, videoView: VideoView) {
+    private fun createCustomControls(container: FrameLayout, videoView: VideoView?) {
         // 创建顶部控制条容器（单行：全屏按钮、左侧时间、中间进度条、右侧关闭按钮）
         val topControlBarContainer = LinearLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -1140,18 +1134,20 @@ class SystemOverlayVideoManager(private val context: Context) {
             applyMaterialStyle(this)
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setOnClickListener {
-                val vv = videoView ?: return@setOnClickListener
+                val exoManager = exoPlayerManager ?: return@setOnClickListener
                 try {
-                    val isCurrentlyPlaying = vv.isPlaying
+                    val isCurrentlyPlaying = isVideoPlaying()
                     Log.d(TAG, "播放/暂停按钮点击，当前状态: isPlaying=$isCurrentlyPlaying")
                     
                     if (isCurrentlyPlaying) {
-                        vv.pause()
+                        pauseVideo()
                         setImageResource(android.R.drawable.ic_media_play)
+                        miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
                         Log.d(TAG, "视频已暂停")
                     } else {
-                vv.start()
+                        startVideo()
                         setImageResource(android.R.drawable.ic_media_pause)
+                        miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                         Log.d(TAG, "视频开始播放")
                         
                         // 如果进度更新任务没有运行，启动它
@@ -1160,10 +1156,10 @@ class SystemOverlayVideoManager(private val context: Context) {
                             updateRunnable = object : Runnable {
                                 override fun run() {
                                     try {
-                                        val vv = videoView
-                                        if (vv != null && vv.isPlaying && vv.duration > 0) {
-                                            val current = vv.currentPosition
-                                            val total = vv.duration
+                                        val exoManager = exoPlayerManager
+                                        if (exoManager != null && isVideoPlaying() && getDuration() > 0) {
+                                            val current = getCurrentPosition()
+                                            val total = getDuration()
                                             val progressPercent = (current * 100 / total).coerceIn(0, 100)
                                             progressBar?.progress = progressPercent
                                             currentTimeText?.text = formatTime(current)
@@ -1259,10 +1255,10 @@ class SystemOverlayVideoManager(private val context: Context) {
             setPadding(dpToPx(14), dpToPx(7), dpToPx(14), dpToPx(7))
             setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                    if (fromUser && videoView.duration > 0) {
-                        val position = (progress * videoView.duration / 100)
-                        videoView.seekTo(position)
-                        Log.d(TAG, "拖动进度条到: $position / ${videoView.duration}")
+                    if (fromUser && getDuration() > 0) {
+                        val position = (progress * getDuration() / 100)
+                        seekToVideo(position)
+                        Log.d(TAG, "拖动进度条到: $position / ${getDuration()}")
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {
@@ -1399,25 +1395,20 @@ class SystemOverlayVideoManager(private val context: Context) {
             setOnClickListener {
                 isLooping = !isLooping
                 try {
-                    val mediaPlayerField = VideoView::class.java.getDeclaredField("mMediaPlayer")
-                    mediaPlayerField.isAccessible = true
-                    val mediaPlayer = mediaPlayerField.get(videoView)
-                    if (mediaPlayer != null) {
-                        val setIsLoopingMethod = mediaPlayer.javaClass.getDeclaredMethod("setLooping", Boolean::class.java)
-                        setIsLoopingMethod.invoke(mediaPlayer, isLooping)
-                        
-                        // 更新按钮外观（重新设计）
-                        if (isLooping) {
-                            // 开启状态：使用 Material Design 的激活状态
-                            applyMaterialStyle(this, true)
-                            setColorFilter(0xFF4CAF50.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 绿色图标
-                        } else {
-                            // 关闭状态：使用默认样式
-                            applyMaterialStyle(this, false)
-                            setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 白色图标
-                        }
-                        Log.d(TAG, "循环播放已${if (isLooping) "开启" else "关闭"}")
+                    // 使用 ExoPlayer API，无需反射
+                    exoPlayerManager?.setLooping(isLooping)
+                    
+                    // 更新按钮外观（重新设计）
+                    if (isLooping) {
+                        // 开启状态：使用 Material Design 的激活状态
+                        applyMaterialStyle(this, true)
+                        setColorFilter(0xFF4CAF50.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 绿色图标
+                    } else {
+                        // 关闭状态：使用默认样式
+                        applyMaterialStyle(this, false)
+                        setColorFilter(0xFFFFFFFF.toInt(), android.graphics.PorterDuff.Mode.SRC_IN) // 白色图标
                     }
+                    Log.d(TAG, "循环播放已${if (isLooping) "开启" else "关闭"}")
                 } catch (e: Exception) {
                     Log.w(TAG, "设置循环播放失败", e)
                 }
@@ -1486,20 +1477,14 @@ class SystemOverlayVideoManager(private val context: Context) {
             setOnClickListener {
                 isMuted = !isMuted
                 try {
-                    // 通过反射获取MediaPlayer并设置音量
-                    val mediaPlayerField = VideoView::class.java.getDeclaredField("mMediaPlayer")
-                    mediaPlayerField.isAccessible = true
-                    val mediaPlayer = mediaPlayerField.get(videoView)
-                    if (mediaPlayer != null) {
-                        val setVolumeMethod = mediaPlayer.javaClass.getDeclaredMethod("setVolume", Float::class.java, Float::class.java)
-                        if (isMuted) {
-                            setVolumeMethod.invoke(mediaPlayer, 0f, 0f)
-                            setImageResource(android.R.drawable.ic_lock_silent_mode)
-        } else {
-                            setVolumeMethod.invoke(mediaPlayer, 1f, 1f)
-                            setImageResource(android.R.drawable.ic_lock_silent_mode_off)
-                        }
+                    // 使用 ExoPlayer API，无需反射
+                    exoPlayerManager?.setMuted(isMuted)
+                    if (isMuted) {
+                        setImageResource(android.R.drawable.ic_lock_silent_mode)
+                    } else {
+                        setImageResource(android.R.drawable.ic_lock_silent_mode_off)
                     }
+                    Log.d(TAG, "静音已${if (isMuted) "开启" else "关闭"}")
                 } catch (e: Exception) {
                     Log.w(TAG, "静音功能不可用", e)
                 }
@@ -1580,7 +1565,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         this.topControlBarContainer = topControlBarContainer
         
         // 初始化手势检测和音亮度控制
-        initGestureControls(container, videoView)
+        initGestureControls(container, null) // videoView 已废弃，使用 ExoPlayer
         
         // 为视频区域添加点击监听，用于显示/隐藏控制条（已由手势检测处理）
         // videoView.setOnClickListener {
@@ -1724,11 +1709,11 @@ class SystemOverlayVideoManager(private val context: Context) {
             // 迷你模式不显示进度条，topControlBarContainer 保持隐藏
             
             // 更新暂停/播放按钮图标以反映当前播放状态（使用View.post确保在视图创建线程中执行）
-            videoView?.let { vv ->
+            exoPlayerManager?.let { exo ->
                 miniModePlayPauseBtn?.let { btn ->
                     btn.post {
                         try {
-                            if (vv.isPlaying) {
+                            if (exo.isPlaying()) {
                                 btn.setImageResource(android.R.drawable.ic_media_pause)
                             } else {
                                 btn.setImageResource(android.R.drawable.ic_media_play)
@@ -1920,8 +1905,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                     setMargins(dpToPx(4), dpToPx(4), 0, 0)
                 }
                 // 根据当前播放状态设置图标
-                val vv = videoView
-                if (vv != null && vv.isPlaying) {
+                val exoManager = exoPlayerManager
+                if (exoManager != null && exoManager.isPlaying()) {
                     setImageResource(android.R.drawable.ic_media_pause)
                 } else {
                     setImageResource(android.R.drawable.ic_media_play)
@@ -1935,17 +1920,19 @@ class SystemOverlayVideoManager(private val context: Context) {
                 elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener {
                     Log.d(TAG, "迷你模式暂停/播放按钮被点击")
-                    val vv = videoView ?: return@setOnClickListener
+                    val exoManager = exoPlayerManager ?: return@setOnClickListener
                     try {
-                        if (vv.isPlaying) {
-                            vv.pause()
+                        if (exoManager.isPlaying()) {
+                            pauseVideo()
                             setImageResource(android.R.drawable.ic_media_play)
                             miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                            playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
                             Log.d(TAG, "视频已暂停")
                         } else {
-                            vv.start()
+                            startVideo()
                             setImageResource(android.R.drawable.ic_media_pause)
                             miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                            playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                             Log.d(TAG, "视频开始播放")
                         }
                     } catch (e: Exception) {
@@ -2365,7 +2352,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     /**
      * 初始化手势控制
      */
-    private fun initGestureControls(container: FrameLayout, videoView: VideoView) {
+    private fun initGestureControls(container: FrameLayout, videoView: VideoView?) {
         try {
             // 初始化音频管理器
             audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -2396,17 +2383,19 @@ class SystemOverlayVideoManager(private val context: Context) {
                     
                     // 双击暂停/播放（仅正常模式）
                     gestureHandled = true
-                    val vv = videoView
-                    if (vv != null) {
+                    val exoManager = exoPlayerManager
+                    if (exoManager != null) {
                         try {
-                            val isCurrentlyPlaying = vv.isPlaying
+                            val isCurrentlyPlaying = isVideoPlaying()
                             if (isCurrentlyPlaying) {
-                                vv.pause()
+                                pauseVideo()
                                 playPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
+                                miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_play)
                                 Log.d(TAG, "双击暂停视频")
                             } else {
-                                vv.start()
+                                startVideo()
                                 playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                                miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                                 Log.d(TAG, "双击播放视频")
                                 
                                 // 如果进度更新任务没有运行，启动它
@@ -2415,10 +2404,10 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     updateRunnable = object : Runnable {
                                         override fun run() {
                                             try {
-                                                val vv = videoView
-                                                if (vv != null && vv.isPlaying && vv.duration > 0) {
-                                                    val current = vv.currentPosition
-                                                    val total = vv.duration
+                                                val exoManager = exoPlayerManager
+                                                if (exoManager != null && isVideoPlaying() && getDuration() > 0) {
+                                                    val current = getCurrentPosition()
+                                                    val total = getDuration()
                                                     val progressPercent = (current * 100 / total).coerceIn(0, 100)
                                                     progressBar?.progress = progressPercent
                                                     currentTimeText?.text = formatTime(current)
@@ -2552,7 +2541,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                         // 记录起始位置和时间
                         seekStartX = event.x
                         seekStartY = event.y
-                        seekStartTime = videoView.currentPosition
+                        seekStartTime = getCurrentPosition()
                         touchDownTime = System.currentTimeMillis()
                         isSeeking = false
                         
@@ -2802,19 +2791,20 @@ class SystemOverlayVideoManager(private val context: Context) {
      */
     private fun handleSeek(deltaX: Float, containerWidth: Int) {
         try {
-            val vv = videoView ?: return
-            if (vv.duration <= 0) return
+            val exoManager = exoPlayerManager ?: return
+            val duration = getDuration()
+            if (duration <= 0) return
             
             // 计算快进/后退的时间（幅度越大，速度越快）
             val seekRatio = deltaX / containerWidth // 滑动距离占屏幕宽度的比例
-            val seekTime = (seekRatio * vv.duration * SEEK_SPEED_FACTOR).toInt()
-            val targetTime = (seekStartTime + seekTime).coerceIn(0, vv.duration)
+            val seekTime = (seekRatio * duration * SEEK_SPEED_FACTOR).toInt()
+            val targetTime = (seekStartTime + seekTime).coerceIn(0, duration)
             
             // 跳转到目标时间
-            vv.seekTo(targetTime)
+            seekToVideo(targetTime)
             
             // 更新进度条
-            val progressPercent = (targetTime * 100 / vv.duration).coerceIn(0, 100)
+            val progressPercent = (targetTime * 100 / duration).coerceIn(0, 100)
             progressBar?.progress = progressPercent
             currentTimeText?.text = formatTime(targetTime)
             
@@ -3090,6 +3080,9 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
             floatingView = null
             videoView = null
+            // 释放 ExoPlayer 资源
+            exoPlayerManager?.release()
+            exoPlayerManager = null
             closeBtn = null
             controlBar = null
             playPauseBtn = null
@@ -3563,28 +3556,22 @@ class SystemOverlayVideoManager(private val context: Context) {
             Toast.makeText(context, "正在重启播放器...", Toast.LENGTH_SHORT).show()
             
             // 保存当前播放位置
-            val currentPosition = videoView?.currentPosition ?: 0
-            val wasPlaying = videoView?.isPlaying ?: false
+            val currentPosition = getCurrentPosition()
+            val wasPlaying = isVideoPlaying()
             
             // 停止当前播放
-            videoView?.stopPlayback()
-            videoView?.setOnPreparedListener(null)
-            videoView?.setOnCompletionListener(null)
-            videoView?.setOnErrorListener(null)
+            exoPlayerManager?.stopPlayback()
+            exoPlayerManager?.setOnPreparedListener { }
+            exoPlayerManager?.setOnCompletionListener { }
+            exoPlayerManager?.setOnErrorListener { _, _ -> false }
             
             // 清理进度更新
             updateRunnable?.let { updateHandler?.removeCallbacks(it) }
             updateRunnable = null
             
-            // 重新设置视频源，对于 HTTP/HTTPS URL 使用 setVideoPath
+            // 重新设置视频源（使用 ExoPlayer）
             try {
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    videoView?.setVideoPath(url)
-                } else if (url.startsWith("content://") || url.startsWith("file://")) {
-                    videoView?.setVideoURI(Uri.parse(url))
-                } else {
-                    videoView?.setVideoPath(url)
-                }
+                exoPlayerManager?.setVideoPath(url)
                 Log.d(TAG, "重启时视频源已设置: $url")
             } catch (e: Exception) {
                 Log.e(TAG, "重启时设置视频源失败: $url", e)
@@ -3595,27 +3582,25 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
             
             // 重新设置监听器
-            videoView?.setOnPreparedListener { mediaPlayer ->
+            exoPlayerManager?.setOnPreparedListener {
                 try {
-                    mediaPlayer.isLooping = isLooping
+                    // 设置循环播放
+                    exoPlayerManager?.setLooping(isLooping)
                     
                     // 设置视频缩放模式
-                    try {
-                        mediaPlayer.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "设置视频缩放模式失败", e)
-                    }
+                    exoPlayerManager?.setVideoScalingMode(android.media.MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
                     
                     // 恢复播放位置
-                    if (currentPosition > 0 && currentPosition < mediaPlayer.duration) {
-                        mediaPlayer.seekTo(currentPosition)
+                    if (currentPosition > 0 && currentPosition < getDuration()) {
+                        seekToVideo(currentPosition)
                     }
                     
                     // 如果之前正在播放，继续播放
                     if (wasPlaying) {
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            videoView?.start()
+                            startVideo()
                             playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                            miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                         }, 100)
                     }
                     
@@ -3633,17 +3618,17 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     return
                                 }
                                 
-                                val vv = videoView
-                                if (vv != null && vv.isPlaying && vv.duration > 0) {
-                                    val current = vv.currentPosition
-                                    val total = vv.duration
+                                val exoManager = exoPlayerManager
+                                if (exoManager != null && isVideoPlaying() && getDuration() > 0) {
+                                    val current = getCurrentPosition()
+                                    val total = getDuration()
                                     val progressPercent = (current * 100 / total).coerceIn(0, 100)
                                     
-                                    // 检测假死
+                                    // 检测假死（ExoPlayer 更稳定，阈值放宽）
                                     if (current == lastProgress && lastProgress > 0) {
                                         stuckCount++
-                                        if (stuckCount > 10) {
-                                            Log.w(TAG, "检测到视频假死，尝试重启")
+                                        if (stuckCount > 20) {
+                                            Log.w(TAG, "检测到视频可能卡住，尝试重启")
                                             stuckCount = 0
                                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                 restartVideoPlayer()
@@ -3688,14 +3673,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
             }
             
-            videoView?.setOnErrorListener { _, what, extra ->
-                Log.e(TAG, "重启后视频播放错误: what=$what, extra=$extra")
+            exoPlayerManager?.setOnErrorListener { errorCode, extra ->
+                Log.e(TAG, "重启后视频播放错误: errorCode=$errorCode, extra=$extra")
                 Toast.makeText(context, "播放错误，请检查网络或视频源", Toast.LENGTH_LONG).show()
                 true
             }
-            
-            // 开始准备视频
-            videoView?.requestFocus()
             
         } catch (e: Exception) {
             Log.e(TAG, "重启视频播放器失败", e)
@@ -3729,22 +3711,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                     playbackSpeed = selectedSpeed
                     speedBtn?.text = "${playbackSpeed}x"
                     
-                    // 应用播放速度
+                    // 应用播放速度（使用 ExoPlayer API，无需反射，全版本支持）
                     try {
-                        val mediaPlayerField = VideoView::class.java.getDeclaredField("mMediaPlayer")
-                        mediaPlayerField.isAccessible = true
-                        val mediaPlayer = mediaPlayerField.get(videoView)
-                        if (mediaPlayer != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                            val setPlaybackParamsMethod = mediaPlayer.javaClass.getDeclaredMethod("setPlaybackParams", android.media.PlaybackParams::class.java)
-                            val params = android.media.PlaybackParams()
-                            params.speed = playbackSpeed
-                            setPlaybackParamsMethod.invoke(mediaPlayer, params)
-                            Log.d(TAG, "播放速度已设置为: ${playbackSpeed}x")
-                            Toast.makeText(context, "播放速度: ${playbackSpeed}x", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Log.w(TAG, "当前Android版本不支持播放速度调整")
-                            Toast.makeText(context, "当前版本不支持播放速度调整", Toast.LENGTH_SHORT).show()
-                        }
+                        exoPlayerManager?.setPlaybackSpeed(selectedSpeed)
+                        Log.d(TAG, "播放速度已设置为: ${playbackSpeed}x")
+                        Toast.makeText(context, "播放速度: ${playbackSpeed}x", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         Log.w(TAG, "设置播放速度失败", e)
                         Toast.makeText(context, "设置播放速度失败", Toast.LENGTH_SHORT).show()
@@ -3773,15 +3744,15 @@ class SystemOverlayVideoManager(private val context: Context) {
             return false
         }
         
-        if (!isShowing || videoView == null || currentVideoUrl.isNullOrBlank()) {
+        if (!isShowing || exoPlayerManager == null || currentVideoUrl.isNullOrBlank()) {
             Log.w(TAG, "视频未播放，无法进入 PiP 模式")
             Toast.makeText(context, "请先播放视频", Toast.LENGTH_SHORT).show()
             return false
         }
         
         try {
-            val vv = videoView ?: return false
-            val currentPosition = vv.currentPosition
+            val exoManager = exoPlayerManager ?: return false
+            val currentPosition = exoManager.getCurrentPosition()
             
             // 获取视频标题
             val existingItem = playlistManager.getPlaylist().firstOrNull { it.url == currentVideoUrl }

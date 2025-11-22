@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.annotation.RequiresApi
+import androidx.media3.common.util.UnstableApi
 import com.example.aifloatingball.R
 
 /**
@@ -34,6 +35,7 @@ import com.example.aifloatingball.R
  * 
  * @author AI Floating Ball
  */
+@UnstableApi
 class PictureInPictureActivity : Activity() {
 
     companion object {
@@ -51,7 +53,8 @@ class PictureInPictureActivity : Activity() {
         private const val ACTION_EXPAND = 4
     }
 
-    private var videoView: VideoView? = null
+    private var videoView: VideoView? = null // 保留用于兼容性，实际使用 exoPlayerManager
+    private var exoPlayerManager: ExoPlayerManager? = null // ExoPlayer 管理器
     private var container: FrameLayout? = null
     
     // 控制按钮
@@ -127,14 +130,10 @@ class PictureInPictureActivity : Activity() {
             setBackgroundColor(0xFF000000.toInt())
         }
         
-        // 创建 VideoView
-        videoView = VideoView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-        container?.addView(videoView)
+        // 创建 ExoPlayer 管理器
+        exoPlayerManager = ExoPlayerManager(this)
+        val playerView = exoPlayerManager!!.initialize(container!!)
+        // videoView 不再使用，保留为 null
         
         // 创建控制条容器
         controlsContainer = FrameLayout(this).apply {
@@ -313,25 +312,25 @@ class PictureInPictureActivity : Activity() {
      * 设置视频源
      */
     private fun setupVideo() {
-        val vv = videoView ?: return
+        val exoManager = exoPlayerManager ?: return
         val url = videoUrl ?: return
         
         try {
-            vv.setVideoURI(Uri.parse(url))
+            exoManager.setVideoPath(url)
             
             // 设置播放监听
-            vv.setOnPreparedListener {
+            exoManager.setOnPreparedListener {
                 Log.d(TAG, "视频准备完成")
                 if (savedPosition > 0) {
-                    vv.seekTo(savedPosition)
+                    exoManager.seekTo(savedPosition)
                 }
-                vv.start()
+                exoManager.start()
                 isPlaying = true
                 updatePlayPauseButton()
                 updateTimeDisplay()
             }
             
-            vv.setOnCompletionListener {
+            exoManager.setOnCompletionListener {
                 Log.d(TAG, "视频播放完成")
                 isPlaying = false
                 updatePlayPauseButton()
@@ -341,8 +340,8 @@ class PictureInPictureActivity : Activity() {
                 }
             }
             
-            vv.setOnErrorListener { _, what, extra ->
-                Log.e(TAG, "视频播放错误: what=$what, extra=$extra")
+            exoManager.setOnErrorListener { errorCode, extra ->
+                Log.e(TAG, "视频播放错误: errorCode=$errorCode, extra=$extra")
                 Toast.makeText(this, "视频播放错误", Toast.LENGTH_SHORT).show()
                 true
             }
@@ -357,13 +356,13 @@ class PictureInPictureActivity : Activity() {
      * 切换播放/暂停
      */
     private fun togglePlayPause() {
-        val vv = videoView ?: return
+        val exoManager = exoPlayerManager ?: return
         try {
-            if (vv.isPlaying) {
-                vv.pause()
+            if (exoManager.isPlaying()) {
+                exoManager.pause()
                 isPlaying = false
             } else {
-                vv.start()
+                exoManager.start()
                 isPlaying = true
             }
             updatePlayPauseButton()
@@ -386,9 +385,9 @@ class PictureInPictureActivity : Activity() {
      * 更新进度条和时间显示
      */
     private fun updateTimeDisplay() {
-        val vv = videoView ?: return
-        val duration = vv.duration
-        val currentPosition = vv.currentPosition
+        val exoManager = exoPlayerManager ?: return
+        val duration = exoManager.getDuration()
+        val currentPosition = exoManager.getCurrentPosition()
         
         if (duration > 0) {
             // 更新进度条
@@ -512,9 +511,9 @@ class PictureInPictureActivity : Activity() {
         }
         
         try {
-            val vv = videoView ?: return
-            val videoWidth = vv.width
-            val videoHeight = vv.height
+            val exoManager = exoPlayerManager ?: return
+            val videoWidth = exoManager.getVideoWidth()
+            val videoHeight = exoManager.getVideoHeight()
             
             // 计算宽高比（默认 16:9）
             val aspectRatio = if (videoWidth > 0 && videoHeight > 0) {
@@ -565,7 +564,7 @@ class PictureInPictureActivity : Activity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // 用户按 Home 键时，如果支持 PiP 且视频正在播放，自动进入 PiP 模式
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && videoView != null && isPlaying) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && exoPlayerManager != null && isPlaying) {
             // 调用自定义的 startPictureInPicture 方法
             startPictureInPicture()
         }
@@ -590,9 +589,9 @@ class PictureInPictureActivity : Activity() {
         super.onConfigurationChanged(newConfig)
         // PiP 模式下配置变化时，更新 PiP 参数
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPictureInPictureMode) {
-            val vv = videoView ?: return
-            val videoWidth = vv.width
-            val videoHeight = vv.height
+            val exoManager = exoPlayerManager ?: return
+            val videoWidth = exoManager.getVideoWidth()
+            val videoHeight = exoManager.getVideoHeight()
             
             val aspectRatio = if (videoWidth > 0 && videoHeight > 0) {
                 Rational(videoWidth, videoHeight)
@@ -611,18 +610,18 @@ class PictureInPictureActivity : Activity() {
     override fun onPause() {
         super.onPause()
         // 暂停时保存播放位置
-        val vv = videoView ?: return
-        if (vv.isPlaying) {
-            savedPosition = vv.currentPosition
+        val exoManager = exoPlayerManager ?: return
+        if (exoManager.isPlaying()) {
+            savedPosition = exoManager.getCurrentPosition()
         }
     }
 
     override fun onResume() {
         super.onResume()
         // 恢复时恢复播放位置
-        val vv = videoView ?: return
+        val exoManager = exoPlayerManager ?: return
         if (savedPosition > 0 && !isInPictureInPictureMode) {
-            vv.seekTo(savedPosition)
+            exoManager.seekTo(savedPosition)
         }
     }
 
@@ -634,7 +633,9 @@ class PictureInPictureActivity : Activity() {
         updateHandler?.removeCallbacks(updateRunnable!!)
         hideControlsHandler?.removeCallbacks(hideControlsRunnable!!)
         
-        videoView?.stopPlayback()
+        exoPlayerManager?.stopPlayback()
+        exoPlayerManager?.release()
+        exoPlayerManager = null
         videoView = null
     }
 

@@ -152,6 +152,18 @@ dependencies {
     // Lottie for animations
     def lottieVersion = "5.2.0"
     implementation "com.airbnb.android:lottie:$lottieVersion"
+    
+    // ExoPlayer - 视频播放器（替代 VideoView）
+    def media3_version = "1.2.0"
+    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation "androidx.media3:media3-ui:$media3_version"
+    implementation "androidx.media3:media3-common:$media3_version"
+    // DASH 流媒体支持
+    implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
+    // HLS 流媒体支持
+    implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
+    // SmoothStreaming 支持
+    implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
 }
 
 tasks.withType(JavaCompile).configureEach {
