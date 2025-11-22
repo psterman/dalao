@@ -187,11 +187,21 @@
             android:theme="@style/Theme.AIFloatingBall"
             android:exported="false" />
             
-        <!-- 内置图片查看器 -->
-        <activity android:name=".viewer.ImageViewerActivity"
-            android:theme="@style/Theme.AIFloatingBall.NoActionBar"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
+               <!-- 内置图片查看器 -->
+               <activity android:name=".viewer.ImageViewerActivity"
+                   android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+                   android:exported="false"
+                   android:screenOrientation="unspecified" />
+
+               <!-- 画中画 (PiP) 模式 Activity -->
+               <activity
+                   android:name=".video.PictureInPictureActivity"
+                   android:exported="false"
+                   android:launchMode="singleTask"
+                   android:supportsPictureInPicture="true"
+                   android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|navigation"
+                   android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+                   android:resizeableActivity="true" />
             
         <!-- 文件阅读器 -->
         <activity android:name=".viewer.FileReaderActivity"

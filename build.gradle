@@ -38,11 +38,19 @@ subprojects {
 
 allprojects {
     repositories {
+        // 优先使用Maven Central
+        mavenCentral()
+        google()
+        // 添加4th Line仓库（包含Cling库）
+        maven { url = uri("http://4thline.org/m2/") }
+        // 添加Sonatype仓库（备用）
+        maven { url = uri("https://oss.sonatype.org/content/repositories/releases/") }
+        // 阿里云镜像（备用）
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/jcenter") }
-        google()
-        mavenCentral()
+        // 添加JitPack仓库（备用）
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

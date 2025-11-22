@@ -135,6 +135,14 @@
 -dontwarn javax.inject.**
 -dontwarn sun.misc.**
 -dontwarn org.conscrypt.**
+-dontwarn javax.servlet.**
+
+# ==================== Cling DLNA 库 ====================
+-keep class org.fourthline.cling.** { *; }
+-dontwarn org.fourthline.cling.**
+-keep class javax.servlet.** { *; }
+-keep class org.eclipse.jetty.** { *; }
+-dontwarn org.eclipse.jetty.**
 
 
 

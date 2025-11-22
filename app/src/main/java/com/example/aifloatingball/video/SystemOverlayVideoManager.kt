@@ -60,6 +60,12 @@ class SystemOverlayVideoManager(private val context: Context) {
     private val playlistManager: VideoPlaylistManager by lazy {
         VideoPlaylistManager(context)
     }
+    
+    // 播放历史管理器（断点续播）
+    private val playbackHistoryManager: PlaybackHistoryManager by lazy {
+        PlaybackHistoryManager(context)
+    }
+
 
     // 拖拽相关
     private var dX = 0f
@@ -78,6 +84,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var speedBtn: Button? = null
     private var loopBtn: ImageButton? = null
     private var playlistBtn: ImageButton? = null
+    private var pipBtn: ImageButton? = null // 画中画按钮
     
     // 迷你模式相关（拖拽到屏幕中间以下时启用）
     private var isMiniMode = false
@@ -591,6 +598,28 @@ class SystemOverlayVideoManager(private val context: Context) {
                         totalTimeText?.text = formatTime(duration)
                     }
                     
+                    // 断点续播：检查播放历史并恢复上次播放位置
+                    var resumePosition = 0L
+                    try {
+                        val currentUrl = currentVideoUrl
+                        if (currentUrl != null) {
+                            val history = playbackHistoryManager.getPlaybackHistory(currentUrl)
+                            if (history != null && history.shouldResume()) {
+                                resumePosition = history.position
+                                Log.d(TAG, "发现播放历史，恢复到: ${formatTime(resumePosition.toInt())} (${history.getProgressPercent()}%)")
+                                
+                                // 显示提示
+                                Toast.makeText(
+                                    context,
+                                    "继续播放: ${formatTime(resumePosition.toInt())}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "恢复播放位置失败", e)
+                    }
+                    
                     // 更新播放按钮状态为暂停图标（因为即将播放）
                     playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
                     
@@ -600,6 +629,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                             val vv = videoView
                             if (vv != null) {
                                 if (!vv.isPlaying) {
+                                    // 如果有恢复位置，先跳转到该位置
+                                    if (resumePosition > 0) {
+                                        vv.seekTo(resumePosition.toInt())
+                                        Log.d(TAG, "已跳转到恢复位置: ${formatTime(resumePosition.toInt())}")
+                                    }
+                                    
                                     vv.start()
                                     Log.d(TAG, "视频开始自动播放")
                                     
@@ -608,6 +643,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                                     updateRunnable = object : Runnable {
                                         private var lastProgress = -1
                                         private var stuckCount = 0
+                                        private var saveProgressCounter = 0 // 保存进度计数器
                                         
                                         override fun run() {
                                             try {
@@ -667,6 +703,28 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                             }
                                                         } catch (e: Exception) {
                                                             Log.e(TAG, "更新UI失败", e)
+                                                        }
+                                                        
+                                                        // 定期保存播放进度（每10秒保存一次）
+                                                        saveProgressCounter++
+                                                        if (saveProgressCounter >= 20) { // 20次 * 500ms = 10秒
+                                                            saveProgressCounter = 0
+                                                            try {
+                                                                val currentUrl = currentVideoUrl
+                                                                if (currentUrl != null) {
+                                                                    val existingItem = playlistManager.getPlaylist().firstOrNull { it.url == currentUrl }
+                                                                    val videoTitle = existingItem?.title ?: extractVideoTitle(currentUrl)
+                                                                    playbackHistoryManager.savePlaybackProgress(
+                                                                        videoUrl = currentUrl,
+                                                                        videoTitle = videoTitle,
+                                                                        position = current.toLong(),
+                                                                        duration = total.toLong()
+                                                                    )
+                                                                    Log.d(TAG, "已保存播放进度: ${formatTime(current)}/${formatTime(total)}")
+                                                                }
+                                                            } catch (e: Exception) {
+                                                                Log.e(TAG, "保存播放进度失败", e)
+                                                            }
                                                         }
                                                         
                                                         // 检查屏幕方向变化（实时检测）- 确保在主线程
@@ -1019,7 +1077,7 @@ class SystemOverlayVideoManager(private val context: Context) {
      * 创建自定义视频控制条
      */
     private fun createCustomControls(container: FrameLayout, videoView: VideoView) {
-        // 创建顶部控制条容器（单行：全屏/投屏按钮、左侧时间、中间进度条、右侧关闭按钮）
+        // 创建顶部控制条容器（单行：全屏按钮、左侧时间、中间进度条、右侧关闭按钮）
         val topControlBarContainer = LinearLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1456,6 +1514,27 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(speedBtn)
         buttonRow.addView(loopBtn)
         // 全屏按钮已移除，不再添加
+        
+        // 创建画中画按钮（Android 8.0+）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipBtn = ImageButton(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    dpToPx(40),
+                    dpToPx(40)
+                ).apply {
+                    setMargins(dpToPx(4), 0, dpToPx(4), 0)
+                }
+                setImageResource(android.R.drawable.ic_menu_crop) // 可以替换为自定义 PiP 图标
+                applyMaterialStyle(this)
+                setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+                contentDescription = "画中画"
+                setOnClickListener {
+                    enterPictureInPictureMode()
+                }
+            }
+            buttonRow.addView(pipBtn)
+        }
+        
         buttonRow.addView(downloadBtn)
         buttonRow.addView(shareBtn)
         
@@ -1904,7 +1983,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             container.addView(miniModeRestoreBtn)
             miniModeRestoreBtn?.bringToFront() // 确保按钮在最上层
             
-            // 创建拉伸按钮（全屏，右下角）
+            // 创建拉伸按钮（进入 PiP 模式，右下角）
             miniModeExpandBtn = ImageButton(context).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     dpToPx(32),
@@ -1913,7 +1992,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                 ).apply {
                     setMargins(0, 0, dpToPx(4), dpToPx(4))
                 }
-                setImageResource(android.R.drawable.ic_menu_crop)
+                // 使用 PiP 图标（如果可用）或全屏图标
+                setImageResource(
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        android.R.drawable.ic_menu_crop // 可以替换为自定义 PiP 图标
+                    } else {
+                        android.R.drawable.ic_menu_crop
+                    }
+                )
                 setBackgroundColor(0xCC000000.toInt())
                 setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
                 // 确保按钮可以接收点击事件
@@ -1922,8 +2008,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                 isEnabled = true
                 elevation = dpToPx(4).toFloat() // 确保按钮在最上层
                 setOnClickListener { 
-                    Log.d(TAG, "迷你模式拉伸按钮被点击")
-                    toggleFullscreen() 
+                    Log.d(TAG, "迷你模式拉伸按钮被点击（进入 PiP）")
+                    // 优先尝试进入 PiP 模式，如果不支持则全屏
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        enterPictureInPictureMode()
+                    } else {
+                        toggleFullscreen()
+                    }
                 }
                 visibility = View.GONE
             }
@@ -3666,6 +3757,55 @@ class SystemOverlayVideoManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "显示播放速度菜单失败", e)
             Toast.makeText(context, "显示菜单失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 进入画中画 (PiP) 模式
+     * 使用 Android 8.0+ 原生 PiP API
+     * 
+     * @return 是否成功启动 PiP
+     */
+    fun enterPictureInPictureMode(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Log.w(TAG, "当前 Android 版本不支持 PiP (需要 Android 8.0+)")
+            Toast.makeText(context, "当前 Android 版本不支持画中画模式", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        
+        if (!isShowing || videoView == null || currentVideoUrl.isNullOrBlank()) {
+            Log.w(TAG, "视频未播放，无法进入 PiP 模式")
+            Toast.makeText(context, "请先播放视频", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        
+        try {
+            val vv = videoView ?: return false
+            val currentPosition = vv.currentPosition
+            
+            // 获取视频标题
+            val existingItem = playlistManager.getPlaylist().firstOrNull { it.url == currentVideoUrl }
+            val videoTitle = existingItem?.title ?: extractVideoTitle(currentVideoUrl ?: "")
+            
+            // 启动 PiP Activity
+            val intent = Intent(context, PictureInPictureActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(PictureInPictureActivity.EXTRA_VIDEO_URL, currentVideoUrl)
+                putExtra(PictureInPictureActivity.EXTRA_VIDEO_TITLE, videoTitle)
+                putExtra(PictureInPictureActivity.EXTRA_VIDEO_POSITION, currentPosition)
+            }
+            
+            context.startActivity(intent)
+            
+            // 隐藏当前悬浮窗（PiP Activity 会接管播放）
+            hide()
+            
+            Log.d(TAG, "已启动画中画模式: $videoTitle, 位置: $currentPosition ms")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "进入画中画模式失败", e)
+            Toast.makeText(context, "进入画中画模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            return false
         }
     }
     

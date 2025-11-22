@@ -14,6 +14,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // 添加4th Line仓库（包含Cling库，允许不安全的HTTP连接）
+        maven {
+            url 'http://4thline.org/m2/'
+            allowInsecureProtocol = true
+        }
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/jcenter' }
