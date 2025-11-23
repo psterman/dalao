@@ -98,18 +98,15 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var topControlBarContainer: ViewGroup? = null
     private var playPauseBtn: ImageButton? = null
     private var muteBtn: ImageButton? = null
-    private var fullscreenBtn: ImageButton? = null
     private var speedBtn: Button? = null
     private var loopBtn: ImageButton? = null
     private var playlistBtn: ImageButton? = null
-    private var pipBtn: ImageButton? = null // 画中画按钮
     
     // 迷你模式相关（拖拽到屏幕中间以下时启用）
     private var isMiniMode = false
     private var miniModeCloseBtn: ImageButton? = null
     private var miniModePlayPauseBtn: ImageButton? = null
     private var miniModeRestoreBtn: ImageButton? = null
-    private var miniModeExpandBtn: ImageButton? = null
     private var progressBar: android.widget.SeekBar? = null
     private var isMiniModeControlsVisible = false // 迷你模式下按钮和进度条的显示状态
     private var currentTimeText: android.widget.TextView? = null // 当前播放时间（左侧）
@@ -152,6 +149,8 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var currentBrightness = 0f
     private var isSeeking = false // 是否正在快进/后退
     private var isDraggingProgressBar = false // 是否正在拖动进度条（用于防止卡顿检测误判）
+    private var isTogglingFullscreen = false // 是否正在切换全屏（用于防止卡顿检测误判）
+    private var isEnteringPipMode = false // 是否正在进入画中画模式（防止重复点击）
     private var seekStartX = 0f // 快进/后退起始X坐标
     private var seekStartY = 0f // 滑动起始Y坐标
     private var seekStartTime = 0 // 快进/后退起始时间
@@ -698,8 +697,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                 
                                                 val exoManager = exoPlayerManager
                                                 if (exoManager != null) {
-                                                    // 如果正在拖动进度条，跳过卡顿检测（避免误判）
-                                                    if (isDraggingProgressBar) {
+                                                    // 如果正在拖动进度条或切换全屏，跳过卡顿检测（避免误判）
+                                                    if (isDraggingProgressBar || isTogglingFullscreen) {
                                                         stuckCount = 0 // 重置卡顿计数
                                                         lastProgress = -1 // 重置上次进度，避免拖动结束后立即触发卡顿检测
                                                         updateHandler?.postDelayed(this, 500)
@@ -1483,9 +1482,6 @@ class SystemOverlayVideoManager(private val context: Context) {
         // 保存关闭按钮引用
         this.closeBtn = closeBtn
         
-        // 保存全屏按钮引用（用于后续更新图标）
-        this.fullscreenBtn = topFullscreenBtn
-        
         // 创建播放速度按钮（Material Design风格）
         speedBtn = Button(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -1643,34 +1639,10 @@ class SystemOverlayVideoManager(private val context: Context) {
             }
         }
         
-        // 全屏按钮现在在顶部控制条，不再单独设置
-        // fullscreenBtn 已在上面设置为 topFullscreenBtn
-        
         // 添加按钮到第二行
         buttonRow.addView(playPauseBtn)
         buttonRow.addView(speedBtn)
         buttonRow.addView(loopBtn)
-        // 全屏按钮已移除，不再添加
-        
-        // 创建画中画按钮（Android 8.0+）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipBtn = ImageButton(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    dpToPx(40),
-                    dpToPx(40)
-                ).apply {
-                    setMargins(dpToPx(4), 0, dpToPx(4), 0)
-                }
-                setImageResource(android.R.drawable.ic_menu_crop) // 可以替换为自定义 PiP 图标
-                applyMaterialStyle(this)
-                setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-                contentDescription = "画中画"
-                setOnClickListener {
-                    enterPictureInPictureMode()
-                }
-            }
-            buttonRow.addView(pipBtn)
-        }
         
         buttonRow.addView(downloadBtn)
         buttonRow.addView(shareBtn)
@@ -1686,8 +1658,7 @@ class SystemOverlayVideoManager(private val context: Context) {
         buttonRow.addView(spacer)
         
         buttonRow.addView(muteBtn)
-        // 下方全屏按钮替换成播放列表按钮
-        buttonRow.addView(playlistBtn) // 播放列表按钮替换原来的全屏按钮位置
+        buttonRow.addView(playlistBtn) // 播放列表按钮
         
         // 添加重启按钮（用于修复假死问题）
         val restartBtn = ImageButton(context).apply {
@@ -1830,7 +1801,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             miniModeCloseBtn?.visibility = View.GONE
             miniModePlayPauseBtn?.visibility = View.GONE
             miniModeRestoreBtn?.visibility = View.GONE
-            miniModeExpandBtn?.visibility = View.GONE
             
             // 恢复正常模式的所有控制条和按钮（调用showControls确保所有按钮都显示）
             showControls()
@@ -1881,12 +1851,11 @@ class SystemOverlayVideoManager(private val context: Context) {
                 }
             }
             
-            // 显示四个按钮（带淡入动画，使用View.post确保在视图创建线程中执行）
+            // 显示三个按钮（带淡入动画，使用View.post确保在视图创建线程中执行）
             val buttons = listOf(
                 miniModeCloseBtn,
                 miniModePlayPauseBtn,
-                miniModeRestoreBtn,
-                miniModeExpandBtn
+                miniModeRestoreBtn
             )
             
             buttons.forEach { button ->
@@ -1950,12 +1919,11 @@ class SystemOverlayVideoManager(private val context: Context) {
             // 隐藏 topControlBarContainer（包含进度条）- 迷你模式不显示进度条，所以不需要隐藏
             // topControlBarContainer 在进入迷你模式时已经隐藏了
             
-            // 隐藏四个按钮（带淡出动画）
+            // 隐藏三个按钮（带淡出动画）
             val buttons = listOf(
                 miniModeCloseBtn,
                 miniModePlayPauseBtn,
-                miniModeRestoreBtn,
-                miniModeExpandBtn
+                miniModeRestoreBtn
             )
             
             buttons.forEach { button ->
@@ -2126,44 +2094,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             container.addView(miniModeRestoreBtn)
             miniModeRestoreBtn?.bringToFront() // 确保按钮在最上层
             
-            // 创建拉伸按钮（进入 PiP 模式，右下角）
-            miniModeExpandBtn = ImageButton(context).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    dpToPx(32),
-                    dpToPx(32),
-                    Gravity.BOTTOM or Gravity.END
-                ).apply {
-                    setMargins(0, 0, dpToPx(4), dpToPx(4))
-                }
-                // 使用 PiP 图标（如果可用）或全屏图标
-                setImageResource(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        android.R.drawable.ic_menu_crop // 可以替换为自定义 PiP 图标
-                    } else {
-                        android.R.drawable.ic_menu_crop
-                    }
-                )
-                setBackgroundColor(0xCC000000.toInt())
-                setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-                // 确保按钮可以接收点击事件
-                isClickable = true
-                isFocusable = true
-                isEnabled = true
-                elevation = dpToPx(4).toFloat() // 确保按钮在最上层
-                setOnClickListener { 
-                    Log.d(TAG, "迷你模式拉伸按钮被点击（进入 PiP）")
-                    // 优先尝试进入 PiP 模式，如果不支持则全屏
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        enterPictureInPictureMode()
-                    } else {
-                        toggleFullscreen()
-                    }
-                }
-                visibility = View.GONE
-            }
-            container.addView(miniModeExpandBtn)
-            miniModeExpandBtn?.bringToFront() // 确保按钮在最上层
-            
             Log.d(TAG, "迷你模式按钮已创建")
         } catch (e: Exception) {
             Log.e(TAG, "创建迷你模式按钮失败", e)
@@ -2295,6 +2225,45 @@ class SystemOverlayVideoManager(private val context: Context) {
         try {
             if (params == null || floatingView == null || windowManager == null) return
             
+            // 保存切换前的播放状态和位置
+            val exoManager = exoPlayerManager
+            val wasPlaying = exoManager?.isPlaying() ?: false
+            val currentPosition = exoManager?.getCurrentPosition() ?: 0
+            
+            // 标记正在切换全屏（防止卡顿检测误判）
+            isTogglingFullscreen = true
+            
+            // 关键优化：在全屏切换前先暂停播放，避免布局变化时卡顿
+            // 使用更平滑的方式：先暂停，等待一小段时间让播放器稳定
+            if (wasPlaying && exoManager != null) {
+                exoManager.pause()
+                // 等待播放器完全暂停，避免在暂停过程中切换布局
+                // 增加延迟时间到 100ms，确保播放器完全暂停并稳定
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    performFullscreenToggle(exoManager, wasPlaying, currentPosition)
+                }, 100) // 延迟 100ms，确保播放器完全暂停
+                return // 提前返回，避免立即执行后续代码
+            } else {
+                // 如果不在播放，直接执行切换
+                performFullscreenToggle(exoManager, wasPlaying, currentPosition)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换全屏模式失败", e)
+            Toast.makeText(context, "切换全屏失败", Toast.LENGTH_SHORT).show()
+            isTogglingFullscreen = false
+        }
+    }
+    
+    /**
+     * 执行全屏切换（内部方法，在暂停后调用）
+     */
+    private fun performFullscreenToggle(exoManager: ExoPlayerManager?, wasPlaying: Boolean, currentPosition: Int) {
+        try {
+            if (params == null || floatingView == null || windowManager == null) {
+                isTogglingFullscreen = false
+                return
+            }
+            
             isFullscreen = !isFullscreen
             
             if (isFullscreen) {
@@ -2320,6 +2289,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                 floatingView?.layoutParams?.width = params?.width ?: screenWidth
                 floatingView?.layoutParams?.height = params?.height ?: screenHeight
                 
+                // 强制刷新 PlayerView 布局（确保 ExoPlayer 正确适应新尺寸）
+                // 使用 post 延迟执行，避免在布局更新过程中影响视频播放
+                exoManager?.getPlayerView()?.let { playerView ->
+                    playerView.post {
+                        playerView.requestLayout()
+                        playerView.invalidate()
+                    }
+                }
+                
                 // 调整控制条位置（全屏时紧贴屏幕边缘，无空白）
                 controlBar?.layoutParams?.let { layoutParams ->
                     if (layoutParams is FrameLayout.LayoutParams) {
@@ -2337,7 +2315,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 // 全屏时，确保退出全屏按钮可见
                 adjustFullscreenControls()
                 
-                // 全屏按钮已移除，只更新顶部全屏按钮图标
+                // 更新顶部全屏按钮图标
                 topControlBarContainer?.let { container ->
                     if (container.childCount > 0) {
                         val topFullscreenBtn = container.getChildAt(0) as? ImageButton
@@ -2365,6 +2343,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                     floatingView?.layoutParams?.width = windowWidth
                     floatingView?.layoutParams?.height = windowHeight
                     
+                    // 强制刷新 PlayerView 布局（确保 ExoPlayer 正确适应新尺寸）
+                    exoManager?.getPlayerView()?.let { playerView ->
+                        playerView.requestLayout()
+                        playerView.invalidate()
+                    }
+                    
                     // 更新原始尺寸
                     originalWidth = windowWidth
                     originalHeight = windowHeight
@@ -2379,6 +2363,12 @@ class SystemOverlayVideoManager(private val context: Context) {
                     
                     floatingView?.layoutParams?.width = originalWidth
                     floatingView?.layoutParams?.height = originalHeight
+                    
+                    // 强制刷新 PlayerView 布局（确保 ExoPlayer 正确适应新尺寸）
+                    exoManager?.getPlayerView()?.let { playerView ->
+                        playerView.requestLayout()
+                        playerView.invalidate()
+                    }
                 }
                 
                 // 恢复控制条位置
@@ -2391,7 +2381,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                 // 恢复按钮位置
                 restoreNormalControls()
                 
-                // 全屏按钮已移除，只更新顶部全屏按钮图标
+                // 更新顶部全屏按钮图标
                 topControlBarContainer?.let { container ->
                     if (container.childCount > 0) {
                         val topFullscreenBtn = container.getChildAt(0) as? ImageButton
@@ -2401,22 +2391,77 @@ class SystemOverlayVideoManager(private val context: Context) {
                 Toast.makeText(context, "窗口模式", Toast.LENGTH_SHORT).show()
             }
             
+            // 先更新窗口布局
             windowManager?.updateViewLayout(floatingView, params)
-            Log.d(TAG, "全屏模式切换: isFullscreen=$isFullscreen")
+            Log.d(TAG, "全屏模式切换: isFullscreen=$isFullscreen, 切换前播放状态: wasPlaying=$wasPlaying, 位置: $currentPosition")
+            
+            // 确保视频在全屏切换后继续播放（如果之前正在播放）
+            if (exoManager != null && exoManager.getDuration() > 0 && wasPlaying) {
+                // 使用更长的延迟，确保布局完全稳定后再恢复播放
+                // 分阶段恢复：先等待布局稳定，再刷新 PlayerView，最后恢复播放
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        // 第一阶段：等待布局稳定（300ms）
+                        exoManager.getPlayerView()?.let { playerView ->
+                            playerView.post {
+                                playerView.requestLayout()
+                                playerView.invalidate()
+                                Log.d(TAG, "PlayerView 布局已刷新（第一阶段）")
+                                
+                                // 第二阶段：再等待一段时间，确保渲染表面准备好（200ms）
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    try {
+                                        if (!exoManager.isPlaying()) {
+                                            exoManager.start()
+                                            playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                                            miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                                            Log.d(TAG, "全屏切换后恢复播放（第二阶段，延迟 500ms）")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "恢复播放失败", e)
+                                    }
+                                }, 200) // 第二阶段延迟 200ms
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "第一阶段恢复失败", e)
+                    }
+                }, 300) // 第一阶段延迟 300ms
+                
+                // 备用方案：如果主流程失败，使用更长的延迟（800ms）
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        if (!exoManager.isPlaying()) {
+                            Log.w(TAG, "备用方案：延迟恢复播放（800ms）")
+                            exoManager.start()
+                            playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                            miniModePlayPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "备用恢复播放失败", e)
+                    }
+                }, 800) // 备用延迟 800ms
+            }
+            
+            // 延迟取消全屏切换标记（给播放器时间恢复）
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                isTogglingFullscreen = false
+                Log.d(TAG, "全屏切换标记已取消")
+            }, 1500) // 缩短到 1500ms
         } catch (e: Exception) {
             Log.e(TAG, "切换全屏模式失败", e)
             Toast.makeText(context, "切换全屏失败", Toast.LENGTH_SHORT).show()
+            // 出错时也要取消标记
+            isTogglingFullscreen = false
         }
     }
     
     /**
-     * 调整全屏时的控制按钮布局（退出全屏按钮在关闭按钮旁边，但保持可见）
+     * 调整全屏时的控制按钮布局
      */
     private fun adjustFullscreenControls() {
         try {
-            // 获取关闭按钮和全屏按钮
             val closeBtn = this.closeBtn
-            // 全屏按钮已移除，不再处理
             if (closeBtn != null) {
                 // 全屏时，确保关闭按钮可见
                 closeBtn.visibility = View.VISIBLE
@@ -2431,7 +2476,6 @@ class SystemOverlayVideoManager(private val context: Context) {
      */
     private fun restoreNormalControls() {
         try {
-            // 全屏按钮已移除，不再处理
             // 其他按钮的布局参数保持不变
             // 无需额外操作
         } catch (e: Exception) {
@@ -2669,8 +2713,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                             val buttons = listOf(
                                 miniModeCloseBtn,
                                 miniModePlayPauseBtn,
-                                miniModeRestoreBtn,
-                                miniModeExpandBtn
+                                miniModeRestoreBtn
                             )
                             buttons.forEach { button ->
                                 button?.let { btn ->
@@ -2842,8 +2885,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                             val buttons = listOf(
                                 miniModeCloseBtn,
                                 miniModePlayPauseBtn,
-                                miniModeRestoreBtn,
-                                miniModeExpandBtn
+                                miniModeRestoreBtn
                             )
                             buttons.forEach { button ->
                                 button?.let { btn ->
@@ -3286,7 +3328,6 @@ class SystemOverlayVideoManager(private val context: Context) {
             controlBar = null
             playPauseBtn = null
             muteBtn = null
-            fullscreenBtn = null
             speedBtn = null
             loopBtn = null
             playlistBtn = null
@@ -3819,8 +3860,8 @@ class SystemOverlayVideoManager(private val context: Context) {
                                 
                                 val exoManager = exoPlayerManager
                                 if (exoManager != null && isVideoPlaying() && getDuration() > 0) {
-                                    // 如果正在拖动进度条，跳过卡顿检测（避免误判）
-                                    if (isDraggingProgressBar) {
+                                    // 如果正在拖动进度条或切换全屏，跳过卡顿检测（避免误判）
+                                    if (isDraggingProgressBar || isTogglingFullscreen) {
                                         stuckCount = 0 // 重置卡顿计数
                                         lastProgress = -1 // 重置上次进度，避免拖动结束后立即触发卡顿检测
                                         updateHandler?.postDelayed(this, 500)
@@ -3957,32 +3998,64 @@ class SystemOverlayVideoManager(private val context: Context) {
             return false
         }
         
+        // 防止重复点击
+        if (isEnteringPipMode) {
+            Log.w(TAG, "正在进入画中画模式，忽略重复请求")
+            return false
+        }
+        
         try {
             val exoManager = exoPlayerManager ?: return false
+            val wasPlaying = exoManager.isPlaying()
             val currentPosition = exoManager.getCurrentPosition()
+            
+            // 标记正在进入 PiP 模式
+            isEnteringPipMode = true
+            
+            // 关键优化：在启动 Activity 前先暂停视频播放，避免切换过程中卡顿
+            if (wasPlaying) {
+                exoManager.pause()
+                Log.d(TAG, "进入 PiP 前暂停视频播放，避免卡顿")
+            }
             
             // 获取视频标题
             val existingItem = playlistManager.getPlaylist().firstOrNull { it.url == currentVideoUrl }
             val videoTitle = existingItem?.title ?: extractVideoTitle(currentVideoUrl ?: "")
             
-            // 启动 PiP Activity
-            val intent = Intent(context, PictureInPictureActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra(PictureInPictureActivity.EXTRA_VIDEO_URL, currentVideoUrl)
-                putExtra(PictureInPictureActivity.EXTRA_VIDEO_TITLE, videoTitle)
-                putExtra(PictureInPictureActivity.EXTRA_VIDEO_POSITION, currentPosition)
-            }
+            // 延迟启动 Activity，确保播放器完全暂停并稳定
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    // 启动 PiP Activity
+                    val intent = Intent(context, PictureInPictureActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra(PictureInPictureActivity.EXTRA_VIDEO_URL, currentVideoUrl)
+                        putExtra(PictureInPictureActivity.EXTRA_VIDEO_TITLE, videoTitle)
+                        putExtra(PictureInPictureActivity.EXTRA_VIDEO_POSITION, currentPosition)
+                    }
+                    
+                    context.startActivity(intent)
+                    
+                    // 隐藏当前悬浮窗（PiP Activity 会接管播放）
+                    hide()
+                    
+                    Log.d(TAG, "已启动画中画模式: $videoTitle, 位置: $currentPosition ms")
+                    
+                    // 重置状态标记（延迟重置，确保 Activity 启动完成）
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        isEnteringPipMode = false
+                    }, 500)
+                } catch (e: Exception) {
+                    Log.e(TAG, "进入画中画模式失败", e)
+                    Toast.makeText(context, "进入画中画模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    isEnteringPipMode = false
+                }
+            }, 150) // 延迟 150ms，确保播放器完全暂停并稳定
             
-            context.startActivity(intent)
-            
-            // 隐藏当前悬浮窗（PiP Activity 会接管播放）
-            hide()
-            
-            Log.d(TAG, "已启动画中画模式: $videoTitle, 位置: $currentPosition ms")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "进入画中画模式失败", e)
             Toast.makeText(context, "进入画中画模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            isEnteringPipMode = false
             return false
         }
     }
