@@ -94,15 +94,17 @@ class ExoPlayerManager(private val context: Context) {
 
     /**
      * 创建加载控制（缓冲策略）
+     * 优化后的缓冲参数，提供更流畅的播放体验
      */
     private fun createLoadControl(): LoadControl {
         return DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15000,  // 最小缓冲时间（毫秒）
-                50000,  // 最大缓冲时间（毫秒）
-                2500,   // 播放缓冲时间（毫秒）
-                5000    // 重缓冲时间（毫秒）
+                30000,  // 最小缓冲时间（毫秒）- 增加到30秒，减少卡顿
+                60000,  // 最大缓冲时间（毫秒）- 增加到60秒
+                5000,   // 播放缓冲时间（毫秒）- 增加到5秒，确保播放前有足够缓冲
+                10000   // 重缓冲时间（毫秒）- 增加到10秒
             )
+            .setPrioritizeTimeOverSizeThresholds(true) // 优先考虑时间而非大小
             .build()
     }
 
@@ -325,6 +327,21 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     /**
+     * 获取缓冲百分比（0-100）
+     */
+    fun getBufferedPercentage(): Int {
+        return player?.bufferedPercentage ?: 0
+    }
+
+    /**
+     * 获取缓冲位置（毫秒）
+     */
+    fun getBufferedPosition(): Long {
+        return player?.bufferedPosition ?: 0L
+    }
+
+
+    /**
      * 释放资源
      */
     fun release() {
@@ -389,4 +406,5 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 }
+
 

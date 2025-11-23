@@ -70,6 +70,19 @@ class SystemOverlayVideoManager(private val context: Context) {
     private val playbackHistoryManager: PlaybackHistoryManager by lazy {
         PlaybackHistoryManager(context)
     }
+    
+    // 缩略图预览助手
+    private val thumbnailPreviewHelper: ThumbnailPreviewHelper by lazy {
+        ThumbnailPreviewHelper(context)
+    }
+    
+    // 缩略图预览视图
+    private var thumbnailPreviewView: android.widget.ImageView? = null
+    private var thumbnailPreviewContainer: FrameLayout? = null
+    
+    // 缩略图预览激活标志（用于防止异步回调在用户离手后仍显示缩略图）
+    private var isThumbnailPreviewActive = false
+
 
 
     // 拖拽相关
@@ -138,6 +151,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var currentVolume = 0
     private var currentBrightness = 0f
     private var isSeeking = false // 是否正在快进/后退
+    private var isDraggingProgressBar = false // 是否正在拖动进度条（用于防止卡顿检测误判）
     private var seekStartX = 0f // 快进/后退起始X坐标
     private var seekStartY = 0f // 滑动起始Y坐标
     private var seekStartTime = 0 // 快进/后退起始时间
@@ -336,6 +350,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                     currentTimeText?.text = formatTime(0)
                     totalTimeText?.text = formatTime(0)
                     
+                    // 清理缩略图预览缓存（重新设置视频源时）
+                    try {
+                        thumbnailPreviewHelper.clearCache()
+                        hideThumbnailPreview()
+                        Log.d(TAG, "重新设置视频源，缩略图缓存已清理")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "清理缩略图缓存失败", e)
+                    }
+                    
                     // 重置视频尺寸相关状态，以便新视频能够正确检测和调整大小
                     videoWidth = 0
                     videoHeight = 0
@@ -367,6 +390,15 @@ class SystemOverlayVideoManager(private val context: Context) {
                 progressBar?.progress = 0
                 currentTimeText?.text = formatTime(0)
                 totalTimeText?.text = formatTime(0)
+                
+                // 清理缩略图预览缓存（切换视频时）
+                try {
+                    thumbnailPreviewHelper.clearCache()
+                    hideThumbnailPreview()
+                    Log.d(TAG, "切换视频，缩略图缓存已清理")
+                } catch (e: Exception) {
+                    Log.w(TAG, "清理缩略图缓存失败", e)
+                }
                 
                 // 重置视频尺寸相关状态，以便新视频能够正确检测和调整大小
                 videoWidth = 0
@@ -416,6 +448,16 @@ class SystemOverlayVideoManager(private val context: Context) {
             currentVideoUrl = url
             hasAutoMaximized = false // 重置自动最大化标志
             
+            // 立即更新缩略图预览的视频源（确保新视频对应新缩略图）
+            try {
+                hideThumbnailPreview() // 先隐藏旧缩略图
+                thumbnailPreviewHelper.clearCache() // 清理旧缓存
+                // 注意：这里先不设置视频源，等视频准备完成后再设置（在 onPrepared 中）
+                Log.d(TAG, "切换视频，缩略图预览已清理，等待视频准备完成")
+            } catch (e: Exception) {
+                Log.w(TAG, "清理缩略图预览失败", e)
+            }
+            
             // 添加到播放列表（使用网页标题或从URL提取）
             val title = pageTitle?.takeIf { it.isNotBlank() } ?: extractVideoTitle(url)
             playlistManager.addVideo(url, title, 0L, 0L)
@@ -461,7 +503,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                         if (videoOrientationChanged) {
                             isFullscreen = false
                             hasAutoMaximized = false
-                            Log.d(TAG, "视频方向已变化，重置全屏状态")
+                            // 更新缩略图预览尺寸
+                            updateThumbnailPreviewSize()
+                            Log.d(TAG, "视频方向已变化，重置全屏状态，更新缩略图尺寸")
                         }
                         
                         // 根据视频方向调整窗口大小
@@ -594,7 +638,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                                 Log.d(TAG, "发现播放历史，恢复到: ${formatTime(resumePosition.toInt())} (${history.getProgressPercent()}%)")
                                 
                                 // 显示提示
-                                Toast.makeText(
+                                 Toast.makeText(
                                     context,
                                     "继续播放: ${formatTime(resumePosition.toInt())}",
                                     Toast.LENGTH_SHORT
@@ -604,6 +648,20 @@ class SystemOverlayVideoManager(private val context: Context) {
                     } catch (e: Exception) {
                         Log.e(TAG, "恢复播放位置失败", e)
                     }
+                    
+                    // 设置缩略图预览的视频源并预加载
+                    try {
+                        val currentUrl = currentVideoUrl
+                        if (currentUrl != null && duration > 0) {
+                            thumbnailPreviewHelper.setVideoSource(currentUrl)
+                            // 预加载10个缩略图
+                            thumbnailPreviewHelper.preloadThumbnails(duration.toLong(), 10)
+                            Log.d(TAG, "缩略图预览已初始化")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "初始化缩略图预览失败", e)
+                    }
+
                     
                     // 更新播放按钮状态为暂停图标（因为即将播放）
                     playPauseBtn?.setImageResource(android.R.drawable.ic_media_pause)
@@ -640,6 +698,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                 
                                                 val exoManager = exoPlayerManager
                                                 if (exoManager != null) {
+                                                    // 如果正在拖动进度条，跳过卡顿检测（避免误判）
+                                                    if (isDraggingProgressBar) {
+                                                        stuckCount = 0 // 重置卡顿计数
+                                                        lastProgress = -1 // 重置上次进度，避免拖动结束后立即触发卡顿检测
+                                                        updateHandler?.postDelayed(this, 500)
+                                                        return
+                                                    }
+                                                    
                                                     // ExoPlayer 更稳定，假死检测可以简化
                                                     if (exoManager.isPlaying() && exoManager.getDuration() > 0) {
                                                         val current = exoManager.getCurrentPosition()
@@ -668,6 +734,9 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                             progressBar?.post {
                                                                 try {
                                                                     progressBar?.progress = progressPercent
+                                                                    // 更新缓冲进度
+                                                                    val bufferedPercent = exoManager.getBufferedPercentage()
+                                                                    progressBar?.secondaryProgress = bufferedPercent
                                                                 } catch (e: Exception) {
                                                                     Log.e(TAG, "更新进度条失败", e)
                                                                 }
@@ -689,6 +758,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                                                         } catch (e: Exception) {
                                                             Log.e(TAG, "更新UI失败", e)
                                                         }
+
                                                         
                                                         // 定期保存播放进度（每10秒保存一次）
                                                         saveProgressCounter++
@@ -871,6 +941,15 @@ class SystemOverlayVideoManager(private val context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "退出迷你模式失败", e)
             }
+            
+            // 清理缩略图预览资源
+            try {
+                thumbnailPreviewHelper.clearCache()
+                Log.d(TAG, "缩略图预览缓存已清理")
+            } catch (e: Exception) {
+                Log.w(TAG, "清理缩略图预览缓存失败", e)
+            }
+
             
             // 隐藏视图（确保在主线程）
             try {
@@ -1253,15 +1332,48 @@ class SystemOverlayVideoManager(private val context: Context) {
             thumbOffset = 0
             // 减少进度条的触摸区域padding（高度减半）
             setPadding(dpToPx(14), dpToPx(7), dpToPx(14), dpToPx(7))
+            
+            // 缩略图更新防抖动
+            var lastThumbnailUpdateTime = 0L
+            var lastThumbnailPosition = -1L
+            val THUMBNAIL_UPDATE_INTERVAL = 100L // 最小更新间隔100ms
+            
             setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser && getDuration() > 0) {
-                        val position = (progress * getDuration() / 100)
-                        seekToVideo(position)
-                        Log.d(TAG, "拖动进度条到: $position / ${getDuration()}")
+                        // 精准计算位置：使用进度百分比精确计算
+                        val duration = getDuration()
+                        val position = (progress.toLong() * duration / 100).toInt()
+                        
+                        // 确保位置在有效范围内
+                        val clampedPosition = position.coerceIn(0, duration)
+                        
+                        // 更新时间显示（实时反馈）
+                        currentTimeText?.text = formatTime(clampedPosition)
+                        
+                        // 防抖动：只在位置变化足够大或时间间隔足够长时更新缩略图
+                        val currentTime = System.currentTimeMillis()
+                        val positionDiff = Math.abs(clampedPosition - lastThumbnailPosition)
+                        
+                        if (positionDiff > 1000 || // 位置变化超过1秒
+                            currentTime - lastThumbnailUpdateTime > THUMBNAIL_UPDATE_INTERVAL) {
+                            
+                            // 显示缩略图预览（静态图片，精准反映进度条位置）
+                            showThumbnailPreview(clampedPosition.toLong())
+                            lastThumbnailUpdateTime = currentTime
+                            lastThumbnailPosition = clampedPosition.toLong()
+                            
+                            Log.d(TAG, "更新缩略图: $clampedPosition / $duration (进度: $progress%)")
+                        }
                     }
                 }
                 override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {
+                    // 标记正在拖动进度条（防止卡顿检测误判）
+                    isDraggingProgressBar = true
+                    
+                    // 激活缩略图预览标志
+                    isThumbnailPreviewActive = true
+                    
                     // 暂停进度更新，避免冲突
                     updateRunnable?.let { updateHandler?.removeCallbacks(it) }
                     
@@ -1271,9 +1383,49 @@ class SystemOverlayVideoManager(private val context: Context) {
                     // 放大thumb，方便用户操作
                     progressBar?.thumb = enlargedThumbDrawable
                     progressBar?.invalidate() // 强制重绘
-                    Log.d(TAG, "开始拖动进度条，thumb已放大")
+                    
+                    // 显示缩略图预览容器（初始显示）
+                    thumbnailPreviewContainer?.visibility = View.VISIBLE
+                    
+                    // 显示当前位置的缩略图（静态图片，精准反映进度条位置）
+                    if (getDuration() > 0) {
+                        val currentProgress = seekBar?.progress ?: 0
+                        val duration = getDuration()
+                        val currentPosition = (currentProgress.toLong() * duration / 100).toInt()
+                        val clampedPosition = currentPosition.coerceIn(0, duration)
+                        showThumbnailPreview(clampedPosition.toLong())
+                        lastThumbnailPosition = clampedPosition.toLong()
+                        lastThumbnailUpdateTime = System.currentTimeMillis()
+                    }
+                    
+                    Log.d(TAG, "开始拖动进度条，thumb已放大，缩略图预览已启用")
                 }
                 override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {
+                    // 跳转到目标位置（在标记取消之前，避免卡顿检测误判）
+                    if (getDuration() > 0) {
+                        val progress = seekBar?.progress ?: 0
+                        val duration = getDuration()
+                        val position = (progress.toLong() * duration / 100).toInt()
+                        val clampedPosition = position.coerceIn(0, duration)
+                        seekToVideo(clampedPosition)
+                        Log.d(TAG, "拖动结束，跳转到: $clampedPosition / $duration (进度: $progress%)")
+                    }
+                    
+                    // 取消拖动进度条标记（在跳转后，给播放器一点时间恢复）
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        isDraggingProgressBar = false
+                    }, 1000) // 延迟1秒取消标记，确保播放器有时间恢复播放
+                    
+                    // 立即禁用缩略图预览标志（防止异步回调重新显示）
+                    isThumbnailPreviewActive = false
+                    
+                    // 立即隐藏缩略图预览（用户离开屏幕时立即消失）
+                    hideThumbnailPreview()
+                    
+                    // 重置防抖动变量
+                    lastThumbnailPosition = -1L
+                    lastThumbnailUpdateTime = 0L
+                    
                     // 恢复进度更新
                     updateRunnable?.let { updateHandler?.post(it) }
                     
@@ -1284,7 +1436,7 @@ class SystemOverlayVideoManager(private val context: Context) {
                     // 不再自动隐藏控制条，让控制条始终可见
                     // scheduleHideControls()
                     
-                    Log.d(TAG, "结束拖动进度条，thumb已恢复")
+                    Log.d(TAG, "结束拖动进度条，thumb已恢复，缩略图预览已隐藏")
                 }
             })
         }
@@ -1567,6 +1719,10 @@ class SystemOverlayVideoManager(private val context: Context) {
         // 初始化手势检测和音亮度控制
         initGestureControls(container, null) // videoView 已废弃，使用 ExoPlayer
         
+        // 创建缩略图预览视图
+        createThumbnailPreview(container)
+        
+        // 创建迷你模式按钮（初始隐藏）
         // 为视频区域添加点击监听，用于显示/隐藏控制条（已由手势检测处理）
         // videoView.setOnClickListener {
         //     toggleControls()
@@ -2545,6 +2701,10 @@ class SystemOverlayVideoManager(private val context: Context) {
                         touchDownTime = System.currentTimeMillis()
                         isSeeking = false
                         
+                        // 重置屏幕拖动时的缩略图防抖动变量（每次新的触摸开始时重置）
+                        lastScreenSeekThumbnailPosition = -1L
+                        lastScreenSeekThumbnailUpdateTime = 0L
+                        
                         // 记录窗口初始位置（用于拖拽）
                         params?.let {
                             initialX = it.x
@@ -2632,6 +2792,13 @@ class SystemOverlayVideoManager(private val context: Context) {
                             isSeeking = true
                             brightnessControlView?.visibility = View.GONE
                             volumeControlView?.visibility = View.GONE
+                            
+                            // 激活缩略图预览（屏幕拖动时也显示缩略图）
+                            if (!isThumbnailPreviewActive) {
+                                isThumbnailPreviewActive = true
+                                thumbnailPreviewContainer?.visibility = View.VISIBLE
+                            }
+                            
                             handleSeek(deltaX, containerWidth)
                         } else if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) && kotlin.math.abs(deltaY) > MIN_SWIPE_DISTANCE) {
                             // 垂直滑动：透明度或音量控制（持续处理，确保连续性）
@@ -2652,11 +2819,21 @@ class SystemOverlayVideoManager(private val context: Context) {
                         true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // 禁用缩略图预览标志（防止异步回调重新显示）
+                        isThumbnailPreviewActive = false
+                        
                         // 隐藏控制提示
                         brightnessControlView?.visibility = View.GONE
                         volumeControlView?.visibility = View.GONE
                         seekControlView?.visibility = View.GONE
                         isSeeking = false
+                        
+                        // 重置屏幕拖动时的缩略图防抖动变量
+                        lastScreenSeekThumbnailPosition = -1L
+                        lastScreenSeekThumbnailUpdateTime = 0L
+                        
+                        // 用户离开屏幕时，确保缩略图消失（防止进度条触摸事件被取消时缩略图残留）
+                        hideThumbnailPreview()
                         
                         // 检查是否点击在迷你模式按钮上（在ACTION_UP时也要检查，确保按钮点击不被拦截）
                         if (isMiniMode) {
@@ -2786,6 +2963,11 @@ class SystemOverlayVideoManager(private val context: Context) {
         container.addView(seekControlView)
     }
     
+    // 屏幕拖动时的缩略图更新防抖动
+    private var lastScreenSeekThumbnailUpdateTime = 0L
+    private var lastScreenSeekThumbnailPosition = -1L
+    private val SCREEN_SEEK_THUMBNAIL_UPDATE_INTERVAL = 150L // 屏幕拖动时最小更新间隔150ms
+    
     /**
      * 处理快进/后退
      */
@@ -2807,6 +2989,23 @@ class SystemOverlayVideoManager(private val context: Context) {
             val progressPercent = (targetTime * 100 / duration).coerceIn(0, 100)
             progressBar?.progress = progressPercent
             currentTimeText?.text = formatTime(targetTime)
+            
+            // 显示缩略图预览（屏幕拖动时也显示缩略图）
+            if (isThumbnailPreviewActive) {
+                val currentTime = System.currentTimeMillis()
+                val positionDiff = kotlin.math.abs(targetTime - lastScreenSeekThumbnailPosition)
+                
+                // 防抖动：只在位置变化足够大或时间间隔足够长时更新缩略图
+                if (positionDiff > 1000 || // 位置变化超过1秒
+                    currentTime - lastScreenSeekThumbnailUpdateTime > SCREEN_SEEK_THUMBNAIL_UPDATE_INTERVAL) {
+                    
+                    showThumbnailPreview(targetTime.toLong())
+                    lastScreenSeekThumbnailUpdateTime = currentTime
+                    lastScreenSeekThumbnailPosition = targetTime.toLong()
+                    
+                    Log.d(TAG, "屏幕拖动更新缩略图: $targetTime / $duration")
+                }
+            }
             
             // 显示提示信息
             seekControlView?.visibility = View.VISIBLE
@@ -3620,6 +3819,14 @@ class SystemOverlayVideoManager(private val context: Context) {
                                 
                                 val exoManager = exoPlayerManager
                                 if (exoManager != null && isVideoPlaying() && getDuration() > 0) {
+                                    // 如果正在拖动进度条，跳过卡顿检测（避免误判）
+                                    if (isDraggingProgressBar) {
+                                        stuckCount = 0 // 重置卡顿计数
+                                        lastProgress = -1 // 重置上次进度，避免拖动结束后立即触发卡顿检测
+                                        updateHandler?.postDelayed(this, 500)
+                                        return
+                                    }
+                                    
                                     val current = getCurrentPosition()
                                     val total = getDuration()
                                     val progressPercent = (current * 100 / total).coerceIn(0, 100)
@@ -3777,6 +3984,229 @@ class SystemOverlayVideoManager(private val context: Context) {
             Log.e(TAG, "进入画中画模式失败", e)
             Toast.makeText(context, "进入画中画模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
             return false
+        }
+    }
+    
+    
+    /**
+     * 创建缩略图预览视图
+     * 优化：根据视频实际宽高比动态计算缩略图尺寸
+     */
+    private fun createThumbnailPreview(container: FrameLayout) {
+        try {
+            // 计算缩略图尺寸（基于视频实际宽高比）
+            val (thumbnailWidth, thumbnailHeight) = calculateThumbnailSize()
+            
+            // 创建缩略图预览容器
+            thumbnailPreviewContainer = FrameLayout(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    thumbnailWidth,
+                    thumbnailHeight,
+                    Gravity.CENTER_HORIZONTAL or Gravity.TOP
+                ).apply {
+                    topMargin = dpToPx(60) // 在进度条上方显示
+                }
+                visibility = View.GONE
+                
+                // 设置背景
+                val drawable = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(0xE0000000.toInt()) // 半透明黑色背景
+                    cornerRadius = dpToPx(8).toFloat()
+                    setStroke(dpToPx(2), 0xFFFFFFFF.toInt()) // 白色边框
+                }
+                background = drawable
+                
+                // 添加阴影效果
+                elevation = dpToPx(8).toFloat()
+            }
+            
+            // 创建缩略图视图（确保只显示静态图片，不显示视频播放画面）
+            thumbnailPreviewView = android.widget.ImageView(context).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                }
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER // 使用 FIT_CENTER 保持宽高比
+                // 确保只显示静态图片，不显示视频播放画面
+                adjustViewBounds = true
+            }
+            
+            // 确保缩略图容器中只包含 ImageView，不包含任何视频播放器视图
+            thumbnailPreviewContainer?.removeAllViews() // 先清空，防止重复添加
+            thumbnailPreviewContainer?.addView(thumbnailPreviewView)
+            container.addView(thumbnailPreviewContainer)
+            
+            Log.d(TAG, "缩略图预览视图已创建，尺寸: ${thumbnailWidth}x${thumbnailHeight}, 视频尺寸: ${videoWidth}x${videoHeight}")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建缩略图预览视图失败", e)
+        }
+    }
+    
+    /**
+     * 计算缩略图尺寸
+     * 根据视频实际宽高比动态计算
+     */
+    private fun calculateThumbnailSize(): Pair<Int, Int> {
+        // 如果视频尺寸未知，使用默认值
+        if (videoWidth <= 0 || videoHeight <= 0) {
+            // 默认使用 16:9 横屏
+            return Pair(dpToPx(180), dpToPx(101))
+        }
+        
+        // 计算视频宽高比
+        val videoAspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
+        
+        // 定义最大尺寸（避免缩略图太大）
+        val maxWidth = dpToPx(200)
+        val maxHeight = dpToPx(250)
+        
+        // 根据视频宽高比计算缩略图尺寸
+        val (width, height) = if (videoAspectRatio > 1.0f) {
+            // 横屏视频（宽 > 高）
+            val w = maxWidth
+            val h = (w / videoAspectRatio).toInt()
+            Pair(w, h.coerceAtMost(maxHeight))
+        } else {
+            // 竖屏视频（高 >= 宽）
+            val h = maxHeight
+            val w = (h * videoAspectRatio).toInt()
+            Pair(w.coerceAtMost(maxWidth), h)
+        }
+        
+        Log.d(TAG, "计算缩略图尺寸: ${width}x${height}, 视频宽高比: $videoAspectRatio, 视频尺寸: ${videoWidth}x${videoHeight}")
+        return Pair(width, height)
+    }
+    
+    /**
+     * 更新缩略图预览容器尺寸
+     * 当视频方向改变时调用
+     */
+    private fun updateThumbnailPreviewSize() {
+        try {
+            val container = thumbnailPreviewContainer ?: return
+            
+            // 重新计算缩略图尺寸
+            val (thumbnailWidth, thumbnailHeight) = calculateThumbnailSize()
+            
+            // 更新容器尺寸
+            val layoutParams = container.layoutParams as? FrameLayout.LayoutParams
+            layoutParams?.width = thumbnailWidth
+            layoutParams?.height = thumbnailHeight
+            container.layoutParams = layoutParams
+            
+            Log.d(TAG, "缩略图预览尺寸已更新: ${thumbnailWidth}x${thumbnailHeight}, 视频尺寸: ${videoWidth}x${videoHeight}")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新缩略图预览尺寸失败", e)
+        }
+    }
+
+    
+    /**
+     * 显示缩略图预览
+     * 优化：先显示占位图，再异步加载真实缩略图，确保即时响应
+     * 注意：只有在 isThumbnailPreviewActive 为 true 时才显示
+     */
+    private fun showThumbnailPreview(positionMs: Long) {
+        try {
+            // 检查是否应该显示缩略图
+            if (!isThumbnailPreviewActive) {
+                Log.d(TAG, "缩略图预览已禁用，不显示")
+                return
+            }
+            
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    showThumbnailPreview(positionMs)
+                }
+                return
+            }
+            
+            // 再次检查标志（防止在异步调用期间标志被改变）
+            if (!isThumbnailPreviewActive) {
+                return
+            }
+            
+            // 立即显示容器和占位图（确保即时响应）
+            thumbnailPreviewContainer?.visibility = View.VISIBLE
+            
+            // 先显示一个加载占位图（可选）
+            // thumbnailPreviewView?.setImageResource(android.R.drawable.ic_menu_gallery)
+            
+            // 异步获取缩略图
+            thumbnailPreviewHelper.getThumbnail(positionMs) { bitmap ->
+                try {
+                    // 确保在主线程更新UI
+                    if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                        updateThumbnailImage(bitmap)
+                    } else {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            updateThumbnailImage(bitmap)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新缩略图失败", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示缩略图预览失败", e)
+        }
+    }
+    
+    /**
+     * 更新缩略图图片
+     * 只有在缩略图预览激活时才显示（防止异步回调在用户离手后仍显示）
+     */
+    private fun updateThumbnailImage(bitmap: android.graphics.Bitmap?) {
+        try {
+            // 检查是否应该显示缩略图（如果用户已经离手，则不显示）
+            if (!isThumbnailPreviewActive) {
+                Log.d(TAG, "缩略图预览已禁用，忽略异步回调")
+                return
+            }
+            
+            if (bitmap != null) {
+                thumbnailPreviewView?.setImageBitmap(bitmap)
+                // 再次检查标志（防止在设置图片时标志被改变）
+                if (isThumbnailPreviewActive) {
+                    thumbnailPreviewContainer?.visibility = View.VISIBLE
+                }
+            } else {
+                // 如果获取失败，显示占位图
+                thumbnailPreviewView?.setImageResource(android.R.drawable.ic_media_play)
+                // 再次检查标志（防止在设置图片时标志被改变）
+                if (isThumbnailPreviewActive) {
+                    thumbnailPreviewContainer?.visibility = View.VISIBLE
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新缩略图图片失败", e)
+        }
+    }
+
+    
+    /**
+     * 隐藏缩略图预览
+     */
+    private fun hideThumbnailPreview() {
+        try {
+            // 禁用缩略图预览标志
+            isThumbnailPreviewActive = false
+            
+            // 确保在主线程执行
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                thumbnailPreviewContainer?.visibility = View.GONE
+                thumbnailPreviewView?.setImageBitmap(null) // 清空图片，释放内存
+            } else {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    thumbnailPreviewContainer?.visibility = View.GONE
+                    thumbnailPreviewView?.setImageBitmap(null)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏缩略图预览失败", e)
         }
     }
     
