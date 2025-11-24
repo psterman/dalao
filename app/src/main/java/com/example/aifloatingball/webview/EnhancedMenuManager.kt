@@ -723,6 +723,41 @@ class EnhancedMenuManager(
             Toast.makeText(context, "广告屏蔽功能开发中", Toast.LENGTH_SHORT).show()
             hideMenu()
         }
+
+        // 进入阅读模式
+        menuView.findViewById<View>(R.id.action_enter_reader_mode)?.setOnClickListener {
+            // 尝试使用NovelReaderModeManager
+            try {
+                val readerModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(context)
+                val currentUrl = webView.url
+                // 先尝试正常阅读模式，如果失败会自动切换到无图模式
+                readerModeManager.enterReaderMode(webView, currentUrl, useNoImageMode = false)
+                Toast.makeText(context, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                // 如果NovelReaderModeManager不可用，尝试使用NovelReaderManager
+                try {
+                    com.example.aifloatingball.reader.NovelReaderManager.getInstance(context).enterReaderMode(webView)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "进入阅读模式失败", e2)
+                    Toast.makeText(context, "进入阅读模式失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            hideMenu()
+        }
+        
+        // 进入无图模式（无广告、无图片）
+        menuView.findViewById<View>(R.id.action_enter_no_image_mode)?.setOnClickListener {
+            try {
+                val readerModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(context)
+                val currentUrl = webView.url
+                readerModeManager.enterReaderMode(webView, currentUrl, useNoImageMode = true)
+                Toast.makeText(context, "已启用无图模式（无广告、无图片）", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "进入无图模式失败", e)
+                Toast.makeText(context, "进入无图模式失败", Toast.LENGTH_SHORT).show()
+            }
+            hideMenu()
+        }
     }
     
     /**

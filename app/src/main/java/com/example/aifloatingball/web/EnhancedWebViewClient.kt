@@ -6,6 +6,7 @@ import android.util.Log
 import android.webkit.*
 import android.widget.Toast
 import com.example.aifloatingball.adblock.AdBlockFilter
+import com.example.aifloatingball.reader.NovelReaderModeManager
 import java.io.ByteArrayInputStream
 
 /**
@@ -14,7 +15,8 @@ import java.io.ByteArrayInputStream
 class EnhancedWebViewClient(
     private val adBlockFilter: AdBlockFilter,
     private val onPageLoadListener: PageLoadListener? = null,
-    private val onUrlChangeListener: UrlChangeListener? = null
+    private val onUrlChangeListener: UrlChangeListener? = null,
+    private val readerModeManager: NovelReaderModeManager? = null
 ) : WebViewClient() {
     
     companion object {
@@ -95,6 +97,16 @@ class EnhancedWebViewClient(
         
         // 注入viewport meta标签确保移动版显示
         injectViewportMetaTag(view)
+        
+        // 检测小说网站并自动进入阅读模式
+        if (view != null && url != null && readerModeManager != null) {
+            if (readerModeManager.isNovelSite(url) && !readerModeManager.isReaderModeActive()) {
+                // 延迟进入阅读模式，确保页面完全加载
+                view.postDelayed({
+                    readerModeManager.enterReaderMode(view, url)
+                }, 1000)
+            }
+        }
         
         onPageLoadListener?.onPageFinished(view, url)
     }

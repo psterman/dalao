@@ -39,6 +39,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import com.example.aifloatingball.reader.WebViewReaderExtension
 
 /**
  * 扩展函数：Float的幂运算
@@ -53,7 +54,7 @@ private fun Float.pow(exponent: Int): Float {
  * 用户横向滑动可以切换不同标签页，每个标签页纵向叠加显示
  */
 class PaperStackWebViewManager(
-    private val context: Context,
+    val context: Context,
     private val container: ViewGroup,
     private val windowManager: WindowManager? = null
 ) {
@@ -91,10 +92,12 @@ class PaperStackWebViewManager(
     private var gestureDetector: GestureDetector? = null
     private var onTabCreatedListener: ((WebViewTab) -> Unit)? = null
     private var onTabSwitchedListener: ((WebViewTab, Int) -> Unit)? = null
+    private val tabSwitchedListeners = mutableListOf<(WebViewTab, Int) -> Unit>()
     private var onFaviconReceivedListener: ((WebViewTab, android.graphics.Bitmap?) -> Unit)? = null
     private var onTitleReceivedListener: ((WebViewTab, String?) -> Unit)? = null
     private var onPageStartedListener: ((WebViewTab, String?) -> Unit)? = null
     private var onPageFinishedListener: ((WebViewTab, String?) -> Unit)? = null
+    private val pageFinishedListeners = mutableListOf<(WebViewTab, String?) -> Unit>()
     private var swipeStartX = 0f
     private var swipeStartY = 0f
     private var isSwipeStarted = false
@@ -124,6 +127,8 @@ class PaperStackWebViewManager(
         setupGestureDetector()
         setupContainer()
         setupEnhancedMenuManager()
+        // 初始化阅读模式扩展
+        WebViewReaderExtension.init(this, container)
     }
     
     /**
@@ -150,8 +155,18 @@ class PaperStackWebViewManager(
     /**
      * 设置页面加载完成监听器
      */
+    /**
+     * 设置页面加载完成监听器
+     */
     fun setOnPageFinishedListener(listener: (WebViewTab, String?) -> Unit) {
-        this.onPageFinishedListener = listener
+        onPageFinishedListener = listener
+    }
+
+    /**
+     * 添加页面加载完成监听器
+     */
+    fun addOnPageFinishedListener(listener: (WebViewTab, String?) -> Unit) {
+        pageFinishedListeners.add(listener)
     }
     
     /**
@@ -333,6 +348,7 @@ class PaperStackWebViewManager(
         // 如果是新创建的标签页且是当前标签页，触发切换监听器
         if (currentTabIndex == newTabIndex) {
             onTabSwitchedListener?.invoke(tab, currentTabIndex)
+            tabSwitchedListeners.forEach { it.invoke(tab, currentTabIndex) }
         }
         
         Log.d(TAG, "添加新标签页: ${tab.title}, 当前数量: ${tabs.size}, 组ID: $tabGroupId, 已切换到新标签页")
@@ -727,6 +743,7 @@ class PaperStackWebViewManager(
                 
                 // 通知监听器
                 onTabSwitchedListener?.invoke(targetTab, currentTabIndex)
+                tabSwitchedListeners.forEach { it.invoke(targetTab, currentTabIndex) }
                 
                 Log.d(TAG, "卡片交叠切换完成，当前标签页: ${targetTab.title}, 索引: $currentTabIndex")
             }
@@ -1416,6 +1433,13 @@ class PaperStackWebViewManager(
      */
     fun setOnTabSwitchedListener(listener: (WebViewTab, Int) -> Unit) {
         onTabSwitchedListener = listener
+    }
+
+    /**
+     * 添加标签页切换监听器
+     */
+    fun addOnTabSwitchedListener(listener: (WebViewTab, Int) -> Unit) {
+        tabSwitchedListeners.add(listener)
     }
 
     /**
@@ -2365,6 +2389,9 @@ class PaperStackWebViewManager(
                         view.setBackgroundColor(Color.TRANSPARENT)
                     }
                     
+                    // 检查是否可以进入阅读模式
+                    WebViewReaderExtension.checkAndEnterReaderMode(this@PaperStackWebViewManager)
+                    
                     // 保存历史访问记录（精准记录每次访问）
                     if (url != null && url.isNotEmpty() && !url.startsWith("javascript:") && url != "about:blank") {
                         try {
@@ -2457,6 +2484,7 @@ class PaperStackWebViewManager(
                         val tab = tabs.find { it.webView == view }
                         if (tab != null) {
                             onPageFinishedListener?.invoke(tab, url)
+                            pageFinishedListeners.forEach { it.invoke(tab, url) }
                         }
                     }
                 }

@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adblock.AdBlockFilter
 import com.example.aifloatingball.web.EnhancedWebViewClient
+import com.example.aifloatingball.reader.NovelReaderModeManager
 import android.content.Context.MODE_PRIVATE
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import com.example.aifloatingball.utils.WebViewConstants
 class EnhancedTabManager(
     private val context: Context,
     private val adBlockFilter: AdBlockFilter,
+    private val readerModeManager: NovelReaderModeManager? = null,
     private val onPageLoadListener: EnhancedWebViewClient.PageLoadListener? = null,
     private val onUrlChangeListener: EnhancedWebViewClient.UrlChangeListener? = null
 ) {
@@ -292,7 +294,8 @@ class EnhancedTabManager(
             webViewClient = EnhancedWebViewClient(
                 adBlockFilter = adBlockFilter,
                 onPageLoadListener = onPageLoadListener,
-                onUrlChangeListener = onUrlChangeListener
+                onUrlChangeListener = onUrlChangeListener,
+                readerModeManager = readerModeManager
             )
             
             // 设置WebChromeClient

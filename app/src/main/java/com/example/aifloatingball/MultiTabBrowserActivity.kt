@@ -17,6 +17,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adblock.AdBlockFilter
 import com.example.aifloatingball.tab.EnhancedTabManager
 import com.example.aifloatingball.web.EnhancedWebViewClient
+import com.example.aifloatingball.reader.NovelReaderModeManager
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputEditText
@@ -47,6 +48,7 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     // 核心组件
     private lateinit var tabManager: EnhancedTabManager
     private lateinit var adBlockFilter: AdBlockFilter
+    private lateinit var readerModeManager: NovelReaderModeManager
     
     // 状态
     private var isTabOverviewVisible = false
@@ -77,10 +79,44 @@ class MultiTabBrowserActivity : AppCompatActivity() {
         // 初始化AdBlock过滤器
         adBlockFilter = AdBlockFilter(this)
         
+        // 初始化阅读模式管理器
+        readerModeManager = NovelReaderModeManager(this)
+        readerModeManager.setListener(object : NovelReaderModeManager.ReaderModeListener {
+            override fun onReaderModeEntered() {
+                runOnUiThread {
+                    statusText.text = "已进入阅读模式"
+                    // 可以在这里更新UI，比如显示退出阅读模式的按钮
+                }
+            }
+            
+            override fun onReaderModeExited() {
+                runOnUiThread {
+                    statusText.text = "已退出阅读模式"
+                }
+            }
+            
+            override fun onChapterLoaded(chapter: NovelReaderModeManager.ChapterInfo) {
+                runOnUiThread {
+                    statusText.text = "加载章节: ${chapter.title}"
+                    updateAddressBar(chapter.url)
+                }
+            }
+            
+            override fun onNextChapterRequested() {
+                runOnUiThread {
+                    val currentWebView = tabManager.getCurrentTab()?.webView
+                    if (currentWebView != null) {
+                        readerModeManager.loadNextChapter(currentWebView)
+                    }
+                }
+            }
+        })
+        
         // 初始化标签页管理器
         tabManager = EnhancedTabManager(
             context = this,
             adBlockFilter = adBlockFilter,
+            readerModeManager = readerModeManager,
             onPageLoadListener = object : EnhancedWebViewClient.PageLoadListener {
                 override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     runOnUiThread {
@@ -93,9 +129,20 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                 override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                     runOnUiThread {
                         progressBar.visibility = View.GONE
-                        statusText.text = "加载完成"
+                        val isReaderMode = readerModeManager.isReaderModeActive()
+                        statusText.text = if (isReaderMode) "阅读模式" else "加载完成"
                         updateAddressBar(url)
                         updateTabTitle()
+                        
+                        // 如果处于阅读模式，且页面加载完成，重新解析内容
+                        if (isReaderMode && view != null && url != null) {
+                            // 延迟重新解析，确保页面完全加载
+                            view.postDelayed({
+                                if (readerModeManager.isReaderModeActive()) {
+                                    readerModeManager.enterReaderMode(view, url, useNoImageMode = false)
+                                }
+                            }, 1000)
+                        }
                     }
                 }
                 
@@ -284,8 +331,32 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                 tabManager.closeCurrentTab()
                 true
             }
+            R.id.action_reader_mode -> {
+                val currentWebView = tabManager.getCurrentTab()?.webView
+                val currentUrl = currentWebView?.url
+                if (currentWebView != null && currentUrl != null) {
+                    if (readerModeManager.isReaderModeActive()) {
+                        readerModeManager.exitReaderMode(currentWebView)
+                    } else {
+                        readerModeManager.enterReaderMode(currentWebView, currentUrl)
+                    }
+                }
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+    
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        val readerModeItem = menu.findItem(R.id.action_reader_mode)
+        readerModeItem?.let {
+            if (readerModeManager.isReaderModeActive()) {
+                it.title = "退出阅读模式"
+            } else {
+                it.title = "进入阅读模式"
+            }
+        }
+        return super.onPrepareOptionsMenu(menu)
     }
     
     private fun showAdBlockSettings() {

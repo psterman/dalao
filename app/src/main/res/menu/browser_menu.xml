@@ -39,6 +39,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_reader_mode"
+        android:title="进入阅读模式"
+        android:icon="@drawable/ic_book"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_bookmarks"
         android:title="书签"
         android:icon="@drawable/ic_bookmark"
