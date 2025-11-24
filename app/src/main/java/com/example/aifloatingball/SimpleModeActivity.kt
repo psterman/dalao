@@ -6948,11 +6948,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置阅读模式监听器，在阅读模式进入/退出时禁用/启用 browserSwipeRefresh
                 globalReaderModeManager?.setListener(object : com.example.aifloatingball.reader.NovelReaderModeManager.ReaderModeListener {
                     override fun onReaderModeEntered() {
-                        // 进入阅读模式时，禁用 browserSwipeRefresh
+                        // 进入阅读模式时，仅在搜索tab中禁用 browserSwipeRefresh
                         runOnUiThread {
                             try {
-                                browserSwipeRefresh.isEnabled = false
-                                Log.d(TAG, "✅ 阅读模式已进入，已禁用 browserSwipeRefresh")
+                                // 确保只在搜索tab中才禁用下拉菜单
+                                if (currentState == UIState.BROWSER) {
+                                    if (::browserSwipeRefresh.isInitialized) {
+                                        browserSwipeRefresh.isEnabled = false
+                                        Log.d(TAG, "✅ 阅读模式已进入，已在搜索tab中禁用 browserSwipeRefresh")
+                                    }
+                                } else {
+                                    Log.d(TAG, "阅读模式已进入，但当前不在搜索tab中，跳过禁用下拉菜单")
+                                }
                             } catch (e: Exception) {
                                 Log.e(TAG, "禁用 browserSwipeRefresh 失败", e)
                             }
@@ -6960,11 +6967,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     
                     override fun onReaderModeExited() {
-                        // 退出阅读模式时，重新启用 browserSwipeRefresh
+                        // 退出阅读模式时，仅在搜索tab中重新启用 browserSwipeRefresh
                         runOnUiThread {
                             try {
-                                browserSwipeRefresh.isEnabled = true
-                                Log.d(TAG, "✅ 阅读模式已退出，已启用 browserSwipeRefresh")
+                                // 确保只在搜索tab中才启用下拉菜单
+                                if (currentState == UIState.BROWSER) {
+                                    if (::browserSwipeRefresh.isInitialized) {
+                                        browserSwipeRefresh.isEnabled = true
+                                        Log.d(TAG, "✅ 阅读模式已退出，已在搜索tab中启用 browserSwipeRefresh")
+                                    }
+                                } else {
+                                    Log.d(TAG, "阅读模式已退出，但当前不在搜索tab中，跳过启用下拉菜单")
+                                }
                             } catch (e: Exception) {
                                 Log.e(TAG, "启用 browserSwipeRefresh 失败", e)
                             }
