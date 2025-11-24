@@ -170,6 +170,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
         // 用于保存当前界面状态的键
         private const val KEY_CURRENT_STATE = "current_state"
+        
+        /**
+         * 获取全局阅读模式管理器实例（供 EnhancedMenuManager 使用）
+         */
+        fun getGlobalReaderModeManager(): com.example.aifloatingball.reader.NovelReaderModeManager? {
+            return INSTANCE?.globalReaderModeManager
+        }
         // 手势指南显示控制
         private const val PREF_GESTURE_GUIDE_SHOWN = "gesture_guide_shown"
         // 系统语音输入请求码
@@ -732,6 +739,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     // 统一WebView管理器
     private lateinit var unifiedWebViewManager: UnifiedWebViewManager
+    
+    // 🔧 全局阅读模式管理器实例（确保所有地方使用同一个实例，监听器不被覆盖）
+    private var globalReaderModeManager: com.example.aifloatingball.reader.NovelReaderModeManager? = null
 
     // 聊天联系人相关
     private var chatContactAdapter: ChatContactAdapter? = null
@@ -6410,6 +6420,35 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         
         // 清理单例实例
+        // 🔧 清理全局阅读模式管理器
+        try {
+            // 如果处于阅读模式，确保退出并重新启用 browserSwipeRefresh
+            globalReaderModeManager?.let { manager ->
+                if (manager.isReaderModeActive()) {
+                    // 获取当前WebView并退出阅读模式
+                    paperStackWebViewManager?.getCurrentTab()?.webView?.let { webView ->
+                        manager.exitReaderMode(webView)
+                    }
+                }
+                // 清理监听器
+                manager.setListener(null)
+            }
+            globalReaderModeManager = null
+            Log.d(TAG, "全局阅读模式管理器已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理全局阅读模式管理器失败", e)
+        }
+        
+        // 🔧 确保 browserSwipeRefresh 被重新启用（防止阅读模式退出时未启用）
+        try {
+            if (::browserSwipeRefresh.isInitialized) {
+                browserSwipeRefresh.isEnabled = true
+                Log.d(TAG, "已确保 browserSwipeRefresh 被启用")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启用 browserSwipeRefresh 失败", e)
+        }
+        
         INSTANCE = null
 
         // 立即清理所有延迟任务，防止在Activity销毁后执行
@@ -6900,6 +6939,56 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 注意：setOnTabCreatedListener 已在上面设置，这里不再重复设置，避免覆盖
         // 如果需要添加额外逻辑，应该在之前的监听器中合并
 
+        // 🔧 初始化全局阅读模式管理器实例，并设置监听器
+        try {
+            // 创建全局阅读模式管理器实例（如果还没有创建）
+            if (globalReaderModeManager == null) {
+                globalReaderModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(this)
+                
+                // 设置阅读模式监听器，在阅读模式进入/退出时禁用/启用 browserSwipeRefresh
+                globalReaderModeManager?.setListener(object : com.example.aifloatingball.reader.NovelReaderModeManager.ReaderModeListener {
+                    override fun onReaderModeEntered() {
+                        // 进入阅读模式时，禁用 browserSwipeRefresh
+                        runOnUiThread {
+                            try {
+                                browserSwipeRefresh.isEnabled = false
+                                Log.d(TAG, "✅ 阅读模式已进入，已禁用 browserSwipeRefresh")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "禁用 browserSwipeRefresh 失败", e)
+                            }
+                        }
+                    }
+                    
+                    override fun onReaderModeExited() {
+                        // 退出阅读模式时，重新启用 browserSwipeRefresh
+                        runOnUiThread {
+                            try {
+                                browserSwipeRefresh.isEnabled = true
+                                Log.d(TAG, "✅ 阅读模式已退出，已启用 browserSwipeRefresh")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "启用 browserSwipeRefresh 失败", e)
+                            }
+                        }
+                    }
+                    
+                    override fun onChapterLoaded(chapter: com.example.aifloatingball.reader.NovelReaderModeManager.ChapterInfo) {
+                        // 章节加载完成，不需要特殊处理
+                        Log.d(TAG, "章节加载完成: ${chapter.title}")
+                    }
+                    
+                    override fun onNextChapterRequested() {
+                        // 下一章请求，不需要特殊处理
+                        Log.d(TAG, "下一章请求")
+                    }
+                })
+                Log.d(TAG, "✅ 全局阅读模式管理器已初始化，监听器已设置")
+            } else {
+                Log.d(TAG, "全局阅读模式管理器已存在，跳过初始化")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化全局阅读模式管理器失败", e)
+        }
+        
         // favicon 接收时，立即更新站点按钮的图标与可见性
         paperStackWebViewManager?.setOnFaviconReceivedListener { tab, icon ->
             try {

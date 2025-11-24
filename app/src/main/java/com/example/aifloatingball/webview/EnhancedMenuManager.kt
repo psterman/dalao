@@ -726,17 +726,31 @@ class EnhancedMenuManager(
 
         // 进入阅读模式
         menuView.findViewById<View>(R.id.action_enter_reader_mode)?.setOnClickListener {
-            // 尝试使用NovelReaderModeManager
             try {
-                val readerModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(context)
                 val currentUrl = webView.url
+                
+                // 🔧 优先使用 SimpleModeActivity 的全局阅读模式管理器实例
+                // 这样可以确保监听器不被覆盖，browserSwipeRefresh 能够正确禁用/启用
+                val readerModeManager = try {
+                    // 尝试从 SimpleModeActivity 获取全局实例
+                    com.example.aifloatingball.SimpleModeActivity.getGlobalReaderModeManager()
+                        ?: throw Exception("全局实例不可用")
+                } catch (e: Exception) {
+                    // 如果全局实例不可用，创建新实例（但监听器可能被覆盖）
+                    Log.w(TAG, "无法获取全局阅读模式管理器，创建新实例: ${e.message}")
+                    com.example.aifloatingball.reader.NovelReaderModeManager(context)
+                }
+                
                 // 先尝试正常阅读模式，如果失败会自动切换到无图模式
                 readerModeManager.enterReaderMode(webView, currentUrl, useNoImageMode = false)
                 Toast.makeText(context, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ 已进入阅读模式，URL: $currentUrl")
             } catch (e: Exception) {
                 // 如果NovelReaderModeManager不可用，尝试使用NovelReaderManager
                 try {
+                    Log.w(TAG, "NovelReaderModeManager 失败，尝试使用 NovelReaderManager", e)
                     com.example.aifloatingball.reader.NovelReaderManager.getInstance(context).enterReaderMode(webView)
+                    Toast.makeText(context, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
                 } catch (e2: Exception) {
                     Log.e(TAG, "进入阅读模式失败", e2)
                     Toast.makeText(context, "进入阅读模式失败", Toast.LENGTH_SHORT).show()
@@ -748,10 +762,20 @@ class EnhancedMenuManager(
         // 进入无图模式（无广告、无图片）
         menuView.findViewById<View>(R.id.action_enter_no_image_mode)?.setOnClickListener {
             try {
-                val readerModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(context)
                 val currentUrl = webView.url
+                
+                // 🔧 优先使用 SimpleModeActivity 的全局阅读模式管理器实例
+                val readerModeManager = try {
+                    com.example.aifloatingball.SimpleModeActivity.getGlobalReaderModeManager()
+                        ?: throw Exception("全局实例不可用")
+                } catch (e: Exception) {
+                    Log.w(TAG, "无法获取全局阅读模式管理器，创建新实例: ${e.message}")
+                    com.example.aifloatingball.reader.NovelReaderModeManager(context)
+                }
+                
                 readerModeManager.enterReaderMode(webView, currentUrl, useNoImageMode = true)
                 Toast.makeText(context, "已启用无图模式（无广告、无图片）", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ 已进入无图模式，URL: $currentUrl")
             } catch (e: Exception) {
                 Log.e(TAG, "进入无图模式失败", e)
                 Toast.makeText(context, "进入无图模式失败", Toast.LENGTH_SHORT).show()
