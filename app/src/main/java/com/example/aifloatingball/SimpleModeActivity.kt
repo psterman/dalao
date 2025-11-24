@@ -742,6 +742,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     // 🔧 全局阅读模式管理器实例（确保所有地方使用同一个实例，监听器不被覆盖）
     private var globalReaderModeManager: com.example.aifloatingball.reader.NovelReaderModeManager? = null
+    
+    // 目录页阅读模式按钮（自动弹出）
+    private var catalogReaderModeButton: MaterialButton? = null
+    private var catalogReaderModeButtonContainer: FrameLayout? = null
 
     // 聊天联系人相关
     private var chatContactAdapter: ChatContactAdapter? = null
@@ -6891,6 +6895,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
+            // 切换标签页时隐藏阅读模式按钮
+            hideReaderModeButtonForCatalog()
+            
             // 更新页面数字
             updatePageCountDisplay()
             // 更新搜索框URL与站点图标（功能主页显示空字符串）
@@ -6967,20 +6974,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     
                     override fun onReaderModeExited() {
-                        // 退出阅读模式时，仅在搜索tab中重新启用 browserSwipeRefresh
+                        // 🔧 修复：退出阅读模式时，恢复UI状态
                         runOnUiThread {
                             try {
-                                // 确保只在搜索tab中才启用下拉菜单
+                                // 确保只在搜索tab中才恢复UI
                                 if (currentState == UIState.BROWSER) {
+                                    // 1. 重新启用下拉手势菜单
                                     if (::browserSwipeRefresh.isInitialized) {
                                         browserSwipeRefresh.isEnabled = true
                                         Log.d(TAG, "✅ 阅读模式已退出，已在搜索tab中启用 browserSwipeRefresh")
                                     }
+                                    
+                                    // 2. 恢复底部导航栏可见性
+                                    val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                                    if (bottomNav != null) {
+                                        if (!isBottomNavVisible) {
+                                            // 如果底部导航栏被隐藏了，恢复显示
+                                            if (isQuickActionsBarVisible) {
+                                                // 如果快捷操作栏正在显示，使用同步方法
+                                                showBottomNavigationAndHideQuickActions()
+                                            } else {
+                                                // 如果快捷操作栏未显示，直接显示底部导航栏
+                                                showBottomNavigation()
+                                            }
+                                            Log.d(TAG, "✅ 阅读模式已退出，已恢复底部导航栏显示")
+                                        } else {
+                                            // 确保底部导航栏可见（可能被动画隐藏了）
+                                            bottomNav.visibility = View.VISIBLE
+                                            bottomNav.alpha = 1f
+                                            bottomNav.translationY = 0f
+                                            isBottomNavVisible = true
+                                            Log.d(TAG, "✅ 阅读模式已退出，底部导航栏已确保可见")
+                                        }
+                                    } else {
+                                        Log.w(TAG, "底部导航栏未找到，无法恢复")
+                                    }
+                                    
+                                    // 3. 确保工具栏可见（如果被隐藏了）
+                                    if (!isToolbarVisible) {
+                                        showToolbar()
+                                        Log.d(TAG, "✅ 阅读模式已退出，已恢复工具栏显示")
+                                    }
                                 } else {
-                                    Log.d(TAG, "阅读模式已退出，但当前不在搜索tab中，跳过启用下拉菜单")
+                                    Log.d(TAG, "阅读模式已退出，但当前不在搜索tab中，跳过恢复UI")
                                 }
                             } catch (e: Exception) {
-                                Log.e(TAG, "启用 browserSwipeRefresh 失败", e)
+                                Log.e(TAG, "恢复UI状态失败", e)
                             }
                         }
                     }
@@ -7021,6 +7060,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 页面开始加载时隐藏悬浮窗
         paperStackWebViewManager?.setOnPageStartedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面开始加载: $url")
+            
+            // 页面开始加载时隐藏阅读模式按钮
+            hideReaderModeButtonForCatalog()
             
             // 更新地址栏显示当前页面URL
             if (url != null && url.isNotEmpty()) {
@@ -7076,6 +7118,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 🔧 修复5：页面加载完成后立即更新页面数量显示
             handler.post {
                 updatePageCountDisplay()
+            }
+            
+            // 🆕 检测目录页并自动弹出阅读模式按钮
+            if (url != null && url.isNotEmpty() && !url.startsWith("home://")) {
+                // 只在非功能主页时检测
+                globalReaderModeManager?.let { readerManager ->
+                    // 🔧 放宽条件：不再强制要求是已知的小说网站，对所有页面都进行检测
+                    // 但排除明显不是的页面（如搜索引擎、社交网站等）
+                    val isExcludedSite = url.contains("google.com") || 
+                                        url.contains("baidu.com") || 
+                                        url.contains("bing.com") ||
+                                        url.contains("weibo.com") ||
+                                        url.contains("twitter.com") ||
+                                        url.contains("facebook.com") ||
+                                        url.contains("youtube.com") ||
+                                        url.contains("github.com")
+                    
+                    if (!isExcludedSite && !readerManager.isReaderModeActive()) {
+                        Log.d(TAG, "开始检测是否为目录页: $url (已放宽检测条件)")
+                        readerManager.detectCatalogPage(tab.webView, url) { isCatalogPage ->
+                            runOnUiThread {
+                                if (isCatalogPage) {
+                                    Log.d(TAG, "✅ 检测到目录页，显示阅读模式按钮: $url")
+                                    showReaderModeButtonForCatalog(tab.webView, url)
+                                } else {
+                                    Log.d(TAG, "不是目录页，隐藏阅读模式按钮: $url")
+                                    hideReaderModeButtonForCatalog()
+                                }
+                            }
+                        }
+                    } else {
+                        if (isExcludedSite) {
+                            Log.d(TAG, "排除的网站类型，跳过检测: $url")
+                        } else {
+                            Log.d(TAG, "已处于阅读模式，跳过检测: $url")
+                        }
+                        hideReaderModeButtonForCatalog()
+                    }
+                }
+            } else {
+                // 功能主页或其他特殊页面，隐藏按钮
+                hideReaderModeButtonForCatalog()
             }
         }
         
@@ -14711,6 +14795,216 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 检查底部按钮状态
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { btn ->
             Log.d(TAG, "- 新建按钮状态: visible=${btn.visibility}, enabled=${btn.isEnabled}, clickable=${btn.isClickable}")
+        }
+        
+        // 隐藏阅读模式按钮（返回主页时）
+        hideReaderModeButtonForCatalog()
+    }
+    
+    /**
+     * 显示目录页阅读模式按钮（自动弹出）
+     * 参考Alook浏览器的实现，在检测到目录页时自动显示
+     */
+    private fun showReaderModeButtonForCatalog(webView: WebView, url: String) {
+        try {
+            // 如果按钮已存在，先移除
+            hideReaderModeButtonForCatalog()
+            
+            // 🔧 修复：使用WindowManager添加悬浮按钮，确保在最上层
+            // 或者添加到Activity的根布局，而不是WebView容器
+            val rootView = window.decorView.rootView as? ViewGroup
+            if (rootView == null) {
+                Log.e(TAG, "无法获取根布局，使用WebView容器")
+                // 降级方案：使用WebView容器，但设置更高的层级
+                showReaderModeButtonInWebViewContainer(webView, url)
+                return
+            }
+            
+            // 创建按钮容器（使用FrameLayout作为悬浮层）
+            val container = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+                    topMargin = (120 * resources.displayMetrics.density).toInt() // 距离顶部120dp
+                }
+                setPadding(0, 0, 0, 0)
+                // 🔧 关键：设置背景透明，确保不遮挡内容
+                setBackgroundColor(Color.TRANSPARENT)
+                // 🔧 关键：设置点击穿透，但按钮本身可点击
+                isClickable = false
+                isFocusable = false
+            }
+            
+            // 创建阅读模式按钮
+            val button = MaterialButton(this).apply {
+                text = "进入阅读模式"
+                setBackgroundColor(Color.parseColor("#007AFF"))
+                setTextColor(Color.WHITE)
+                cornerRadius = (12 * resources.displayMetrics.density).toInt()
+                // 🔧 关键：设置更高的elevation，确保在最上层
+                elevation = 16f
+                // 🔧 关键：确保按钮可点击
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                setPadding(
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt(),
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt()
+                )
+                
+                // 点击进入阅读模式
+                setOnClickListener {
+                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式: $url")
+                    globalReaderModeManager?.let { readerManager ->
+                        readerManager.enterReaderMode(webView, url, useNoImageMode = false)
+                        Toast.makeText(this@SimpleModeActivity, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
+                        // 进入阅读模式后隐藏按钮
+                        hideReaderModeButtonForCatalog()
+                    }
+                }
+                
+                // 添加淡入动画
+                alpha = 0f
+                animate()
+                    .alpha(1f)
+                    .setDuration(300)
+                    .setInterpolator(FastOutSlowInInterpolator())
+                    .start()
+            }
+            
+            container.addView(button)
+            
+            // 🔧 关键：添加到根布局，确保在最上层
+            rootView.addView(container)
+            // 🔧 关键：确保按钮在最上层
+            container.bringToFront()
+            container.elevation = 20f
+            
+            catalogReaderModeButton = button
+            catalogReaderModeButtonContainer = container
+            
+            Log.d(TAG, "✅ 目录页阅读模式按钮已显示（添加到根布局）")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示目录页阅读模式按钮失败，尝试降级方案", e)
+            // 降级方案：使用WebView容器
+            showReaderModeButtonInWebViewContainer(webView, url)
+        }
+    }
+    
+    /**
+     * 降级方案：在WebView容器中显示按钮
+     */
+    private fun showReaderModeButtonInWebViewContainer(webView: WebView, url: String) {
+        try {
+            // 创建按钮容器
+            val container = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL or Gravity.TOP
+                    topMargin = (120 * resources.displayMetrics.density).toInt()
+                }
+                setBackgroundColor(Color.TRANSPARENT)
+                isClickable = false
+                isFocusable = false
+            }
+            
+            // 创建阅读模式按钮
+            val button = MaterialButton(this).apply {
+                text = "进入阅读模式"
+                setBackgroundColor(Color.parseColor("#007AFF"))
+                setTextColor(Color.WHITE)
+                cornerRadius = (12 * resources.displayMetrics.density).toInt()
+                elevation = 16f
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+                setPadding(
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt(),
+                    (24 * resources.displayMetrics.density).toInt(),
+                    (12 * resources.displayMetrics.density).toInt()
+                )
+                
+                setOnClickListener {
+                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式: $url")
+                    globalReaderModeManager?.let { readerManager ->
+                        readerManager.enterReaderMode(webView, url, useNoImageMode = false)
+                        Toast.makeText(this@SimpleModeActivity, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
+                        hideReaderModeButtonForCatalog()
+                    }
+                }
+                
+                alpha = 0f
+                animate()
+                    .alpha(1f)
+                    .setDuration(300)
+                    .setInterpolator(FastOutSlowInInterpolator())
+                    .start()
+            }
+            
+            container.addView(button)
+            browserWebViewContainer.addView(container)
+            // 🔧 关键：确保按钮在最上层
+            container.bringToFront()
+            container.elevation = 20f
+            
+            catalogReaderModeButton = button
+            catalogReaderModeButtonContainer = container
+            
+            Log.d(TAG, "✅ 目录页阅读模式按钮已显示（降级方案：WebView容器）")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示目录页阅读模式按钮失败（降级方案）", e)
+        }
+    }
+    
+    /**
+     * 隐藏目录页阅读模式按钮
+     */
+    private fun hideReaderModeButtonForCatalog() {
+        try {
+            catalogReaderModeButtonContainer?.let { container ->
+                val parent = container.parent as? ViewGroup
+                
+                // 添加淡出动画
+                container.animate()
+                    .alpha(0f)
+                    .setDuration(200)
+                    .setInterpolator(FastOutSlowInInterpolator())
+                    .withEndAction {
+                        try {
+                            // 🔧 修复：从正确的父容器移除（可能是根布局或WebView容器）
+                            parent?.removeView(container)
+                            Log.d(TAG, "目录页阅读模式按钮已从父容器移除")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "从父容器移除按钮失败", e)
+                        }
+                    }
+                    .start()
+                
+                catalogReaderModeButton = null
+                catalogReaderModeButtonContainer = null
+                
+                Log.d(TAG, "目录页阅读模式按钮已隐藏")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏目录页阅读模式按钮失败", e)
+            // 如果动画失败，直接移除
+            try {
+                catalogReaderModeButtonContainer?.let { container ->
+                    val parent = container.parent as? ViewGroup
+                    parent?.removeView(container)
+                }
+                catalogReaderModeButton = null
+                catalogReaderModeButtonContainer = null
+            } catch (e2: Exception) {
+                Log.e(TAG, "强制移除按钮失败", e2)
+            }
         }
 
 

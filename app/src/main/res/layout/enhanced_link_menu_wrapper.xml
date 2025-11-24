@@ -328,6 +328,37 @@
                     android:text="屏蔽相关广告"
                     android:textSize="12sp"
                     android:textColor="@color/menu_button_text_light"
+                    android:layout_marginBottom="8dp"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    app:icon="@drawable/ic_block_ads"
+                    app:iconGravity="start"
+                    app:iconTint="@color/menu_button_icon_light"
+                    app:strokeColor="@color/menu_button_stroke_light" />
+
+                <!-- 进入阅读模式（仅小说网站显示） -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/action_enter_reader_mode_from_link"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="进入阅读模式"
+                    android:textSize="12sp"
+                    android:textColor="@color/menu_button_text_light"
+                    android:visibility="gone"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    app:icon="@drawable/ic_menu_book"
+                    app:iconGravity="start"
+                    app:iconTint="@color/menu_button_icon_light"
+                    app:strokeColor="@color/menu_button_stroke_light" />
+
+                <!-- 无图模式（仅小说网站显示） -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/action_enter_no_image_mode_from_link"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="无图模式（无广告）"
+                    android:textSize="12sp"
+                    android:textColor="@color/menu_button_text_light"
+                    android:visibility="gone"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     app:icon="@drawable/ic_block_ads"
                     app:iconGravity="start"

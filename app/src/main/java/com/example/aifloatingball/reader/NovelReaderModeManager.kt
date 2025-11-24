@@ -944,13 +944,22 @@ class NovelReaderModeManager(private val context: Context) {
                         box-sizing: border-box;
                     }
                     
+                    html {
+                        background-color: #ffffff;
+                        width: 100%;
+                        height: 100%;
+                    }
+                    
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-                        background-color: #f5f5f5;
+                        background-color: #ffffff;
                         color: #333;
                         line-height: 1.8;
                         padding: 0;
                         margin: 0;
+                        width: 100%;
+                        height: 100%;
+                        min-height: 100vh;
                     }
                     
                     .reader-container {
@@ -2486,6 +2495,334 @@ class NovelReaderModeManager(private val context: Context) {
                 }
             }
         }
+    }
+    
+    /**
+     * 检测当前页面是否为目录页
+     * 使用多层判断逻辑，参考Alook浏览器的实现方案
+     * @param webView WebView实例
+     * @param url 当前URL
+     * @param callback 检测结果回调，true表示是目录页
+     */
+    fun detectCatalogPage(webView: WebView, url: String?, callback: (Boolean) -> Unit) {
+        if (url.isNullOrEmpty()) {
+            callback(false)
+            return
+        }
+        
+        // 🔧 放宽条件：即使URL特征不匹配，也继续检测页面内容
+        // 第一层：URL特征判断（仅作为加分项，不强制要求）
+        val isCatalogUrl = checkUrlFeatures(url)
+        val urlBonus = if (isCatalogUrl) 0.2 else 0.0
+        Log.d(TAG, "URL特征判断: isCatalogUrl=$isCatalogUrl, urlBonus=$urlBonus")
+        
+        // 第二层：页面内容检测（核心验证）
+        // 使用重试机制，确保异步内容加载完成
+        var retryCount = 0
+        val maxRetries = 3
+        
+        fun performDetection() {
+            val detectionScript = generateCatalogDetectionScript()
+            webView.evaluateJavascript(detectionScript) { result ->
+                try {
+                    val jsonStr = result.removeSurrounding("\"").replace("\\\"", "\"")
+                    val json = JSONObject(jsonStr)
+                    val isCatalog = json.optBoolean("isCatalogPage", false)
+                    var confidence = json.optDouble("confidence", 0.0)
+                    val reasons = json.optJSONArray("reasons")
+                    
+                    // 添加URL特征加分
+                    confidence += urlBonus
+                    
+                    Log.d(TAG, "目录页检测结果 (重试$retryCount/$maxRetries): isCatalog=$isCatalog, confidence=$confidence")
+                    if (reasons != null) {
+                        val reasonsList = mutableListOf<String>()
+                        for (i in 0 until reasons.length()) {
+                            reasonsList.add(reasons.getString(i))
+                        }
+                        Log.d(TAG, "检测原因: ${reasonsList.joinToString(", ")}")
+                    }
+                    
+                    // 🔧 放宽置信度阈值：从0.6降到0.3
+                    val finalResult = isCatalog && confidence >= 0.3
+                    
+                    if (finalResult) {
+                        Log.d(TAG, "✅ 判定为目录页，置信度: $confidence")
+                        callback(true)
+                    } else if (retryCount < maxRetries && confidence < 0.3) {
+                        // 如果置信度不够，且还有重试次数，继续重试
+                        retryCount++
+                        val delay = 1000L * retryCount // 递增延迟：1s, 2s, 3s
+                        Log.d(TAG, "置信度不足($confidence < 0.3)，${delay}ms后重试 ($retryCount/$maxRetries)")
+                        webView.postDelayed({
+                            performDetection()
+                        }, delay)
+                    } else {
+                        Log.d(TAG, "❌ 判定为非目录页，置信度: $confidence")
+                        callback(false)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "解析目录页检测结果失败", e)
+                    if (retryCount < maxRetries) {
+                        retryCount++
+                        val delay = 1000L * retryCount
+                        Log.d(TAG, "检测失败，${delay}ms后重试 ($retryCount/$maxRetries)")
+                        webView.postDelayed({
+                            performDetection()
+                        }, delay)
+                    } else {
+                        callback(false)
+                    }
+                }
+            }
+        }
+        
+        // 首次检测延迟1秒
+        webView.postDelayed({
+            performDetection()
+        }, 1000)
+    }
+    
+    /**
+     * 第一层：URL特征判断
+     */
+    private fun checkUrlFeatures(url: String): Boolean {
+        val lowerUrl = url.lowercase()
+        
+        // 正向匹配关键词
+        val positiveKeywords = listOf(
+            "目录", "章节列表", "chapters?", "catalog", "directory", "list",
+            "zhangjie", "chap", "type=chapter", "page=chapter", "cid=list"
+        )
+        
+        // 反向排除关键词
+        val negativeKeywords = listOf(
+            "read", "view", "chapterid", "cid=\\d+", "page=read",
+            "info", "intro", "profile", "detail",
+            "index", "home", "search", "s=", "q="
+        )
+        
+        // 检查正向关键词
+        val hasPositive = positiveKeywords.any { keyword ->
+            try {
+                lowerUrl.contains(keyword, ignoreCase = true) || 
+                Regex(keyword, RegexOption.IGNORE_CASE).containsMatchIn(lowerUrl)
+            } catch (e: Exception) {
+                lowerUrl.contains(keyword, ignoreCase = true)
+            }
+        }
+        
+        // 检查反向关键词（如果包含则直接否定）
+        val hasNegative = negativeKeywords.any { keyword ->
+            try {
+                lowerUrl.contains(keyword, ignoreCase = true) || 
+                Regex(keyword, RegexOption.IGNORE_CASE).containsMatchIn(lowerUrl)
+            } catch (e: Exception) {
+                lowerUrl.contains(keyword, ignoreCase = true)
+            }
+        }
+        
+        return hasPositive && !hasNegative
+    }
+    
+    /**
+     * 生成目录页检测的JavaScript脚本
+     * 实现多层判断逻辑：章节文本特征、章节链接特征、DOM结构特征、排除误判
+     */
+    private fun generateCatalogDetectionScript(): String {
+        return """
+            (function() {
+                try {
+                    var result = {
+                        isCatalogPage: false,
+                        confidence: 0.0,
+                        reasons: []
+                    };
+                    
+                    // 第二层：章节文本特征检测（最核心）
+                    var chapterTextPatterns = [
+                        /第[零一二三四五六七八九十百千万\\d]+[章回卷节集]/g,
+                        /序章|楔子|后记|番外|特别篇/g,
+                        /^\\d+[.、-]\\s?[^\\d]+/gm
+                    ];
+                    
+                    var bodyText = document.body ? document.body.innerText || '' : '';
+                    var chapterTextMatches = 0;
+                    chapterTextPatterns.forEach(function(pattern) {
+                        var matches = bodyText.match(pattern);
+                        if (matches) {
+                            chapterTextMatches += matches.length;
+                        }
+                    });
+                    
+                    // 🔧 放宽阈值：章节文本数量从5降到3
+                    var hasEnoughChapterText = chapterTextMatches >= 3;
+                    if (hasEnoughChapterText) {
+                        result.confidence += 0.3;
+                        result.reasons.push('章节文本数量: ' + chapterTextMatches);
+                    } else if (chapterTextMatches > 0) {
+                        // 即使不够3个，只要有章节文本就给予部分分数
+                        result.confidence += 0.15;
+                        result.reasons.push('章节文本数量较少: ' + chapterTextMatches);
+                    }
+                    
+                    // 章节链接特征检测
+                    var allLinks = document.querySelectorAll('a');
+                    var chapterLinks = [];
+                    var chapterLinkPattern = /第[\\d一二三四五六七八九十百千万]+[章回卷节]|^\\d+[.、-]/;
+                    var readPagePattern = /read|chapterid|cid=\\d+/i;
+                    
+                    for (var i = 0; i < allLinks.length; i++) {
+                        var link = allLinks[i];
+                        var text = (link.textContent || link.innerText || '').trim();
+                        var href = link.href || '';
+                        
+                        // 检查是否是章节链接
+                        if (chapterLinkPattern.test(text) && readPagePattern.test(href)) {
+                            chapterLinks.push({
+                                text: text,
+                                href: href
+                            });
+                        }
+                    }
+                    
+                    // 🔧 放宽阈值：章节链接数量从5降到3，且放宽链接匹配条件
+                    // 如果链接文本匹配章节模式，即使href不匹配阅读页模式也接受
+                    var relaxedChapterLinks = [];
+                    for (var i = 0; i < allLinks.length; i++) {
+                        var link = allLinks[i];
+                        var text = (link.textContent || link.innerText || '').trim();
+                        var href = link.href || '';
+                        
+                        // 放宽条件：只要文本匹配章节模式即可
+                        if (chapterLinkPattern.test(text)) {
+                            relaxedChapterLinks.push({
+                                text: text,
+                                href: href
+                            });
+                        }
+                    }
+                    
+                    // 使用更宽松的链接列表（优先使用relaxedChapterLinks，因为它包含更多链接）
+                    var finalChapterLinks = relaxedChapterLinks.length > chapterLinks.length ? relaxedChapterLinks : chapterLinks;
+                    var hasEnoughChapterLinks = finalChapterLinks.length >= 3;
+                    
+                    if (hasEnoughChapterLinks) {
+                        result.confidence += 0.3;
+                        result.reasons.push('章节链接数量: ' + finalChapterLinks.length);
+                    } else if (finalChapterLinks.length > 0) {
+                        // 即使不够3个，只要有章节链接就给予部分分数
+                        result.confidence += 0.15;
+                        result.reasons.push('章节链接数量较少: ' + finalChapterLinks.length);
+                    }
+                    
+                    // DOM结构特征检测
+                    var catalogContainerPattern = /chapter-?list|catalog|directory|zhangjie/i;
+                    var containers = document.querySelectorAll('div, ul, ol, section');
+                    var catalogContainerFound = false;
+                    
+                    for (var i = 0; i < containers.length; i++) {
+                        var container = containers[i];
+                        var id = container.id || '';
+                        var className = container.className || '';
+                        var classList = className.split(' ');
+                        
+                        // 检查ID或class是否包含目录关键词
+                        if (catalogContainerPattern.test(id) || 
+                            classList.some(function(cls) { return catalogContainerPattern.test(cls); })) {
+                            
+                            // 检查容器内是否有足够的链接
+                            var linksInContainer = container.querySelectorAll('a');
+                            if (linksInContainer.length >= 5) {
+                                catalogContainerFound = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (catalogContainerFound) {
+                        result.confidence += 0.2;
+                        result.reasons.push('找到目录容器');
+                    }
+                    
+                    // 页面标题特征（辅助）
+                    var title = document.title || '';
+                    var titlePattern = /目录|章节列表|chapters? list/i;
+                    if (titlePattern.test(title)) {
+                        result.confidence += 0.1;
+                        result.reasons.push('标题包含目录关键词');
+                    }
+                    
+                    // 第三层：排除误判
+                    // 排除详情页：检查是否有封面、简介等元素
+                    var hasCover = document.querySelector('img[alt*="封面"], img[alt*="cover"]') !== null;
+                    var hasIntro = bodyText.indexOf('简介') >= 0 || bodyText.indexOf('作者') >= 0;
+                    var hasRating = bodyText.indexOf('评分') >= 0 || bodyText.indexOf('星级') >= 0;
+                    
+                    if (hasCover && hasIntro && chapterLinks.length <= 5) {
+                        // 可能是详情页的"最新章节"模块，不是完整目录页
+                        result.confidence -= 0.3;
+                        result.reasons.push('疑似详情页（有封面和简介）');
+                    }
+                    
+                    // 排除阅读页：检查是否有阅读控制按钮
+                    var hasReadControls = bodyText.indexOf('上一章') >= 0 || 
+                                         bodyText.indexOf('下一章') >= 0 ||
+                                         bodyText.indexOf('字体') >= 0 ||
+                                         bodyText.indexOf('夜间模式') >= 0;
+                    
+                    // 检查正文容器长度
+                    var contentSelectors = ['#content', '.content', '.chapter-content', 
+                                          '.text-content', '#novelcontent', '.novel-content', 
+                                          '.read-content', '#text', '.text', 'article', '.article-content'];
+                    var contentLength = 0;
+                    for (var i = 0; i < contentSelectors.length; i++) {
+                        var element = document.querySelector(contentSelectors[i]);
+                        if (element) {
+                            var text = element.textContent || element.innerText || '';
+                            if (text.length > contentLength) {
+                                contentLength = text.length;
+                            }
+                        }
+                    }
+                    
+                    // 🔧 放宽排除条件：正文长度阈值从2000提高到3000
+                    if (hasReadControls || contentLength >= 3000) {
+                        result.confidence -= 0.3; // 减少扣分，从0.4降到0.3
+                        result.reasons.push('疑似阅读页（有阅读控制或长正文: ' + contentLength + '字）');
+                    }
+                    
+                    // 排除分类页/搜索结果页：检查列表项是否包含小说信息而非章节
+                    var listItems = document.querySelectorAll('li, .item, .list-item');
+                    var novelInfoCount = 0;
+                    for (var i = 0; i < Math.min(listItems.length, 10); i++) {
+                        var item = listItems[i];
+                        var text = (item.textContent || item.innerText || '').toLowerCase();
+                        if (text.indexOf('小说') >= 0 || text.indexOf('全文') >= 0 || 
+                            text.indexOf('完结') >= 0 || text.indexOf('作者') >= 0) {
+                            novelInfoCount++;
+                        }
+                    }
+                    
+                    // 如果大部分列表项包含小说信息，可能是分类页
+                    if (listItems.length > 0 && novelInfoCount / listItems.length > 0.5) {
+                        result.confidence -= 0.3;
+                        result.reasons.push('疑似分类页（列表项包含小说信息）');
+                    }
+                    
+                    // 最终判断：置信度阈值
+                    result.isCatalogPage = result.confidence >= 0.6;
+                    
+                    return JSON.stringify(result);
+                } catch (e) {
+                    return JSON.stringify({
+                        isCatalogPage: false,
+                        confidence: 0.0,
+                        error: e.toString()
+                    });
+                }
+            })();
+        """.trimIndent()
     }
     
     /**
