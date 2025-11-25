@@ -2399,6 +2399,43 @@
                         android:layout_gravity="top"
                         android:progressDrawable="@drawable/progress_bar_drawable"
                         android:visibility="gone" />
+                    
+                    <!-- 🔧 新增：页面加载遮罩层（带动画），遮挡功能主页按钮 -->
+                    <FrameLayout
+                        android:id="@+id/browser_loading_overlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@color/simple_mode_background_light"
+                        android:visibility="gone"
+                        android:elevation="10dp"
+                        android:clickable="true"
+                        android:focusable="true">
+                        
+                        <!-- 加载动画容器 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            android:orientation="vertical"
+                            android:gravity="center">
+                            
+                            <!-- 加载指示器 -->
+                            <ProgressBar
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:indeterminateTint="@color/simple_mode_accent_light"
+                                style="?android:attr/progressBarStyleLarge" />
+                            
+                            <!-- 加载文字 -->
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="加载中..."
+                                android:textSize="14sp"
+                                android:textColor="@color/simple_mode_text_secondary_light" />
+                        </LinearLayout>
+                    </FrameLayout>
 
                     <!-- 手势提示覆盖层 -->
                     <FrameLayout

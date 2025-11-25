@@ -283,6 +283,13 @@ class PaperStackWebViewManager(
             isLazyLoaded = false // 正常创建的标签页立即加载
         )
         
+        // 🔧 修复：在添加到容器之前就设置背景为白色，避免在加载时看到背面的功能主页按钮
+        // 确保WebView在加载前就有不透明背景
+        if (webView is PaperWebView) {
+            webView.setBackgroundColor(Color.WHITE)
+            Log.d(TAG, "新标签页创建时设置WebView背景为白色，避免透视: ${tab.title}")
+        }
+        
         // 添加到容器
         container.addView(webView)
         tabs.add(tab)
@@ -294,8 +301,17 @@ class PaperStackWebViewManager(
         // 🔧 修复：确保每个组至少有一个功能主页
         ensureFunctionalHomeExists(tabGroupId)
         
-        // 更新标签页位置
+        // 🔧 修复：在更新标签页位置之前就通知监听器，确保browser_home_content在WebView可见之前就被隐藏
+        // 这样可以避免在WebView加载时看到背面的功能主页按钮
+        onTabCreatedListener?.invoke(tab)
+        
+        // 更新标签页位置（这会让WebView可见）
         updateTabPositions()
+        
+        // 🔧 修复：在加载URL之前再次确保背景为白色，避免任何延迟导致的透明
+        if (webView is PaperWebView) {
+            webView.setBackgroundColor(Color.WHITE)
+        }
         
         // 加载URL（如果是功能主页，加载功能主页HTML并设置JavaScript接口）
         if (url == "home://functional") {
@@ -342,8 +358,8 @@ class PaperStackWebViewManager(
         // 保存当前组的标签页数据
         saveCurrentGroupTabs()
         
-        // 通知监听器
-        onTabCreatedListener?.invoke(tab)
+        // 🔧 修复：监听器已在updateTabPositions()之前调用，这里不再重复调用
+        // onTabCreatedListener?.invoke(tab) // 已移到updateTabPositions()之前
         
         // 如果是新创建的标签页且是当前标签页，触发切换监听器
         if (currentTabIndex == newTabIndex) {
@@ -683,12 +699,31 @@ class PaperStackWebViewManager(
         
         Log.d(TAG, "开始卡片交叠切换：从 ${currentTab.title} 到 ${targetTab.title}, 方向=${if (isSwipeLeft) "左滑" else "右滑"}")
         
+        // 🔧 修复：在动画开始前就设置背景为白色，避免切换时先看到透明背景
+        // 确保目标WebView和当前WebView都有不透明背景
+        if (targetTab.webView is PaperWebView) {
+            targetTab.webView.setBackgroundColor(Color.WHITE)
+            Log.d(TAG, "切换前设置目标WebView背景为白色: ${targetTab.title}")
+        }
+        if (currentTab.webView is PaperWebView) {
+            currentTab.webView.setBackgroundColor(Color.WHITE)
+            Log.d(TAG, "切换前设置当前WebView背景为白色: ${currentTab.title}")
+        }
+        
         // 创建卡片交叠动画
         val animatorSet = createCardStackAnimation(currentTab, targetTab, isSwipeLeft)
         
         animatorSet.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationStart(animation: Animator) {
                 Log.d(TAG, "卡片交叠切换动画开始")
+                
+                // 🔧 修复：在动画开始时再次确保背景为白色，避免任何延迟导致的透明
+                if (targetTab.webView is PaperWebView) {
+                    targetTab.webView.setBackgroundColor(Color.WHITE)
+                }
+                if (currentTab.webView is PaperWebView) {
+                    currentTab.webView.setBackgroundColor(Color.WHITE)
+                }
             }
             
             override fun onAnimationEnd(animation: Animator) {
@@ -728,16 +763,18 @@ class PaperStackWebViewManager(
                 // 重新排序标签页数组（只更新视觉位置，不改变数组顺序）
                 reorderTabs(currentTabIndex, targetIndex)
                 
-                // 检查目标标签页的错误状态，确保背景正确设置
+                // 🔧 修复：检查目标标签页的错误状态，确保背景正确设置
+                // 在切换时使用白色背景，避免透明背景导致能看到背面的快捷操作栏
                 if (targetTab.webView is PaperWebView) {
                     if (targetTab.webView.isErrorState) {
                         // 如果目标标签页处于错误状态，确保背景是不透明的白色
                         Log.d(TAG, "切换到错误状态的标签页，设置背景为白色: ${targetTab.title}")
                         targetTab.webView.setBackgroundColor(Color.WHITE)
                     } else {
-                        // 如果目标标签页正常，确保背景透明
-                        Log.d(TAG, "切换到正常标签页，设置背景为透明: ${targetTab.title}")
-                        targetTab.webView.setBackgroundColor(Color.TRANSPARENT)
+                        // 🔧 修复：切换时使用白色背景，避免透明背景导致透视问题
+                        // 在页面加载完成后，会根据网页实际背景色动态调整
+                        Log.d(TAG, "切换到正常标签页，设置背景为白色（避免透视）: ${targetTab.title}")
+                        targetTab.webView.setBackgroundColor(Color.WHITE)
                     }
                 }
                 
@@ -789,7 +826,21 @@ class PaperStackWebViewManager(
             -swipeDistance // 右滑：目标页面从左侧开始
         }
         
-        // 确保目标页面可见并设置初始位置
+        // 🔧 修复：在设置可见性之前就设置背景为白色，避免先看到透明背景
+        // 确保目标WebView和当前WebView都有不透明背景
+        if (targetWebView is PaperWebView) {
+            targetWebView.setBackgroundColor(Color.WHITE)
+        } else {
+            targetWebView.setBackgroundColor(Color.WHITE)
+        }
+        
+        if (currentWebView is PaperWebView) {
+            currentWebView.setBackgroundColor(Color.WHITE)
+        } else {
+            currentWebView.setBackgroundColor(Color.WHITE)
+        }
+        
+        // 确保目标页面可见并设置初始位置（在设置背景之后）
         targetWebView.visibility = View.VISIBLE
         targetWebView.translationX = targetStartX
         targetWebView.translationY = 0f
@@ -797,21 +848,6 @@ class PaperStackWebViewManager(
         targetWebView.scaleY = 1.0f
         targetWebView.alpha = 1.0f
         targetWebView.elevation = currentWebView.elevation + 1f
-        
-        // 🔧 修复：设置背景色为不透明，避免透视看到页面下方
-        // 在动画过程中，确保WebView背景不透明
-        if (targetWebView is PaperWebView) {
-            targetWebView.setBackgroundColor(Color.WHITE)
-        } else {
-            targetWebView.setBackgroundColor(Color.WHITE)
-        }
-        
-        // 确保当前页面也有不透明背景，避免透视
-        if (currentWebView is PaperWebView) {
-            currentWebView.setBackgroundColor(Color.WHITE)
-        } else {
-            currentWebView.setBackgroundColor(Color.WHITE)
-        }
         
         // 当前页面滑出动画
         val currentAnimatorX = ObjectAnimator.ofFloat(currentWebView, "translationX", 0f, currentTargetX).apply {
@@ -1006,6 +1042,11 @@ class PaperStackWebViewManager(
             
             // 🔧 修复1：确保只有当前页面可见，其他页面完全隐藏
             if (index == currentTabIndex) {
+                // 🔧 修复：在设置可见之前确保背景为白色，避免透视到功能主页按钮
+                if (tab.webView is PaperWebView) {
+                    tab.webView.setBackgroundColor(Color.WHITE)
+                }
+                
                 // 当前页面：完全可见
                 tab.webView.visibility = View.VISIBLE
                 tab.webView.alpha = 1.0f
@@ -1284,10 +1325,18 @@ class PaperStackWebViewManager(
                 // 恢复标签页
                 val restoredTabs = mutableListOf<WebViewTab>()
                 var hasFunctionalHome = false
+                var functionalHomeCount = 0
                 
                 tabDataList.forEach { tabData ->
-                    // 检查是否已经有功能主页
-                    if (tabData.url == "home://functional" || tabData.url == "file:///android_asset/functional_home.html") {
+                    // 🔧 修复：检查是否是功能主页，并统计数量
+                    val isFunctionalHome = tabData.url == "home://functional" || tabData.url == "file:///android_asset/functional_home.html"
+                    if (isFunctionalHome) {
+                        functionalHomeCount++
+                        // 🔧 修复：只保留第一个功能主页，跳过其他的
+                        if (functionalHomeCount > 1) {
+                            Log.w(TAG, "检测到重复的功能主页，跳过: ${tabData.title}")
+                            return@forEach
+                        }
                         hasFunctionalHome = true
                     }
                     val restoredTab = addTab(tabData.url, tabData.title, groupId)
@@ -1300,6 +1349,16 @@ class PaperStackWebViewManager(
                     val functionalHomeTab = addTab(functionalHomeUrl, "快捷入口", groupId)
                     restoredTabs.add(0, functionalHomeTab) // 将功能主页添加到第一个位置
                     Log.d(TAG, "组 $groupId 没有功能主页，已创建")
+                } else {
+                    // 🔧 修复：确保功能主页在第一个位置
+                    val functionalHomeTab = restoredTabs.find { 
+                        it.url == "home://functional" || it.url == "file:///android_asset/functional_home.html" 
+                    }
+                    if (functionalHomeTab != null && restoredTabs.indexOf(functionalHomeTab) != 0) {
+                        restoredTabs.remove(functionalHomeTab)
+                        restoredTabs.add(0, functionalHomeTab)
+                        Log.d(TAG, "已将功能主页移动到第一个位置")
+                    }
                 }
                 
                 // 切换到第一个标签页（功能主页）
@@ -1443,45 +1502,61 @@ class PaperStackWebViewManager(
     }
 
     /**
-     * 确保功能主页存在（每个组至少有一个功能主页）
+     * 确保功能主页存在（每个组只能有一个功能主页）
+     * 🔧 修复：确保只创建一个功能主页，如果已有多个则删除多余的
      */
     private fun ensureFunctionalHomeExists(groupId: String?) {
         if (groupId == null) return
         
-        // 检查当前组是否已经有功能主页
-        val hasFunctionalHome = tabs.any { tab ->
+        // 🔧 修复：统计当前组的功能主页数量
+        val functionalHomeTabs = tabs.filter { tab ->
             tab.groupId == groupId && 
             (tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html")
         }
         
-        // 如果没有功能主页，创建一个
-        if (!hasFunctionalHome) {
-            val functionalHomeUrl = "home://functional"
-            // 注意：这里不能直接调用addTab，因为会导致递归调用
-            // 应该创建一个新的标签页，但不触发ensureFunctionalHomeExists
-            val tabId = "tab_${System.currentTimeMillis()}"
-            val webView = PaperWebView(context)
-            webView.setupWebView()
-            
-            val tab = WebViewTab(
-                id = tabId,
-                webView = webView,
-                title = "快捷入口",
-                url = functionalHomeUrl,
-                isActive = false,
-                stackIndex = tabs.size,
-                groupId = groupId,
-                isLazyLoaded = false
-            )
-            
-            container.addView(webView)
-            tabs.add(0, tab) // 将功能主页添加到第一个位置
-            
-            // 设置功能主页接口
-            setupFunctionalHomeInterface(webView)
-            webView.loadUrl("file:///android_asset/functional_home.html")
-            
-            Log.d(TAG, "组 $groupId 缺少功能主页，已自动创建")
+        // 🔧 修复：如果已有功能主页，确保只有一个
+        when {
+            functionalHomeTabs.size > 1 -> {
+                // 如果有多于一个功能主页，保留第一个，删除其他的
+                Log.w(TAG, "组 $groupId 检测到 ${functionalHomeTabs.size} 个功能主页，删除多余的")
+                functionalHomeTabs.drop(1).forEach { tab ->
+                    tabs.remove(tab)
+                    container.removeView(tab.webView)
+                    tab.webView.destroy()
+                    Log.d(TAG, "已删除多余的功能主页: ${tab.id}")
+                }
+            }
+            functionalHomeTabs.isEmpty() -> {
+                // 如果没有功能主页，创建一个
+                val functionalHomeUrl = "home://functional"
+                val tabId = "tab_${System.currentTimeMillis()}"
+                val webView = PaperWebView(context)
+                webView.setupWebView()
+                
+                val tab = WebViewTab(
+                    id = tabId,
+                    webView = webView,
+                    title = "快捷入口",
+                    url = functionalHomeUrl,
+                    isActive = false,
+                    stackIndex = tabs.size,
+                    groupId = groupId,
+                    isLazyLoaded = false
+                )
+                
+                container.addView(webView)
+                tabs.add(0, tab) // 将功能主页添加到第一个位置
+                
+                // 设置功能主页接口
+                setupFunctionalHomeInterface(webView)
+                webView.loadUrl("file:///android_asset/functional_home.html")
+                
+                Log.d(TAG, "组 $groupId 缺少功能主页，已自动创建")
+            }
+            else -> {
+                // 只有一个功能主页，正常情况，不需要处理
+                Log.d(TAG, "组 $groupId 已有功能主页，无需创建")
+            }
         }
     }
     
@@ -2085,8 +2160,9 @@ class PaperStackWebViewManager(
         }
         
         fun setupWebView() {
-            // 设置WebView完全透明
-            setBackgroundColor(Color.TRANSPARENT)
+            // 🔧 修复：初始设置WebView背景为白色，避免透明背景导致能看到背面的组件
+            // 在页面加载完成后，会根据网页实际背景色动态调整
+            setBackgroundColor(Color.WHITE)
             setBackground(null)
             setLayerType(LAYER_TYPE_HARDWARE, null)
             
@@ -2337,12 +2413,12 @@ class PaperStackWebViewManager(
                         }
                     }
                     
-                    // 新页面开始加载：重置错误状态，恢复透明背景
+                    // 🔧 修复：新页面开始加载：重置错误状态，保持白色背景（避免透视）
                     if (view is PaperWebView) {
-                        Log.d(TAG, "页面开始加载，重置错误状态并恢复透明背景: $url")
+                        Log.d(TAG, "页面开始加载，重置错误状态并保持白色背景: $url")
                         view.isErrorState = false
-                        // 恢复透明背景，避免之前的错误状态影响
-                        view.setBackgroundColor(Color.TRANSPARENT)
+                        // 🔧 修复：保持白色背景，避免透视到背面的功能主页按钮
+                        view.setBackgroundColor(Color.WHITE)
                     }
                     
                     // 通知页面开始加载监听器
@@ -2383,10 +2459,52 @@ class PaperStackWebViewManager(
                         }
                     }
                     
-                    // 页面加载完成：如果成功加载（非错误状态），确保背景透明
+                    // 🔧 修复：页面加载完成后，检查网页背景色，如果没有设置则设置默认背景色
+                    // 避免网页背景透明导致能看到背面的组件
                     if (view is PaperWebView && !view.isErrorState) {
-                        Log.d(TAG, "页面加载完成，确保透明背景: $url")
-                        view.setBackgroundColor(Color.TRANSPARENT)
+                        // 延迟检查，确保DOM已完全加载
+                        view.postDelayed({
+                            view.evaluateJavascript("""
+                                (function() {
+                                    try {
+                                        // 检查body和html的背景色
+                                        var bodyBg = window.getComputedStyle(document.body).backgroundColor;
+                                        var htmlBg = window.getComputedStyle(document.documentElement).backgroundColor;
+                                        
+                                        // 如果背景色是透明或未设置，设置默认白色背景
+                                        var isTransparent = bodyBg === 'rgba(0, 0, 0, 0)' || 
+                                                           bodyBg === 'transparent' ||
+                                                           bodyBg === '' ||
+                                                           htmlBg === 'rgba(0, 0, 0, 0)' ||
+                                                           htmlBg === 'transparent' ||
+                                                           htmlBg === '';
+                                        
+                                        if (isTransparent) {
+                                            // 设置body和html的背景色为白色
+                                            document.body.style.backgroundColor = '#FFFFFF';
+                                            document.documentElement.style.backgroundColor = '#FFFFFF';
+                                            return 'transparent_fixed';
+                                        }
+                                        return 'has_background';
+                                    } catch (e) {
+                                        console.error('检查背景色失败:', e);
+                                        return 'error';
+                                    }
+                                })();
+                            """.trimIndent()) { result ->
+                                // 🔧 修复：无论网页是否有背景色，都设置WebView背景为白色
+                                // 这样可以避免WebView透明导致能看到背面的组件
+                                // 网页的背景色会通过body和html的样式设置来显示
+                                if (result?.contains("transparent_fixed") == true) {
+                                    Log.d(TAG, "检测到网页背景透明，已设置网页背景为白色，WebView背景保持白色: $url")
+                                    view.setBackgroundColor(Color.WHITE)
+                                } else {
+                                    // 即使网页有背景色，也保持WebView背景为白色，避免透视问题
+                                    Log.d(TAG, "网页有背景色，WebView背景保持白色: $url")
+                                    view.setBackgroundColor(Color.WHITE)
+                                }
+                            }
+                        }, 200) // 延迟200ms确保DOM已准备好
                     }
                     
                     // 检查是否可以进入阅读模式

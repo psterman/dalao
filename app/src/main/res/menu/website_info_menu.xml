@@ -53,5 +53,18 @@
         android:title="获取网页全部文字"
         app:showAsAction="never" />
     
+    <!-- 分隔线 -->
+    <item
+        android:id="@+id/menu_separator3"
+        android:title=""
+        android:enabled="false"
+        app:showAsAction="never" />
+    
+    <!-- 进入阅读模式 -->
+    <item
+        android:id="@+id/menu_enter_reader_mode"
+        android:title="进入阅读模式"
+        app:showAsAction="never" />
+    
 </menu>
 

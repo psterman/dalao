@@ -690,6 +690,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var swipeUpStartX = 0f // 记录起始X坐标，用于判断是否为垂直滑动
     private lateinit var browserBtnMenu: ImageButton
     private lateinit var browserProgressBar: ProgressBar
+    private var browserLoadingOverlay: FrameLayout? = null // 🔧 新增：页面加载遮罩层
     private lateinit var browserTabContainer: LinearLayout
     private lateinit var browserTabBar: WebViewTabBar
     private lateinit var browserNewTabButton: ImageButton
@@ -1969,6 +1970,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserSearchInput = findViewById(R.id.browser_search_input)
         browserBtnMenu = findViewById(R.id.browser_btn_menu)
         browserProgressBar = findViewById(R.id.browser_progress_bar)
+        browserLoadingOverlay = findViewById(R.id.browser_loading_overlay) // 🔧 新增：初始化加载遮罩层
         
         // 🔧 修复4：初始化搜索输入框文字工具栏
         searchInputToolbarContainer = findViewById(R.id.search_input_toolbar_container)
@@ -4905,6 +4907,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_chat)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
+                // 🔧 修复：退出搜索tab时，恢复tab栏（组标签栏）显示
+                if (currentState == UIState.BROWSER) {
+                    groupTabsContainer?.let { container ->
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "🔧 退出搜索tab时，恢复组标签栏（tab栏）")
+                    }
+                }
                 showChat()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
@@ -4999,6 +5010,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_home)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
+                // 🔧 修复：退出搜索tab时，恢复tab栏（组标签栏）显示
+                if (currentState == UIState.BROWSER) {
+                    groupTabsContainer?.let { container ->
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "🔧 退出搜索tab时，恢复组标签栏（tab栏）")
+                    }
+                }
                 showAIAssistantCenter()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
@@ -5012,6 +5032,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_voice)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
+                // 🔧 修复：退出搜索tab时，恢复tab栏（组标签栏）显示
+                if (currentState == UIState.BROWSER) {
+                    groupTabsContainer?.let { container ->
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "🔧 退出搜索tab时，恢复组标签栏（tab栏）")
+                    }
+                }
                 showVoice()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
@@ -5025,6 +5054,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_app_search)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
+                // 🔧 修复：退出搜索tab时，恢复tab栏（组标签栏）显示
+                if (currentState == UIState.BROWSER) {
+                    groupTabsContainer?.let { container ->
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "🔧 退出搜索tab时，恢复组标签栏（tab栏）")
+                    }
+                }
                 showAppSearch()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
@@ -5038,6 +5076,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_settings)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
+                // 🔧 修复：退出搜索tab时，恢复tab栏（组标签栏）显示
+                if (currentState == UIState.BROWSER) {
+                    groupTabsContainer?.let { container ->
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "🔧 退出搜索tab时，恢复组标签栏（tab栏）")
+                    }
+                }
                 showSettings()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
@@ -6850,9 +6897,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 设置标签页监听器（合并所有逻辑到一个监听器，避免覆盖）
         paperStackWebViewManager?.setOnTabCreatedListener { tab ->
-            // 隐藏原生功能主页，显示纸堆界面
+            // 🔧 修复：立即隐藏原生功能主页，避免在WebView加载时看到背面的按钮
+            // 在标签页创建时立即隐藏，而不是等到加载完成
             browserHomeContent.visibility = View.GONE
             browserTabContainer.visibility = View.GONE
+            
+            // 🔧 修复：确保WebView容器背景为白色，避免透视到功能主页按钮
+            val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+            webViewContainer?.setBackgroundColor(Color.WHITE)
+            
+            // 🔧 修复：确保WebView背景为白色，避免透视到功能主页按钮
+            // 直接设置WebView背景色，不检查具体类型（PaperWebView是私有类）
+            tab.webView.setBackgroundColor(Color.WHITE)
+            
+            // 🔧 新增：标签页创建时立即显示加载遮罩层，遮挡功能主页按钮
+            showLoadingOverlay()
+            
+            Log.d(TAG, "标签页创建时隐藏功能主页并设置WebView背景为白色: ${tab.title}")
             
             // 如果是功能主页，确保显示纸堆布局
             if (tab.url == "home://functional") {
@@ -6895,6 +6956,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         paperStackWebViewManager?.setOnTabSwitchedListener { tab, index ->
+            // 🔧 修复：切换标签页时隐藏快捷操作栏，避免在WebView透明时看到背面的按钮
+            if (isQuickActionsBarVisible) {
+                hideQuickActionsBar()
+                Log.d(TAG, "切换标签页时隐藏快捷操作栏，避免透视问题")
+            }
+            
             // 切换标签页时隐藏阅读模式按钮
             hideReaderModeButtonForCatalog()
             
@@ -7061,6 +7128,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         paperStackWebViewManager?.setOnPageStartedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面开始加载: $url")
             
+            // 🔧 修复：页面开始加载时显示加载遮罩层（带动画），遮挡功能主页按钮
+            showLoadingOverlay()
+            
             // 页面开始加载时隐藏阅读模式按钮
             hideReaderModeButtonForCatalog()
             
@@ -7084,6 +7154,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 页面加载完成时注入视频检测脚本
         paperStackWebViewManager?.setOnPageFinishedListener { tab, url ->
             Log.d(TAG, "纸堆模式页面加载完成: $url")
+            
+            // 🔧 修复：页面加载完成时隐藏加载遮罩层（带动画）
+            hideLoadingOverlay()
             
             // 更新地址栏显示当前页面URL
             if (url != null && url.isNotEmpty()) {
@@ -8819,55 +8892,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 accumulatedScrollY = deltaY
             }
             
-            // 🔧 修复：tab栏常驻，只有标题栏和悬浮工具栏动态显示/隐藏
-            // 向下滚动：累计滚动超过阈值时隐藏标题栏，显示悬浮工具栏，但tab栏保持显示
-            // tab栏必须用户往下滑页面一定距离才消失，平常应该常驻
-            val tabHideThreshold = scrollAccumulateThreshold * 3 // tab栏需要更大的滚动距离才隐藏
-            if (accumulatedScrollY > scrollAccumulateThreshold && isToolbarVisible) {
+            // 🔧 修复：搜索tab中，下滑时搜索输入框和组标签栏同时消失，上滑时同时出现
+            // 向下滚动：累计滚动超过阈值时同时隐藏搜索输入框和组标签栏
+            if (accumulatedScrollY > scrollAccumulateThreshold && isToolbarVisible && currentState == UIState.BROWSER) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
-                // 只隐藏标题栏，不隐藏tab栏
+                
+                // 同时隐藏搜索输入框（工具栏）和组标签栏
                 hideToolbarOnly()
+                
                 // 显示悬浮工具栏（只在用户下滑时浮现）
                 hideBottomNavigationAndShowQuickActions()
-                Log.d(TAG, "🔧 隐藏标题栏，显示悬浮工具栏，累计deltaY=$scrollValue")
+                Log.d(TAG, "🔧 下滑隐藏搜索输入框和组标签栏，显示悬浮工具栏，累计deltaY=$scrollValue")
                 return
             }
             
-            // tab栏需要更大的滚动距离才隐藏
-            if (accumulatedScrollY > tabHideThreshold && browserTabContainer.visibility == View.VISIBLE) {
+            // 向上滚动：累计滚动超过阈值时同时显示搜索输入框和组标签栏
+            if (accumulatedScrollY < -scrollAccumulateThreshold && currentState == UIState.BROWSER) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
-                // 隐藏tab栏
-                browserTabContainer.visibility = View.GONE
-                Log.d(TAG, "🔧 隐藏tab栏，累计deltaY=$scrollValue")
-                return
-            }
-            
-            // 向上滚动：累计滚动超过阈值时显示标题栏和tab栏，隐藏悬浮工具栏
-            if (accumulatedScrollY < -scrollAccumulateThreshold && !isToolbarVisible) {
-                val scrollValue = accumulatedScrollY
-                accumulatedScrollY = 0 // 重置累计值
-                showToolbar()
-                // 🔧 修复：标签栏容器已永久隐藏，不再显示
-                // val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-                // if (hasTabs) {
-                //     browserTabContainer.visibility = View.VISIBLE
-                //     browserTabContainer.alpha = 1f
-                //     browserTabContainer.translationY = 0f
-                // }
-                browserTabContainer.visibility = View.GONE
-                // 🔧 修复：确保组标签栏也显示
-                groupTabsContainer?.let { container ->
-                    if (isToolbarVisible && currentState == UIState.BROWSER) {
-                        container.visibility = View.VISIBLE
-                        container.alpha = 1f
-                        container.translationY = 0f
+                
+                // 🔧 修复：如果工具栏隐藏，先显示工具栏（这会同时恢复组标签栏）
+                if (!isToolbarVisible) {
+                    showToolbar()
+                } else {
+                    // 如果工具栏已显示，确保组标签栏也显示
+                    groupTabsContainer?.let { container ->
+                        if (container.visibility != View.VISIBLE) {
+                            container.visibility = View.VISIBLE
+                            container.alpha = 1f
+                            container.translationY = 0f
+                            Log.d(TAG, "🔧 上滑时恢复组标签栏显示")
+                        }
                     }
                 }
+                
                 // 隐藏悬浮工具栏
                 showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 显示标题栏和tab栏，隐藏悬浮工具栏，累计deltaY=$scrollValue")
+                Log.d(TAG, "🔧 上滑显示搜索输入框和组标签栏，隐藏悬浮工具栏，累计deltaY=$scrollValue")
                 return
             }
 
@@ -9126,11 +9188,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun hideToolbarOnly() {
         if (!isToolbarVisible) return
         
-        // 搜索tab首页不隐藏标题栏和tab栏
-        if (browserHomeContent.visibility == View.VISIBLE) {
-            Log.d(TAG, "搜索tab首页，不隐藏标题栏和tab栏")
-            return
-        }
+        // 🔧 修复：允许在滚动时隐藏工具栏，即使是在首页也应该能隐藏
+        // 移除首页检查，让用户可以通过滚动来隐藏搜索输入框和组标签栏
 
         try {
             isToolbarVisible = false
@@ -9154,6 +9213,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 🔧 修复：获取组标签栏高度
             val groupTabsContainerRef = groupTabsContainer
+            // 🔧 关键修复：只有当组标签栏当前是VISIBLE时才处理（说明有组需要显示）
+            // 如果组标签栏是GONE，可能是因为没有用户创建的组，不需要处理
             val groupTabsContainerHeight = if (groupTabsContainerRef?.visibility == View.VISIBLE) {
                 groupTabsContainerRef.height.toFloat()
             } else {
@@ -9462,13 +9523,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 dpToPx(56f)
             }
             
-            // 🔧 修复：如果有标签页，确保tab栏可见
-            val hasTabs = paperStackWebViewManager?.getAllTabs()?.isNotEmpty() == true
-            // 🔧 修复：标签栏容器已永久隐藏
-            // if (hasTabs && browserTabContainer.visibility != View.VISIBLE) {
-            //     browserTabContainer.visibility = View.VISIBLE
-            // }
-            browserTabContainer.visibility = View.GONE
+            // 🔧 修复：显示工具栏时，确保组标签栏（tab栏）也可见（在搜索tab中）
+            if (currentState == UIState.BROWSER) {
+                groupTabsContainer?.let { container ->
+                    container.visibility = View.VISIBLE
+                    container.alpha = 1f
+                    container.translationY = 0f
+                    Log.d(TAG, "🔧 显示工具栏时，恢复组标签栏（tab栏）")
+                }
+            }
             
             // 获取tab栏目标高度
             val targetTabHeight = if (browserTabContainer.visibility == View.VISIBLE && browserTabContainer.height > 0) {
@@ -10041,6 +10104,78 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e(TAG, "显示快捷操作栏失败", e)
+        }
+    }
+    
+    /**
+     * 显示加载遮罩层（带动画）
+     * 🔧 新增：在页面加载时显示，遮挡功能主页按钮
+     */
+    private fun showLoadingOverlay() {
+        browserLoadingOverlay?.let { overlay ->
+            try {
+                // 如果已经可见，不需要重复显示
+                if (overlay.visibility == View.VISIBLE) {
+                    return
+                }
+                
+                // 取消之前的动画
+                overlay.animate()?.cancel()
+                
+                // 设置初始状态：完全透明
+                overlay.alpha = 0f
+                overlay.visibility = View.VISIBLE
+                
+                // 淡入动画
+                overlay.animate()
+                    .alpha(1f)
+                    .setDuration(200L)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .setListener(null)
+                    .start()
+                
+                Log.d(TAG, "显示加载遮罩层")
+            } catch (e: Exception) {
+                Log.e(TAG, "显示加载遮罩层失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 隐藏加载遮罩层（带动画）
+     * 🔧 新增：在页面加载完成时隐藏
+     */
+    private fun hideLoadingOverlay() {
+        browserLoadingOverlay?.let { overlay ->
+            try {
+                // 如果已经隐藏，不需要重复隐藏
+                if (overlay.visibility != View.VISIBLE) {
+                    return
+                }
+                
+                // 取消之前的动画
+                overlay.animate()?.cancel()
+                
+                // 淡出动画
+                overlay.animate()
+                    .alpha(0f)
+                    .setDuration(200L)
+                    .setInterpolator(android.view.animation.AccelerateInterpolator())
+                    .setListener(object : android.animation.AnimatorListenerAdapter() {
+                        override fun onAnimationEnd(animation: android.animation.Animator) {
+                            overlay.visibility = View.GONE
+                            overlay.alpha = 1f
+                            Log.d(TAG, "隐藏加载遮罩层完成")
+                        }
+                    })
+                    .start()
+                
+                Log.d(TAG, "开始隐藏加载遮罩层")
+            } catch (e: Exception) {
+                Log.e(TAG, "隐藏加载遮罩层失败", e)
+                // 如果动画失败，直接隐藏
+                overlay.visibility = View.GONE
+            }
         }
     }
     
@@ -13366,13 +13501,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "手机卡片数量: ${mobileCards.size}")
             Log.d(TAG, "纸堆标签页数量: ${paperStackTabs.size}")
 
-            // 先添加手势卡片
-            allCards.addAll(gestureCards)
+            // 🔧 修复：先处理功能主页，确保只保留一个
+            // 优先从纸堆系统中获取功能主页（因为纸堆系统是主要系统）
+            var hasFunctionalHome = false
+            var functionalHomeTab: com.example.aifloatingball.webview.PaperStackWebViewManager.WebViewTab? = null
+            
+            paperStackTabs.forEach { tab ->
+                val isFunctionalHome = tab.url == "home://functional" || 
+                                      tab.url == "file:///android_asset/functional_home.html"
+                if (isFunctionalHome && !hasFunctionalHome) {
+                    functionalHomeTab = tab
+                    hasFunctionalHome = true
+                    Log.d(TAG, "🔧 找到纸堆系统的功能主页: ${tab.title} - ${tab.url}")
+                }
+            }
+
+            // 🔧 修复：在lambda外部保存functionalHomeTab的值，避免智能转换问题
+            val savedFunctionalHomeTab = functionalHomeTab
+
+            // 先添加手势卡片（排除功能主页）
+            gestureCards.forEach { card ->
+                val isFunctionalHome = card.url == "home://functional" || 
+                                      card.url == "file:///android_asset/functional_home.html"
+                if (!isFunctionalHome) {
+                    allCards.add(card)
+                    Log.d(TAG, "添加手势卡片: ${card.title} - ${card.url}")
+                } else {
+                    Log.d(TAG, "🔧 跳过悬浮卡片系统的功能主页（优先使用纸堆系统的）: ${card.title} - ${card.url}")
+                }
+            }
             Log.d(TAG, "添加手势卡片后总数: ${allCards.size}")
 
-            // 再添加手机卡片，避免重复
+            // 再添加手机卡片，避免重复（排除功能主页）
             var duplicateCount = 0
             mobileCards.forEach { mobileCard ->
+                val isFunctionalHome = mobileCard.url == "home://functional" || 
+                                      mobileCard.url == "file:///android_asset/functional_home.html"
+                if (isFunctionalHome) {
+                    Log.d(TAG, "🔧 跳过手机卡片系统的功能主页（优先使用纸堆系统的）: ${mobileCard.title} - ${mobileCard.url}")
+                    duplicateCount++
+                    return@forEach
+                }
+                
                 // 检查是否已存在相同的卡片（通过URL或ID判断）
                 val isDuplicate = allCards.any { existingCard ->
                     existingCard.id == mobileCard.id ||
@@ -13387,13 +13557,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 智能处理纸堆标签页数据
+            // 🔧 修复：优先添加纸堆系统的功能主页（如果存在）
+            savedFunctionalHomeTab?.let { tab ->
+                val paperStackCard = GestureCardWebViewManager.WebViewCardData(
+                    id = tab.id,
+                    title = tab.title,
+                    url = tab.url,
+                    webView = tab.webView,
+                    screenshot = tab.screenshot
+                )
+                allCards.add(0, paperStackCard) // 添加到第一个位置
+                Log.d(TAG, "🔧 添加纸堆系统的功能主页（优先）: ${tab.title} - ${tab.url}")
+            }
+
+            // 智能处理纸堆标签页数据（排除功能主页，因为已经处理过了）
             val hasRealContent = gestureCards.isNotEmpty() || mobileCards.isNotEmpty() || 
                                 paperStackTabs.any { tab -> 
-                                    tab.url != "https://www.baidu.com" || tab.title != "百度"
+                                    val isFunctionalHome = tab.url == "home://functional" || 
+                                                          tab.url == "file:///android_asset/functional_home.html"
+                                    !isFunctionalHome && (tab.url != "https://www.baidu.com" || tab.title != "百度")
                                 }
             
             paperStackTabs.forEach { tab ->
+                // 检查是否是功能主页（已经处理过了，跳过）
+                val isFunctionalHome = tab.url == "home://functional" || 
+                                      tab.url == "file:///android_asset/functional_home.html"
+                if (isFunctionalHome) {
+                    // 功能主页已经添加过了，跳过
+                    return@forEach
+                }
+                
                 // 检查是否是baidu首页
                 val isBaiduHome = tab.url == "https://www.baidu.com" && tab.title == "百度"
                 
@@ -13430,6 +13623,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 纸堆标签页: ${paperStackTabs.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
+            Log.d(TAG, "🔧 功能主页处理: 纸堆系统=${if (savedFunctionalHomeTab != null) "有" else "无"}, 最终结果=${if (allCards.any { it.url == "home://functional" || it.url == "file:///android_asset/functional_home.html" }) "有且唯一" else "无"}")
             Log.d(TAG, "=== 统一卡片数据获取结束 ===")
 
             return allCards
@@ -25575,6 +25769,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showBottomNavigationAndHideQuickActions()
             }
             
+            // 🔧 修复：退出搜索tab时，确保tab栏（组标签栏）恢复显示
+            groupTabsContainer?.let { container ->
+                if (currentState == UIState.BROWSER) {
+                    container.visibility = View.VISIBLE
+                    container.alpha = 1f
+                    container.translationY = 0f
+                    Log.d(TAG, "🔧 切换到搜索tab时，恢复组标签栏显示")
+                }
+            }
+            
             // 确保纸堆WebView管理器已初始化
             if (paperStackWebViewManager == null) {
                 Log.d(TAG, "纸堆WebView管理器未初始化，重新初始化")
@@ -32564,6 +32768,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val currentZoom = webViewToUse?.settings?.textZoom ?: 100
             popupMenu.menu.findItem(R.id.menu_page_zoom)?.title = "页面缩放: ${currentZoom}%"
 
+            // 🆕 动态更新阅读模式菜单项标题
+            val readerModeItem = popupMenu.menu.findItem(R.id.menu_enter_reader_mode)
+            readerModeItem?.let {
+                if (globalReaderModeManager?.isReaderModeActive() == true) {
+                    it.title = "退出阅读模式"
+                } else {
+                    it.title = "进入阅读模式"
+                }
+            }
+            
             popupMenu.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     R.id.menu_copy_title -> {
@@ -32587,6 +32801,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     R.id.menu_get_full_text -> {
                         extractFullTextFromCurrentWebView()
+                        true
+                    }
+                    R.id.menu_enter_reader_mode -> {
+                        // 🆕 进入/退出阅读模式
+                        val webViewToUse = currentPaperTab?.webView 
+                            ?: currentWebViewFromUnified
+                            ?: gestureCardWebViewManager?.getCurrentCard()?.webView
+                        
+                        if (webViewToUse != null && !currentUrl.isNullOrEmpty() && currentUrl != "about:blank") {
+                            globalReaderModeManager?.let { readerManager ->
+                                if (readerManager.isReaderModeActive()) {
+                                    // 退出阅读模式
+                                    readerManager.exitReaderMode(webViewToUse)
+                                    Toast.makeText(this, "已退出阅读模式", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    // 进入阅读模式
+                                    readerManager.enterReaderMode(webViewToUse, currentUrl, useNoImageMode = false)
+                                    Toast.makeText(this, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
+                                }
+                            } ?: run {
+                                Toast.makeText(this, "阅读模式管理器未初始化", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(this, "当前没有可用的网页", Toast.LENGTH_SHORT).show()
+                        }
                         true
                     }
                     else -> false
@@ -33072,31 +33311,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 🔧 修复：有用户创建的组时，根据当前工具栏状态来决定是否显示
-            // 组标签栏必须和标题栏、tab栏一样，只有在工具栏可见时才显示
-            // 如果工具栏隐藏（用户下滑进入浏览状态），组标签栏也应该隐藏
-            // 🔧 关键修复：组标签栏的显示/隐藏应该由hideToolbar()和showToolbar()控制
-            // 这里只负责刷新内容，不直接控制可见性（除非工具栏已隐藏）
+            // 🔧 修复：组标签栏的显示/隐藏应该由hideToolbarOnly()和showToolbar()控制
+            // 这里只负责刷新内容，不直接控制可见性，避免在滚动动画过程中覆盖显示/隐藏状态
+            // 🔧 关键修复：只有在工具栏确实可见且组标签栏当前是GONE时才设置为VISIBLE
+            // 如果组标签栏已经被hideToolbarOnly()隐藏（GONE），不要强制显示
+            // 如果组标签栏正在动画中（translationY != 0），不要强制设置，让动画完成
             val shouldShow = isToolbarVisible && currentState == UIState.BROWSER
             if (shouldShow) {
-                // 工具栏可见，显示组标签栏（如果当前是GONE，则设置为VISIBLE）
-                // 但不要重置动画状态，因为可能正在动画中
-                if (groupTabsContainer?.visibility == View.GONE) {
-                    groupTabsContainer?.visibility = View.VISIBLE
-                    // 确保组标签栏的动画状态正确（重置translationY和alpha）
-                    groupTabsContainer?.let { container ->
+                // 工具栏可见，只有在组标签栏当前是GONE且不在动画中时才显示
+                groupTabsContainer?.let { container ->
+                    val isAnimating = container.translationY != 0f || container.alpha != 1f
+                    if (container.visibility == View.GONE && !isAnimating) {
+                        container.visibility = View.VISIBLE
                         container.translationY = 0f
                         container.alpha = 1f
                     }
                 }
-            } else {
-                // 工具栏隐藏，组标签栏也应该隐藏
-                // 🔧 关键修复：只有在工具栏确实隐藏时才设置GONE
-                // 如果正在动画中，不要强制设置GONE，让动画完成
-                if (groupTabsContainer?.visibility == View.VISIBLE && !isToolbarVisible) {
-                    groupTabsContainer?.visibility = View.GONE
-                }
             }
+            // 🔧 修复：不要在这里强制隐藏组标签栏，让hideToolbarOnly()和showToolbar()来控制
+            // 这样可以避免在滚动动画过程中覆盖显示/隐藏状态
             
             // 清除旧的组标签
             groupChips.values.forEach { chip ->
