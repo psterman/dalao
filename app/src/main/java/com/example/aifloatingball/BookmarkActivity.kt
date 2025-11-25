@@ -202,6 +202,13 @@ class BookmarkActivity : AppCompatActivity() {
             .show()
     }
     
+    /**
+     * 创建支持暗色/亮色模式的对话框构建器
+     */
+    private fun createThemedDialogBuilder(): AlertDialog.Builder {
+        return AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+    }
+    
     private fun showEditBookmarkDialog(bookmark: Bookmark) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_edit_bookmark, null)
         val titleField = dialogView.findViewById<TextInputEditText>(R.id.bookmark_title_field)
@@ -210,7 +217,7 @@ class BookmarkActivity : AppCompatActivity() {
         titleField.setText(bookmark.title)
         urlField.setText(bookmark.url)
         
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("编辑书签")
             .setView(dialogView)
             .setPositiveButton("保存") { dialog, which ->
@@ -232,7 +239,7 @@ class BookmarkActivity : AppCompatActivity() {
     }
     
     private fun showDeleteBookmarkDialog(bookmark: Bookmark) {
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("删除书签")
             .setMessage("确定要删除\"${bookmark.title}\"吗？")
             .setPositiveButton("删除") { dialog, which ->
@@ -247,7 +254,7 @@ class BookmarkActivity : AppCompatActivity() {
     private fun showMoveBookmarkDialog(bookmark: Bookmark) {
         val folders = bookmarkManager.getAllFolders().toTypedArray()
         
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("移动到文件夹")
             .setItems(folders) { dialog, which ->
                 val selectedFolder = folders[which]
@@ -298,7 +305,7 @@ class BookmarkActivity : AppCompatActivity() {
         val inputField = dialogView.findViewById<TextInputEditText>(R.id.input_field)
         inputField.setText(currentFolder)
         
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("重命名文件夹")
             .setView(dialogView)
             .setPositiveButton("确定") { dialog, which ->
@@ -322,7 +329,7 @@ class BookmarkActivity : AppCompatActivity() {
     }
     
     private fun showDeleteFolderDialog() {
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("删除文件夹")
             .setMessage("确定要删除\"$currentFolder\"文件夹吗？\n文件夹中的所有书签将被移动到\"默认\"文件夹。")
             .setPositiveButton("删除") { dialog, which ->

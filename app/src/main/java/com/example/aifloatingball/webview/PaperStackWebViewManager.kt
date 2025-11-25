@@ -299,7 +299,11 @@ class PaperStackWebViewManager(
         currentTabIndex = newTabIndex
         
         // 🔧 修复：确保每个组至少有一个功能主页
-        ensureFunctionalHomeExists(tabGroupId)
+        // 如果当前正在添加的就是功能主页，不需要再检查（避免重复创建）
+        val isFunctionalHome = tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html"
+        if (!isFunctionalHome) {
+            ensureFunctionalHomeExists(tabGroupId)
+        }
         
         // 🔧 修复：在更新标签页位置之前就通知监听器，确保browser_home_content在WebView可见之前就被隐藏
         // 这样可以避免在WebView加载时看到背面的功能主页按钮
@@ -1518,13 +1522,15 @@ class PaperStackWebViewManager(
         when {
             functionalHomeTabs.size > 1 -> {
                 // 如果有多于一个功能主页，保留第一个，删除其他的
-                Log.w(TAG, "组 $groupId 检测到 ${functionalHomeTabs.size} 个功能主页，删除多余的")
+                Log.w(TAG, "🔧 组 $groupId 检测到 ${functionalHomeTabs.size} 个功能主页，删除多余的")
                 functionalHomeTabs.drop(1).forEach { tab ->
                     tabs.remove(tab)
                     container.removeView(tab.webView)
                     tab.webView.destroy()
                     Log.d(TAG, "已删除多余的功能主页: ${tab.id}")
                 }
+                // 删除后更新位置
+                updateTabPositions()
             }
             functionalHomeTabs.isEmpty() -> {
                 // 如果没有功能主页，创建一个
@@ -1544,6 +1550,9 @@ class PaperStackWebViewManager(
                     isLazyLoaded = false
                 )
                 
+                // 🔧 修复：设置背景为白色
+                webView.setBackgroundColor(Color.WHITE)
+                
                 container.addView(webView)
                 tabs.add(0, tab) // 将功能主页添加到第一个位置
                 
@@ -1551,12 +1560,45 @@ class PaperStackWebViewManager(
                 setupFunctionalHomeInterface(webView)
                 webView.loadUrl("file:///android_asset/functional_home.html")
                 
-                Log.d(TAG, "组 $groupId 缺少功能主页，已自动创建")
+                // 更新标签页位置
+                updateTabPositions()
+                
+                Log.d(TAG, "🔧 组 $groupId 缺少功能主页，已自动创建")
             }
             else -> {
                 // 只有一个功能主页，正常情况，不需要处理
                 Log.d(TAG, "组 $groupId 已有功能主页，无需创建")
             }
+        }
+    }
+    
+    /**
+     * 清理重复的功能主页（每个组只保留一个）
+     * 🔧 修复：确保每个组只有一个功能主页
+     */
+    fun cleanupDuplicateFunctionalHomes() {
+        val groupsWithFunctionalHomes = tabs
+            .filter { tab ->
+                tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html"
+            }
+            .groupBy { it.groupId }
+        
+        groupsWithFunctionalHomes.forEach { (groupId, functionalTabs) ->
+            if (functionalTabs.size > 1) {
+                Log.w(TAG, "🔧 组 $groupId 检测到 ${functionalTabs.size} 个功能主页，删除多余的")
+                // 保留第一个，删除其他的
+                functionalTabs.drop(1).forEach { tab ->
+                    tabs.remove(tab)
+                    container.removeView(tab.webView)
+                    tab.webView.destroy()
+                    Log.d(TAG, "已删除重复的功能主页: ${tab.id}")
+                }
+            }
+        }
+        
+        if (groupsWithFunctionalHomes.any { it.value.size > 1 }) {
+            updateTabPositions()
+            Log.d(TAG, "🔧 清理重复功能主页完成")
         }
     }
     

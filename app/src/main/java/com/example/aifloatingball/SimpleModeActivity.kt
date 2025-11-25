@@ -288,7 +288,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
         val title = if (!originHost.isNullOrBlank()) "$originHost 想启动第三方应用:" else "网页想启动第三方应用:"
 
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle(title)
             .setMessage(displayUrl)
             .setNeutralButton("拷贝") { _, _ ->
@@ -3513,11 +3513,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         gridView.adapter = adapter
 
         // 创建对话框
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("最近选择的应用")
             .setView(dialogView)
             .setNegativeButton("清空历史") { _, _ ->
-                AlertDialog.Builder(this)
+                createThemedDialogBuilder()
                     .setTitle("确认清空")
                     .setMessage("确定要清空应用选择历史吗？")
                     .setPositiveButton("确定") { _, _ ->
@@ -3689,7 +3689,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             val historyItems = historyList.map { "${it.query} (${it.appName})" }.toTypedArray()
 
-            AlertDialog.Builder(this)
+            createThemedDialogBuilder()
                 .setTitle("搜索历史")
                 .setItems(historyItems) { _, which ->
                     val selectedHistory = historyList[which]
@@ -3703,7 +3703,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     updateInputLayoutEndIcon(true)
                 }
                 .setNegativeButton("清空历史") { _, _ ->
-                    AlertDialog.Builder(this)
+                    createThemedDialogBuilder()
                         .setTitle("确认清空")
                         .setMessage("确定要清空所有搜索历史吗？")
                         .setPositiveButton("确定") { _, _ ->
@@ -3763,7 +3763,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            AlertDialog.Builder(this)
+            createThemedDialogBuilder()
                 .setTitle("搜索选项")
                 .setItems(items.toTypedArray()) { _, which ->
                     actions[which].invoke()
@@ -3820,14 +3820,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "$prefix${history.query} (${history.appName})"
         }.toTypedArray()
 
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("搜索管理")
             .setItems(items) { _, which ->
                 val selectedHistory = historyList[which]
                 showHistoryItemMenu(selectedHistory)
             }
             .setNegativeButton("清空所有") { _, _ ->
-                AlertDialog.Builder(this)
+                createThemedDialogBuilder()
                     .setTitle("确认清空")
                     .setMessage("确定要清空所有搜索历史吗？")
                     .setPositiveButton("确定") { _, _ ->
@@ -3855,7 +3855,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             arrayOf("使用此搜索", "设为默认", "删除此项")
         }
 
-        AlertDialog.Builder(this)
+        createThemedDialogBuilder()
             .setTitle("${historyItem.query} (${historyItem.appName})")
             .setItems(options) { _, which ->
                 when (which) {
@@ -4472,8 +4472,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 显示应用未安装对话框
      */
+    /**
+     * 创建支持暗色/亮色模式的对话框构建器
+     */
+    private fun createThemedDialogBuilder(): AlertDialog.Builder {
+        return AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+    }
+    
     private fun showAppNotInstalledDialog(appConfig: AppSearchConfig) {
-        val dialog = AlertDialog.Builder(this)
+        val dialog = createThemedDialogBuilder()
             .setTitle("应用未安装")
             .setMessage("${appConfig.appName}尚未安装，是否要：\n\n1. 打开应用商店安装\n2. 使用剪贴板备用方案\n3. 取消")
             .setPositiveButton("打开应用商店") { _, _ ->
@@ -25901,9 +25908,49 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "开始创建功能主页标签页")
             
+            // 🔧 修复：先清理重复的功能主页
+            paperStackWebViewManager?.cleanupDuplicateFunctionalHomes()
+            
             // 先隐藏原生功能主页，确保不会显示
             browserHomeContent.visibility = View.GONE
             browserTabContainer.visibility = View.GONE
+            
+            // 🔧 修复：先检查是否已存在功能主页，避免重复创建
+            // 检查当前组的标签页
+            val currentGroupTabs = paperStackWebViewManager?.getAllTabs() ?: emptyList()
+            val existingFunctionalTab = currentGroupTabs.firstOrNull { tab ->
+                tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html"
+            }
+            
+            if (existingFunctionalTab != null) {
+                Log.d(TAG, "🔧 功能主页已存在，切换到已存在的功能主页: ${existingFunctionalTab.title}")
+                
+                // 找到功能主页在当前组标签页列表中的索引
+                val tabIndex = currentGroupTabs.indexOfFirst { it.id == existingFunctionalTab.id }
+                
+                if (tabIndex >= 0) {
+                    paperStackWebViewManager?.switchToTab(tabIndex)
+                    Log.d(TAG, "🔧 已切换到已存在的功能主页，索引: $tabIndex")
+                }
+                
+                // 确保显示tab栏和组标签
+                if (!isToolbarVisible) {
+                    showToolbar()
+                    showBottomNavigationAndHideQuickActions()
+                }
+                
+                groupTabsContainer?.let { container ->
+                    if (container.visibility != View.VISIBLE) {
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "切换到已存在的功能主页，恢复组标签栏显示")
+                    }
+                }
+                
+                refreshGroupTabs()
+                return
+            }
             
             // 创建功能主页卡片
             val functionalHomeUrl = "home://functional"
