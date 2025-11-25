@@ -6962,6 +6962,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "切换标签页时隐藏快捷操作栏，避免透视问题")
             }
             
+            // 🔧 新增：切换到功能主页时，确保显示tab栏和组标签
+            if (tab.url == "home://functional") {
+                // 确保工具栏可见
+                if (!isToolbarVisible) {
+                    showToolbar()
+                    showBottomNavigationAndHideQuickActions()
+                }
+                
+                // 确保组标签栏可见
+                groupTabsContainer?.let { container ->
+                    if (container.visibility != View.VISIBLE) {
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "切换到功能主页，恢复组标签栏显示")
+                    }
+                }
+                
+                // 刷新组标签栏
+                refreshGroupTabs()
+            }
+            
             // 切换标签页时隐藏阅读模式按钮
             hideReaderModeButtonForCatalog()
             
@@ -9188,8 +9210,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun hideToolbarOnly() {
         if (!isToolbarVisible) return
         
-        // 🔧 修复：允许在滚动时隐藏工具栏，即使是在首页也应该能隐藏
-        // 移除首页检查，让用户可以通过滚动来隐藏搜索输入框和组标签栏
+        // 🔧 修复：如果是功能主页，不隐藏工具栏和组标签栏
+        val currentTab = paperStackWebViewManager?.getCurrentTab()
+        if (currentTab?.url == "home://functional") {
+            Log.d(TAG, "功能主页，不隐藏工具栏和组标签栏")
+            return
+        }
 
         try {
             isToolbarVisible = false
@@ -25808,6 +25834,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserHomeContent.visibility = View.GONE
                 browserTabContainer.visibility = View.GONE
                 
+                // 🔧 新增：如果当前标签页是功能主页，确保显示tab栏和组标签
+                paperStackWebViewManager?.getCurrentTab()?.let { currentTab ->
+                    if (currentTab.url == "home://functional") {
+                        // 确保工具栏可见
+                        if (!isToolbarVisible) {
+                            showToolbar()
+                            showBottomNavigationAndHideQuickActions()
+                        }
+                        
+                        // 确保组标签栏可见
+                        groupTabsContainer?.let { container ->
+                            if (container.visibility != View.VISIBLE) {
+                                container.visibility = View.VISIBLE
+                                container.alpha = 1f
+                                container.translationY = 0f
+                                Log.d(TAG, "进入功能主页，恢复组标签栏显示")
+                            }
+                        }
+                        
+                        // 刷新组标签栏
+                        refreshGroupTabs()
+                    }
+                }
+                
                 // 🔧 修复：为当前活动的WebView添加滚动监听器，确保工具栏能正常显示/隐藏
                 paperStackWebViewManager?.getCurrentTab()?.let { currentTab ->
                     // 确保WebView可见
@@ -25880,6 +25930,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserHomeContent.visibility = View.GONE
                 browserTabContainer.visibility = View.GONE
                 browserSearchInput.setText("")
+                
+                // 🔧 新增：创建功能主页时，确保显示tab栏和组标签
+                // 确保工具栏可见
+                if (!isToolbarVisible) {
+                    showToolbar()
+                    showBottomNavigationAndHideQuickActions()
+                }
+                
+                // 确保组标签栏可见
+                groupTabsContainer?.let { container ->
+                    if (container.visibility != View.VISIBLE) {
+                        container.visibility = View.VISIBLE
+                        container.alpha = 1f
+                        container.translationY = 0f
+                        Log.d(TAG, "创建功能主页，恢复组标签栏显示")
+                    }
+                }
+                
+                // 刷新组标签栏
+                refreshGroupTabs()
                 
                 // 确保WebView可见并正确显示
                 functionalTab.webView.visibility = View.VISIBLE
