@@ -86,12 +86,16 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                 runOnUiThread {
                     statusText.text = "已进入阅读模式"
                     // 可以在这里更新UI，比如显示退出阅读模式的按钮
+                    setupReaderModeScrollListener()
                 }
             }
             
             override fun onReaderModeExited() {
                 runOnUiThread {
                     statusText.text = "已退出阅读模式"
+                    removeReaderModeScrollListener()
+                    // 确保UI显示
+                    showAddressBarAndTabs(true)
                 }
             }
             
@@ -108,6 +112,12 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                     if (currentWebView != null) {
                         readerModeManager.loadNextChapter(currentWebView)
                     }
+                }
+            }
+            
+            override fun onScroll(scrollTop: Int, scrollDelta: Int, isAtTop: Boolean, isAtBottom: Boolean) {
+                runOnUiThread {
+                    handleReaderModeScroll(scrollTop, scrollDelta, isAtTop, isAtBottom)
                 }
             }
         })
@@ -140,8 +150,13 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                             view.postDelayed({
                                 if (readerModeManager.isReaderModeActive()) {
                                     readerModeManager.enterReaderMode(view, url, useNoImageMode = false)
+                                    // 重新设置滚动监听
+                                    setupReaderModeScrollListener()
                                 }
                             }, 1000)
+                        } else if (isReaderMode) {
+                            // 即使不在阅读模式，如果之前设置了监听，也要重新设置
+                            setupReaderModeScrollListener()
                         }
                     }
                 }
@@ -171,6 +186,17 @@ class MultiTabBrowserActivity : AppCompatActivity() {
         
         // 初始化标签页管理器
         tabManager.initialize(viewPager, tabLayout, tabRecyclerView)
+        
+        // 监听ViewPager页面切换，重新设置滚动监听
+        viewPager.registerOnPageChangeCallback(object : androidx.viewpager2.widget.ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                super.onPageSelected(position)
+                // 如果处于阅读模式，重新设置滚动监听
+                if (readerModeManager.isReaderModeActive()) {
+                    setupReaderModeScrollListener()
+                }
+            }
+        })
         
         // 设置地址栏
         setupAddressBar()
@@ -429,7 +455,144 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     
     override fun onDestroy() {
         tabManager.saveTabsState()
+        removeReaderModeScrollListener()
         super.onDestroy()
         tabManager.cleanup()
+    }
+    
+    // ==================== 阅读模式滚动监听 ====================
+    
+    private var currentWebViewScrollListener: View.OnScrollChangeListener? = null
+    private var isAddressBarVisible = true
+    private var lastScrollY = 0
+    private val scrollThreshold = 30 // 滚动阈值
+    
+    /**
+     * 设置阅读模式滚动监听
+     */
+    private fun setupReaderModeScrollListener() {
+        val currentWebView = tabManager.getCurrentTab()?.webView ?: return
+        
+        // 移除旧的监听器
+        removeReaderModeScrollListener()
+        
+        // 添加新的滚动监听器
+        currentWebViewScrollListener = View.OnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            if (readerModeManager.isReaderModeActive()) {
+                val scrollDelta = scrollY - oldScrollY
+                val scrollHeight = currentWebView.contentHeight
+                val scrollViewHeight = currentWebView.height
+                val isAtBottom = (scrollHeight - scrollY - scrollViewHeight) < 50
+                val isAtTop = scrollY < 50
+                
+                handleReaderModeScroll(scrollY, scrollDelta, isAtTop, isAtBottom)
+            }
+        }
+        
+        // Android API 23+ 才支持 setOnScrollChangeListener
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            currentWebView.setOnScrollChangeListener(currentWebViewScrollListener)
+        }
+        
+        lastScrollY = currentWebView.scrollY
+    }
+    
+    /**
+     * 移除阅读模式滚动监听
+     */
+    private fun removeReaderModeScrollListener() {
+        val currentWebView = tabManager.getCurrentTab()?.webView
+        if (currentWebView != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            currentWebView.setOnScrollChangeListener(null)
+        }
+        currentWebViewScrollListener = null
+    }
+    
+    /**
+     * 处理阅读模式滚动事件
+     */
+    private fun handleReaderModeScroll(scrollTop: Int, scrollDelta: Int, isAtTop: Boolean, isAtBottom: Boolean) {
+        // 在顶部或底部时，强制显示UI
+        if (isAtTop || isAtBottom) {
+            if (!isAddressBarVisible) {
+                showAddressBarAndTabs(true)
+            }
+        } else if (Math.abs(scrollDelta) > scrollThreshold) {
+            // 只有在滚动距离超过阈值时才改变UI状态
+            if (scrollDelta > 0) {
+                // 向下滚动，隐藏UI
+                if (isAddressBarVisible) {
+                    showAddressBarAndTabs(false)
+                }
+            } else {
+                // 向上滚动，显示UI
+                if (!isAddressBarVisible) {
+                    showAddressBarAndTabs(true)
+                }
+            }
+        }
+        
+        lastScrollY = scrollTop
+    }
+    
+    /**
+     * 显示或隐藏地址栏和标签组（带动画）
+     */
+    private fun showAddressBarAndTabs(show: Boolean) {
+        if (isAddressBarVisible == show) {
+            return // 状态没有变化，不需要更新
+        }
+        
+        isAddressBarVisible = show
+        
+        val appBarLayout = findViewById<com.google.android.material.appbar.AppBarLayout>(R.id.app_bar_layout)
+            ?: return
+        
+        // 取消之前的动画
+        appBarLayout.clearAnimation()
+        appBarLayout.animate().cancel()
+        
+        if (show) {
+            // 显示：从上方滑入
+            appBarLayout.visibility = View.VISIBLE
+            appBarLayout.alpha = 0f
+            
+            // 先测量高度，如果高度为0则使用估算值
+            appBarLayout.post {
+                val height = if (appBarLayout.height > 0) {
+                    appBarLayout.height.toFloat()
+                } else {
+                    // 估算高度：toolbar(56dp) + addressBar(约60dp) + tabLayout(48dp) + margin = 约200dp
+                    resources.displayMetrics.density * 200
+                }
+                
+                appBarLayout.translationY = -height
+                
+                appBarLayout.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(300)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+            }
+        } else {
+            // 隐藏：向上滑出
+            val height = if (appBarLayout.height > 0) {
+                appBarLayout.height.toFloat()
+            } else {
+                resources.displayMetrics.density * 200
+            }
+            
+            appBarLayout.animate()
+                .alpha(0f)
+                .translationY(-height)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.AccelerateInterpolator())
+                .withEndAction {
+                    appBarLayout.visibility = View.GONE
+                    appBarLayout.translationY = 0f
+                }
+                .start()
+        }
     }
 }

@@ -7178,23 +7178,45 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置阅读模式监听器，在阅读模式进入/退出时禁用/启用 browserSwipeRefresh
                 globalReaderModeManager?.setListener(object : com.example.aifloatingball.reader.NovelReaderModeManager.ReaderModeListener {
                     override fun onReaderModeEntered() {
-                        // 进入阅读模式时，仅在搜索tab中禁用 browserSwipeRefresh
+                        // ==================== 进入阅读模式时的初始化 ====================
+                        // 目标：设置阅读模式下的UI状态，确保最大化阅读空间
                         runOnUiThread {
                             try {
-                                // 确保只在搜索tab中才禁用下拉菜单
+                                // 确保只在搜索tab中才处理
                                 if (currentState == UIState.BROWSER) {
+                                    // 1. 禁用下拉刷新（阅读模式下不需要）
                                     if (::browserSwipeRefresh.isInitialized) {
                                         browserSwipeRefresh.isEnabled = false
-                                        Log.d(TAG, "✅ 阅读模式已进入，已在搜索tab中禁用 browserSwipeRefresh")
+                                        Log.d(TAG, "📖 阅读模式已进入：已禁用下拉刷新")
                                     }
+                                    
+                                    // 2. 强制隐藏底部tab栏（阅读模式下必须完全屏蔽）
+                                    val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                                    if (bottomNav != null) {
+                                        bottomNav.visibility = View.GONE
+                                        bottomNav.alpha = 0f
+                                        isBottomNavVisible = false
+                                        Log.d(TAG, "📖 阅读模式已进入：已强制隐藏底部tab栏")
+                                    }
+                                    
+                                    // 3. 确保底部地址输入栏和悬浮工具栏初始状态正确
+                                    // 初始时显示，用户下滑时会自动隐藏
+                                    if (!isToolbarVisible) {
+                                        showToolbar()
+                                    }
+                                    if (!isQuickActionsBarVisible) {
+                                        hideBottomNavigationAndShowQuickActions()
+                                    }
+                                    
+                                    Log.d(TAG, "📖 阅读模式已进入：UI状态已初始化，初始显示操作控件")
                                 } else {
-                                    Log.d(TAG, "阅读模式已进入，但当前不在搜索tab中，跳过禁用下拉菜单")
+                                    Log.d(TAG, "阅读模式已进入，但当前不在搜索tab中，跳过UI初始化")
                                 }
                                 
                                 // 收藏到AI助手的电子书收藏
                                 addReaderModeToEbookCollection()
                             } catch (e: Exception) {
-                                Log.e(TAG, "禁用 browserSwipeRefresh 失败", e)
+                                Log.e(TAG, "阅读模式初始化失败", e)
                             }
                         }
                     }
@@ -7258,6 +7280,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     override fun onNextChapterRequested() {
                         // 下一章请求，不需要特殊处理
                         Log.d(TAG, "下一章请求")
+                    }
+                    
+                    override fun onScroll(scrollTop: Int, scrollDelta: Int, isAtTop: Boolean, isAtBottom: Boolean) {
+                        // 滚动事件，在SimpleModeActivity中不需要特殊处理
+                        // 因为SimpleModeActivity有自己的滚动处理逻辑
                     }
                 })
                 Log.d(TAG, "✅ 全局阅读模式管理器已初始化，监听器已设置")
@@ -9051,27 +9078,111 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 accumulatedScrollY = deltaY
             }
             
-            // 🔧 修复：搜索tab中，下滑时搜索输入框和组标签栏同时消失，上滑时同时出现
-            // 向下滚动：累计滚动超过阈值时同时隐藏搜索输入框和组标签栏
-            if (accumulatedScrollY > scrollAccumulateThreshold && isToolbarVisible && currentState == UIState.BROWSER) {
+            // 🔧 获取当前WebView，检查是否在阅读模式
+            val currentWebView = paperStackWebViewManager?.getCurrentTab()?.webView
+            val isReaderMode = currentWebView?.let { webView ->
+                globalReaderModeManager?.isReaderModeActive() == true
+            } ?: false
+            
+            // 🔧 检查是否滚动到底部（用于阅读模式）
+            val isAtBottom = currentWebView?.let { webView ->
+                val contentHeight = webView.contentHeight
+                val scrollHeight = webView.height
+                // 使用传入的scrollY参数，而不是webView.scrollY
+                // 如果滚动位置接近底部（距离底部小于50px），认为在底部
+                (contentHeight - scrollHeight - scrollY) < 50
+            } ?: false
+            
+            // ==================== 阅读模式下的滚动控制逻辑 ====================
+            // 目标：下滑时最大化阅读空间，上滑或到底部时显示操作控件
+            //
+            // 需要控制的组件：
+            // 1. 顶部header（HTML中的reader-header）：标题和按钮（目录、上一章、下一章、退出）- 由HTML JavaScript控制
+            // 2. 底部地址输入栏（browserToolbar）：搜索输入框和地址栏
+            // 3. 底部tab栏（bottom_navigation）：对话、搜索、AI助手等tab - 阅读模式下必须完全隐藏
+            // 4. 悬浮工具栏（browserQuickActionsBar）：缩放等快捷操作
+            //
+            // 下滑时（向下滚动）：隐藏所有UI元素，最大化阅读空间
+            // 上滑时（向上滚动）或滚动到底部：显示操作控件，方便用户操作
+            
+            if (isReaderMode && currentState == UIState.BROWSER) {
+                // ========== 阅读模式专用逻辑 ==========
+                
+                // 🔧 强制确保底部tab栏始终隐藏（阅读模式下必须完全屏蔽）
+                val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                if (bottomNav != null && bottomNav.visibility != View.GONE) {
+                    bottomNav.visibility = View.GONE
+                    bottomNav.alpha = 0f
+                    isBottomNavVisible = false
+                }
+                
+                // 下滑时：隐藏所有UI元素，最大化阅读空间
+                if (accumulatedScrollY > scrollAccumulateThreshold) {
+                    val scrollValue = accumulatedScrollY
+                    accumulatedScrollY = 0 // 重置累计值
+                    
+                    // 隐藏底部地址输入栏
+                    if (isToolbarVisible) {
+                        hideToolbarOnly()
+                    }
+                    
+                    // 隐藏悬浮工具栏
+                    if (isQuickActionsBarVisible) {
+                        showBottomNavigationAndHideQuickActions()
+                    }
+                    
+                    // 顶部header由HTML中的JavaScript控制，会自动隐藏
+                    
+                    Log.d(TAG, "📖 阅读模式-下滑：隐藏所有UI元素，最大化阅读空间，累计deltaY=$scrollValue")
+                    return
+                }
+                
+                // 上滑时或滚动到底部：显示操作控件
+                if (accumulatedScrollY < -scrollAccumulateThreshold || isAtBottom) {
+                    val scrollValue = accumulatedScrollY
+                    accumulatedScrollY = 0 // 重置累计值
+                    
+                    // 显示底部地址输入栏
+                    if (!isToolbarVisible) {
+                        showToolbar()
+                    }
+                    
+                    // 显示悬浮工具栏
+                    if (!isQuickActionsBarVisible) {
+                        hideBottomNavigationAndShowQuickActions()
+                    }
+                    
+                    // 顶部header由HTML中的JavaScript控制，会自动显示
+                    
+                    Log.d(TAG, "📖 阅读模式-上滑或到底部：显示操作控件，累计deltaY=$scrollValue, 到底部=$isAtBottom")
+                    return
+                }
+                
+                // 如果滚动距离不够，不处理
+                return
+            }
+            
+            // ==================== 非阅读模式的滚动控制逻辑 ====================
+            if (accumulatedScrollY > scrollAccumulateThreshold && currentState == UIState.BROWSER) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 
-                // 同时隐藏搜索输入框（工具栏）和组标签栏
-                hideToolbarOnly()
-                
-                // 显示悬浮工具栏（只在用户下滑时浮现）
-                hideBottomNavigationAndShowQuickActions()
-                Log.d(TAG, "🔧 下滑隐藏搜索输入框和组标签栏，显示悬浮工具栏，累计deltaY=$scrollValue")
+                // 非阅读模式：隐藏搜索输入框和组标签栏，显示悬浮工具栏
+                if (isToolbarVisible) {
+                    hideToolbarOnly()
+                    hideBottomNavigationAndShowQuickActions()
+                }
+                Log.d(TAG, "🔧 非阅读模式-下滑：隐藏搜索输入框和组标签栏，显示悬浮工具栏，累计deltaY=$scrollValue")
                 return
             }
             
             // 向上滚动：累计滚动超过阈值时同时显示搜索输入框和组标签栏
-            if (accumulatedScrollY < -scrollAccumulateThreshold && currentState == UIState.BROWSER) {
+            // 🔧 优化：如果滚动到底部，也显示工具栏
+            if ((accumulatedScrollY < -scrollAccumulateThreshold || isAtBottom) && currentState == UIState.BROWSER) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 
-                // 🔧 修复：如果工具栏隐藏，先显示工具栏（这会同时恢复组标签栏）
+                // 非阅读模式：显示搜索输入框和组标签栏，隐藏悬浮工具栏
                 if (!isToolbarVisible) {
                     showToolbar()
                 } else {
@@ -9085,10 +9196,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         }
                     }
                 }
-                
-                // 隐藏悬浮工具栏
                 showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 上滑显示搜索输入框和组标签栏，隐藏悬浮工具栏，累计deltaY=$scrollValue")
+                Log.d(TAG, "🔧 非阅读模式-上滑：显示搜索输入框和组标签栏，隐藏悬浮工具栏，累计deltaY=$scrollValue, 到底部=$isAtBottom")
                 return
             }
 
@@ -24165,53 +24274,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             saveLastReadRecord(url)
                         }
                         
-                        // 切换到搜索tab
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            try {
-                                switchToSearchTab()
-                                
-                                // 延迟打开URL，确保搜索tab已切换
-                                Handler(Looper.getMainLooper()).postDelayed({
-                                    try {
-                                        // 添加新标签页并加载URL
-                                        val tab = paperStackWebViewManager?.addTab(url, null)
+                        // 🔧 优化：一步完成切换，使用动画过渡，减少延迟
+                        try {
+                            // 立即切换到搜索tab
+                            switchToSearchTab()
+                            
+                            // 使用动画过渡，减少延迟时间
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                try {
+                                    // 添加新标签页并加载URL
+                                    val tab = paperStackWebViewManager?.addTab(url, null)
+                                    
+                                    if (tab != null) {
+                                        Log.d(TAG, "已添加新标签页: $url")
                                         
-                                        if (tab != null) {
-                                            Log.d(TAG, "已添加新标签页: $url")
-                                            
-                                            if (enterReaderMode) {
-                                                // 延迟进入阅读模式，确保页面已开始加载
-                                                Handler(Looper.getMainLooper()).postDelayed({
-                                                    try {
-                                                        // 确保阅读模式管理器已初始化
-                                                        if (globalReaderModeManager == null) {
-                                                            globalReaderModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(this)
-                                                            Log.d(TAG, "初始化阅读模式管理器")
-                                                        }
-                                                        
-                                                        globalReaderModeManager?.enterReaderMode(tab.webView, url, useNoImageMode = false)
-                                                        Log.d(TAG, "已进入阅读模式: $url")
-                                                        Toast.makeText(this, "已进入阅读模式", Toast.LENGTH_SHORT).show()
-                                                    } catch (e: Exception) {
-                                                        Log.e(TAG, "进入阅读模式失败", e)
-                                                        Toast.makeText(this, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        // 为WebView添加滚动监听器，实现自动隐藏/显示工具栏
+                                        addScrollListenerToWebView(tab.webView)
+                                        
+                                        if (enterReaderMode) {
+                                            // 减少延迟时间，更快进入阅读模式
+                                            Handler(Looper.getMainLooper()).postDelayed({
+                                                try {
+                                                    // 确保阅读模式管理器已初始化
+                                                    if (globalReaderModeManager == null) {
+                                                        globalReaderModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(this)
+                                                        Log.d(TAG, "初始化阅读模式管理器")
                                                     }
-                                                }, 1500) // 延迟1.5秒，确保页面开始加载
-                                            }
-                                        } else {
-                                            Log.e(TAG, "添加标签页失败")
-                                            Toast.makeText(this, "打开URL失败", Toast.LENGTH_SHORT).show()
+                                                    
+                                                    globalReaderModeManager?.enterReaderMode(tab.webView, url, useNoImageMode = false)
+                                                    Log.d(TAG, "已进入阅读模式: $url")
+                                                    
+                                                    // 确保滚动监听器已添加
+                                                    addScrollListenerToWebView(tab.webView)
+                                                } catch (e: Exception) {
+                                                    Log.e(TAG, "进入阅读模式失败", e)
+                                                    Toast.makeText(this, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }, 800) // 减少延迟到800ms，更快响应
                                         }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "打开URL失败", e)
-                                        Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Log.e(TAG, "添加标签页失败")
+                                        Toast.makeText(this, "打开URL失败", Toast.LENGTH_SHORT).show()
                                     }
-                                }, 500) // 延迟500ms，确保搜索tab已切换
-                            } catch (e: Exception) {
-                                Log.e(TAG, "切换到搜索tab失败", e)
-                                Toast.makeText(this, "切换到搜索tab失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        }, 300)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "打开URL失败", e)
+                                    Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }, 200) // 减少延迟到200ms，更快响应
+                        } catch (e: Exception) {
+                            Log.e(TAG, "切换到搜索tab失败", e)
+                            Toast.makeText(this, "切换到搜索tab失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
                     } else {
                         Log.e(TAG, "OPEN_URL请求中URL为空且无法加载上一次阅读记录")
                         Toast.makeText(this, "URL为空，无法打开", Toast.LENGTH_SHORT).show()

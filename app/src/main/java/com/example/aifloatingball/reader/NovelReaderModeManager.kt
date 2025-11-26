@@ -109,6 +109,7 @@ class NovelReaderModeManager(private val context: Context) {
         fun onReaderModeExited()
         fun onChapterLoaded(chapter: ChapterInfo)
         fun onNextChapterRequested()
+        fun onScroll(scrollTop: Int, scrollDelta: Int, isAtTop: Boolean, isAtBottom: Boolean)
     }
     
     private var listener: ReaderModeListener? = null
@@ -1287,17 +1288,27 @@ class NovelReaderModeManager(private val context: Context) {
                     }
                     
                     .reader-header {
-                        position: sticky;
+                        position: fixed;
                         top: 0;
+                        left: 0;
+                        right: 0;
                         background: white;
                         padding: 15px 0;
                         border-bottom: 1px solid #e0e0e0;
                         z-index: 100;
                         margin-bottom: 20px;
+                        transform: translateY(0);
+                        opacity: 1;
+                        transition: transform 0.3s ease, opacity 0.3s ease;
+                    }
+                    
+                    .reader-header.hidden {
+                        transform: translateY(-100%);
+                        opacity: 0;
                     }
                     
                     .reader-title {
-                        font-size: 24px;
+                        font-size: 16px;
                         font-weight: bold;
                         color: #333;
                         margin-bottom: 10px;
@@ -1588,19 +1599,97 @@ class NovelReaderModeManager(private val context: Context) {
                     // 延迟再次设置，确保目录列表显示时也能点击
                     setTimeout(setupChapterItemsClickable, 500);
                     
-                    // 自动滚动到底部时加载下一章
+                    // 自动滚动到底部时加载下一章，并控制顶部header显示/隐藏
                     var lastScrollTop = 0;
                     var scrollTimer = null;
                     var isLoadingNext = false; // 防止重复加载
+                    var headerVisible = true; // 顶部header是否可见
+                    var scrollThreshold = 30; // 滚动阈值，超过此值才触发显示/隐藏
                     
-                    window.addEventListener('scroll', function() {
+                    function updateHeaderVisibility(show) {
+                        var header = document.querySelector('.reader-header');
+                        if (header) {
+                            if (show && !headerVisible) {
+                                // 显示header
+                                header.classList.remove('hidden');
+                                header.style.transform = 'translateY(0)';
+                                header.style.opacity = '1';
+                                headerVisible = true;
+                                console.log('显示header');
+                            } else if (!show && headerVisible) {
+                                // 隐藏header
+                                header.classList.add('hidden');
+                                header.style.transform = 'translateY(-100%)';
+                                header.style.opacity = '0';
+                                headerVisible = false;
+                                console.log('隐藏header');
+                            }
+                        }
+                    }
+                    
+                    // 初始化header样式
+                    var header = document.querySelector('.reader-header');
+                    if (header) {
+                        header.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                        header.style.transform = 'translateY(0)';
+                        header.style.opacity = '1';
+                        header.classList.remove('hidden');
+                    }
+                    
+                    // 使用多种方式监听滚动，确保在WebView中也能正常工作
+                    var scrollHandler = function() {
+                        var scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                        var scrollDelta = scrollTop - lastScrollTop;
+                        
+                        var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+                        var clientHeight = document.documentElement.clientHeight || window.innerHeight;
+                        var isAtBottom = (scrollHeight - scrollTop - clientHeight) < 50; // 距离底部50px内认为到底部
+                        var isAtTop = scrollTop < 50; // 距离顶部50px内认为在顶部
+                        
+                        // 控制顶部header显示/隐藏
+                        if (isAtTop || isAtBottom) {
+                            // 在顶部或底部时，强制显示header
+                            if (!headerVisible) {
+                                updateHeaderVisibility(true);
+                            }
+                        } else if (Math.abs(scrollDelta) > scrollThreshold) {
+                            // 只有在滚动距离超过阈值时才改变header状态
+                            if (scrollDelta > 0) {
+                                // 向下滚动，隐藏header
+                                if (headerVisible) {
+                                    updateHeaderVisibility(false);
+                                }
+                            } else {
+                                // 向上滚动，显示header
+                                if (!headerVisible) {
+                                    updateHeaderVisibility(true);
+                                }
+                            }
+                        }
+                        
+                        lastScrollTop = scrollTop;
+                        
+                        // 通知Android端滚动状态变化
+                        if (window.ReaderMode && typeof ReaderMode.onScroll === 'function') {
+                            try {
+                                var scrollData = {
+                                    scrollTop: scrollTop,
+                                    scrollDelta: scrollDelta,
+                                    isAtTop: isAtTop,
+                                    isAtBottom: isAtBottom,
+                                    scrollHeight: scrollHeight,
+                                    clientHeight: clientHeight
+                                };
+                                window.ReaderMode.onScroll(JSON.stringify(scrollData));
+                            } catch(e) {
+                                console.error('调用ReaderMode.onScroll失败:', e);
+                            }
+                        }
+                        
+                        // 检查是否需要加载下一章
                         clearTimeout(scrollTimer);
                         scrollTimer = setTimeout(function() {
                             if (isLoadingNext) return; // 如果正在加载，不重复触发
-                            
-                            var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                            var scrollHeight = document.documentElement.scrollHeight;
-                            var clientHeight = document.documentElement.clientHeight;
                             
                             // 滚动到接近底部（距离底部200px以内）
                             if (scrollHeight - scrollTop - clientHeight < 200) {
@@ -1615,7 +1704,23 @@ class NovelReaderModeManager(private val context: Context) {
                                 }
                             }
                         }, 500);
-                    });
+                    };
+                    
+                    // 添加多种滚动监听方式
+                    window.addEventListener('scroll', scrollHandler, { passive: true });
+                    document.addEventListener('scroll', scrollHandler, { passive: true });
+                    
+                    // 使用requestAnimationFrame持续监听滚动
+                    var lastRAFScrollTop = 0;
+                    function rafScrollCheck() {
+                        var currentScrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                        if (currentScrollTop !== lastRAFScrollTop) {
+                            lastRAFScrollTop = currentScrollTop;
+                            scrollHandler();
+                        }
+                        requestAnimationFrame(rafScrollCheck);
+                    }
+                    requestAnimationFrame(rafScrollCheck);
                     
                     // 监听页面可见性变化，确保在页面重新可见时重置加载标志
                     document.addEventListener('visibilitychange', function() {
@@ -1922,6 +2027,23 @@ class NovelReaderModeManager(private val context: Context) {
             Log.d(TAG, "退出阅读模式（从JS调用）")
             webView.post {
                 exitReaderMode(webView)
+            }
+        }
+        
+        @JavascriptInterface
+        fun onScroll(scrollDataJson: String) {
+            try {
+                val scrollData = org.json.JSONObject(scrollDataJson)
+                val scrollTop = scrollData.getInt("scrollTop")
+                val scrollDelta = scrollData.getInt("scrollDelta")
+                val isAtTop = scrollData.getBoolean("isAtTop")
+                val isAtBottom = scrollData.getBoolean("isAtBottom")
+                
+                webView.post {
+                    listener?.onScroll(scrollTop, scrollDelta, isAtTop, isAtBottom)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解析滚动数据失败", e)
             }
         }
     }
