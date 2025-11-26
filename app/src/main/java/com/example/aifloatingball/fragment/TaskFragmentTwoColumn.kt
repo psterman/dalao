@@ -860,7 +860,24 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 统一收藏项点击
      */
     private fun onCollectionItemClick(item: UnifiedCollectionItem) {
-        // 显示编辑面板
+        // 显示操作菜单：编辑、分享、删除
+        val options = arrayOf("编辑", "分享", "删除")
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(item.title.take(50))
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> editCollectionItem(item)  // 编辑
+                    1 -> shareCollectionItem(item)  // 分享
+                    2 -> deleteCollectionItem(item)  // 删除
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 编辑收藏项
+     */
+    private fun editCollectionItem(item: UnifiedCollectionItem) {
         val editDrawer = EditCollectionDrawer.newInstance(item)
         editDrawer.setOnSaveListener { updatedItem ->
             collectionManager.updateCollection(updatedItem)
@@ -868,6 +885,74 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             android.widget.Toast.makeText(requireContext(), "已保存", android.widget.Toast.LENGTH_SHORT).show()
         }
         editDrawer.show(parentFragmentManager, "EditCollectionDrawer")
+    }
+    
+    /**
+     * 分享收藏项
+     */
+    private fun shareCollectionItem(item: UnifiedCollectionItem) {
+        try {
+            // 构建分享内容
+            val shareText = buildString {
+                append("【${item.title}】\n\n")
+                
+                // 如果是AI回复，显示问题和回复
+                if (item.collectionType == CollectionType.AI_REPLY) {
+                    val userQuestion = item.extraData["userQuestion"] as? String
+                    val replyLength = item.extraData["replyLength"] as? Int
+                    val serviceDisplayName = item.extraData["serviceDisplayName"] as? String ?: ""
+                    
+                    if (userQuestion != null) {
+                        append("问题：$userQuestion\n\n")
+                    }
+                    append("AI回复：\n${item.content}\n\n")
+                    if (replyLength != null) {
+                        append("回复字数：$replyLength 字\n")
+                    }
+                    if (serviceDisplayName.isNotEmpty()) {
+                        append("AI服务：$serviceDisplayName\n")
+                    }
+                } else {
+                    append(item.content)
+                }
+                
+                append("\n\n")
+                append("收藏时间：${item.getFormattedCollectedTime()}")
+                append("\n来源：${item.getSourceDisplayText()}")
+            }
+            
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, shareText)
+                putExtra(Intent.EXTRA_SUBJECT, item.title)
+            }
+            
+            startActivity(Intent.createChooser(shareIntent, "分享收藏项"))
+        } catch (e: Exception) {
+            android.util.Log.e("TaskFragment", "分享收藏项失败", e)
+            android.widget.Toast.makeText(requireContext(), "分享失败", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 删除收藏项
+     */
+    private fun deleteCollectionItem(item: UnifiedCollectionItem) {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("确认删除")
+            .setMessage("确定要删除「${item.title.take(30)}」吗？")
+            .setPositiveButton("删除") { _, _ ->
+                val success = collectionManager.deleteCollection(item.id)
+                if (success) {
+                    currentCollectionType?.let { loadCollectionsForType(it) }
+                    android.widget.Toast.makeText(requireContext(), "已删除", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    android.widget.Toast.makeText(requireContext(), "删除失败", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     /**

@@ -31,7 +31,10 @@ data class UnifiedCollectionItem(
     val reminderTime: Long? = null,                       // 提醒时间（null表示无提醒）
     
     // 类型特定数据（根据collectionType存储不同数据）
-    val extraData: Map<String, Any> = emptyMap()  // 扩展数据
+    val extraData: Map<String, Any> = emptyMap(),  // 扩展数据
+    
+    // 关联关系（存储关联的其他收藏项ID和类型）
+    val relations: List<CollectionRelation> = emptyList()  // 关联关系列表
 ) : Serializable {
     
     /**
@@ -88,6 +91,154 @@ data class UnifiedCollectionItem(
      */
     fun updateModifiedTime(): UnifiedCollectionItem {
         return copy(modifiedTime = System.currentTimeMillis())
+    }
+    
+    /**
+     * 添加关联关系
+     * 
+     * @param targetId 关联目标收藏项ID
+     * @param relationType 关联类型
+     * @param note 关联备注（可选）
+     * @param weight 关联权重（0-1，默认1.0）
+     * @return 更新后的收藏项
+     */
+    fun addRelation(
+        targetId: String,
+        relationType: RelationType,
+        note: String? = null,
+        weight: Float = 1.0f
+    ): UnifiedCollectionItem {
+        // 检查是否已存在关联
+        if (relations.any { it.targetId == targetId }) {
+            return this
+        }
+        
+        // 防止自关联
+        if (targetId == id) {
+            return this
+        }
+        
+        return copy(
+            relations = relations + CollectionRelation(
+                targetId = targetId,
+                relationType = relationType,
+                note = note,
+                weight = weight
+            ),
+            modifiedTime = System.currentTimeMillis()
+        )
+    }
+    
+    /**
+     * 移除关联关系
+     * 
+     * @param targetId 要移除的关联目标ID
+     * @return 更新后的收藏项
+     */
+    fun removeRelation(targetId: String): UnifiedCollectionItem {
+        return copy(
+            relations = relations.filter { it.targetId != targetId },
+            modifiedTime = System.currentTimeMillis()
+        )
+    }
+    
+    /**
+     * 更新关联类型
+     * 
+     * @param targetId 关联目标ID
+     * @param newType 新的关联类型
+     * @return 更新后的收藏项
+     */
+    fun updateRelationType(targetId: String, newType: RelationType): UnifiedCollectionItem {
+        return copy(
+            relations = relations.map {
+                if (it.targetId == targetId) {
+                    it.updateType(newType)
+                } else {
+                    it
+                }
+            },
+            modifiedTime = System.currentTimeMillis()
+        )
+    }
+    
+    /**
+     * 更新关联备注
+     * 
+     * @param targetId 关联目标ID
+     * @param note 新的备注
+     * @return 更新后的收藏项
+     */
+    fun updateRelationNote(targetId: String, note: String?): UnifiedCollectionItem {
+        return copy(
+            relations = relations.map {
+                if (it.targetId == targetId) {
+                    it.updateNote(note)
+                } else {
+                    it
+                }
+            },
+            modifiedTime = System.currentTimeMillis()
+        )
+    }
+    
+    /**
+     * 更新关联权重
+     * 
+     * @param targetId 关联目标ID
+     * @param weight 新的权重（0-1）
+     * @return 更新后的收藏项
+     */
+    fun updateRelationWeight(targetId: String, weight: Float): UnifiedCollectionItem {
+        return copy(
+            relations = relations.map {
+                if (it.targetId == targetId) {
+                    it.updateWeight(weight)
+                } else {
+                    it
+                }
+            },
+            modifiedTime = System.currentTimeMillis()
+        )
+    }
+    
+    /**
+     * 获取所有关联的收藏项ID
+     * 
+     * @return 关联ID列表
+     */
+    fun getRelatedIds(): List<String> {
+        return relations.map { it.targetId }
+    }
+    
+    /**
+     * 检查是否关联了指定ID
+     * 
+     * @param targetId 目标ID
+     * @return 是否关联
+     */
+    fun isRelatedTo(targetId: String): Boolean {
+        return relations.any { it.targetId == targetId }
+    }
+    
+    /**
+     * 获取指定类型的关联数量
+     * 
+     * @param relationType 关联类型
+     * @return 关联数量
+     */
+    fun getRelationCountByType(relationType: RelationType): Int {
+        return relations.count { it.relationType == relationType }
+    }
+    
+    /**
+     * 获取指定类型的关联列表
+     * 
+     * @param relationType 关联类型
+     * @return 关联列表
+     */
+    fun getRelationsByType(relationType: RelationType): List<CollectionRelation> {
+        return relations.filter { it.relationType == relationType }
     }
 }
 

@@ -49,6 +49,9 @@ import com.example.aifloatingball.manager.DeepSeekApiHelper
 import com.example.aifloatingball.manager.GroupChatManager
 import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.example.aifloatingball.manager.GroupChatListener
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.UnifiedCollectionItem
+import com.example.aifloatingball.model.CollectionType
 // MultiAIReplyHandler已移除，使用GroupChatManager
 import com.example.aifloatingball.utils.SimpleMarkdownRenderer
 import com.example.aifloatingball.utils.AdvancedMarkdownRenderer
@@ -1895,15 +1898,16 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      */
     private fun showMessageOptionsDialog(message: ChatActivity.ChatMessage, position: Int) {
         if (!message.isFromUser) {
-            // AI消息还可以重新生成
-            val aiOptions = arrayOf("复制", "分享", "重新生成", "删除")
+            // AI消息还可以重新生成和收藏
+            val aiOptions = arrayOf("复制", "分享", "收藏", "重新生成", "删除")
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setItems(aiOptions) { _, which ->
                     when (which) {
                         0 -> copyMessage(message)
                         1 -> shareMessage(message)
-                        2 -> regenerateMessage(message, position)
-                        3 -> deleteMessage(position)
+                        2 -> collectAIReply(message, position)
+                        3 -> regenerateMessage(message, position)
+                        4 -> deleteMessage(position)
                     }
                 }
                 .show()
@@ -1959,18 +1963,83 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
 
     /**
-     * 收藏消息
+     * 收藏AI回复
+     * 将AI回复添加到统一收藏管理系统中
      */
-    private fun favoriteMessage(position: Int) {
-        // currentContact?.let { contact ->
-        //     lifecycleScope.launch {
-        //         chatHistoryManager.favoriteMessage(contact.id, position)
-        //         runOnUiThread {
-        //             Toast.makeText(this@ChatActivity, "消息已收藏", Toast.LENGTH_SHORT).show()
-        //         }
-        //     }
-        // }
-        Toast.makeText(this@ChatActivity, "收藏功能暂未实现", Toast.LENGTH_SHORT).show()
+    private fun collectAIReply(message: ChatActivity.ChatMessage, position: Int) {
+        try {
+            // 查找对应的用户问题
+            val userMessageIndex = findUserMessageIndex(position)
+            val userQuestion = if (userMessageIndex != -1) {
+                messages[userMessageIndex].content
+            } else {
+                message.userQuery ?: "未知问题"
+            }
+            
+            // 获取AI服务类型
+            val serviceType = currentContact?.let { getAIServiceType(it) }
+            val serviceName = serviceType?.name ?: "未知服务"
+            val serviceDisplayName = when (serviceType) {
+                AIServiceType.DEEPSEEK -> "DeepSeek"
+                AIServiceType.CHATGPT -> "ChatGPT"
+                AIServiceType.CLAUDE -> "Claude"
+                AIServiceType.QIANWEN -> "通义千问"
+                AIServiceType.ZHIPU_AI -> "智谱AI"
+                AIServiceType.TEMP_SERVICE -> "临时专线"
+                else -> serviceName
+            }
+            
+            // 获取回复内容
+            val replyContent = message.content
+            val replyLength = replyContent.length
+            
+            // 生成预览文本（折叠显示，取前200字符）
+            val preview = if (replyLength > 200) {
+                replyContent.take(200) + "..."
+            } else {
+                replyContent
+            }
+            
+            // 生成标题（使用用户问题的前50字符）
+            val title = if (userQuestion.length > 50) {
+                userQuestion.take(50) + "..."
+            } else {
+                userQuestion
+            }
+            
+            // 创建收藏项
+            val collectionItem = UnifiedCollectionItem(
+                title = title,
+                content = replyContent,
+                preview = preview,
+                collectionType = CollectionType.AI_REPLY,
+                sourceLocation = "AI对话Tab",
+                sourceDetail = serviceDisplayName + "对话",
+                collectedTime = message.timestamp,
+                extraData = mapOf(
+                    "userQuestion" to userQuestion,
+                    "replyLength" to replyLength,
+                    "serviceType" to serviceName,
+                    "serviceDisplayName" to serviceDisplayName,
+                    "messagePosition" to position
+                )
+            )
+            
+            // 保存到统一收藏管理器
+            val collectionManager = UnifiedCollectionManager.getInstance(this)
+            val success = collectionManager.addCollection(collectionItem)
+            
+            if (success) {
+                Toast.makeText(this, "已收藏到AI回复收藏列表", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "收藏AI回复成功: 问题='$userQuestion', 回复长度=$replyLength")
+            } else {
+                Toast.makeText(this, "收藏失败，请重试", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "收藏AI回复失败")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "收藏AI回复时发生错误", e)
+            Toast.makeText(this, "收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
