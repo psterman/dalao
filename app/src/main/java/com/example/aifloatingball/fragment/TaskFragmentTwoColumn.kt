@@ -1,6 +1,8 @@
 package com.example.aifloatingball.fragment
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -860,7 +862,13 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 统一收藏项点击
      */
     private fun onCollectionItemClick(item: UnifiedCollectionItem) {
-        // 显示操作菜单：编辑、分享、删除
+        // 如果是电子书收藏，直接打开并恢复阅读进度
+        if (item.collectionType == CollectionType.EBOOK_BOOKMARK) {
+            openEbookCollection(item)
+            return
+        }
+        
+        // 其他类型显示操作菜单：编辑、分享、删除
         val options = arrayOf("编辑", "分享", "删除")
         androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle(item.title.take(50))
@@ -872,6 +880,107 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 }
             }
             .show()
+    }
+    
+    /**
+     * 打开电子书收藏项
+     */
+    private fun openEbookCollection(item: UnifiedCollectionItem) {
+        try {
+            val isReaderMode = item.extraData?.get("isReaderMode") == "true"
+            
+            if (isReaderMode) {
+                // 阅读模式：打开URL并进入阅读模式
+                var url = (item.extraData?.get("url") as? String) ?: item.content
+                val originalUrl = (item.extraData?.get("originalUrl") as? String) ?: url
+                
+                // 如果URL为空，尝试自动加载上一次阅读的记录
+                if (url.isEmpty()) {
+                    url = loadLastReadRecord() ?: ""
+                    if (url.isNotEmpty()) {
+                        android.util.Log.d("TaskFragmentTwoColumn", "自动加载上一次阅读记录: $url")
+                    }
+                }
+                
+                if (url.isNotEmpty()) {
+                    // 启动SimpleModeActivity并打开URL
+                    val intent = android.content.Intent(requireContext(), com.example.aifloatingball.SimpleModeActivity::class.java).apply {
+                        action = "OPEN_URL"
+                        putExtra("url", url)
+                        putExtra("enter_reader_mode", true) // 标记需要进入阅读模式
+                        putExtra("auto_load_last_read", true) // 允许自动加载上一次阅读记录
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    startActivity(intent)
+                    android.widget.Toast.makeText(requireContext(), "正在打开阅读模式...", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    android.widget.Toast.makeText(requireContext(), "URL为空，无法打开", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                // 文件阅读器：打开文件并恢复阅读进度
+                val filePath = (item.extraData?.get("filePath") as? String) ?: item.content
+                val fileUri = item.extraData?.get("fileUri") as? String
+                val fileName = (item.extraData?.get("fileName") as? String) ?: item.title
+                
+                if (filePath.isNotEmpty()) {
+                    try {
+                        val uri = if (fileUri != null && fileUri.isNotEmpty()) {
+                            android.net.Uri.parse(fileUri)
+                        } else {
+                            // 从文件路径创建URI
+                            val file = java.io.File(filePath)
+                            if (file.exists()) {
+                                com.example.aifloatingball.viewer.FileReaderActivity.startWithPath(
+                                    requireActivity(),
+                                    filePath,
+                                    fileName
+                                )
+                                android.widget.Toast.makeText(requireContext(), "正在打开文件...", android.widget.Toast.LENGTH_SHORT).show()
+                                return
+                            } else {
+                                android.widget.Toast.makeText(requireContext(), "文件不存在", android.widget.Toast.LENGTH_SHORT).show()
+                                return
+                            }
+                        }
+                        
+                        com.example.aifloatingball.viewer.FileReaderActivity.start(
+                            requireActivity(),
+                            uri,
+                            fileName
+                        )
+                        android.widget.Toast.makeText(requireContext(), "正在打开文件...", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        android.util.Log.e("TaskFragmentTwoColumn", "打开文件失败", e)
+                        android.widget.Toast.makeText(requireContext(), "打开文件失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TaskFragmentTwoColumn", "打开电子书收藏失败", e)
+            android.widget.Toast.makeText(requireContext(), "打开失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 加载上一次阅读的记录和网址
+     */
+    private fun loadLastReadRecord(): String? {
+        return try {
+            val prefs = requireContext().getSharedPreferences("last_read_record", Context.MODE_PRIVATE)
+            val url = prefs.getString("last_read_url", null)
+            val lastReadTime = prefs.getLong("last_read_time", 0L)
+            
+            if (url != null && url.isNotEmpty() && lastReadTime > 0) {
+                android.util.Log.d("TaskFragmentTwoColumn", "加载上一次阅读记录: $url, 时间: $lastReadTime")
+                url
+            } else {
+                android.util.Log.d("TaskFragmentTwoColumn", "没有找到上一次阅读记录")
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TaskFragmentTwoColumn", "加载上一次阅读记录失败", e)
+            null
+        }
     }
     
     /**

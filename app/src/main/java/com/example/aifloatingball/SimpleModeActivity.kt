@@ -188,6 +188,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
         private const val REQUEST_CODE_PICK_FILE = 1102
         
+        // 上一次阅读记录存储键
+        private const val KEY_LAST_READ_URL = "last_read_url"
+        private const val KEY_LAST_READ_TIME = "last_read_time"
+        private const val PREFS_LAST_READ = "last_read_record"
+        
         // 单例实例，用于WebViewFactory访问
         @Volatile
         private var INSTANCE: SimpleModeActivity? = null
@@ -7185,6 +7190,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 } else {
                                     Log.d(TAG, "阅读模式已进入，但当前不在搜索tab中，跳过禁用下拉菜单")
                                 }
+                                
+                                // 收藏到AI助手的电子书收藏
+                                addReaderModeToEbookCollection()
                             } catch (e: Exception) {
                                 Log.e(TAG, "禁用 browserSwipeRefresh 失败", e)
                             }
@@ -10701,6 +10709,79 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             findCurrentIndex = 0
         } catch (e: Exception) {
             Log.e(TAG, "清除查找结果失败", e)
+        }
+    }
+    
+    /**
+     * 收藏阅读模式到AI助手的电子书收藏
+     */
+    private fun addReaderModeToEbookCollection() {
+        try {
+            val currentTab = paperStackWebViewManager?.getCurrentTab()
+            val url = currentTab?.webView?.url ?: currentTab?.url
+            val title = currentTab?.title ?: url ?: "阅读模式"
+            
+            if (url.isNullOrBlank()) {
+                return
+            }
+            
+            val collectionManager = com.example.aifloatingball.manager.UnifiedCollectionManager.getInstance(this)
+            
+            // 检查是否已收藏
+            val existingCollection = collectionManager.getAllCollections()
+                .find { 
+                    it.collectionType == com.example.aifloatingball.model.CollectionType.EBOOK_BOOKMARK && 
+                    it.extraData?.get("url") == url 
+                }
+            
+            // 构建标签列表
+            val tags = mutableListOf<String>().apply {
+                add("阅读模式")
+                add("搜索Tab")
+                // 尝试从URL提取域名作为标签
+                try {
+                    val uri = android.net.Uri.parse(url)
+                    uri.host?.let { host ->
+                        val domain = host.split(".").takeLast(2).joinToString(".")
+                        if (domain.isNotEmpty()) {
+                            add(domain)
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 忽略解析错误
+                }
+            }
+            
+            // 创建统一收藏项
+            val collectionItem = com.example.aifloatingball.model.UnifiedCollectionItem(
+                id = url.hashCode().toString(), // 使用URL的hash作为ID
+                title = title,
+                content = url,
+                preview = "阅读模式: $title",
+                collectionType = com.example.aifloatingball.model.CollectionType.EBOOK_BOOKMARK,
+                sourceLocation = "搜索Tab",
+                sourceDetail = "阅读模式",
+                collectedTime = System.currentTimeMillis(),
+                customTags = tags.distinct(),
+                extraData = mapOf(
+                    "url" to url,
+                    "title" to title,
+                    "isReaderMode" to "true",
+                    "originalUrl" to url // 使用当前URL作为原始URL
+                )
+            )
+            
+            if (existingCollection != null) {
+                // 更新现有收藏
+                collectionManager.updateCollection(collectionItem)
+                Log.d(TAG, "更新阅读模式收藏: $title")
+            } else {
+                // 添加新收藏
+                collectionManager.addCollection(collectionItem)
+                Log.d(TAG, "添加阅读模式收藏: $title")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "收藏阅读模式到电子书收藏失败", e)
         }
     }
     
@@ -24062,6 +24143,82 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun handleWidgetIntent(intent: Intent?) {
         intent?.let {
             try {
+                // 处理 OPEN_URL action（用于打开电子书收藏中的阅读模式）
+                if (it.action == "OPEN_URL") {
+                    var url = it.getStringExtra("url")
+                    val enterReaderMode = it.getBooleanExtra("enter_reader_mode", false)
+                    val autoLoadLastRead = it.getBooleanExtra("auto_load_last_read", false)
+                    
+                    // 如果URL为空且需要自动加载上一次阅读记录，则加载上一次的记录
+                    if ((url == null || url.isEmpty()) && autoLoadLastRead) {
+                        url = loadLastReadRecord()
+                        if (url != null && url.isNotEmpty()) {
+                            Log.d(TAG, "自动加载上一次阅读记录: $url")
+                        }
+                    }
+                    
+                    if (url != null && url.isNotEmpty()) {
+                        Log.d(TAG, "收到OPEN_URL请求: $url, 进入阅读模式: $enterReaderMode")
+                        
+                        // 保存上一次阅读的记录和网址
+                        if (enterReaderMode) {
+                            saveLastReadRecord(url)
+                        }
+                        
+                        // 切换到搜索tab
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            try {
+                                switchToSearchTab()
+                                
+                                // 延迟打开URL，确保搜索tab已切换
+                                Handler(Looper.getMainLooper()).postDelayed({
+                                    try {
+                                        // 添加新标签页并加载URL
+                                        val tab = paperStackWebViewManager?.addTab(url, null)
+                                        
+                                        if (tab != null) {
+                                            Log.d(TAG, "已添加新标签页: $url")
+                                            
+                                            if (enterReaderMode) {
+                                                // 延迟进入阅读模式，确保页面已开始加载
+                                                Handler(Looper.getMainLooper()).postDelayed({
+                                                    try {
+                                                        // 确保阅读模式管理器已初始化
+                                                        if (globalReaderModeManager == null) {
+                                                            globalReaderModeManager = com.example.aifloatingball.reader.NovelReaderModeManager(this)
+                                                            Log.d(TAG, "初始化阅读模式管理器")
+                                                        }
+                                                        
+                                                        globalReaderModeManager?.enterReaderMode(tab.webView, url, useNoImageMode = false)
+                                                        Log.d(TAG, "已进入阅读模式: $url")
+                                                        Toast.makeText(this, "已进入阅读模式", Toast.LENGTH_SHORT).show()
+                                                    } catch (e: Exception) {
+                                                        Log.e(TAG, "进入阅读模式失败", e)
+                                                        Toast.makeText(this, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }, 1500) // 延迟1.5秒，确保页面开始加载
+                                            }
+                                        } else {
+                                            Log.e(TAG, "添加标签页失败")
+                                            Toast.makeText(this, "打开URL失败", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "打开URL失败", e)
+                                        Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }, 500) // 延迟500ms，确保搜索tab已切换
+                            } catch (e: Exception) {
+                                Log.e(TAG, "切换到搜索tab失败", e)
+                                Toast.makeText(this, "切换到搜索tab失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }, 300)
+                    } else {
+                        Log.e(TAG, "OPEN_URL请求中URL为空且无法加载上一次阅读记录")
+                        Toast.makeText(this, "URL为空，无法打开", Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
+                
                 // 检查是否需要直接跳转到设置页面
                 val openSettings = it.getBooleanExtra("open_settings", false)
                 if (openSettings) {
@@ -26057,6 +26214,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "切换到搜索tab完成")
         } catch (e: Exception) {
             Log.e(TAG, "切换到搜索tab失败", e)
+        }
+    }
+    
+    /**
+     * 保存上一次阅读的记录和网址
+     */
+    private fun saveLastReadRecord(url: String) {
+        try {
+            val prefs = getSharedPreferences(PREFS_LAST_READ, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(KEY_LAST_READ_URL, url)
+                .putLong(KEY_LAST_READ_TIME, System.currentTimeMillis())
+                .apply()
+            Log.d(TAG, "已保存上一次阅读记录: $url")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存上一次阅读记录失败", e)
+        }
+    }
+    
+    /**
+     * 加载上一次阅读的记录和网址
+     */
+    private fun loadLastReadRecord(): String? {
+        return try {
+            val prefs = getSharedPreferences(PREFS_LAST_READ, Context.MODE_PRIVATE)
+            val url = prefs.getString(KEY_LAST_READ_URL, null)
+            val lastReadTime = prefs.getLong(KEY_LAST_READ_TIME, 0L)
+            
+            if (url != null && url.isNotEmpty() && lastReadTime > 0) {
+                Log.d(TAG, "加载上一次阅读记录: $url, 时间: $lastReadTime")
+                url
+            } else {
+                Log.d(TAG, "没有找到上一次阅读记录")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载上一次阅读记录失败", e)
+            null
         }
     }
     

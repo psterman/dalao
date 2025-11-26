@@ -33,6 +33,9 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.FileProvider
 import com.example.aifloatingball.R
 import com.example.aifloatingball.tts.TTSManager
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.CollectionType
+import com.example.aifloatingball.model.UnifiedCollectionItem
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.InputStream
@@ -924,6 +927,9 @@ class FileReaderActivity : AppCompatActivity() {
                     errorTextView.visibility = View.GONE
                     
                     Log.d(TAG, "文本文件加载成功，共 ${totalPages} 页，当前页=${targetPage + 1}，filePath=$filePath")
+                    
+                    // 自动收藏到AI助手的电子书收藏
+                    addToEbookCollection()
                 }
             } ?: run {
                 withContext(Dispatchers.Main) {
@@ -1629,6 +1635,79 @@ class FileReaderActivity : AppCompatActivity() {
             Toast.makeText(this, "已添加书签", Toast.LENGTH_SHORT).show()
         }
         updateBookmarkButton()
+        
+        // 收藏到AI助手的电子书收藏
+        addToEbookCollection()
+    }
+    
+    /**
+     * 收藏到AI助手的电子书收藏
+     */
+    private fun addToEbookCollection() {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(this)
+            
+            // 检查是否已收藏
+            val existingCollection = collectionManager.getAllCollections()
+                .find { 
+                    it.collectionType == CollectionType.EBOOK_BOOKMARK && 
+                    it.extraData?.get("filePath") == filePath 
+                }
+            
+            // 获取阅读进度
+            val progress = dataManager.getProgress(filePath)
+            val currentPage = progress?.currentPage ?: currentPageIndex
+            val totalPages = progress?.totalPages ?: totalPages
+            val progressPercent = if (totalPages > 0) {
+                (currentPage * 100 / totalPages).coerceIn(0, 100)
+            } else {
+                0
+            }
+            
+            // 构建标签列表
+            val tags = mutableListOf<String>().apply {
+                add("阅读器")
+                if (fileName.endsWith(".txt", ignoreCase = true)) add("文本文件")
+                if (fileName.endsWith(".pdf", ignoreCase = true)) add("PDF文件")
+                if (fileName.endsWith(".epub", ignoreCase = true)) add("EPUB文件")
+                if (fileName.endsWith(".mobi", ignoreCase = true)) add("MOBI文件")
+            }
+            
+            // 创建统一收藏项
+            val collectionItem = UnifiedCollectionItem(
+                id = filePath.hashCode().toString(), // 使用文件路径的hash作为ID，确保唯一性
+                title = fileName.ifEmpty { "未命名文档" },
+                content = filePath,
+                preview = "阅读进度: 第${currentPage + 1}页/共${totalPages}页 (${progressPercent}%)",
+                collectionType = CollectionType.EBOOK_BOOKMARK,
+                sourceLocation = "阅读器",
+                sourceDetail = "文件阅读器",
+                collectedTime = System.currentTimeMillis(),
+                customTags = tags.distinct(),
+                extraData = mapOf(
+                    "filePath" to filePath,
+                    "fileName" to fileName,
+                    "fileUri" to (fileUri?.toString() ?: ""),
+                    "currentPage" to currentPage.toString(),
+                    "totalPages" to totalPages.toString(),
+                    "progressPercent" to progressPercent.toString(),
+                    "lastReadTime" to (progress?.lastReadTime?.toString() ?: System.currentTimeMillis().toString())
+                )
+            )
+            
+            if (existingCollection != null) {
+                // 更新现有收藏（更新阅读进度）
+                collectionManager.updateCollection(collectionItem)
+                Log.d(TAG, "更新电子书收藏: $fileName, 进度: $progressPercent%")
+            } else {
+                // 添加新收藏
+                collectionManager.addCollection(collectionItem)
+                Toast.makeText(this, "已收藏到AI助手", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "添加电子书收藏: $fileName, 进度: $progressPercent%")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "收藏到电子书收藏失败", e)
+        }
     }
     
     /**
@@ -2362,6 +2441,46 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             position = currentPageIndex * calculateCharsPerPage()
         )
         dataManager.saveProgress(progress)
+        
+        // 同步更新到统一收藏管理系统
+        updateEbookCollectionProgress()
+    }
+    
+    /**
+     * 更新电子书收藏的阅读进度
+     */
+    private fun updateEbookCollectionProgress() {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(this)
+            val existingCollection = collectionManager.getAllCollections()
+                .find { 
+                    it.collectionType == CollectionType.EBOOK_BOOKMARK && 
+                    it.extraData?.get("filePath") == filePath 
+                }
+            
+            if (existingCollection != null) {
+                val progressPercent = if (totalPages > 0) {
+                    (currentPageIndex * 100 / totalPages).coerceIn(0, 100)
+                } else {
+                    0
+                }
+                
+                val updatedItem = existingCollection.copy(
+                    preview = "阅读进度: 第${currentPageIndex + 1}页/共${totalPages}页 (${progressPercent}%)",
+                    extraData = existingCollection.extraData?.toMutableMap()?.apply {
+                        put("currentPage", currentPageIndex.toString())
+                        put("totalPages", totalPages.toString())
+                        put("progressPercent", progressPercent.toString())
+                        put("lastReadTime", System.currentTimeMillis().toString())
+                    } ?: emptyMap()
+                )
+                
+                collectionManager.updateCollection(updatedItem)
+                Log.d(TAG, "更新电子书收藏进度: $fileName, 进度: $progressPercent%")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新电子书收藏进度失败", e)
+        }
     }
     
     // ==================== 生命周期 ====================
@@ -2385,6 +2504,9 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             updatePageInfo()
             updateBookmarkButton()
         }
+        
+        // 自动收藏到AI助手的电子书收藏（首次打开时）
+        addToEbookCollection()
     }
     
     override fun onPause() {
