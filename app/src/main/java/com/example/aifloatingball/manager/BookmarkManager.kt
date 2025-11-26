@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.example.aifloatingball.model.Bookmark
+import com.example.aifloatingball.model.CollectionType
+import com.example.aifloatingball.model.UnifiedCollectionItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -78,7 +80,9 @@ class BookmarkManager private constructor(private val context: Context) {
         
         // 检查是否已有相同 URL 的书签
         val existingIndex = bookmarks.indexOfFirst { it.url == bookmark.url }
-        if (existingIndex >= 0) {
+        val isUpdate = existingIndex >= 0
+        
+        if (isUpdate) {
             // 更新现有书签
             bookmarks[existingIndex] = bookmark
         } else {
@@ -91,6 +95,11 @@ class BookmarkManager private constructor(private val context: Context) {
         
         // 保存图标
         favicon?.let { saveFavicon(bookmark.id, it) }
+        
+        // 同步到统一收藏管理系统
+        if (result) {
+            syncToUnifiedCollection(bookmark, isUpdate)
+        }
         
         return result
     }
@@ -105,7 +114,14 @@ class BookmarkManager private constructor(private val context: Context) {
         if (index >= 0) {
             bookmarks[index] = bookmark
             favicon?.let { saveFavicon(bookmark.id, it) }
-            return saveBookmarks(bookmarks)
+            val result = saveBookmarks(bookmarks)
+            
+            // 同步到统一收藏管理系统
+            if (result) {
+                syncToUnifiedCollection(bookmark, true)
+            }
+            
+            return result
         }
         
         return false
@@ -115,6 +131,7 @@ class BookmarkManager private constructor(private val context: Context) {
      * 删除书签
      */
     fun deleteBookmark(bookmarkId: String): Boolean {
+        val bookmark = getBookmarkById(bookmarkId)
         val bookmarks = getAllBookmarks().toMutableList()
         val removed = bookmarks.removeIf { it.id == bookmarkId }
         
@@ -125,7 +142,14 @@ class BookmarkManager private constructor(private val context: Context) {
                 faviconFile.delete()
             }
             
-            return saveBookmarks(bookmarks)
+            val result = saveBookmarks(bookmarks)
+            
+            // 从统一收藏管理系统删除
+            if (result && bookmark != null) {
+                removeFromUnifiedCollection(bookmark)
+            }
+            
+            return result
         }
         
         return false
@@ -319,11 +343,14 @@ class BookmarkManager private constructor(private val context: Context) {
     fun deleteBookmarks(bookmarkIds: List<String>): Int {
         val bookmarks = getAllBookmarks().toMutableList()
         var deletedCount = 0
+        val deletedBookmarks = mutableListOf<Bookmark>()
         
         bookmarkIds.forEach { id ->
+            val bookmark = bookmarks.find { it.id == id }
             val removed = bookmarks.removeIf { it.id == id }
             if (removed) {
                 deletedCount++
+                bookmark?.let { deletedBookmarks.add(it) }
                 // 删除相关的 favicon
                 val faviconFile = File(faviconDir, "favicon_$id.png")
                 if (faviconFile.exists()) {
@@ -333,7 +360,14 @@ class BookmarkManager private constructor(private val context: Context) {
         }
         
         if (deletedCount > 0) {
-            saveBookmarks(bookmarks)
+            val result = saveBookmarks(bookmarks)
+            
+            // 从统一收藏管理系统批量删除
+            if (result) {
+                deletedBookmarks.forEach { bookmark ->
+                    removeFromUnifiedCollection(bookmark)
+                }
+            }
         }
         
         return deletedCount
@@ -376,6 +410,94 @@ class BookmarkManager private constructor(private val context: Context) {
             it.description?.contains(lowerQuery, ignoreCase = true) == true ||
             it.tags.any { tag -> tag.contains(lowerQuery, ignoreCase = true) } ||
             it.folder.contains(lowerQuery, ignoreCase = true)
+        }
+    }
+    
+    /**
+     * 同步书签到统一收藏管理系统
+     */
+    private fun syncToUnifiedCollection(bookmark: Bookmark, isUpdate: Boolean) {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(context)
+            
+            // 构建标签列表
+            val tags = mutableListOf<String>().apply {
+                addAll(bookmark.tags)
+                if (bookmark.folder.isNotEmpty() && bookmark.folder != "默认") {
+                    add(bookmark.folder) // 将文件夹作为标签
+                }
+                add("搜索Tab收藏") // 标记来源
+            }
+            
+            // 创建统一收藏项
+            val collectionItem = UnifiedCollectionItem(
+                id = bookmark.id, // 使用书签ID作为收藏项ID，确保同步
+                title = bookmark.title,
+                content = bookmark.url,
+                preview = bookmark.description ?: bookmark.url,
+                collectionType = CollectionType.WEB_BOOKMARK,
+                sourceLocation = "搜索Tab",
+                sourceDetail = "收藏夹",
+                collectedTime = bookmark.addTime,
+                customTags = tags.distinct(),
+                extraData = mapOf(
+                    "bookmarkId" to bookmark.id,
+                    "folder" to bookmark.folder,
+                    "url" to bookmark.url,
+                    "description" to (bookmark.description ?: ""),
+                    "isTemplate" to bookmark.isTemplate.toString()
+                )
+            )
+            
+            if (isUpdate) {
+                collectionManager.updateCollection(collectionItem)
+                Log.d(TAG, "更新书签到统一收藏: ${bookmark.title}")
+            } else {
+                collectionManager.addCollection(collectionItem)
+                Log.d(TAG, "添加书签到统一收藏: ${bookmark.title}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "同步书签到统一收藏失败", e)
+        }
+    }
+    
+    /**
+     * 从统一收藏管理系统删除书签
+     */
+    private fun removeFromUnifiedCollection(bookmark: Bookmark) {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(context)
+            collectionManager.deleteCollection(bookmark.id)
+            Log.d(TAG, "从统一收藏删除书签: ${bookmark.title}")
+        } catch (e: Exception) {
+            Log.e(TAG, "从统一收藏删除书签失败", e)
+        }
+    }
+    
+    /**
+     * 同步所有现有书签到统一收藏管理系统（一次性迁移）
+     */
+    fun syncAllBookmarksToUnifiedCollection(): Int {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(context)
+            val bookmarks = getAllBookmarks()
+            var syncedCount = 0
+            
+            bookmarks.forEach { bookmark ->
+                // 检查是否已存在于统一收藏中
+                val existing = collectionManager.getCollectionById(bookmark.id)
+                if (existing == null || existing.collectionType != CollectionType.WEB_BOOKMARK) {
+                    // 不存在或类型不匹配，需要同步
+                    syncToUnifiedCollection(bookmark, false)
+                    syncedCount++
+                }
+            }
+            
+            Log.d(TAG, "同步书签到统一收藏完成: $syncedCount 条")
+            return syncedCount
+        } catch (e: Exception) {
+            Log.e(TAG, "同步所有书签到统一收藏失败", e)
+            return 0
         }
     }
 } 

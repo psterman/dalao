@@ -974,6 +974,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val bookmarkManager = com.example.aifloatingball.manager.BookmarkManager.getInstance(this)
             val migratedCount = bookmarkManager.migrateFromBookmarkEntry()
+            // 同步所有书签到统一收藏管理系统
+            bookmarkManager.syncAllBookmarksToUnifiedCollection()
             if (migratedCount > 0) {
                 Log.d(TAG, "书签数据迁移完成: $migratedCount 条")
             }
@@ -4892,7 +4894,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "已有 $tabCount 个标签页，切换到纸堆模式")
                 // 隐藏主页内容，显示纸堆标签页
                 browserHomeContent.visibility = View.GONE
-                browserTabContainer.visibility = View.GONE
                 
                 // 确保纸堆模式正确显示
                 val currentTab = paperStackWebViewManager?.getCurrentTab()
@@ -4911,6 +4912,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         Log.d(TAG, "🔧 功能主页未正确加载，重新加载")
                         currentTab.webView.loadUrl("file:///android_asset/functional_home.html")
                     }
+                    
+                    // 🔧 修复：默认首页时也显示tab栏，方便用户跳转到其他tab
+                    val isHomePage = currentTab.url == "home://functional" || 
+                                   currentTab.url == "file:///android_asset/functional_home.html"
+                    if (isHomePage) {
+                        browserTabContainer.visibility = View.VISIBLE
+                        Log.d(TAG, "默认首页：显示tab栏，方便用户跳转到其他tab")
+                    } else {
+                        browserTabContainer.visibility = View.GONE
+                    }
+                } else {
+                    browserTabContainer.visibility = View.GONE
                 }
             }
             
@@ -7007,7 +7020,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 🔧 修复：立即隐藏原生功能主页，避免在WebView加载时看到背面的按钮
             // 在标签页创建时立即隐藏，而不是等到加载完成
             browserHomeContent.visibility = View.GONE
-            browserTabContainer.visibility = View.GONE
+            
+            // 🔧 修复：默认首页时也显示tab栏，方便用户跳转到其他tab
+            val isHomePage = tab.url == "home://functional" || 
+                           tab.url == "file:///android_asset/functional_home.html"
+            if (isHomePage) {
+                browserTabContainer.visibility = View.VISIBLE
+                Log.d(TAG, "默认首页：显示tab栏，方便用户跳转到其他tab")
+            } else {
+                browserTabContainer.visibility = View.GONE
+            }
             
             // 🔧 修复：确保WebView容器背景为白色，避免透视到功能主页按钮
             val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
