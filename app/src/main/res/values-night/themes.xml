@@ -38,6 +38,38 @@
         <item name="autoCompleteTextViewStyle">@style/AI.AutoComplete</item>
     </style>
 
+    <!-- SimpleMode Activity 主题 - 暗色模式 -->
+    <style name="AppTheme.SimpleMode" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- SimpleMode 特定样式设置 -->
+        <item name="android:windowBackground">@color/md_theme_dark_background</item>
+    </style>
+
+    <!-- AppTheme对话框主题 - 暗色模式 -->
+    <style name="AppTheme_Dialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="colorPrimary">@color/md_theme_dark_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_dark_onPrimary</item>
+        <item name="colorSurface">@color/md_theme_dark_surface</item>
+        <item name="colorOnSurface">@color/md_theme_dark_onSurface</item>
+    </style>
+
+    <!-- 弹出菜单亮色主题 - 暗色模式 -->
+    <style name="AppPopupMenuLight" parent="ThemeOverlay.AppCompat.Light">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:background">?attr/colorSurface</item>
+    </style>
+
+    <!-- 偏好设置主题 - 暗色模式 -->
+    <style name="PreferenceTheme" parent="Theme.AIFloatingBall">
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay</item>
+    </style>
+
+    <!-- 偏好设置主题覆盖 - 暗色模式 -->
+    <style name="PreferenceThemeOverlay" parent="ThemeOverlay.AppCompat.Dark">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
+    </style>
+
     <!-- 剪贴板弹窗主题 -->
     <style name="Theme.ClipboardDialog" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- 窗口设置 -->

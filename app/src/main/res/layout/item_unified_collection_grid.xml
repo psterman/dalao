@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/collection_card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/ai_assistant_card_background_light">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp"
+        android:minHeight="120dp">
+
+        <!-- 选择框 -->
+        <CheckBox
+            android:id="@+id/collection_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:visibility="gone" />
+
+        <!-- 图标 -->
+        <TextView
+            android:id="@+id/collection_icon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_centerHorizontal="true"
+            android:layout_below="@id/collection_checkbox"
+            android:layout_marginTop="8dp"
+            android:textSize="32sp"
+            android:gravity="center"
+            android:text="🤖" />
+
+        <!-- 标题 -->
+        <TextView
+            android:id="@+id/collection_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_icon"
+            android:layout_marginTop="8dp"
+            android:text="收藏项标题"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/ai_assistant_text_primary"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:gravity="center" />
+
+        <!-- 来源信息 -->
+        <TextView
+            android:id="@+id/collection_source"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_title"
+            android:layout_marginTop="4dp"
+            android:text="来源"
+            android:textSize="11sp"
+            android:textColor="@color/ai_assistant_text_secondary"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center" />
+
+    </RelativeLayout>
+
+</androidx.cardview.widget.CardView>
+

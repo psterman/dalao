@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:paddingStart="24dp"
+    android:gravity="center_vertical"
+    android:background="@color/ai_assistant_card_background_light">
+
+    <View
+        android:layout_width="4dp"
+        android:layout_height="20dp"
+        android:background="@color/ai_assistant_primary"
+        android:layout_marginEnd="12dp" />
+
+    <TextView
+        android:id="@+id/timeline_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="2024年1月15日"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/ai_assistant_text_primary" />
+
+</LinearLayout>
+

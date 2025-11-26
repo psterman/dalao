@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/collection_card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="4dp"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/ai_assistant_card_background_light">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="12dp">
+
+        <!-- 选择框（批量选择模式时显示） -->
+        <CheckBox
+            android:id="@+id/collection_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:visibility="gone"
+            android:layout_marginEnd="12dp" />
+
+        <!-- 图标 -->
+        <TextView
+            android:id="@+id/collection_icon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_toEndOf="@id/collection_checkbox"
+            android:layout_alignParentTop="true"
+            android:textSize="24sp"
+            android:gravity="center"
+            android:text="🤖" />
+
+        <!-- 优先级徽章 -->
+        <TextView
+            android:id="@+id/collection_priority"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentTop="true"
+            android:text="高"
+            android:textSize="10sp"
+            android:textColor="@android:color/white"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:background="@drawable/priority_badge_background" />
+
+        <!-- 标题 -->
+        <TextView
+            android:id="@+id/collection_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toStartOf="@id/collection_priority"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:text="收藏项标题"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/ai_assistant_text_primary"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- 来源信息 -->
+        <TextView
+            android:id="@+id/collection_source"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_title"
+            android:layout_toEndOf="@id/collection_icon"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:text="来源 · 时间"
+            android:textSize="12sp"
+            android:textColor="@color/ai_assistant_text_secondary" />
+
+        <!-- 内容预览 -->
+        <TextView
+            android:id="@+id/collection_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_source"
+            android:layout_toEndOf="@id/collection_icon"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:text="内容预览..."
+            android:textSize="14sp"
+            android:textColor="@color/ai_assistant_text_primary"
+            android:maxLines="3"
+            android:ellipsize="end" />
+
+        <!-- 标签容器 -->
+        <LinearLayout
+            android:id="@+id/collection_tags_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_preview"
+            android:layout_toEndOf="@id/collection_icon"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal" />
+
+        <!-- 底部信息（喜欢程度、加密、提醒） -->
+        <TextView
+            android:id="@+id/collection_bottom_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/collection_tags_container"
+            android:layout_toEndOf="@id/collection_icon"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:text="⭐⭐⭐⭐☆ 🔒 ⏰"
+            android:textSize="12sp"
+            android:textColor="@color/ai_assistant_text_secondary" />
+
+    </RelativeLayout>
+
+</androidx.cardview.widget.CardView>
+

@@ -19,11 +19,13 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.SimpleModeActivity
 import com.example.aifloatingball.adapter.PromptCommunityAdapter
 import com.example.aifloatingball.adapter.TaskScenarioAdapter
+import com.example.aifloatingball.adapter.UnifiedCollectionAdapter
 import com.example.aifloatingball.data.PromptCommunityData
 import com.example.aifloatingball.dialog.PromptExtractDialog
-import com.example.aifloatingball.model.PromptCategory
-import com.example.aifloatingball.model.PromptCommunityItem
-import com.example.aifloatingball.model.ScenarioItem
+import com.example.aifloatingball.dialog.EditCollectionDrawer
+import com.example.aifloatingball.dialog.SearchCollectionPanel
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.*
 
 /**
  * 任务Fragment - 两列布局版本
@@ -37,9 +39,10 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     private lateinit var scenarioAdapter: TaskScenarioAdapter
     private val scenarioItems: MutableList<ScenarioItem> = mutableListOf()
     
-    // 右侧Prompt列表
+    // 右侧列表（支持Prompt和统一收藏）
     private lateinit var promptRecyclerView: androidx.recyclerview.widget.RecyclerView
     private lateinit var promptAdapter: PromptCommunityAdapter
+    private lateinit var collectionAdapter: UnifiedCollectionAdapter
     private lateinit var swipeRefreshLayout: SwipeRefreshLayout
     private lateinit var selectedScenarioTitle: TextView
     private lateinit var promptEmptyState: LinearLayout
@@ -50,21 +53,38 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     private lateinit var promptAddCategoryButton: android.widget.ImageButton
     private lateinit var promptSearchButton: android.widget.ImageButton
     private lateinit var promptFilterButton: android.widget.ImageButton
+    private var viewModeButton: android.widget.ImageButton? = null  // 视图模式切换
+    
+    // 统一收藏管理器
+    private lateinit var collectionManager: UnifiedCollectionManager
     
     // 当前选中的场景
     private var currentScenario: PromptCategory? = null
+    private var currentCollectionType: CollectionType? = null  // 统一收藏类型
     private var isFilterMode: Boolean = false
     private var currentFilterIndex: Int = -1 // -1 表示未过滤
     private var originalPrompts: List<PromptCommunityItem> = emptyList() // 保存原始数据，用于搜索和过滤
+    private var originalCollections: List<UnifiedCollectionItem> = emptyList() // 统一收藏原始数据
+    
+    // 视图模式
+    private var currentViewMode: UnifiedCollectionAdapter.ViewMode = UnifiedCollectionAdapter.ViewMode.LIST
+    
+    // 排序和筛选
+    private var currentSortDimension: SortDimension? = null
+    private var currentSortDirection: SortDirection = SortDirection.DESC
     
     override fun getLayoutResId(): Int = R.layout.ai_assistant_task_two_column_fragment
     
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // 初始化统一收藏管理器
+        collectionManager = UnifiedCollectionManager.getInstance(requireContext())
+        
         setupViews(view)
         setupScenarioRecyclerView()
         setupPromptRecyclerView()
+        setupCollectionRecyclerView()
         setupButtons()
         
         // 默认选中第一个场景
@@ -88,12 +108,16 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         promptAddCategoryButton = view.findViewById(R.id.prompt_add_category_button)
         promptSearchButton = view.findViewById(R.id.prompt_search_button)
         promptFilterButton = view.findViewById(R.id.prompt_filter_button)
+        
+        // 视图模式按钮（如果存在）- 当前布局中未包含此按钮
+        // viewModeButton = view.findViewById(R.id.view_mode_button)
     }
     
     private fun setupScenarioRecyclerView() {
-        val categories = getAvailableScenarios()
+        // 获取场景列表（包含Prompt分类和统一收藏类型）
+        val scenarios = getAvailableScenarios()
         scenarioItems.clear()
-        scenarioItems.addAll(categories.map { ScenarioItem(it.displayName, it) })
+        scenarioItems.addAll(scenarios)
         
         scenarioAdapter = TaskScenarioAdapter(scenarioItems) { item ->
             selectScenario(item)
@@ -166,11 +190,36 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         // 搜索按钮
         promptSearchButton.setOnClickListener {
-            showSearchDialog()
+            if (currentCollectionType != null) {
+                // 统一收藏：显示搜索面板
+                showCollectionSearchPanel()
+            } else {
+                // Prompt：显示简单搜索对话框
+                showSearchDialog()
+            }
         }
         
         // 过滤按钮
-        promptFilterButton.setOnClickListener { cycleFilterMode() }
+        promptFilterButton.setOnClickListener { 
+            if (currentCollectionType != null) {
+                // 统一收藏：显示筛选和排序对话框
+                showCollectionFilterDialog()
+            } else {
+                // Prompt：切换过滤模式
+                cycleFilterMode()
+            }
+        }
+        
+        // 编辑按钮（统一收藏时显示编辑面板）
+        promptEditButton.setOnClickListener {
+            if (currentCollectionType != null) {
+                // 统一收藏：显示批量操作或编辑面板
+                showCollectionBatchActions()
+            } else {
+                // Prompt：显示编辑对话框
+                showEditDialog()
+            }
+        }
     }
     
     /**
@@ -246,33 +295,73 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     // 过滤改为即时切换（cycleFilterMode），此处不再使用弹窗
     
     /**
-     * 获取可用的场景列表（包含主分类和子分类）
-     * 将"我的收藏"置顶，去掉不需要的类别
+     * 获取可用的场景列表（包含Prompt分类和统一收藏类型）
+     * 将"我的收藏"置顶，添加统一收藏类型标签
      */
-    private fun getAvailableScenarios(): List<PromptCategory> {
+    private fun getAvailableScenarios(): List<ScenarioItem> {
+        val scenarios = mutableListOf<ScenarioItem>()
+        
+        // 1. 添加"我的收藏"（Prompt分类）
+        scenarios.add(ScenarioItem(
+            name = PromptCategory.MY_COLLECTIONS.displayName,
+            category = PromptCategory.MY_COLLECTIONS
+        ))
+        
+        // 2. 添加统一收藏类型（合并搜索历史）
+        scenarios.add(ScenarioItem(
+            name = CollectionType.AI_REPLY.displayName,
+            collectionType = CollectionType.AI_REPLY
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.SEARCH_HISTORY.displayName,
+            collectionType = CollectionType.SEARCH_HISTORY
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.WEB_BOOKMARK.displayName,
+            collectionType = CollectionType.WEB_BOOKMARK
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.EBOOK_BOOKMARK.displayName,
+            collectionType = CollectionType.EBOOK_BOOKMARK
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.IMAGE_COLLECTION.displayName,
+            collectionType = CollectionType.IMAGE_COLLECTION
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.VIDEO_COLLECTION.displayName,
+            collectionType = CollectionType.VIDEO_COLLECTION
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.READING_HIGHLIGHT.displayName,
+            collectionType = CollectionType.READING_HIGHLIGHT
+        ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.CLIPBOARD_HISTORY.displayName,
+            collectionType = CollectionType.CLIPBOARD_HISTORY
+        ))
+        
+        // 3. 添加其他Prompt分类
         val excludedCategories = setOf(
             PromptCategory.UNKNOWN,
-            PromptCategory.MY_UPLOADS,           // 我的上传
-            PromptCategory.EXPERT_PICKS,         // 达人精选
-            PromptCategory.TOP10_WEEK,           // 本周TOP10
-            PromptCategory.POPULAR,              // 热门推荐
-            PromptCategory.HIGH_FREQUENCY,       // 高频场景
-            PromptCategory.FUNCTIONAL             // 功能分类
+            PromptCategory.MY_UPLOADS,
+            PromptCategory.EXPERT_PICKS,
+            PromptCategory.TOP10_WEEK,
+            PromptCategory.POPULAR,
+            PromptCategory.HIGH_FREQUENCY,
+            PromptCategory.FUNCTIONAL,
+            PromptCategory.MY_COLLECTIONS  // 已添加
         )
         
-        val allCategories = PromptCategory.values().filter { 
+        val otherCategories = PromptCategory.values().filter { 
             it !in excludedCategories 
         }
         
-        // 将"我的收藏"置顶
-        val myCollections = allCategories.find { it == PromptCategory.MY_COLLECTIONS }
-        val others = allCategories.filter { it != PromptCategory.MY_COLLECTIONS }
+        scenarios.addAll(otherCategories.map { 
+            ScenarioItem(it.displayName, it) 
+        })
         
-        return if (myCollections != null) {
-            listOf(myCollections) + others
-        } else {
-            allCategories
-        }
+        return scenarios
     }
     
     /**
@@ -281,13 +370,24 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     private fun selectScenario(scenario: ScenarioItem) {
         scenarioAdapter.setSelectedScenario(scenario)
         selectedScenarioTitle.text = scenario.name
-        currentScenario = scenario.category
-        currentScenario?.let { loadPromptsForScenario(it) } ?: run {
-            // 用户自定义分组暂无内容
-            originalPrompts = emptyList()
-            promptAdapter.updateData(emptyList())
-            promptEmptyState.visibility = View.VISIBLE
-            promptRecyclerView.visibility = View.GONE
+        
+        // 判断是Prompt分类还是统一收藏类型
+        if (scenario.collectionType != null) {
+            // 统一收藏类型
+            currentCollectionType = scenario.collectionType
+            currentScenario = null
+            loadCollectionsForType(scenario.collectionType)
+        } else {
+            // Prompt分类
+            currentScenario = scenario.category
+            currentCollectionType = null
+            currentScenario?.let { loadPromptsForScenario(it) } ?: run {
+                // 用户自定义分组暂无内容
+                originalPrompts = emptyList()
+                promptAdapter.updateData(emptyList())
+                promptEmptyState.visibility = View.VISIBLE
+                promptRecyclerView.visibility = View.GONE
+            }
         }
     }
     
@@ -709,6 +809,388 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         ))
         
         dlg.show()
+    }
+    
+    /**
+     * 设置统一收藏RecyclerView
+     */
+    private fun setupCollectionRecyclerView() {
+        collectionAdapter = UnifiedCollectionAdapter(
+            collections = emptyList(),
+            viewMode = currentViewMode,
+            onItemClick = { item -> onCollectionItemClick(item) },
+            onItemLongClick = { item -> onCollectionItemLongClick(item) },
+            onItemSelected = { selectedIds -> onCollectionItemsSelected(selectedIds) }
+        )
+        
+        // 默认使用列表布局管理器
+        promptRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+    }
+    
+    /**
+     * 加载指定类型的统一收藏
+     */
+    private fun loadCollectionsForType(type: CollectionType) {
+        // 切换到统一收藏适配器
+        promptRecyclerView.adapter = collectionAdapter
+        
+        // 获取该类型的所有收藏
+        val collections = collectionManager.getCollectionsByType(type)
+        originalCollections = collections
+        
+        // 应用排序
+        val sortedCollections = if (currentSortDimension != null) {
+            collectionManager.sortCollections(collections, currentSortDimension!!, currentSortDirection)
+        } else {
+            collections.sortedByDescending { it.collectedTime }
+        }
+        
+        collectionAdapter.updateData(sortedCollections)
+        
+        if (sortedCollections.isEmpty()) {
+            promptEmptyState.visibility = View.VISIBLE
+            promptRecyclerView.visibility = View.GONE
+        } else {
+            promptEmptyState.visibility = View.GONE
+            promptRecyclerView.visibility = View.VISIBLE
+        }
+    }
+    
+    /**
+     * 统一收藏项点击
+     */
+    private fun onCollectionItemClick(item: UnifiedCollectionItem) {
+        // 显示编辑面板
+        val editDrawer = EditCollectionDrawer.newInstance(item)
+        editDrawer.setOnSaveListener { updatedItem ->
+            collectionManager.updateCollection(updatedItem)
+            currentCollectionType?.let { loadCollectionsForType(it) }
+            android.widget.Toast.makeText(requireContext(), "已保存", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        editDrawer.show(parentFragmentManager, "EditCollectionDrawer")
+    }
+    
+    /**
+     * 统一收藏项长按
+     */
+    private fun onCollectionItemLongClick(item: UnifiedCollectionItem) {
+        // 进入批量选择模式
+        collectionAdapter.setSelectionMode(true)
+        collectionAdapter.toggleSelectAll()
+    }
+    
+    /**
+     * 统一收藏项选中回调
+     */
+    private fun onCollectionItemsSelected(selectedIds: List<String>) {
+        // 更新批量操作工具栏
+        updateBatchActionBar(selectedIds.isNotEmpty())
+    }
+    
+    /**
+     * 显示统一收藏搜索面板
+     */
+    private fun showCollectionSearchPanel() {
+        val searchPanel = SearchCollectionPanel.newInstance()
+        searchPanel.setOnSearchListener { params ->
+            val results = collectionManager.searchCollections(
+                query = params.query,
+                type = params.type ?: currentCollectionType,
+                tags = params.tags,
+                timeRange = params.timeRange,
+                priority = params.priority,
+                completionStatus = params.completionStatus,
+                isEncrypted = params.isEncrypted
+            )
+            
+            // 应用排序
+            val sortedResults = if (currentSortDimension != null) {
+                collectionManager.sortCollections(results, currentSortDimension!!, currentSortDirection)
+            } else {
+                results.sortedByDescending { it.collectedTime }
+            }
+            
+            originalCollections = sortedResults
+            collectionAdapter.updateData(sortedResults)
+            
+            if (sortedResults.isEmpty()) {
+                promptEmptyState.visibility = View.VISIBLE
+                promptRecyclerView.visibility = View.GONE
+            } else {
+                promptEmptyState.visibility = View.GONE
+                promptRecyclerView.visibility = View.VISIBLE
+            }
+        }
+        searchPanel.show(parentFragmentManager, "SearchCollectionPanel")
+    }
+    
+    /**
+     * 显示统一收藏筛选和排序对话框
+     */
+    private fun showCollectionFilterDialog() {
+        val sortDimensions = SortDimension.values().map { it.displayName }.toTypedArray()
+        val sortDirections = SortDirection.values().map { it.displayName }.toTypedArray()
+        
+        var selectedDimensionIndex = currentSortDimension?.let { 
+            SortDimension.values().indexOf(it) 
+        } ?: 0
+        var selectedDirectionIndex = SortDirection.values().indexOf(currentSortDirection)
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("筛选和排序")
+            .setMessage("排序维度：${sortDimensions[selectedDimensionIndex]}\n排序方向：${sortDirections[selectedDirectionIndex]}")
+            .setPositiveButton("应用") { _, _ ->
+                currentSortDimension = SortDimension.values()[selectedDimensionIndex]
+                currentSortDirection = SortDirection.values()[selectedDirectionIndex]
+                currentCollectionType?.let { loadCollectionsForType(it) }
+            }
+            .setNeutralButton("清除") { _, _ ->
+                currentSortDimension = null
+                currentSortDirection = SortDirection.DESC
+                currentCollectionType?.let { loadCollectionsForType(it) }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示统一收藏批量操作
+     */
+    private fun showCollectionBatchActions() {
+        val selectedIds = collectionAdapter.getSelectedIds()
+        
+        if (selectedIds.isEmpty()) {
+            // 没有选中项，显示批量操作菜单
+            val options = arrayOf("全选", "视图模式", "导入", "导出")
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("批量操作")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> collectionAdapter.toggleSelectAll()
+                        1 -> showViewModeDialog()
+                        2 -> showImportDialog()
+                        3 -> showExportDialog()
+                    }
+                }
+                .show()
+        } else {
+            // 有选中项，显示操作菜单
+            val options = arrayOf("删除", "移动", "编辑", "取消选择")
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("已选择 ${selectedIds.size} 项")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> deleteSelectedCollections(selectedIds)
+                        1 -> showMoveCollectionsDialog(selectedIds)
+                        2 -> editSelectedCollections(selectedIds)
+                        3 -> collectionAdapter.clearSelection()
+                    }
+                }
+                .show()
+        }
+    }
+    
+    /**
+     * 删除选中的收藏项
+     */
+    private fun deleteSelectedCollections(ids: List<String>) {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("确认删除")
+            .setMessage("确定要删除 ${ids.size} 个收藏项吗？")
+            .setPositiveButton("删除") { _, _ ->
+                val deletedCount = collectionManager.deleteCollections(ids)
+                collectionAdapter.clearSelection()
+                currentCollectionType?.let { loadCollectionsForType(it) }
+                android.widget.Toast.makeText(requireContext(), "已删除 $deletedCount 项", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示移动收藏项对话框
+     */
+    private fun showMoveCollectionsDialog(ids: List<String>) {
+        val types = CollectionType.values().map { it.displayName }.toTypedArray()
+        var selectedIndex = currentCollectionType?.let { 
+            CollectionType.values().indexOf(it) 
+        } ?: 0
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("移动到")
+            .setSingleChoiceItems(types, selectedIndex) { dialog, which ->
+                selectedIndex = which
+            }
+            .setPositiveButton("移动") { dialog, _ ->
+                val targetType = CollectionType.values()[selectedIndex]
+                val movedCount = collectionManager.moveCollectionsToType(ids, targetType)
+                collectionAdapter.clearSelection()
+                currentCollectionType?.let { loadCollectionsForType(it) }
+                android.widget.Toast.makeText(requireContext(), "已移动 $movedCount 项到${targetType.displayName}", android.widget.Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 编辑选中的收藏项（批量编辑）
+     */
+    private fun editSelectedCollections(ids: List<String>) {
+        if (ids.size == 1) {
+            // 单个编辑
+            val item = collectionManager.getCollectionById(ids[0])
+            item?.let {
+                val editDrawer = EditCollectionDrawer.newInstance(it)
+                editDrawer.setOnSaveListener { updatedItem ->
+                    collectionManager.updateCollection(updatedItem)
+                    currentCollectionType?.let { loadCollectionsForType(it) }
+                    android.widget.Toast.makeText(requireContext(), "已保存", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                editDrawer.show(parentFragmentManager, "EditCollectionDrawer")
+            }
+        } else {
+            android.widget.Toast.makeText(requireContext(), "批量编辑功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示视图模式选择对话框
+     */
+    private fun showViewModeDialog() {
+        val modes = arrayOf("列表", "网格", "时间线")
+        var selectedIndex = when (currentViewMode) {
+            UnifiedCollectionAdapter.ViewMode.LIST -> 0
+            UnifiedCollectionAdapter.ViewMode.GRID -> 1
+            UnifiedCollectionAdapter.ViewMode.TIMELINE -> 2
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("视图模式")
+            .setSingleChoiceItems(modes, selectedIndex) { _, which ->
+                selectedIndex = which
+            }
+            .setPositiveButton("确定") { _, _ ->
+                currentViewMode = when (selectedIndex) {
+                    0 -> UnifiedCollectionAdapter.ViewMode.LIST
+                    1 -> UnifiedCollectionAdapter.ViewMode.GRID
+                    2 -> UnifiedCollectionAdapter.ViewMode.TIMELINE
+                    else -> UnifiedCollectionAdapter.ViewMode.LIST
+                }
+                
+                // 更新布局管理器
+                when (currentViewMode) {
+                    UnifiedCollectionAdapter.ViewMode.LIST, UnifiedCollectionAdapter.ViewMode.TIMELINE -> {
+                        promptRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+                    }
+                    UnifiedCollectionAdapter.ViewMode.GRID -> {
+                        promptRecyclerView.layoutManager = androidx.recyclerview.widget.GridLayoutManager(requireContext(), 2)
+                    }
+                }
+                
+                collectionAdapter.setViewMode(currentViewMode)
+                currentCollectionType?.let { loadCollectionsForType(it) }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示导入对话框
+     */
+    private fun showImportDialog() {
+        val options = arrayOf("从JSON导入", "从CSV导入")
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("导入收藏")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> importFromJson()
+                    1 -> importFromCsv()
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 显示导出对话框
+     */
+    private fun showExportDialog() {
+        val options = arrayOf("导出为JSON", "导出为CSV")
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("导出收藏")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> exportToJson()
+                    1 -> exportToCsv()
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 从JSON导入
+     */
+    private fun importFromJson() {
+        // 这里应该打开文件选择器，暂时使用输入框
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "粘贴JSON内容"
+            minLines = 5
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("从JSON导入")
+            .setView(input)
+            .setPositiveButton("导入") { _, _ ->
+                val json = input.text.toString()
+                if (json.isNotEmpty()) {
+                    val count = collectionManager.importFromJson(json, merge = true)
+                    currentCollectionType?.let { loadCollectionsForType(it) }
+                    android.widget.Toast.makeText(requireContext(), "已导入 $count 项", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 从CSV导入
+     */
+    private fun importFromCsv() {
+        android.widget.Toast.makeText(requireContext(), "CSV导入功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * 导出为JSON
+     */
+    private fun exportToJson() {
+        val json = collectionManager.exportToJson()
+        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("收藏数据", json)
+        clipboard.setPrimaryClip(clip)
+        android.widget.Toast.makeText(requireContext(), "已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * 导出为CSV
+     */
+    private fun exportToCsv() {
+        val csv = collectionManager.exportToCsv()
+        val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("收藏数据", csv)
+        clipboard.setPrimaryClip(clip)
+        android.widget.Toast.makeText(requireContext(), "已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * 更新批量操作工具栏
+     */
+    private fun updateBatchActionBar(hasSelection: Boolean) {
+        // 这里可以显示/隐藏批量操作工具栏
+        // 暂时使用Toast提示
+        if (hasSelection) {
+            val count = collectionAdapter.getSelectedIds().size
+            android.widget.Toast.makeText(requireContext(), "已选择 $count 项", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }
 

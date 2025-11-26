@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 全屏对话框样式 -->
+    <!-- 对话框动画样式（暗色模式） -->
+    <style name="DialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/dialog_fade_in</item>
+        <item name="android:windowExitAnimation">@anim/dialog_fade_out</item>
+    </style>
+
+    <!-- 全屏对话框样式（暗色模式） -->
     <style name="FullScreenDialogStyle" parent="Theme.MaterialComponents.Dialog">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">false</item>
@@ -8,17 +14,11 @@
         <item name="android:windowBackground">@android:color/transparent</item>
     </style>
 
-    <!-- 全屏对话框样式（别名） -->
+    <!-- 全屏对话框样式（别名，暗色模式） -->
     <style name="FullScreenDialog" parent="FullScreenDialogStyle">
     </style>
-    
-    <!-- 对话框动画样式 -->
-    <style name="DialogAnimation">
-        <item name="android:windowEnterAnimation">@anim/dialog_fade_in</item>
-        <item name="android:windowExitAnimation">@anim/dialog_fade_out</item>
-    </style>
 
-    <!-- 设置网格项样式 -->
+    <!-- 设置网格项样式（暗色模式） -->
     <style name="SettingsGridItem">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
@@ -32,7 +32,7 @@
         <item name="android:foreground">?attr/selectableItemBackground</item>
     </style>
 
-    <!-- 设置图标样式 -->
+    <!-- 设置图标样式（暗色模式） -->
     <style name="SettingsIcon">
         <item name="android:layout_width">48dp</item>
         <item name="android:layout_height">48dp</item>
@@ -41,7 +41,7 @@
         <item name="android:contentDescription">@null</item>
     </style>
 
-    <!-- 设置文本样式 -->
+    <!-- 设置文本样式（暗色模式） -->
     <style name="SettingsText">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
@@ -52,7 +52,7 @@
         <item name="android:ellipsize">end</item>
     </style>
 
-    <!-- 聊天Tab文本样式 -->
+    <!-- 聊天Tab文本样式（暗色模式） -->
     <style name="ChatTabTextAppearance" parent="TextAppearance.Material3.TitleSmall">
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">normal</item>
@@ -60,7 +60,7 @@
         <item name="android:letterSpacing">0.02</item>
     </style>
 
-    <!-- AI助手Tab文本样式 -->
+    <!-- AI助手Tab文本样式（暗色模式） -->
     <style name="AIAssistantTabTextAppearance" parent="TextAppearance.Material3.TitleSmall">
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">normal</item>
@@ -68,13 +68,13 @@
         <item name="android:letterSpacing">0.02</item>
     </style>
 
-    <!-- SimpleMode开关样式 -->
+    <!-- SimpleMode开关样式（暗色模式） -->
     <style name="SimpleModeSwitch" parent="Widget.Material3.CompoundButton.Switch">
         <item name="thumbTint">@color/simple_mode_primary_light</item>
         <item name="trackTint">@color/simple_mode_divider_light</item>
     </style>
 
-    <!-- 自定义菜单操作项样式 -->
+    <!-- 自定义菜单操作项样式（暗色模式） -->
     <style name="CustomMenuAction">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
@@ -89,7 +89,7 @@
         <item name="android:background">?attr/selectableItemBackground</item>
     </style>
 
-    <!-- 自定义菜单分割线样式 -->
+    <!-- 自定义菜单分割线样式（暗色模式） -->
     <style name="CustomMenuDivider">
         <item name="android:layout_width">1dp</item>
         <item name="android:layout_height">match_parent</item>
@@ -98,7 +98,7 @@
         <item name="android:layout_marginBottom">4dp</item>
     </style>
 
-    <!-- 搜索容器样式 -->
+    <!-- 搜索容器样式（暗色模式） -->
     <style name="SearchContainerStyle">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
@@ -108,7 +108,7 @@
         <item name="android:elevation">4dp</item>
     </style>
 
-    <!-- 分类标题样式 -->
+    <!-- 分类标题样式（暗色模式） -->
     <style name="CategoryTitle">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
@@ -120,7 +120,7 @@
         <item name="android:layout_marginBottom">8dp</item>
     </style>
 
-    <!-- 分割线样式 -->
+    <!-- 分割线样式（暗色模式） -->
     <style name="Divider">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">1dp</item>
@@ -131,7 +131,7 @@
         <item name="android:layout_marginBottom">8dp</item>
     </style>
 
-    <!-- 文本选择菜单项样式 -->
+    <!-- 文本选择菜单项样式（暗色模式） -->
     <style name="TextSelectionMenuItem">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -147,7 +147,7 @@
         <item name="android:gravity">center_vertical</item>
     </style>
 
-    <!-- 亮色文本选择菜单项样式 -->
+    <!-- 亮色文本选择菜单项样式（暗色模式） -->
     <style name="LightTextSelectionMenuItem">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
@@ -163,3 +163,4 @@
         <item name="android:gravity">center_vertical</item>
     </style>
 </resources>
+
