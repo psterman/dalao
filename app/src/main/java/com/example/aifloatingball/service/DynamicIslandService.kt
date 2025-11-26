@@ -759,8 +759,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val displayMetrics = resources.displayMetrics
         val islandWidth = settingsManager.getIslandWidth()
         
-        // 强制设置合适的宽度，确保四个按钮能够完整显示
-        val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+        // 强制设置合适的宽度，确保所有按钮能够完整显示（5个按钮：48dp×5 + 间距 + padding = 约360dp）
+        val minRequiredWidth = 360 // 360dp，确保所有按钮能够完整显示
         val actualWidth = maxOf(islandWidth, minRequiredWidth)
         
         compactWidth = (actualWidth * displayMetrics.density).toInt()
@@ -2640,8 +2640,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val displayMetrics = resources.displayMetrics
                 val islandWidth = settingsManager.getIslandWidth()
                 
-                // 强制设置合适的宽度，确保四个按钮能够完整显示
-                val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+                // 强制设置合适的宽度，确保所有按钮能够完整显示（5个按钮：48dp×5 + 间距 + padding = 约360dp）
+                val minRequiredWidth = 360 // 360dp，确保所有按钮能够完整显示
                 val actualWidth = maxOf(islandWidth, minRequiredWidth)
                 
                 compactWidth = (actualWidth * displayMetrics.density).toInt()
@@ -3384,8 +3384,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             val displayMetrics = resources.displayMetrics
             val islandWidth = settingsManager.getIslandWidth()
             
-            // 强制设置合适的宽度，确保四个按钮能够完整显示
-            val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+            // 强制设置合适的宽度，确保所有按钮能够完整显示（5个按钮：48dp×5 + 间距 + padding = 约360dp）
+            val minRequiredWidth = 360 // 360dp，确保所有按钮能够完整显示
             val actualWidth = maxOf(islandWidth, minRequiredWidth)
             
             compactWidth = (actualWidth * displayMetrics.density).toInt()
@@ -3805,6 +3805,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Log.d(TAG, "AI悬浮窗服务已启动")
         } catch (e: Exception) {
             Log.e(TAG, "启动AI悬浮窗服务失败", e)
+        }
+    }
+    
+    /**
+     * 显示AI应用悬浮窗面板（从灵动岛按钮触发）
+     * 显示与软件tab搜索后弹出的相同的AI面板
+     */
+    private fun showAIAppOverlayPanel() {
+        try {
+            Log.d(TAG, "显示AI应用悬浮窗面板（从灵动岛按钮触发）")
+            
+            // 获取当前剪贴板内容作为查询文本
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val currentClipboard = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            
+            // 启动AI应用悬浮窗服务，使用island模式
+            // island模式会直接显示AI应用列表，不需要二级菜单
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, "AI助手")
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, currentClipboard)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, "")
+                putExtra("mode", "island") // 使用island模式，直接显示AI应用列表
+            }
+            startService(intent)
+            
+            Log.d(TAG, "AI应用悬浮窗面板服务已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI应用悬浮窗面板失败", e)
+            e.printStackTrace()
+            Toast.makeText(this, "无法显示AI助手面板: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -7873,62 +7904,97 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 显示AI助手面板
      */
     private fun showAIAssistantPanel() {
-        if (aiAssistantPanelView != null) return
+        if (aiAssistantPanelView != null) {
+            Log.d(TAG, "AI助手面板已存在，跳过创建")
+            return
+        }
+        
+        // 检查windowContainerView是否存在
+        if (windowContainerView == null) {
+            Log.e(TAG, "windowContainerView为null，无法显示AI助手面板")
+            Toast.makeText(this, "窗口容器未初始化，请重启灵动岛服务", Toast.LENGTH_SHORT).show()
+            return
+        }
         
         try {
+            Log.d(TAG, "开始创建AI助手面板")
             val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
             aiAssistantPanelView = LayoutInflater.from(themedContext).inflate(R.layout.ai_assistant_panel, null)
             
+            if (aiAssistantPanelView == null) {
+                Log.e(TAG, "无法加载AI助手面板布局")
+                Toast.makeText(this, "无法加载AI助手面板布局", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d(TAG, "AI助手面板布局加载成功")
+            
             // 设置面板参数
+            val islandHeight = getIslandActualHeight()
+            val topMargin = statusBarHeight + islandHeight + 16.dpToPx()
             val panelParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                topMargin = statusBarHeight + getIslandActualHeight() + 16.dpToPx()
+                this.topMargin = topMargin
             }
             
-        // 设置AI助手面板的交互
-        setupAIAssistantPanelInteractions()
-        
-        // 更新窗口参数以允许焦点和输入法
-        updateWindowParamsForInput()
-        
-        // 添加到窗口并显示动画
-        windowContainerView?.addView(aiAssistantPanelView, panelParams)
-        aiAssistantPanelView?.apply {
-            alpha = 0f
-            translationY = -100f
-            animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(350)
-                .setInterpolator(AccelerateDecelerateInterpolator())
-                .withEndAction {
-                    // 面板显示完成，自动激活输入法
-                    Log.d(TAG, "AI助手面板显示完成，激活输入法")
-                    val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
-                    aiInputText?.let { inputField ->
-                        // 使用专门的悬浮窗输入法激活方法
-                        activateInputMethodForFloatingWindow(inputField)
-                    }
-                }
-                .start()
-        }
-        
-        Log.d(TAG, "AI助手面板已显示")
-        
-        // 额外的延迟激活输入法，确保面板完全显示后激活
-        uiHandler.postDelayed({
-            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
-            aiInputText?.let { inputField ->
-                Log.d(TAG, "延迟激活AI助手面板输入法")
-                activateInputMethodForFloatingWindow(inputField)
+            Log.d(TAG, "AI助手面板参数设置完成: topMargin=$topMargin, islandHeight=$islandHeight, statusBarHeight=$statusBarHeight")
+            
+            // 设置AI助手面板的交互
+            setupAIAssistantPanelInteractions()
+            
+            // 更新窗口参数以允许焦点和输入法
+            updateWindowParamsForInput()
+            
+            // 添加到窗口并显示动画
+            try {
+                windowContainerView?.addView(aiAssistantPanelView, panelParams)
+                Log.d(TAG, "AI助手面板已添加到窗口容器")
+            } catch (e: Exception) {
+                Log.e(TAG, "添加AI助手面板到窗口容器失败", e)
+                aiAssistantPanelView = null
+                Toast.makeText(this, "无法添加面板到窗口: ${e.message}", Toast.LENGTH_SHORT).show()
+                return
             }
-        }, 500)
-        
+            
+            aiAssistantPanelView?.apply {
+                alpha = 0f
+                translationY = -100f
+                animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(350)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction {
+                        // 面板显示完成，自动激活输入法
+                        Log.d(TAG, "AI助手面板显示完成，激活输入法")
+                        val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
+                        aiInputText?.let { inputField ->
+                            // 使用专门的悬浮窗输入法激活方法
+                            activateInputMethodForFloatingWindow(inputField)
+                        }
+                    }
+                    .start()
+            }
+            
+            Log.d(TAG, "AI助手面板已显示并开始动画")
+            
+            // 额外的延迟激活输入法，确保面板完全显示后激活
+            uiHandler.postDelayed({
+                val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
+                aiInputText?.let { inputField ->
+                    Log.d(TAG, "延迟激活AI助手面板输入法")
+                    activateInputMethodForFloatingWindow(inputField)
+                }
+            }, 500)
+            
         } catch (e: Exception) {
             Log.e(TAG, "显示AI助手面板失败", e)
+            e.printStackTrace()
+            aiAssistantPanelView = null
+            Toast.makeText(this, "显示AI助手面板失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -10101,16 +10167,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val btnExpand = view.findViewById<MaterialButton>(R.id.btn_expand)
         val btnSettings = view.findViewById<MaterialButton>(R.id.btn_settings)
         val btnExit = view.findViewById<MaterialButton>(R.id.btn_exit)
+        
+        // 调试日志：检查按钮是否找到
+        Log.d(TAG, "设置按钮交互 - AI助手按钮: ${btnAiAssistant != null}, 应用程序按钮: ${btnApps != null}, 搜索按钮: ${btnSearch != null}, 展开按钮: ${btnExpand != null}, 设置按钮: ${btnSettings != null}, 退出按钮: ${btnExit != null}")
+        
+        // 如果AI助手按钮未找到，记录警告
+        if (btnAiAssistant == null) {
+            Log.w(TAG, "警告：AI助手按钮未找到！请检查布局文件是否正确")
+        }
 
         // AI助手按钮
         btnAiAssistant?.setOnClickListener {
             Log.d(TAG, "AI助手按钮被点击")
-            // 如果AI助手面板已经显示，则切换AI服务
-            if (aiAssistantPanelView != null) {
-                switchAIService()
-            } else {
-                // 否则显示AI助手面板
-                showAIAssistantPanel()
+            try {
+                // 显示AI应用悬浮窗面板（与软件tab搜索后弹出的面板相同）
+                showAIAppOverlayPanel()
+            } catch (e: Exception) {
+                Log.e(TAG, "AI助手按钮点击处理失败", e)
+                Toast.makeText(this, "无法打开AI助手面板: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 

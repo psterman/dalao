@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/ai_overlay_background"
+    android:padding="12dp"
+    android:elevation="12dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="小脑助手"
+        android:textColor="#FF000000"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp" />
+
+    <!-- 按钮容器 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="8dp">
+
+        <!-- 返回按钮 -->
+        <Button
+            android:id="@+id/software_tab_back_button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="返回"
+            android:textSize="12sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp"
+            android:minWidth="60dp" />
+
+        <!-- App按钮 -->
+        <Button
+            android:id="@+id/software_tab_app_button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="App"
+            android:textSize="12sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:minWidth="60dp" />
+
+        <!-- AI按钮 -->
+        <Button
+            android:id="@+id/software_tab_ai_button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="AI"
+            android:textSize="12sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:minWidth="60dp" />
+
+        <!-- 关闭按钮 -->
+        <Button
+            android:id="@+id/software_tab_close_button"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="关闭"
+            android:textSize="12sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="4dp"
+            android:minWidth="60dp" />
+
+    </LinearLayout>
+
+    <!-- 近期搜索历史App图标容器（初始隐藏） -->
+    <HorizontalScrollView
+        android:id="@+id/recent_apps_scroll_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:visibility="gone"
+        android:maxHeight="120dp">
+
+        <LinearLayout
+            android:id="@+id/recent_apps_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="4dp" />
+
+    </HorizontalScrollView>
+
+</LinearLayout>
+

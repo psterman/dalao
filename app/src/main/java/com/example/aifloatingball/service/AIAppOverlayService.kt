@@ -18,6 +18,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -57,6 +58,9 @@ class AIAppOverlayService : Service() {
     private var packageName: String = ""
     private var isSimpleMode: Boolean = false
     private var isOverlayMode: Boolean = false
+    private var isIslandMode: Boolean = false // 灵动岛专用模式
+    private var isSoftwareTabMode: Boolean = false // 软件tab专用模式
+    private var isAiTabMode: Boolean = false // AI tab专用模式
     
     // 剪贴板监听器
     private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
@@ -92,7 +96,18 @@ class AIAppOverlayService : Service() {
                 appName = intent.getStringExtra(EXTRA_APP_NAME) ?: ""
                 query = intent.getStringExtra(EXTRA_QUERY) ?: ""
                 packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
-                isSimpleMode = intent.getBooleanExtra("mode", false) || intent.getStringExtra("mode") == "simple"
+                val modeString = intent.getStringExtra("mode") ?: ""
+                isSimpleMode = intent.getBooleanExtra("mode", false) || modeString == "simple"
+                // overlay模式：显示简易样式但不切换到简易模式
+                isOverlayMode = modeString == "overlay"
+                // island模式：灵动岛专用模式，直接显示AI应用列表
+                isIslandMode = modeString == "island"
+                // software_tab模式：软件tab专用模式，包含返回和app按钮
+                isSoftwareTabMode = modeString == "software_tab"
+                // ai_tab模式：AI tab专用模式，显示AI应用列表，支持intent搜索或粘贴搜索
+                isAiTabMode = modeString == "ai_tab"
+                
+                Log.d(TAG, "ACTION_SHOW_OVERLAY: $appName, 简易模式: $isSimpleMode, overlay模式: $isOverlayMode, island模式: $isIslandMode, software_tab模式: $isSoftwareTabMode, ai_tab模式: $isAiTabMode")
                 showOverlay()
             }
             ACTION_HIDE_OVERLAY -> {
@@ -107,8 +122,12 @@ class AIAppOverlayService : Service() {
                 isSimpleMode = intent?.getBooleanExtra("mode", false) == true || modeString == "simple"
                 // overlay模式：显示简易样式但不切换到简易模式
                 isOverlayMode = modeString == "overlay"
+                // island模式：灵动岛专用模式，直接显示AI应用列表
+                isIslandMode = modeString == "island"
+                // software_tab模式：软件tab专用模式，包含返回和app按钮
+                isSoftwareTabMode = modeString == "software_tab"
 
-                Log.d(TAG, "显示悬浮窗: $appName, 简易模式: $isSimpleMode")
+                Log.d(TAG, "显示悬浮窗: $appName, 简易模式: $isSimpleMode, overlay模式: $isOverlayMode, island模式: $isIslandMode, software_tab模式: $isSoftwareTabMode")
                 showOverlay()
             }
         }
@@ -165,7 +184,11 @@ class AIAppOverlayService : Service() {
      * 显示悬浮窗
      */
     private fun showOverlay() {
-        if (isOverlayVisible) {
+        // 如果是island模式或software_tab模式，先隐藏之前的悬浮窗（如果存在），以便重新显示新的布局
+        if (isOverlayVisible && (isIslandMode || isSoftwareTabMode)) {
+            Log.d(TAG, "${if (isIslandMode) "island" else "software_tab"}模式：隐藏之前的悬浮窗，准备显示新的面板")
+            hideOverlay()
+        } else if (isOverlayVisible) {
             Log.d(TAG, "悬浮窗已显示，跳过")
             return
         }
@@ -230,12 +253,27 @@ class AIAppOverlayService : Service() {
      */
     private fun createOverlayView(): View {
         val inflater = LayoutInflater.from(this)
-        val overlayView = if (isSimpleMode || isOverlayMode) {
-            // 简易模式或overlay模式：创建简化的悬浮窗
-            createSimpleOverlayView(inflater)
-        } else {
-            // 完整模式：使用原有布局
-            inflater.inflate(R.layout.ai_app_overlay, null)
+        val overlayView = when {
+            isIslandMode -> {
+                // 灵动岛专用模式：直接显示AI应用列表
+                createIslandOverlayView(inflater)
+            }
+            isSoftwareTabMode -> {
+                // 软件tab专用模式：包含返回和app按钮
+                createSoftwareTabOverlayView(inflater)
+            }
+            isAiTabMode -> {
+                // AI tab专用模式：显示AI应用列表，支持intent搜索或粘贴搜索
+                createAiTabOverlayView(inflater)
+            }
+            isSimpleMode || isOverlayMode -> {
+                // 简易模式或overlay模式：创建简化的悬浮窗
+                createSimpleOverlayView(inflater)
+            }
+            else -> {
+                // 完整模式：使用原有布局
+                inflater.inflate(R.layout.ai_app_overlay, null)
+            }
         }
         
         // 设置应用名称（仅在完整模式下）
@@ -245,10 +283,46 @@ class AIAppOverlayService : Service() {
         // 设置剪贴板预览区域（暂时隐藏）
         // setupClipboardPreview(overlayView)
         
-        // 保留自动复制和AI提问功能
-        performAutoCopyAndAIQuestion()
+        // 保留自动复制和AI提问功能（island模式、software_tab模式和ai_tab模式不需要）
+        if (!isIslandMode && !isSoftwareTabMode && !isAiTabMode) {
+            performAutoCopyAndAIQuestion()
+        }
         
-        if (isSimpleMode) {
+        if (isIslandMode) {
+            // 灵动岛专用模式：直接显示AI应用列表，设置按钮和AI应用点击事件
+            Log.d(TAG, "设置灵动岛专用模式：按钮和AI应用点击事件")
+            try {
+                setupIslandOverlayButtons(overlayView)
+                setupIslandAIAppClickListeners(overlayView)
+                loadIslandAIAppIcons(overlayView)
+                Log.d(TAG, "✅ 灵动岛专用模式设置完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 设置灵动岛专用模式失败", e)
+                e.printStackTrace()
+            }
+        } else if (isAiTabMode) {
+            // AI tab专用模式：显示AI应用列表，支持intent搜索或粘贴搜索
+            Log.d(TAG, "设置AI tab专用模式：按钮和AI应用点击事件")
+            try {
+                setupAiTabOverlayButtons(overlayView)
+                setupAiTabAIAppClickListeners(overlayView)
+                loadAiTabAIAppIcons(overlayView)
+                Log.d(TAG, "✅ AI tab专用模式设置完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 设置AI tab专用模式失败", e)
+                e.printStackTrace()
+            }
+        } else if (isSoftwareTabMode) {
+            // 软件tab专用模式：设置返回、app和关闭按钮
+            Log.d(TAG, "设置软件tab专用模式：按钮和功能")
+            try {
+                setupSoftwareTabOverlayButtons(overlayView)
+                Log.d(TAG, "✅ 软件tab专用模式设置完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 设置软件tab专用模式失败", e)
+                e.printStackTrace()
+            }
+        } else if (isSimpleMode) {
             // 简易模式的按钮设置
             val backButton = overlayView.findViewById<Button>(R.id.overlay_back_button)
             backButton?.setOnClickListener {
@@ -329,6 +403,512 @@ class AIAppOverlayService : Service() {
         return overlayView
     }
 
+    /**
+     * 创建灵动岛专用悬浮窗视图（直接显示AI应用列表）
+     */
+    private fun createIslandOverlayView(inflater: LayoutInflater): View {
+        try {
+            val overlayView = inflater.inflate(R.layout.ai_island_overlay, null)
+            if (overlayView == null) {
+                Log.e(TAG, "创建灵动岛专用悬浮窗视图失败：布局文件加载返回null")
+                throw RuntimeException("无法加载ai_island_overlay布局")
+            }
+            Log.d(TAG, "✅ 创建灵动岛专用悬浮窗视图成功")
+            return overlayView
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 创建灵动岛专用悬浮窗视图失败", e)
+            e.printStackTrace()
+            throw e
+        }
+    }
+    
+    /**
+     * 设置灵动岛悬浮窗的按钮事件
+     */
+    private fun setupIslandOverlayButtons(overlayView: View) {
+        // 返回按钮
+        val backButton = overlayView.findViewById<Button>(R.id.ai_island_back_button)
+        backButton?.setOnClickListener {
+            Log.d(TAG, "灵动岛返回按钮被点击")
+            returnToDynamicIsland()
+        }
+        
+        // 关闭按钮
+        val closeButton = overlayView.findViewById<Button>(R.id.ai_island_close_button)
+        closeButton?.setOnClickListener {
+            Log.d(TAG, "灵动岛关闭按钮被点击")
+            hideOverlay()
+            stopSelf()
+        }
+    }
+    
+    /**
+     * 设置灵动岛AI应用点击监听器
+     */
+    private fun setupIslandAIAppClickListeners(overlayView: View) {
+        // 定义所有AI菜单项的配置（使用island专用的ID）
+        val aiIslandConfigs = listOf(
+            Triple(R.id.ai_island_grok, "ai.x.grok", "Grok"),
+            Triple(R.id.ai_island_perplexity, "ai.perplexity.app.android", "Perplexity"),
+            Triple(R.id.ai_island_poe, "com.poe.android", "Poe"),
+            Triple(R.id.ai_island_manus, "tech.butterfly.app", "Manus"),
+            Triple(R.id.ai_island_ima, "com.qihoo.namiso", "纳米AI"),
+            Triple(R.id.ai_island_deepseek, "com.deepseek.chat", "DeepSeek"),
+            Triple(R.id.ai_island_doubao, "com.larus.nova", "豆包"),
+            Triple(R.id.ai_island_chatgpt, "com.openai.chatgpt", "ChatGPT"),
+            Triple(R.id.ai_island_kimi, "com.moonshot.kimichat", "Kimi"),
+            Triple(R.id.ai_island_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
+            Triple(R.id.ai_island_xinghuo, "com.iflytek.spark", "讯飞星火"),
+            Triple(R.id.ai_island_qingyan, "com.zhipuai.qingyan", "智谱清言"),
+            Triple(R.id.ai_island_tongyi, "com.aliyun.tongyi", "通义千问"),
+            Triple(R.id.ai_island_wenxiaoyan, "com.baidu.newapp", "文小言"),
+            Triple(R.id.ai_island_metaso, "com.metaso", "秘塔AI搜索"),
+            Triple(R.id.ai_island_gemini, "com.google.android.apps.gemini", "Gemini"),
+            Triple(R.id.ai_island_copilot, "com.microsoft.copilot", "Copilot")
+        )
+        
+        // 为每个菜单项设置点击事件
+        aiIslandConfigs.forEach { (menuId, packageName, appName) ->
+            val menuItem = overlayView.findViewById<View>(menuId)
+            
+            // 检查应用是否已安装
+            val isInstalled = try {
+                packageManager.getPackageInfo(packageName, 0)
+                true
+            } catch (e: Exception) {
+                false
+            }
+            
+            if (isInstalled) {
+                // 应用已安装，设置点击事件
+                menuItem.setOnClickListener {
+                    Log.d(TAG, "灵动岛: ${appName} 被点击")
+                    launchAIApp(packageName, appName)
+                    hideOverlay()
+                }
+                menuItem.visibility = View.VISIBLE
+                Log.d(TAG, "灵动岛: ${appName} 已安装，设置点击事件")
+            } else {
+                // 应用未安装，显示但禁用
+                menuItem.setOnClickListener {
+                    Log.d(TAG, "灵动岛: ${appName} 未安装，显示安装提示")
+                    Toast.makeText(this, "${appName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
+                }
+                menuItem.visibility = View.VISIBLE
+                // 设置半透明效果表示未安装
+                menuItem.alpha = 0.5f
+                Log.d(TAG, "灵动岛: ${appName} 未安装，设置为半透明")
+            }
+        }
+    }
+    
+    /**
+     * 加载灵动岛AI应用的真实图标
+     */
+    private fun loadIslandAIAppIcons(overlayView: View) {
+        CoroutineScope(Dispatchers.Main).launch {
+            // AI应用配置（使用island专用的ID）
+            val aiIslandApps = listOf(
+                Triple("ai.x.grok", "Grok", R.id.ai_island_grok_icon),
+                Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_island_perplexity_icon),
+                Triple("com.poe.android", "Poe", R.id.ai_island_poe_icon),
+                Triple("tech.butterfly.app", "Manus", R.id.ai_island_manus_icon),
+                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_island_ima_icon),
+                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_island_deepseek_icon),
+                Triple("com.larus.nova", "豆包", R.id.ai_island_doubao_icon),
+                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_island_chatgpt_icon),
+                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_island_kimi_icon),
+                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_island_yuanbao_icon),
+                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_island_xinghuo_icon),
+                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_island_qingyan_icon),
+                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_island_tongyi_icon),
+                Triple("com.baidu.newapp", "文小言", R.id.ai_island_wenxiaoyan_icon),
+                Triple("com.metaso", "秘塔AI搜索", R.id.ai_island_metaso_icon),
+                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_island_gemini_icon),
+                Triple("com.microsoft.copilot", "Copilot", R.id.ai_island_copilot_icon)
+            )
+            
+            aiIslandApps.forEach { (packageName, appName, iconViewId) ->
+                val iconView = overlayView.findViewById<ImageView>(iconViewId)
+                loadAppIcon(packageName, appName, iconView)
+            }
+        }
+    }
+    
+    /**
+     * 创建软件tab专用悬浮窗视图
+     */
+    private fun createSoftwareTabOverlayView(inflater: LayoutInflater): View {
+        try {
+            val overlayView = inflater.inflate(R.layout.ai_software_tab_overlay, null)
+            if (overlayView == null) {
+                Log.e(TAG, "创建软件tab专用悬浮窗视图失败：布局文件加载返回null")
+                throw RuntimeException("无法加载ai_software_tab_overlay布局")
+            }
+            Log.d(TAG, "✅ 创建软件tab专用悬浮窗视图成功")
+            return overlayView
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 创建软件tab专用悬浮窗视图失败", e)
+            e.printStackTrace()
+            throw e
+        }
+    }
+    
+    /**
+     * 设置软件tab悬浮窗的按钮事件
+     */
+    private fun setupSoftwareTabOverlayButtons(overlayView: View) {
+        // 返回按钮
+        val backButton = overlayView.findViewById<Button>(R.id.software_tab_back_button)
+        backButton?.setOnClickListener {
+            Log.d(TAG, "软件tab返回按钮被点击")
+            returnToSoftwareTab()
+        }
+        
+        // App按钮
+        val appButton = overlayView.findViewById<Button>(R.id.software_tab_app_button)
+        appButton?.setOnClickListener {
+            Log.d(TAG, "软件tab App按钮被点击")
+            showRecentAppsHistory(overlayView)
+        }
+        
+        // AI按钮
+        val aiButton = overlayView.findViewById<Button>(R.id.software_tab_ai_button)
+        aiButton?.setOnClickListener {
+            Log.d(TAG, "软件tab AI按钮被点击")
+            showAiTabOverlay()
+        }
+        
+        // 关闭按钮
+        val closeButton = overlayView.findViewById<Button>(R.id.software_tab_close_button)
+        closeButton?.setOnClickListener {
+            Log.d(TAG, "软件tab关闭按钮被点击")
+            hideOverlay()
+            stopSelf()
+        }
+    }
+    
+    /**
+     * 显示AI tab悬浮窗面板
+     */
+    private fun showAiTabOverlay() {
+        try {
+            Log.d(TAG, "显示AI tab悬浮窗面板（从软件tab按钮触发）")
+            
+            // 获取当前剪贴板内容作为查询文本
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val currentClipboard = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            
+            // 隐藏当前悬浮窗
+            hideOverlay()
+            
+            // 启动AI tab模式的悬浮窗
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, "AI助手")
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, currentClipboard)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, "")
+                putExtra("mode", "ai_tab") // 使用ai_tab模式，显示AI应用列表
+            }
+            startService(intent)
+            
+            Log.d(TAG, "AI tab悬浮窗面板服务已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI tab悬浮窗面板失败", e)
+            e.printStackTrace()
+            Toast.makeText(this, "无法显示AI助手面板: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 创建AI tab专用悬浮窗视图
+     */
+    private fun createAiTabOverlayView(inflater: LayoutInflater): View {
+        try {
+            val overlayView = inflater.inflate(R.layout.ai_tab_overlay, null)
+            if (overlayView == null) {
+                Log.e(TAG, "创建AI tab专用悬浮窗视图失败：布局文件加载返回null")
+                throw RuntimeException("无法加载ai_tab_overlay布局")
+            }
+            Log.d(TAG, "✅ 创建AI tab专用悬浮窗视图成功")
+            return overlayView
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 创建AI tab专用悬浮窗视图失败", e)
+            e.printStackTrace()
+            throw e
+        }
+    }
+    
+    /**
+     * 设置AI tab悬浮窗的按钮事件
+     */
+    private fun setupAiTabOverlayButtons(overlayView: View) {
+        // 返回按钮
+        val backButton = overlayView.findViewById<Button>(R.id.ai_tab_back_button)
+        backButton?.setOnClickListener {
+            Log.d(TAG, "AI tab返回按钮被点击")
+            returnToSoftwareTabOverlay()
+        }
+        
+        // 关闭按钮
+        val closeButton = overlayView.findViewById<Button>(R.id.ai_tab_close_button)
+        closeButton?.setOnClickListener {
+            Log.d(TAG, "AI tab关闭按钮被点击")
+            hideOverlay()
+            stopSelf()
+        }
+    }
+    
+    /**
+     * 返回到software_tab悬浮窗面板
+     */
+    private fun returnToSoftwareTabOverlay() {
+        try {
+            Log.d(TAG, "返回到software_tab悬浮窗面板")
+            
+            // 获取当前剪贴板内容作为查询文本
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val currentClipboard = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            
+            // 隐藏当前悬浮窗
+            hideOverlay()
+            
+            // 启动software_tab模式的悬浮窗
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, "小脑助手")
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, currentClipboard)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, "")
+                putExtra("mode", "software_tab") // 使用software_tab模式
+            }
+            startService(intent)
+            
+            Log.d(TAG, "software_tab悬浮窗面板已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "返回software_tab悬浮窗面板失败", e)
+            e.printStackTrace()
+            Toast.makeText(this, "返回失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 设置AI tab AI应用点击监听器
+     * 支持intent搜索或粘贴搜索
+     */
+    private fun setupAiTabAIAppClickListeners(overlayView: View) {
+        // 获取当前查询文本（从剪贴板或传入的query）
+        val currentQuery = if (query.isNotEmpty()) {
+            query
+        } else {
+            // 尝试从剪贴板获取
+            try {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            } catch (e: Exception) {
+                ""
+            }
+        }
+        
+        // 定义所有AI菜单项的配置（使用ai_tab专用的ID）
+        val aiTabConfigs = listOf(
+            Triple(R.id.ai_tab_grok, "ai.x.grok", "Grok"),
+            Triple(R.id.ai_tab_perplexity, "ai.perplexity.app.android", "Perplexity"),
+            Triple(R.id.ai_tab_poe, "com.poe.android", "Poe"),
+            Triple(R.id.ai_tab_manus, "tech.butterfly.app", "Manus"),
+            Triple(R.id.ai_tab_ima, "com.qihoo.namiso", "纳米AI"),
+            Triple(R.id.ai_tab_deepseek, "com.deepseek.chat", "DeepSeek"),
+            Triple(R.id.ai_tab_doubao, "com.larus.nova", "豆包"),
+            Triple(R.id.ai_tab_chatgpt, "com.openai.chatgpt", "ChatGPT"),
+            Triple(R.id.ai_tab_kimi, "com.moonshot.kimichat", "Kimi"),
+            Triple(R.id.ai_tab_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
+            Triple(R.id.ai_tab_xinghuo, "com.iflytek.spark", "讯飞星火"),
+            Triple(R.id.ai_tab_qingyan, "com.zhipuai.qingyan", "智谱清言"),
+            Triple(R.id.ai_tab_tongyi, "com.aliyun.tongyi", "通义千问"),
+            Triple(R.id.ai_tab_wenxiaoyan, "com.baidu.newapp", "文小言"),
+            Triple(R.id.ai_tab_metaso, "com.metaso", "秘塔AI搜索"),
+            Triple(R.id.ai_tab_gemini, "com.google.android.apps.gemini", "Gemini"),
+            Triple(R.id.ai_tab_copilot, "com.microsoft.copilot", "Copilot")
+        )
+        
+        // 为每个菜单项设置点击事件
+        aiTabConfigs.forEach { (menuId, packageName, appName) ->
+            val menuItem = overlayView.findViewById<View>(menuId)
+            
+            // 检查应用是否已安装
+            val isInstalled = try {
+                packageManager.getPackageInfo(packageName, 0)
+                true
+            } catch (e: Exception) {
+                false
+            }
+            
+            if (isInstalled) {
+                // 应用已安装，设置点击事件
+                menuItem.setOnClickListener {
+                    Log.d(TAG, "AI tab: ${appName} 被点击，查询: $currentQuery")
+                    // 使用launchAIApp方法，支持intent搜索或粘贴搜索
+                    launchAIApp(packageName, appName)
+                    hideOverlay()
+                }
+                menuItem.visibility = View.VISIBLE
+                Log.d(TAG, "AI tab: ${appName} 已安装，设置点击事件")
+            } else {
+                // 应用未安装，显示但禁用
+                menuItem.setOnClickListener {
+                    Log.d(TAG, "AI tab: ${appName} 未安装，显示安装提示")
+                    Toast.makeText(this, "${appName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
+                }
+                menuItem.visibility = View.VISIBLE
+                // 设置半透明效果表示未安装
+                menuItem.alpha = 0.5f
+                Log.d(TAG, "AI tab: ${appName} 未安装，设置为半透明")
+            }
+        }
+    }
+    
+    /**
+     * 加载AI tab AI应用的真实图标
+     */
+    private fun loadAiTabAIAppIcons(overlayView: View) {
+        CoroutineScope(Dispatchers.Main).launch {
+            // AI应用配置（使用ai_tab专用的ID）
+            val aiTabApps = listOf(
+                Triple("ai.x.grok", "Grok", R.id.ai_tab_grok_icon),
+                Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_tab_perplexity_icon),
+                Triple("com.poe.android", "Poe", R.id.ai_tab_poe_icon),
+                Triple("tech.butterfly.app", "Manus", R.id.ai_tab_manus_icon),
+                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_tab_ima_icon),
+                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_tab_deepseek_icon),
+                Triple("com.larus.nova", "豆包", R.id.ai_tab_doubao_icon),
+                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_tab_chatgpt_icon),
+                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_tab_kimi_icon),
+                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_tab_yuanbao_icon),
+                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_tab_xinghuo_icon),
+                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_tab_qingyan_icon),
+                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_tab_tongyi_icon),
+                Triple("com.baidu.newapp", "文小言", R.id.ai_tab_wenxiaoyan_icon),
+                Triple("com.metaso", "秘塔AI搜索", R.id.ai_tab_metaso_icon),
+                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_tab_gemini_icon),
+                Triple("com.microsoft.copilot", "Copilot", R.id.ai_tab_copilot_icon)
+            )
+            
+            aiTabApps.forEach { (packageName, appName, iconViewId) ->
+                val iconView = overlayView.findViewById<ImageView>(iconViewId)
+                loadAppIcon(packageName, appName, iconView)
+            }
+        }
+    }
+    
+    /**
+     * 显示近期搜索历史的App图标
+     */
+    private fun showRecentAppsHistory(overlayView: View) {
+        try {
+            Log.d(TAG, "显示近期搜索历史的App图标")
+            
+            val scrollView = overlayView.findViewById<HorizontalScrollView>(R.id.recent_apps_scroll_view)
+            val container = overlayView.findViewById<LinearLayout>(R.id.recent_apps_container)
+            
+            if (scrollView == null || container == null) {
+                Log.e(TAG, "近期App容器未找到")
+                return
+            }
+            
+            // 获取近期搜索历史
+            val historyManager = com.example.aifloatingball.AppSelectionHistoryManager.getInstance(this)
+            val recentApps = historyManager.getRecentApps()
+            
+            if (recentApps.isEmpty()) {
+                Toast.makeText(this, "暂无搜索历史", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 切换显示/隐藏
+            val currentVisibility = scrollView.visibility
+            if (currentVisibility == View.VISIBLE) {
+                scrollView.visibility = View.GONE
+                Log.d(TAG, "隐藏近期App列表")
+            } else {
+                // 清空容器
+                container.removeAllViews()
+                
+                // 添加App图标
+                recentApps.forEach { appItem ->
+                    val appIconView = ImageView(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            resources.getDimensionPixelSize(R.dimen.platform_icon_size),
+                            resources.getDimensionPixelSize(R.dimen.platform_icon_size)
+                        ).apply {
+                            marginEnd = resources.getDimensionPixelSize(R.dimen.platform_icon_margin)
+                        }
+                        
+                        // 加载应用图标
+                        try {
+                            val icon = packageManager.getApplicationIcon(appItem.packageName)
+                            setImageDrawable(icon)
+                        } catch (e: Exception) {
+                            setImageResource(R.drawable.ic_search)
+                        }
+                        
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        background = ContextCompat.getDrawable(this@AIAppOverlayService, R.drawable.circle_ripple)
+                        contentDescription = appItem.appName
+                        
+                        setOnClickListener {
+                            Log.d(TAG, "点击近期App: ${appItem.appName}")
+                            // 启动应用
+                            try {
+                                val launchIntent = packageManager.getLaunchIntentForPackage(appItem.packageName)
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    startActivity(launchIntent)
+                                } else {
+                                    Toast.makeText(this@AIAppOverlayService, "无法启动 ${appItem.appName}", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "启动应用失败: ${appItem.appName}", e)
+                                Toast.makeText(this@AIAppOverlayService, "启动失败: ${appItem.appName}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    container.addView(appIconView)
+                }
+                
+                scrollView.visibility = View.VISIBLE
+                Log.d(TAG, "显示近期App列表，共 ${recentApps.size} 个")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示近期App历史失败", e)
+            e.printStackTrace()
+            Toast.makeText(this, "显示App历史失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 返回到软件tab
+     */
+    private fun returnToSoftwareTab() {
+        try {
+            Log.d(TAG, "返回到软件tab")
+            
+            // 启动SimpleModeActivity并切换到软件tab
+            val intent = Intent(this, com.example.aifloatingball.SimpleModeActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("show_app_search", true) // 标记显示软件tab（app_search_layout）
+                putExtra("state", "APP_SEARCH") // 设置状态为APP_SEARCH
+            }
+            startActivity(intent)
+            
+            // 隐藏当前悬浮窗
+            hideOverlay()
+            stopSelf()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "返回软件tab失败", e)
+            Toast.makeText(this, "返回软件tab失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     /**
      * 设置拖拽监听器
      */
@@ -595,7 +1175,19 @@ class AIAppOverlayService : Service() {
      */
     private fun launchAIApp(packageName: String, appName: String) {
         try {
-            Log.d(TAG, "🚀 启动AI应用: $appName, 包名: $packageName, 查询: $query")
+            // 获取查询文本：优先使用传入的query，否则从剪贴板获取
+            val searchQuery = if (query.isNotEmpty()) {
+                query
+            } else {
+                try {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+                } catch (e: Exception) {
+                    ""
+                }
+            }
+            
+            Log.d(TAG, "🚀 启动AI应用: $appName, 包名: $packageName, 查询: $searchQuery")
             
             // 重置无限循环跳转状态，开始新的跳转循环
             resetSwitchState()
@@ -607,13 +1199,13 @@ class AIAppOverlayService : Service() {
             
             // 对于特定AI应用，尝试使用Intent直接发送文本
             if (shouldTryIntentSend(appName, packageName)) {
-                if (tryIntentSendForAIApp(packageName, query, appName)) {
+                if (tryIntentSendForAIApp(packageName, searchQuery, appName)) {
                     return
                 }
             }
             
             // 使用通用的AI应用跳转方法
-            launchAIAppWithAutoPaste(packageName, query, appName)
+            launchAIAppWithAutoPaste(packageName, searchQuery, appName)
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 启动${appName} 失败", e)
@@ -973,6 +1565,18 @@ class AIAppOverlayService : Service() {
             "poe" -> R.drawable.ic_poe
             "manus" -> R.drawable.ic_manus
             "纳米ai", "ima" -> R.drawable.ic_nano_ai
+            "deepseek" -> R.drawable.ic_deepseek
+            "豆包", "doubao" -> R.drawable.ic_doubao
+            "chatgpt" -> R.drawable.ic_chatgpt
+            "kimi" -> R.drawable.ic_kimi
+            "腾讯元宝", "yuanbao", "元宝" -> R.drawable.ic_yuanbao
+            "讯飞星火", "xinghuo", "星火" -> R.drawable.ic_xinghuo
+            "智谱清言", "qingyan", "清言" -> R.drawable.ic_zhipu_qingyan
+            "通义千问", "tongyi", "千问" -> R.drawable.ic_tongyi
+            "文小言", "wenxiaoyan", "小言" -> R.drawable.ic_wenxiaoyan
+            "秘塔ai搜索", "metaso", "秘塔" -> R.drawable.ic_mita_ai
+            "gemini" -> R.drawable.ic_gemini
+            "copilot" -> R.drawable.ic_copilot
             else -> 0
         }
     }

@@ -1041,6 +1041,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 处理从小组件传入的参数
         handleWidgetIntent(intent)
+        
+        // 处理从AIAppOverlayService返回软件tab的Intent参数
+        if (intent?.getBooleanExtra("show_app_search", false) == true || intent?.getStringExtra("state") == "APP_SEARCH") {
+            Log.d(TAG, "检测到show_app_search参数，切换到软件tab")
+            handler.postDelayed({
+                showAppSearch()
+            }, 300) // 延迟300ms确保视图已初始化
+        }
 
         // 注册添加AI联系人广播接收器
         setupAddAIContactReceiver()
@@ -1212,6 +1220,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 处理新的小组件Intent
         handleWidgetIntent(intent)
+        
+        // 处理从AIAppOverlayService返回软件tab的Intent参数
+        if (intent?.getBooleanExtra("show_app_search", false) == true || intent?.getStringExtra("state") == "APP_SEARCH") {
+            Log.d(TAG, "onNewIntent: 检测到show_app_search参数，切换到软件tab")
+            handler.postDelayed({
+                showAppSearch()
+            }, 300) // 延迟300ms确保视图已初始化
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -3973,6 +3989,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         tags = listOf(appConfig.appName), // 添加应用名称作为标签
                         searchType = "应用搜索"
                     )
+                    
+                    // 延迟显示AIAppOverlayService面板（software_tab模式）
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        showAIAppOverlay(appConfig.packageName, query, appConfig.appName)
+                    }, 2000) // 延迟2秒，确保应用已启动
                 }
             } else {
                 // 没有搜索内容时，直接启动应用
@@ -3982,6 +4003,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     startActivity(launchIntent)
                     Toast.makeText(this, "正在启动${appConfig.appName}", Toast.LENGTH_SHORT).show()
                     Log.d(TAG, "直接启动应用: ${appConfig.appName}")
+                    
+                    // 延迟显示AIAppOverlayService面板（software_tab模式）
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        showAIAppOverlay(appConfig.packageName, "", appConfig.appName)
+                    }, 2000) // 延迟2秒，确保应用已启动
                 } else {
                     Log.w(TAG, "无法启动应用: ${appConfig.appName}, 应用可能未安装")
                     Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
@@ -4002,6 +4028,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     startActivity(launchIntent)
                     Toast.makeText(this, "正在启动${appConfig.appName}", Toast.LENGTH_SHORT).show()
                     Log.d(TAG, "备用方案启动应用成功: ${appConfig.appName}")
+                    
+                    // 延迟显示AIAppOverlayService面板（software_tab模式）
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        val currentQuery = appSearchInput?.text?.toString() ?: ""
+                        showAIAppOverlay(appConfig.packageName, currentQuery, appConfig.appName)
+                    }, 2000) // 延迟2秒，确保应用已启动
                 } else {
                     Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
                 }
@@ -4074,6 +4106,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 tags = listOf(appConfig.appName), // 添加应用名称作为标签
                 searchType = "应用搜索"
             )
+            
+            // 不再自动显示AIAppOverlayService面板，由用户手动触发
             
         } catch (e: Exception) {
             Log.e(TAG, "AI直接提问失败: ${appConfig.appName}", e)
@@ -30875,17 +30909,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showAIAppOverlay(packageName: String, query: String, appName: String) {
         try {
-            Log.d(TAG, "🎯 显示AI应用悬浮窗: $appName")
+            Log.d(TAG, "🎯 显示AI应用悬浮窗: $appName (软件tab模式)")
             
             val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
                 action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
                 putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, appName)
                 putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, query)
                 putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
+                putExtra("mode", "software_tab") // 使用software_tab模式，包含返回和app按钮
             }
             startService(intent)
             
-            Log.d(TAG, "📤 已启动AI应用悬浮窗服务: $appName")
+            Log.d(TAG, "📤 已启动AI应用悬浮窗服务: $appName (software_tab模式)")
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 显示AI应用悬浮窗失败: $appName", e)

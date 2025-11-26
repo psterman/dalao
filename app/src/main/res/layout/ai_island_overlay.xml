@@ -1,0 +1,633 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/ai_overlay_background"
+    android:padding="12dp"
+    android:elevation="12dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择AI助手"
+        android:textColor="#FF000000"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp" />
+
+    <!-- AI图标网格 - 直接显示所有AI应用 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- 第一行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- Grok -->
+            <LinearLayout
+                android:id="@+id/ai_island_grok"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_grok_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_grok"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Grok"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Perplexity -->
+            <LinearLayout
+                android:id="@+id/ai_island_perplexity"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_perplexity_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_perplexity"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Perplexity"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Poe -->
+            <LinearLayout
+                android:id="@+id/ai_island_poe"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_poe_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_poe"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Poe"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第二行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- Manus -->
+            <LinearLayout
+                android:id="@+id/ai_island_manus"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_manus_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_manus"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Manus"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- IMA -->
+            <LinearLayout
+                android:id="@+id/ai_island_ima"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_ima_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_ima"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="纳米AI"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- DeepSeek -->
+            <LinearLayout
+                android:id="@+id/ai_island_deepseek"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_deepseek_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_deepseek"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DeepSeek"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第三行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 豆包 -->
+            <LinearLayout
+                android:id="@+id/ai_island_doubao"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_doubao_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_doubao"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="豆包"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- ChatGPT -->
+            <LinearLayout
+                android:id="@+id/ai_island_chatgpt"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_chatgpt_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_chatgpt"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ChatGPT"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Kimi -->
+            <LinearLayout
+                android:id="@+id/ai_island_kimi"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_kimi_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_kimi"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Kimi"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第四行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 腾讯元宝 -->
+            <LinearLayout
+                android:id="@+id/ai_island_yuanbao"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_yuanbao_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_yuanbao"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="元宝"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 讯飞星火 -->
+            <LinearLayout
+                android:id="@+id/ai_island_xinghuo"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_xinghuo_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_xinghuo"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="星火"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 智谱清言 -->
+            <LinearLayout
+                android:id="@+id/ai_island_qingyan"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_qingyan_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_zhipu_qingyan"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="清言"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第五行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 通义千问 -->
+            <LinearLayout
+                android:id="@+id/ai_island_tongyi"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_tongyi_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_tongyi"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="千问"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 文小言 -->
+            <LinearLayout
+                android:id="@+id/ai_island_wenxiaoyan"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_wenxiaoyan_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_wenxiaoyan"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="小言"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 秘塔AI搜索 -->
+            <LinearLayout
+                android:id="@+id/ai_island_metaso"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_metaso_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_mita_ai"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="秘塔"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第六行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="8dp">
+
+            <!-- Gemini -->
+            <LinearLayout
+                android:id="@+id/ai_island_gemini"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_gemini_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_gemini"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Gemini"
+                    android:textColor="#FF000000"
+                    android:textSize="8sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Copilot -->
+            <LinearLayout
+                android:id="@+id/ai_island_copilot"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_island_copilot_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_copilot"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Copilot"
+                    android:textColor="#FF000000"
+                    android:textSize="8sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 底部按钮容器 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="4dp">
+
+        <!-- 返回按钮 -->
+        <Button
+            android:id="@+id/ai_island_back_button"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="返回"
+            android:textSize="11sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginEnd="4dp"
+            android:minWidth="60dp" />
+
+        <!-- 关闭按钮 -->
+        <Button
+            android:id="@+id/ai_island_close_button"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="关闭"
+            android:textSize="11sp"
+            android:textColor="#FF000000"
+            android:background="@drawable/ai_overlay_button_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:layout_marginStart="4dp"
+            android:minWidth="60dp" />
+
+    </LinearLayout>
+
+</LinearLayout>
+

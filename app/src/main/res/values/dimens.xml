@@ -94,14 +94,19 @@
     <dimen name="dynamic_island_expanded_height">150dp</dimen>
 
     <!-- 灵动岛尺寸 -->
-    <dimen name="dynamic_island_height">32dp</dimen>
-    <dimen name="dynamic_island_min_width">320dp</dimen>
-    <dimen name="dynamic_island_max_width">400dp</dimen>
+    <dimen name="dynamic_island_height">48dp</dimen>
+    <dimen name="dynamic_island_min_width">360dp</dimen>
+    <dimen name="dynamic_island_max_width">450dp</dimen>
     <dimen name="dynamic_island_corner_radius">16dp</dimen>
     <dimen name="dynamic_island_margin_top">48dp</dimen>
     <dimen name="dynamic_island_icon_size">20dp</dimen>
     <dimen name="dynamic_island_text_size">14sp</dimen>
     <dimen name="dynamic_island_elevation">4dp</dimen>
+    <!-- 灵动岛按钮尺寸 -->
+    <dimen name="dynamic_island_button_size">48dp</dimen>
+    <dimen name="dynamic_island_button_icon_size">24dp</dimen>
+    <dimen name="dynamic_island_button_margin">6dp</dimen>
+    <dimen name="dynamic_island_button_container_padding">12dp</dimen>
 
     <!-- Material Design 风格的圆角和阴影 -->
     <dimen name="mtrl_card_corner_radius_large">12dp</dimen>
