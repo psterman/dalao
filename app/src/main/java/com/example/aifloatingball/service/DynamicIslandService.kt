@@ -1155,6 +1155,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         Log.d(TAG, "执行搜索: $query")
         lastSearchQuery = query
+        
+        // 记录搜索历史
+        com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+            context = this,
+            query = query,
+            source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.DYNAMIC_ISLAND,
+            tags = emptyList(),
+            searchType = "应用搜索"
+        )
 
         // 检查是否有选中的APP
         if (currentSelectedApp != null) {

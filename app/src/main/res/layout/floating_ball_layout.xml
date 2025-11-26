@@ -6,7 +6,7 @@
 
     <LinearLayout
         android:id="@+id/floating_view_content_container"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="top">
@@ -14,7 +14,13 @@
         <!-- Search menu container (hidden by default) -->
         <LinearLayout
             android:id="@+id/search_container"
-            style="@style/SearchContainerStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:background="?attr/colorSurface"
+            android:padding="8dp"
+            android:elevation="4dp"
             android:visibility="gone">
 
             <!-- 搜索框 -->
@@ -118,7 +124,13 @@
                 </HorizontalScrollView>
                 <View
                     android:id="@+id/combo_divider"
-                    style="@style/Divider" />
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
 
                 <!-- AI引擎 -->
                 <TextView
@@ -132,7 +144,13 @@
                     android:orientation="vertical" />
                 <View
                     android:id="@+id/ai_divider"
-                    style="@style/Divider" />
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
 
                 <!-- 普通搜索引擎 -->
                 <TextView
@@ -146,7 +164,13 @@
                     android:orientation="vertical" />
                 <View
                     android:id="@+id/regular_divider"
-                    style="@style/Divider" />
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp" />
 
                 <!-- 应用内搜索 -->
                 <TextView

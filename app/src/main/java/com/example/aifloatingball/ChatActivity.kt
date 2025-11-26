@@ -755,6 +755,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             messageAdapter.updateMessages(messages.toList())
             Log.d(TAG, "消息适配器已更新")
 
+            // 记录搜索历史到统一收藏管理系统
+            currentContact?.let { contact ->
+                val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+                val serviceName = when (serviceType) {
+                    AIServiceType.DEEPSEEK -> "DeepSeek"
+                    AIServiceType.CHATGPT -> "ChatGPT"
+                    AIServiceType.CLAUDE -> "Claude"
+                    AIServiceType.ZHIPU_AI -> "智谱AI"
+                    AIServiceType.QIANWEN -> "通义千问"
+                    AIServiceType.GEMINI -> "Gemini"
+                    else -> "AI助手"
+                }
+                com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                    context = this,
+                    query = messageText,
+                    source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.CHAT_TAB,
+                    tags = listOf(serviceName, "AI对话"),
+                    searchType = "${serviceName}对话"
+                )
+            }
+
             // 保存聊天记录到统一存储
             currentContact?.let { contact ->
                 val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK

@@ -3328,6 +3328,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 显示清空按钮
                         updateInputLayoutEndIcon(true)
                         updateHistoryButtonIcon(true)
+                        
+                        // 记录搜索历史（即使没有选中应用，也记录输入内容）
+                        com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                            context = this,
+                            query = query,
+                            source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                            tags = listOf("待选择应用"),
+                            searchType = "应用搜索"
+                        )
                     }
                 } else {
                     appSearchAdapter.updateSearchQuery("")
@@ -3352,6 +3361,45 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 updateHistoryButtonIcon(hasText)
             }
         })
+        
+        // 设置焦点变化监听，在失去焦点时记录搜索历史（如果输入框有内容）
+        appSearchInput.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                // 失去焦点时，如果输入框有内容，记录搜索历史
+                val query = appSearchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    // 使用延迟记录，避免与按回车键或点击应用时的记录重复
+                    // SearchHistoryAutoRecorder 内部已有防重复机制（5秒内相同搜索不重复记录）
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val currentQuery = appSearchInput.text.toString().trim()
+                        if (currentQuery == query && currentQuery.isNotEmpty()) {
+                            // 检查是否有选中的app（或沿用上一个app）
+                            val appToUse = getAppForSearch()
+                            if (appToUse == null) {
+                                // 没有选中的app，记录搜索历史（带"待选择应用"标签）
+                                com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                                    context = this,
+                                    query = currentQuery,
+                                    source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                                    tags = listOf("待选择应用"),
+                                    searchType = "应用搜索"
+                                )
+                            } else {
+                                // 有选中的app，也记录搜索历史（带应用名称标签）
+                                // 注意：如果用户随后点击应用图标，handleAppSearch 中也会记录，但防重复机制会避免重复
+                                com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                                    context = this,
+                                    query = currentQuery,
+                                    source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                                    tags = listOf(appToUse.appName),
+                                    searchType = "应用搜索"
+                                )
+                            }
+                        }
+                    }, 500) // 延迟500ms，避免与按回车键或点击应用时的记录重复
+                }
+            }
+        }
 
         // 设置历史/清空按钮点击监听（兼容新布局）
         historyButton?.setOnClickListener {
@@ -3914,8 +3962,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     startActivity(intent)
                     Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
 
-                    // 保存搜索历史
+                    // 保存搜索历史（原有系统）
                     searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
+                    
+                    // 记录到统一收藏管理系统
+                    com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                        context = this,
+                        query = query,
+                        source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                        tags = listOf(appConfig.appName), // 添加应用名称作为标签
+                        searchType = "应用搜索"
+                    )
                 }
             } else {
                 // 没有搜索内容时，直接启动应用
@@ -4006,8 +4063,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
-            // 保存搜索历史
+            // 保存搜索历史（原有系统）
             searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
+            
+            // 记录到统一收藏管理系统
+            com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                context = this,
+                query = query,
+                source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                tags = listOf(appConfig.appName), // 添加应用名称作为标签
+                searchType = "应用搜索"
+            )
             
         } catch (e: Exception) {
             Log.e(TAG, "AI直接提问失败: ${appConfig.appName}", e)
@@ -15395,6 +15461,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     )
                     val searchUrl = searchEngine.getSearchUrl(query)
                     loadBrowserContent(searchUrl)
+                    
+                    // 记录搜索历史（特殊scheme当作搜索词）
+                    com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                        context = this,
+                        query = query,
+                        source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                        tags = emptyList(),
+                        searchType = "网页搜索"
+                    )
+                    
                     Log.d(TAG, "浏览器搜索 - 特殊 scheme '$query' 已转换为搜索: $searchUrl")
                     return
                 }
@@ -15431,6 +15507,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         description = "Google搜索"
                     )
                     searchEngine.getSearchUrl(query)
+                }
+
+                // 记录搜索历史（仅在非URL时记录，参考HomeActivity的逻辑）
+                if (!isUrl && !query.startsWith("http://") && !query.startsWith("https://")) {
+                    com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                        context = this,
+                        query = query,
+                        source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                        tags = emptyList(),
+                        searchType = "网页搜索"
+                    )
                 }
 
                 // 加载URL到当前页面或新页面
@@ -16063,6 +16150,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                     val query = chatSearchInput.text.toString().trim()
                     if (query.isNotEmpty()) {
+                        // 记录搜索历史
+                        com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                            context = this@SimpleModeActivity,
+                            query = query,
+                            source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.CHAT_TAB,
+                            tags = listOf("AI对话"),
+                            searchType = "AI对话"
+                        )
                         // 直接启动全局AI搜索，向所有AI助手提问
                         startGlobalAISearch(query)
                         // 清空搜索框
@@ -16100,6 +16195,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN) {
                     val query = chatSearchInput.text.toString().trim()
                     if (query.isNotEmpty()) {
+                        // 记录搜索历史
+                        com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                            context = this@SimpleModeActivity,
+                            query = query,
+                            source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.CHAT_TAB,
+                            tags = listOf("AI对话"),
+                            searchType = "AI对话"
+                        )
                         // 直接启动全局AI搜索，向所有AI助手提问
                         startGlobalAISearch(query)
                         // 清空搜索框

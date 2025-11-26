@@ -605,6 +605,18 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun performSearch(query: String) {
         if (query.isNotBlank()) {
+            // 记录搜索历史
+            val trimmedQuery = query.trim()
+            if (trimmedQuery.isNotEmpty()) {
+                com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                    context = this,
+                    query = trimmedQuery,
+                    source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.FLOATING_BALL,
+                    tags = emptyList(),
+                    searchType = "应用搜索"
+                )
+            }
+            
             // 检查用户偏好，决定使用哪种浏览器
             val useMultiTabBrowser = settingsManager.getBoolean("use_multi_tab_browser", false)
 
@@ -923,11 +935,22 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         cancelIdleTimer() // Don't fade while menu is open
         floatingBallIcon?.animate()?.alpha(1f)?.setDuration(150)?.start() // Ensure ball is fully visible
 
-        val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
-
+        // 计算面板宽度：屏幕宽度 - 悬浮球宽度（56dp）
+        val screenWidth = getScreenWidth()
+        val ballWidth = (56 * resources.displayMetrics.density).toInt() // 悬浮球宽度56dp转像素
+        
+        // 设置窗口宽度为屏幕宽度，让search_container自动占据剩余空间
+        params?.width = screenWidth
+        
         // Adjust position before showing menu to keep ball stationary
-        if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu appears on the left
-            params?.x = params?.x?.minus(menuWidth)
+        if (!settingsManager.isLeftHandedModeEnabled()) { 
+            // 右手模式：菜单在左侧，悬浮球在右侧
+            // 窗口从x=0开始，这样search_container占据左侧，悬浮球在右侧
+            params?.x = 0
+        } else {
+            // 左手模式：菜单在右侧，悬浮球在左侧
+            // 窗口从x=0开始，悬浮球在左侧，search_container占据右侧
+            params?.x = 0
         }
 
         val contentContainer = floatingView?.findViewById<LinearLayout>(R.id.floating_view_content_container)
@@ -984,7 +1007,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         isMenuVisible = false
         resetIdleTimer() // Restart idle timer when menu closes
 
-        val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
+        // 计算面板宽度：屏幕宽度 - 悬浮球宽度（56dp）
+        val screenWidth = getScreenWidth()
+        val ballWidth = (56 * resources.displayMetrics.density).toInt() // 悬浮球宽度56dp转像素
+        val menuWidth = screenWidth - ballWidth
+        
+        // 恢复窗口宽度为WRAP_CONTENT
+        params?.width = WindowManager.LayoutParams.WRAP_CONTENT
 
         searchContainer?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
             searchContainer?.visibility = View.GONE
@@ -992,9 +1021,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
             // Adjust position and flags AFTER menu is gone
             try {
-                if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu was on the left
-                    params?.x = params?.x?.plus(menuWidth)
-                }
+                // 恢复窗口宽度为WRAP_CONTENT，恢复悬浮球位置
+                val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+                params?.x = if (isLeftHanded) 0 else screenWidth
                 params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
                     ?.and(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv())
 

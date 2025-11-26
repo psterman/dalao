@@ -1142,6 +1142,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun performSearch(query: String) {
         try {
+            // 记录搜索历史（仅在非URL时记录）
+            val trimmedQuery = query.trim()
+            if (trimmedQuery.isNotEmpty() && !trimmedQuery.startsWith("http://") && !trimmedQuery.startsWith("https://")) {
+                com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                    context = this,
+                    query = trimmedQuery,
+                    source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                    tags = emptyList(),
+                    searchType = "网页搜索"
+                )
+            }
+            
             // 增强的URL判断逻辑
             val isUrl = when {
                 // 1. 标准URL格式判断
@@ -1514,6 +1526,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun openSearchEngine(engine: BaseSearchEngine, query: String = "") {
+        // 记录搜索历史（仅在非URL时记录）
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isNotEmpty() && !trimmedQuery.startsWith("http://") && !trimmedQuery.startsWith("https://")) {
+            com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                context = this,
+                query = trimmedQuery,
+                source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                tags = emptyList(),
+                searchType = "网页搜索"
+            )
+        }
+        
         // 检查是否应该使用悬浮窗模式
         val useFloatingMode = settingsManager.getBoolean("use_floating_mode", false)
         

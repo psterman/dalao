@@ -227,15 +227,32 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     }
     
     private fun loadUrl(input: String) {
-        val url = if (URLUtil.isValidUrl(input) || input.contains(".")) {
-            if (input.startsWith("http://") || input.startsWith("https://")) {
-                input
+        val trimmedInput = input.trim()
+        val isUrl = URLUtil.isValidUrl(trimmedInput) || 
+                   (trimmedInput.contains(".") && !trimmedInput.contains(" ")) ||
+                   trimmedInput.startsWith("http://") || 
+                   trimmedInput.startsWith("https://")
+        
+        val url = if (isUrl) {
+            if (trimmedInput.startsWith("http://") || trimmedInput.startsWith("https://")) {
+                trimmedInput
             } else {
-                "https://$input"
+                "https://$trimmedInput"
             }
         } else {
             // 使用搜索引擎搜索
-            "https://www.google.com/search?q=${java.net.URLEncoder.encode(input, "UTF-8")}"
+            "https://www.google.com/search?q=${java.net.URLEncoder.encode(trimmedInput, "UTF-8")}"
+        }
+        
+        // 记录搜索历史（仅在非URL时记录）
+        if (!isUrl && trimmedInput.isNotEmpty()) {
+            com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                context = this,
+                query = trimmedInput,
+                source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                tags = emptyList(),
+                searchType = "网页搜索"
+            )
         }
         
         tabManager.getCurrentTab()?.webView?.loadUrl(url)
@@ -243,9 +260,20 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     }
 
     private fun searchQuery(query: String) {
-        val searchUrl = "https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isNotEmpty()) {
+            // 记录搜索历史
+            com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                context = this,
+                query = trimmedQuery,
+                source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.SEARCH_TAB,
+                tags = emptyList(),
+                searchType = "网页搜索"
+            )
+        }
+        val searchUrl = "https://www.google.com/search?q=${java.net.URLEncoder.encode(trimmedQuery, "UTF-8")}"
         tabManager.getCurrentTab()?.webView?.loadUrl(searchUrl)
-        Log.d(TAG, "Searching: $query")
+        Log.d(TAG, "Searching: $trimmedQuery")
     }
     
     private fun updateAddressBar(url: String?) {
