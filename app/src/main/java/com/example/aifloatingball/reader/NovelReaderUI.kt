@@ -19,6 +19,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.R
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.CollectionType
+import com.example.aifloatingball.model.UnifiedCollectionItem
 import com.google.gson.Gson
 
 /**
@@ -70,6 +73,10 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
     private var currentChapterUrl: String? = null
     // 当前章节标题（从内容中提取的）
     private var currentChapterTitle: String? = null
+    // 当前书籍信息（用于保存阅读记录）
+    private var currentBookUrl: String? = null
+    private var currentBookTitle: String? = null
+    private var currentChapterIndex: Int = -1
     
     // 设置相关
     private var settings: ReaderMode2Settings = ReaderMode2Settings()
@@ -1034,6 +1041,24 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
             // 更新顶部标题栏，显示章节序号
             updateHeaderTitle(title, content)
             
+            // 获取当前书籍信息
+            val webView = manager.getCurrentWebView()
+            currentBookUrl = webView?.url
+            currentBookTitle = title // 使用章节标题作为书名（可以从目录中提取书名）
+            
+            // 更新章节索引
+            if (catalogList.isNotEmpty()) {
+                val index = catalogList.indexOfFirst { item ->
+                    item.title == title || item.title.contains(title) || title.contains(item.title)
+                }
+                if (index >= 0) {
+                    currentChapterIndex = index
+                }
+            }
+            
+            // 保存阅读记录到图书收藏
+            saveReadingRecord(title, content)
+            
             // 如果启用了自动翻页，重新启动
             if (settings.isAutoScroll && !isAutoScrolling) {
                 startAutoScroll()
@@ -1041,7 +1066,6 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
             
             // 如果启用了无图模式，应用无图模式
             if (settings.isNoImageMode) {
-                val webView = manager.getCurrentWebView()
                 webView?.let { applyNoImageMode(it) }
             }
             
@@ -1161,6 +1185,173 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
         val match = pattern.find(title)
         return match?.groupValues?.get(1)
     }
+    
+    /**
+     * 保存阅读记录到图书收藏
+     * 每本书只保留最新记录（通过基础URL标识）
+     */
+    private fun saveReadingRecord(chapterTitle: String, chapterContent: String) {
+        try {
+            val bookUrl = currentBookUrl ?: return
+            val bookTitle = currentBookTitle ?: chapterTitle
+            
+            // 提取书籍基础URL（去除章节参数）
+            val baseBookUrl = extractBaseBookUrl(bookUrl)
+            
+            // 使用基础URL的hash作为书籍唯一ID
+            val bookId = baseBookUrl.hashCode().toString()
+            
+            val collectionManager = UnifiedCollectionManager.getInstance(context)
+            
+            // 检查是否已存在该书籍的收藏记录（通过基础URL匹配）
+            val existingCollection = collectionManager.getAllCollections()
+                .find { 
+                    it.collectionType == CollectionType.EBOOK_BOOKMARK && 
+                    (it.extraData?.get("baseBookUrl") == baseBookUrl || 
+                     it.extraData?.get("bookUrl")?.toString()?.let { existingUrl ->
+                         extractBaseBookUrl(existingUrl) == baseBookUrl
+                     } == true)
+                }
+            
+            // 构建标签
+            val tags = mutableListOf<String>().apply {
+                add("阅读模式2")
+                add("小说阅读")
+                if (catalogList.isNotEmpty()) {
+                    add("共${catalogList.size}章")
+                }
+            }
+            
+            // 构建预览文本
+            val chapterInfo = if (currentChapterIndex >= 0 && catalogList.isNotEmpty()) {
+                "第${currentChapterIndex + 1}章/${catalogList.size}章"
+            } else {
+                chapterTitle
+            }
+            val preview = "当前章节: $chapterInfo\n${chapterContent.take(100)}..."
+            
+            // 构建扩展数据
+            val extraData = mutableMapOf<String, Any>().apply {
+                put("bookUrl", bookUrl) // 当前章节URL
+                put("baseBookUrl", baseBookUrl) // 书籍基础URL（用于匹配）
+                put("bookTitle", bookTitle)
+                put("chapterTitle", chapterTitle)
+                put("chapterContent", chapterContent)
+                put("chapterIndex", currentChapterIndex.toString())
+                put("totalChapters", catalogList.size.toString())
+                put("hasNext", if (catalogList.isNotEmpty() && currentChapterIndex >= 0 && currentChapterIndex < catalogList.size - 1) "true" else "false")
+                put("hasPrev", if (currentChapterIndex > 0) "true" else "false")
+                put("lastReadTime", System.currentTimeMillis().toString())
+                if (catalogList.isNotEmpty()) {
+                    put("catalogSize", catalogList.size.toString())
+                }
+            }
+            
+            // 创建或更新收藏项
+            val collectionItem = UnifiedCollectionItem(
+                id = bookId, // 使用书籍ID作为唯一标识，确保每本书只有一条记录
+                title = bookTitle,
+                content = chapterContent,
+                preview = preview,
+                collectionType = CollectionType.EBOOK_BOOKMARK,
+                sourceLocation = "阅读模式2",
+                sourceDetail = "小说阅读器",
+                collectedTime = if (existingCollection != null) existingCollection.collectedTime else System.currentTimeMillis(),
+                customTags = tags.distinct(),
+                extraData = extraData
+            )
+            
+            if (existingCollection != null) {
+                // 更新现有记录（保留原始收藏时间，更新阅读进度）
+                collectionManager.updateCollection(collectionItem)
+                android.util.Log.d("NovelReaderUI", "更新阅读记录: $bookTitle, 章节: $chapterTitle")
+            } else {
+                // 添加新记录
+                collectionManager.addCollection(collectionItem)
+                android.util.Log.d("NovelReaderUI", "保存阅读记录: $bookTitle, 章节: $chapterTitle")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NovelReaderUI", "保存阅读记录失败", e)
+        }
+    }
+    
+    /**
+     * 从URL中提取书籍基础URL（去除章节参数）
+     * 用于唯一标识一本书，确保同一本书的不同章节使用相同的基础URL
+     */
+    private fun extractBaseBookUrl(url: String): String {
+        try {
+            val urlObj = java.net.URL(url)
+            val host = urlObj.host
+            val path = urlObj.path
+            
+            // 移除路径中的章节相关部分
+            // 常见格式：
+            // 1. /book/12345/chapter/1.html -> /book/12345
+            // 2. /novel/12345/1.html -> /novel/12345
+            // 3. /12345/1.html -> /12345
+            // 4. /chapter/12345.html -> / (使用host作为标识)
+            
+            val pathParts = path.split("/").filter { it.isNotEmpty() }
+            val basePathParts = mutableListOf<String>()
+            
+            // 查找书籍基础路径（在chapter之前的部分）
+            for (i in pathParts.indices) {
+                val part = pathParts[i]
+                
+                // 如果遇到chapter相关关键词，停止
+                if (part.contains("chapter", ignoreCase = true) || 
+                    part.contains("chap", ignoreCase = true) ||
+                    (i > 0 && part.matches(Regex("\\d+\\.html?")))) {
+                    // 如果前一部分是数字，可能是章节号，不包含
+                    if (i > 0 && pathParts[i - 1].matches(Regex("\\d+"))) {
+                        break
+                    }
+                    // 如果当前部分是纯数字的html文件，可能是章节文件
+                    if (part.matches(Regex("\\d+\\.html?"))) {
+                        break
+                    }
+                }
+                
+                // 如果当前部分是纯数字且后面可能有章节，保留
+                if (part.matches(Regex("\\d+")) && i + 1 < pathParts.size) {
+                    val nextPart = pathParts[i + 1]
+                    if (nextPart.contains("chapter", ignoreCase = true) || 
+                        nextPart.matches(Regex("\\d+\\.html?"))) {
+                        basePathParts.add(part)
+                        break
+                    }
+                }
+                
+                basePathParts.add(part)
+            }
+            
+            // 构建基础URL
+            val basePath = if (basePathParts.isNotEmpty()) {
+                "/${basePathParts.joinToString("/")}"
+            } else {
+                "/"
+            }
+            
+            return "${urlObj.protocol}://${host}${basePath}"
+        } catch (e: Exception) {
+            // 如果URL解析失败，尝试简单处理
+            android.util.Log.w("NovelReaderUI", "提取书籍基础URL失败: $url", e)
+            try {
+                // 简单处理：移除最后的文件名和参数
+                val urlWithoutQuery = url.split("?")[0]
+                val lastSlashIndex = urlWithoutQuery.lastIndexOf("/")
+                if (lastSlashIndex > 0) {
+                    val baseUrl = urlWithoutQuery.substring(0, lastSlashIndex + 1)
+                    return baseUrl
+                }
+            } catch (e2: Exception) {
+                android.util.Log.e("NovelReaderUI", "简单处理URL也失败", e2)
+            }
+            // 最后手段：使用整个URL
+            return url.split("?")[0]
+        }
+    }
 
     override fun onChapterLoadFailed(error: String) {
         readerView?.post {
@@ -1174,6 +1365,20 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
             loadingView?.visibility = View.GONE
             // 保存目录列表，用于查找章节序号
             catalogList = catalog
+            // 如果目录中有章节，尝试从第一个章节标题提取书名
+            if (catalog.isNotEmpty() && currentBookTitle == null) {
+                // 尝试从第一个章节标题提取书名（去除章节序号）
+                val firstChapterTitle = catalog[0].title
+                val bookTitleMatch = Regex("^第[\\d一二三四五六七八九十百千万]+[章节回]\\s*(.+)").find(firstChapterTitle)
+                if (bookTitleMatch != null) {
+                    // 如果第一个章节标题包含书名，提取书名
+                    // 通常格式：第X章 书名 或 书名 第X章
+                    val potentialBookTitle = firstChapterTitle.replace(Regex("^第[\\d一二三四五六七八九十百千万]+[章节回]\\s*"), "")
+                    if (potentialBookTitle.length > 2 && potentialBookTitle.length < 50) {
+                        currentBookTitle = potentialBookTitle
+                    }
+                }
+            }
             showCatalogDialog(catalog)
         }
     }
@@ -1190,6 +1395,14 @@ class NovelReaderUI(private val context: Context, private val container: ViewGro
             loadingView?.visibility = View.GONE
             // 保存目录列表，用于查找章节序号
             catalogList = catalog
+            // 从目录页面URL或标题提取书名
+            val webView = manager.getCurrentWebView()
+            currentBookUrl = webView?.url
+            // 尝试从页面标题提取书名
+            val pageTitle = webView?.title
+            if (pageTitle != null && !pageTitle.contains("目录")) {
+                currentBookTitle = pageTitle.replace(Regex("[-_|].*$"), "").trim()
+            }
             // 目录页面：显示目录列表而不是章节内容
             showCatalogList(catalog)
         }
