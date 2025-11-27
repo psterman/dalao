@@ -9,6 +9,7 @@
 
     <!-- 翻页速度 -->
     <LinearLayout
+        android:id="@+id/speedContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"

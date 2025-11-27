@@ -35,6 +35,8 @@ import androidx.core.content.ContextCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -397,23 +399,148 @@ class EnhancedMenuManager(
         // 保存图片
         menuView.findViewById<View>(R.id.action_save_image)?.setOnClickListener {
             try {
+                // 获取当前页面信息用于记录来源（保存到局部变量，确保在回调中可用）
+                val currentUrl = webView.url ?: ""
+                val currentTitle = webView.title ?: ""
+                
+                // 从图片URL提取文件名作为标题
+                val imageTitle = try {
+                    val urlParts = imageUrl.split("/")
+                    urlParts.lastOrNull()?.split("?")?.firstOrNull() ?: "图片"
+                } catch (e: Exception) {
+                    "图片"
+                }
+                
+                Log.d(TAG, "开始保存图片: $imageUrl, 来源: $currentTitle ($currentUrl)")
+                
                 val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
                     override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
-                        Log.d(TAG, "图片下载成功: $fileName")
-                        Toast.makeText(context, "图片保存成功", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "图片下载成功回调: downloadId=$downloadId, fileName=$fileName, localUri=$localUri")
+                        
+                        // 确保在主线程执行UI操作和保存收藏
+                        Handler(Looper.getMainLooper()).post {
+                            try {
+                                // 保存到图片收藏
+                                val collectionManager = UnifiedCollectionManager.getInstance(context)
+                                
+                                // 提取图片格式和大小信息
+                                val imageFormat = try {
+                                    val ext = fileName?.substringAfterLast(".", "")?.uppercase() 
+                                        ?: imageUrl.substringAfterLast(".", "").substringBefore("?").uppercase()
+                                    if (ext in listOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP")) ext else "UNKNOWN"
+                                } catch (e: Exception) {
+                                    "UNKNOWN"
+                                }
+                                
+                                // 构建扩展数据
+                                val extraData = mutableMapOf<String, Any>(
+                                    "imageUrl" to imageUrl,
+                                    "imagePath" to (localUri ?: fileName ?: ""),
+                                    "imageFormat" to imageFormat,
+                                    "originalFileName" to (fileName ?: ""),
+                                    "sourceUrl" to currentUrl,
+                                    "sourceTitle" to currentTitle
+                                )
+                                
+                                // 从文件名或URL提取可能的标签
+                                val autoTags = mutableListOf<String>()
+                                try {
+                                    // 从URL域名提取标签
+                                    val urlObj = URL(imageUrl)
+                                    val domain = urlObj.host?.replace("www.", "")?.split(".")?.firstOrNull()
+                                    if (!domain.isNullOrEmpty() && domain.length > 2) {
+                                        autoTags.add(domain)
+                                    }
+                                    
+                                    // 从文件名提取可能的标签
+                                    fileName?.let { name ->
+                                        val nameWithoutExt = name.substringBeforeLast(".")
+                                        if (nameWithoutExt.length > 2 && nameWithoutExt.length < 20) {
+                                            autoTags.add(nameWithoutExt)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "提取自动标签失败", e)
+                                }
+                                
+                                // 创建图片收藏项
+                                val collectionItem = UnifiedCollectionItem(
+                                    title = imageTitle,
+                                    content = imageUrl, // 完整图片URL作为内容
+                                    preview = "来源: ${if (currentTitle.isNotEmpty()) currentTitle else currentUrl}",
+                                    thumbnail = localUri ?: imageUrl, // 使用本地路径或原始URL作为缩略图
+                                    collectionType = CollectionType.IMAGE_COLLECTION,
+                                    sourceLocation = "搜索Tab",
+                                    sourceDetail = if (currentTitle.isNotEmpty()) currentTitle else currentUrl,
+                                    collectedTime = System.currentTimeMillis(), // 收藏时间
+                                    customTags = autoTags, // 自动提取的标签
+                                    priority = Priority.NORMAL, // 默认优先级
+                                    completionStatus = CompletionStatus.NOT_STARTED, // 完成状态
+                                    likeLevel = 0, // 默认喜欢程度
+                                    emotionTag = EmotionTag.NEUTRAL, // 默认情感标签
+                                    isEncrypted = false, // 加密状态
+                                    reminderTime = null, // 默认无提醒
+                                    extraData = extraData
+                                )
+                                
+                                Log.d(TAG, "准备保存图片收藏: title=${collectionItem.title}, source=${collectionItem.sourceDetail}")
+                                
+                                // 保存到收藏管理器
+                                val success = collectionManager.addCollection(collectionItem)
+                                
+                                if (success) {
+                                    Log.d(TAG, "✅ 图片已保存到收藏: id=${collectionItem.id}, title=${collectionItem.title}")
+                                    Toast.makeText(context, "图片已保存到相册和收藏", Toast.LENGTH_SHORT).show()
+                                    
+                                    // 验证保存是否成功
+                                    val savedItem = collectionManager.getCollectionById(collectionItem.id)
+                                    if (savedItem != null) {
+                                        Log.d(TAG, "✅ 验证：收藏项已成功保存，标题: ${savedItem.title}")
+                                        
+                                        // 发送广播通知收藏更新
+                                        try {
+                                            val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                                                putExtra("collection_type", CollectionType.IMAGE_COLLECTION.name)
+                                                putExtra("action", "add")
+                                                putExtra("collection_id", collectionItem.id)
+                                            }
+                                            context.sendBroadcast(intent)
+                                            Log.d(TAG, "✅ 已发送收藏更新广播")
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "发送收藏更新广播失败", e)
+                                        }
+                                    } else {
+                                        Log.e(TAG, "❌ 验证失败：收藏项未找到")
+                                    }
+                                } else {
+                                    Log.e(TAG, "❌ 保存图片到收藏失败: addCollection返回false")
+                                    Toast.makeText(context, "图片已保存到相册，但收藏失败", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ 保存图片到收藏时出错", e)
+                                e.printStackTrace()
+                                Toast.makeText(context, "图片已保存到相册，但收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                     
                     override fun onDownloadFailed(downloadId: Long, reason: Int) {
-                        Log.e(TAG, "图片下载失败: $reason")
-                        Toast.makeText(context, "图片保存失败", Toast.LENGTH_SHORT).show()
+                        Log.e(TAG, "图片下载失败: downloadId=$downloadId, reason=$reason")
+                        Handler(Looper.getMainLooper()).post {
+                            Toast.makeText(context, "图片保存失败", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 })
                 
                 if (downloadId != -1L) {
                     Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "下载任务已创建: downloadId=$downloadId")
+                } else {
+                    Log.e(TAG, "❌ 无法创建下载任务")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "保存图片失败", e)
+                e.printStackTrace()
                 Toast.makeText(context, "保存图片失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
             hideMenu()
@@ -724,37 +851,19 @@ class EnhancedMenuManager(
             hideMenu()
         }
 
-        // 进入阅读模式
+        // 进入阅读模式（优先使用阅读模式2）
         menuView.findViewById<View>(R.id.action_enter_reader_mode)?.setOnClickListener {
             try {
                 val currentUrl = webView.url
                 
-                // 🔧 优先使用 SimpleModeActivity 的全局阅读模式管理器实例
-                // 这样可以确保监听器不被覆盖，browserSwipeRefresh 能够正确禁用/启用
-                val readerModeManager = try {
-                    // 尝试从 SimpleModeActivity 获取全局实例
-                    com.example.aifloatingball.SimpleModeActivity.getGlobalReaderModeManager()
-                        ?: throw Exception("全局实例不可用")
-                } catch (e: Exception) {
-                    // 如果全局实例不可用，创建新实例（但监听器可能被覆盖）
-                    Log.w(TAG, "无法获取全局阅读模式管理器，创建新实例: ${e.message}")
-                    com.example.aifloatingball.reader.NovelReaderModeManager(context)
-                }
-                
-                // 先尝试正常阅读模式，如果失败会自动切换到无图模式
-                readerModeManager.enterReaderMode(webView, currentUrl, useNoImageMode = false)
+                // 🔧 优先使用阅读模式2（NovelReaderManager + NovelReaderUI）
+                // 阅读模式2支持目录解析、章节跳转等完整功能
+                com.example.aifloatingball.reader.NovelReaderManager.getInstance(context).enterReaderMode(webView)
                 Toast.makeText(context, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "✅ 已进入阅读模式，URL: $currentUrl")
+                Log.d(TAG, "✅ 已进入阅读模式2，URL: $currentUrl")
             } catch (e: Exception) {
-                // 如果NovelReaderModeManager不可用，尝试使用NovelReaderManager
-                try {
-                    Log.w(TAG, "NovelReaderModeManager 失败，尝试使用 NovelReaderManager", e)
-                    com.example.aifloatingball.reader.NovelReaderManager.getInstance(context).enterReaderMode(webView)
-                    Toast.makeText(context, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
-                } catch (e2: Exception) {
-                    Log.e(TAG, "进入阅读模式失败", e2)
-                    Toast.makeText(context, "进入阅读模式失败", Toast.LENGTH_SHORT).show()
-                }
+                Log.e(TAG, "进入阅读模式2失败", e)
+                Toast.makeText(context, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
             hideMenu()
         }

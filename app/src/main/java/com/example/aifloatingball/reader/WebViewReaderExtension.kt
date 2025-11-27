@@ -64,6 +64,18 @@ object WebViewReaderExtension {
             override fun onChapterLoadFailed(error: String) {
                 novelReaderUI?.onChapterLoadFailed(error)
             }
+
+            override fun onCatalogLoaded(catalog: List<NovelReaderManager.CatalogItem>) {
+                novelReaderUI?.onCatalogLoaded(catalog)
+            }
+
+            override fun onCatalogLoadFailed(error: String) {
+                novelReaderUI?.onCatalogLoadFailed(error)
+            }
+
+            override fun onCatalogPageDetected(catalog: List<NovelReaderManager.CatalogItem>) {
+                novelReaderUI?.onCatalogPageDetected(catalog)
+            }
         })
     }
     

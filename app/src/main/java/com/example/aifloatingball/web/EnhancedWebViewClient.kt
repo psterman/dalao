@@ -98,13 +98,17 @@ class EnhancedWebViewClient(
         // 注入viewport meta标签确保移动版显示
         injectViewportMetaTag(view)
         
-        // 检测小说网站并自动进入阅读模式
-        if (view != null && url != null && readerModeManager != null) {
-            if (readerModeManager.isNovelSite(url) && !readerModeManager.isReaderModeActive()) {
-                // 延迟进入阅读模式，确保页面完全加载
-                view.postDelayed({
-                    readerModeManager.enterReaderMode(view, url)
-                }, 1000)
+        // 检测小说网站并自动进入阅读模式2（原生阅读模式）
+        // 不再使用阅读模式1（NovelReaderModeManager），改为使用阅读模式2（NovelReaderManager）
+        if (view != null && url != null) {
+            // 使用阅读模式2的检测和进入逻辑
+            com.example.aifloatingball.reader.NovelReaderManager.getInstance(view.context).detectNovelPage(view, url, view.title) { isNovel ->
+                if (isNovel) {
+                    view.post {
+                        // 自动进入阅读模式2
+                        com.example.aifloatingball.reader.NovelReaderManager.getInstance(view.context).enterReaderMode(view)
+                    }
+                }
             }
         }
         

@@ -749,6 +749,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 🔧 全局阅读模式管理器实例（确保所有地方使用同一个实例，监听器不被覆盖）
     private var globalReaderModeManager: com.example.aifloatingball.reader.NovelReaderModeManager? = null
     
+    // 🔧 阅读模式2（原生阅读模式）UI实例
+    private var novelReaderUI2: com.example.aifloatingball.reader.NovelReaderUI? = null
+    private var isReaderMode2Initialized = false
+    private var isToolbarControllerCalling = false // 防止工具栏控制器递归调用
+    private var isPullDownToolbarDetectionEnabled = true // 下拉工具栏检测是否启用
+    
     // 目录页阅读模式按钮（自动弹出）
     private var catalogReaderModeButton: MaterialButton? = null
     private var catalogReaderModeButtonContainer: FrameLayout? = null
@@ -5829,6 +5835,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     override fun onBackPressed() {
+        // 如果处于阅读模式2，先退出阅读模式2
+        val readerManager2 = com.example.aifloatingball.reader.NovelReaderManager.getInstance(this)
+        if (readerManager2.isReaderModeActive) {
+            novelReaderUI2?.exitReaderMode2()
+            return
+        }
         // 如果分支视图可见，则优先处理它的返回逻辑
         if (promptBranchManager.isBranchViewVisible) {
             if (promptBranchManager.canNavigateBack()) {
@@ -7379,6 +7391,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 updatePageCountDisplay()
             }
             
+            // 🔧 通知阅读模式2页面加载完成（如果处于阅读模式2）
+            if (url != null && url.isNotEmpty()) {
+                try {
+                    val readerManager2 = com.example.aifloatingball.reader.NovelReaderManager.getInstance(this@SimpleModeActivity)
+                    if (readerManager2.isReaderModeActive) {
+                        readerManager2.onPageFinished(url)
+                        Log.d(TAG, "✅ 已通知阅读模式2页面加载完成: $url")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "通知阅读模式2页面加载完成失败", e)
+                }
+            }
+            
             // 🆕 检测目录页并自动弹出阅读模式按钮
             if (url != null && url.isNotEmpty() && !url.startsWith("home://")) {
                 // 只在非功能主页时检测
@@ -7818,6 +7843,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 使用自定义的触摸监听器，检测下拉手势并显示工具栏
         browserSwipeRefresh.setOnTouchListener { view, event ->
+            // 🔧 如果处于阅读模式2，禁用下拉工具栏检测
+            val readerManager2 = com.example.aifloatingball.reader.NovelReaderManager.getInstance(this)
+            if (readerManager2.isReaderModeActive) {
+                return@setOnTouchListener false // 不拦截触摸事件，让ScrollView处理
+            }
+            
+            // 🔧 如果下拉工具栏检测被禁用，不处理
+            if (!isPullDownToolbarDetectionEnabled) {
+                return@setOnTouchListener false
+            }
+            
             when (event.action) {
                 android.view.MotionEvent.ACTION_DOWN -> {
                     startY = event.y
@@ -15341,6 +15377,113 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
+     * 初始化阅读模式2（如果需要）
+     * 确保阅读模式2的UI已创建并绑定到WebView容器
+     */
+    private fun initReaderMode2IfNeeded() {
+        if (!isReaderMode2Initialized) {
+            try {
+                // 使用 browserWebViewContainer 作为容器
+                novelReaderUI2 = com.example.aifloatingball.reader.NovelReaderUI(this, browserWebViewContainer)
+                novelReaderUI2?.hide() // 默认隐藏
+                
+                // 🔧 禁用下拉工具栏检测（阅读模式2激活时）
+                isPullDownToolbarDetectionEnabled = false
+                // 禁用SwipeRefreshLayout
+                if (::browserSwipeRefresh.isInitialized) {
+                    browserSwipeRefresh.isEnabled = false
+                }
+                
+                // 设置工具栏控制器，让阅读模式2可以控制SimpleModeActivity的工具栏
+                novelReaderUI2?.setToolbarController(object : com.example.aifloatingball.reader.ReaderMode2ToolbarController {
+                    override fun showToolbar() {
+                        // 防止递归调用
+                        if (isToolbarControllerCalling) return
+                        isToolbarControllerCalling = true
+                        try {
+                            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                                // 已经在主线程，直接调用
+                                if (!isToolbarVisible) {
+                                    showToolbar()
+                                }
+                            } else {
+                                // 不在主线程，使用 runOnUiThread
+                                runOnUiThread {
+                                    if (!isToolbarVisible) {
+                                        showToolbar()
+                                    }
+                                }
+                            }
+                        } finally {
+                            // 延迟重置标志，避免立即再次调用
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                isToolbarControllerCalling = false
+                            }, 100)
+                        }
+                    }
+                    
+                    override fun hideToolbar() {
+                        // 防止递归调用
+                        if (isToolbarControllerCalling) return
+                        isToolbarControllerCalling = true
+                        try {
+                            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                                // 已经在主线程，直接调用
+                                if (isToolbarVisible) {
+                                    hideToolbarOnly()
+                                }
+                            } else {
+                                // 不在主线程，使用 runOnUiThread
+                                runOnUiThread {
+                                    if (isToolbarVisible) {
+                                        hideToolbarOnly()
+                                    }
+                                }
+                            }
+                        } finally {
+                            // 延迟重置标志，避免立即再次调用
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                isToolbarControllerCalling = false
+                            }, 100)
+                        }
+                    }
+                    
+                    override fun exitReaderMode2() {
+                        // 退出时不需要防止递归，因为这是最终操作
+                        // 重新启用下拉工具栏检测
+                        isPullDownToolbarDetectionEnabled = true
+                        // 重新启用SwipeRefreshLayout
+                        if (::browserSwipeRefresh.isInitialized) {
+                            browserSwipeRefresh.isEnabled = true
+                        }
+                        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                            // 已经在主线程，直接调用
+                            if (!isToolbarVisible) {
+                                showToolbar()
+                            }
+                        } else {
+                            // 不在主线程，使用 runOnUiThread
+                            runOnUiThread {
+                                if (!isToolbarVisible) {
+                                    showToolbar()
+                                }
+                            }
+                        }
+                    }
+                })
+                
+                // NovelReaderUI 在初始化时会自动设置监听器（通过 manager.setListener(this)）
+                // 所以这里不需要再设置监听器
+                
+                isReaderMode2Initialized = true
+                Log.d(TAG, "✅ 阅读模式2已初始化")
+            } catch (e: Exception) {
+                Log.e(TAG, "初始化阅读模式2失败", e)
+            }
+        }
+    }
+    
+    /**
      * 显示目录页阅读模式按钮（自动弹出）
      * 参考Alook浏览器的实现，在检测到目录页时自动显示
      */
@@ -15395,14 +15538,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     (12 * resources.displayMetrics.density).toInt()
                 )
                 
-                // 点击进入阅读模式
+                // 点击进入阅读模式（使用阅读模式2）
                 setOnClickListener {
-                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式: $url")
-                    globalReaderModeManager?.let { readerManager ->
-                        readerManager.enterReaderMode(webView, url, useNoImageMode = false)
+                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式2: $url")
+                    try {
+                        // 使用阅读模式2（NovelReaderManager + NovelReaderUI）
+                        // 确保阅读模式2已初始化
+                        initReaderMode2IfNeeded()
+                        // 设置WebView引用（用于无图模式等功能）
+                        novelReaderUI2?.setWebView(webView)
+                        // 进入阅读模式2
+                        com.example.aifloatingball.reader.NovelReaderManager.getInstance(this@SimpleModeActivity).enterReaderMode(webView)
                         Toast.makeText(this@SimpleModeActivity, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
                         // 进入阅读模式后隐藏按钮
                         hideReaderModeButtonForCatalog()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "进入阅读模式2失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
                 
@@ -15471,11 +15623,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 )
                 
                 setOnClickListener {
-                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式: $url")
-                    globalReaderModeManager?.let { readerManager ->
-                        readerManager.enterReaderMode(webView, url, useNoImageMode = false)
+                    Log.d(TAG, "目录页阅读模式按钮被点击，进入阅读模式2: $url")
+                    try {
+                        // 使用阅读模式2（NovelReaderManager + NovelReaderUI）
+                        // 确保阅读模式2已初始化
+                        initReaderMode2IfNeeded()
+                        // 设置WebView引用（用于无图模式等功能）
+                        novelReaderUI2?.setWebView(webView)
+                        // 进入阅读模式2
+                        com.example.aifloatingball.reader.NovelReaderManager.getInstance(this@SimpleModeActivity).enterReaderMode(webView)
                         Toast.makeText(this@SimpleModeActivity, "正在进入阅读模式...", Toast.LENGTH_SHORT).show()
                         hideReaderModeButtonForCatalog()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "进入阅读模式2失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "进入阅读模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
                 

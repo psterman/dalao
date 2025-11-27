@@ -290,3 +290,6 @@ class SearchCollectionPanel : DialogFragment() {
 }
 
 
+
+
+

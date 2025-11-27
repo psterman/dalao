@@ -397,9 +397,38 @@ class UnifiedCollectionManager private constructor(private val context: Context)
             val json = gson.toJson(collections)
             prefs.edit().putString(KEY_COLLECTIONS, json).apply()
             Log.d(TAG, "保存收藏项成功: ${collections.size} 条")
+            
+            // 验证保存是否成功
+            val savedJson = prefs.getString(KEY_COLLECTIONS, "[]")
+            val savedCount = if (savedJson != null && savedJson.isNotEmpty()) {
+                try {
+                    val type = object : TypeToken<List<UnifiedCollectionItem>>() {}.type
+                    val saved = gson.fromJson<List<UnifiedCollectionItem>>(savedJson, type) ?: emptyList()
+                    saved.size
+                } catch (e: Exception) {
+                    Log.e(TAG, "验证保存数据失败", e)
+                    0
+                }
+            } else {
+                0
+            }
+            
+            if (savedCount == collections.size) {
+                Log.d(TAG, "✅ 验证通过：保存的收藏项数量正确 ($savedCount)")
+            } else {
+                Log.w(TAG, "⚠️ 验证警告：保存的收藏项数量不匹配 (期望: ${collections.size}, 实际: $savedCount)")
+            }
+            
+            // 统计各类型收藏数量
+            val typeCounts = collections.groupingBy { it.collectionType }.eachCount()
+            typeCounts.forEach { (type, count) ->
+                Log.d(TAG, "  - ${type.displayName}: $count 条")
+            }
+            
             true
         } catch (e: Exception) {
             Log.e(TAG, "保存收藏项失败", e)
+            e.printStackTrace()
             false
         }
     }

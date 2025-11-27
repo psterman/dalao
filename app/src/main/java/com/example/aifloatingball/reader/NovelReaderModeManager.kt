@@ -1604,7 +1604,12 @@ class NovelReaderModeManager(private val context: Context) {
                     var scrollTimer = null;
                     var isLoadingNext = false; // 防止重复加载
                     var headerVisible = true; // 顶部header是否可见
-                    var scrollThreshold = 30; // 滚动阈值，超过此值才触发显示/隐藏
+                    var scrollThreshold = 15; // 滚动阈值，降低以提高响应速度
+                    
+                    // 节流相关变量，优化性能
+                    var lastScrollTime = 0;
+                    var scrollThrottleDelay = 16; // 约60fps，16ms
+                    var pendingScrollUpdate = false;
                     
                     function updateHeaderVisibility(show) {
                         var header = document.querySelector('.reader-header');
@@ -1615,14 +1620,12 @@ class NovelReaderModeManager(private val context: Context) {
                                 header.style.transform = 'translateY(0)';
                                 header.style.opacity = '1';
                                 headerVisible = true;
-                                console.log('显示header');
                             } else if (!show && headerVisible) {
                                 // 隐藏header
                                 header.classList.add('hidden');
                                 header.style.transform = 'translateY(-100%)';
                                 header.style.opacity = '0';
                                 headerVisible = false;
-                                console.log('隐藏header');
                             }
                         }
                     }
@@ -1630,16 +1633,32 @@ class NovelReaderModeManager(private val context: Context) {
                     // 初始化header样式
                     var header = document.querySelector('.reader-header');
                     if (header) {
-                        header.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                        header.style.transition = 'transform 0.18s ease, opacity 0.18s ease';
                         header.style.transform = 'translateY(0)';
                         header.style.opacity = '1';
                         header.classList.remove('hidden');
                     }
                     
-                    // 使用多种方式监听滚动，确保在WebView中也能正常工作
+                    // 优化的滚动处理函数，添加节流机制
                     var scrollHandler = function() {
+                        var currentTime = performance.now();
+                        
+                        // 节流：限制调用频率
+                        if (currentTime - lastScrollTime < scrollThrottleDelay) {
+                            pendingScrollUpdate = true;
+                            return;
+                        }
+                        
+                        lastScrollTime = currentTime;
+                        pendingScrollUpdate = false;
+                        
                         var scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
                         var scrollDelta = scrollTop - lastScrollTop;
+                        
+                        // 如果滚动距离太小，跳过处理
+                        if (Math.abs(scrollDelta) < 1) {
+                            return;
+                        }
                         
                         var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
                         var clientHeight = document.documentElement.clientHeight || window.innerHeight;
@@ -1669,7 +1688,7 @@ class NovelReaderModeManager(private val context: Context) {
                         
                         lastScrollTop = scrollTop;
                         
-                        // 通知Android端滚动状态变化
+                        // 通知Android端滚动状态变化（节流处理）
                         if (window.ReaderMode && typeof ReaderMode.onScroll === 'function') {
                             try {
                                 var scrollData = {
@@ -1706,21 +1725,39 @@ class NovelReaderModeManager(private val context: Context) {
                         }, 500);
                     };
                     
-                    // 添加多种滚动监听方式
-                    window.addEventListener('scroll', scrollHandler, { passive: true });
-                    document.addEventListener('scroll', scrollHandler, { passive: true });
-                    
-                    // 使用requestAnimationFrame持续监听滚动
+                    // 使用requestAnimationFrame优化滚动监听，替代多种监听方式
                     var lastRAFScrollTop = 0;
+                    var rafActive = true;
+                    
                     function rafScrollCheck() {
+                        if (!rafActive) return;
+                        
                         var currentScrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-                        if (currentScrollTop !== lastRAFScrollTop) {
+                        
+                        // 只有当滚动位置真正改变时才处理
+                        if (Math.abs(currentScrollTop - lastRAFScrollTop) > 0.5) {
                             lastRAFScrollTop = currentScrollTop;
                             scrollHandler();
+                            
+                            // 如果有待处理的滚动更新，立即处理
+                            if (pendingScrollUpdate) {
+                                scrollHandler();
+                            }
                         }
+                        
                         requestAnimationFrame(rafScrollCheck);
                     }
+                    
+                    // 启动RAF滚动监听
                     requestAnimationFrame(rafScrollCheck);
+                    
+                    // 作为备用，添加scroll事件监听（但使用节流）
+                    var throttledScrollHandler = function() {
+                        if (pendingScrollUpdate) {
+                            scrollHandler();
+                        }
+                    };
+                    window.addEventListener('scroll', throttledScrollHandler, { passive: true });
                     
                     // 监听页面可见性变化，确保在页面重新可见时重置加载标志
                     document.addEventListener('visibilitychange', function() {

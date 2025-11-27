@@ -1,9 +1,12 @@
 package com.example.aifloatingball.fragment
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -75,6 +78,13 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     private var currentSortDimension: SortDimension? = null
     private var currentSortDirection: SortDirection = SortDirection.DESC
     
+    // 广播接收器
+    private var collectionUpdateReceiver: BroadcastReceiver? = null
+    
+    companion object {
+        private const val TAG = "TaskFragmentTwoColumn"
+    }
+    
     override fun getLayoutResId(): Int = R.layout.ai_assistant_task_two_column_fragment
     
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -88,10 +98,77 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         setupPromptRecyclerView()
         setupCollectionRecyclerView()
         setupButtons()
+        setupCollectionUpdateReceiver()
         
         // 默认选中第一个场景
         val firstItem = scenarioItems.firstOrNull()
         firstItem?.let { selectScenario(it) }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // 如果当前显示的是收藏类型，刷新列表
+        currentCollectionType?.let { type ->
+            Log.d(TAG, "onResume: 刷新收藏类型 $type")
+            loadCollectionsForType(type)
+        }
+    }
+    
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // 注销广播接收器
+        collectionUpdateReceiver?.let {
+            try {
+                requireContext().unregisterReceiver(it)
+            } catch (e: Exception) {
+                Log.e(TAG, "注销广播接收器失败", e)
+            }
+        }
+        collectionUpdateReceiver = null
+    }
+    
+    /**
+     * 设置收藏更新广播接收器
+     */
+    private fun setupCollectionUpdateReceiver() {
+        collectionUpdateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "com.example.aifloatingball.COLLECTION_UPDATED") {
+                    val collectionTypeName = intent.getStringExtra("collection_type")
+                    val action = intent.getStringExtra("action")
+                    val collectionId = intent.getStringExtra("collection_id")
+                    
+                    Log.d(TAG, "收到收藏更新广播: type=$collectionTypeName, action=$action, id=$collectionId")
+                    
+                    // 如果当前显示的是该类型的收藏，刷新列表
+                    currentCollectionType?.let { currentType ->
+                        try {
+                            if (!collectionTypeName.isNullOrEmpty()) {
+                                val updatedType = CollectionType.valueOf(collectionTypeName)
+                                if (updatedType == currentType) {
+                                    Log.d(TAG, "刷新当前收藏列表: $currentType")
+                                    loadCollectionsForType(currentType)
+                                } else {
+                                    // 类型不匹配，不需要刷新
+                                }
+                            } else {
+                                // collectionTypeName为空，跳过
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "解析收藏类型失败: $collectionTypeName", e)
+                        }
+                    }
+                }
+            }
+        }
+        
+        try {
+            val filter = IntentFilter("com.example.aifloatingball.COLLECTION_UPDATED")
+            requireContext().registerReceiver(collectionUpdateReceiver, filter)
+            Log.d(TAG, "收藏更新广播接收器已注册")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册收藏更新广播接收器失败", e)
+        }
     }
     
     private fun setupViews(view: View) {
