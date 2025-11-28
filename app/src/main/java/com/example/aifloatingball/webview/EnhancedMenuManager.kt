@@ -7,9 +7,11 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.appcompat.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -413,131 +415,70 @@ class EnhancedMenuManager(
                 
                 Log.d(TAG, "开始保存图片: $imageUrl, 来源: $currentTitle ($currentUrl)")
                 
-                val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
-                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
-                        Log.d(TAG, "图片下载成功回调: downloadId=$downloadId, fileName=$fileName, localUri=$localUri")
-                        
-                        // 确保在主线程执行UI操作和保存收藏
-                        Handler(Looper.getMainLooper()).post {
-                            try {
-                                // 保存到图片收藏
-                                val collectionManager = UnifiedCollectionManager.getInstance(context)
-                                
-                                // 提取图片格式和大小信息
-                                val imageFormat = try {
-                                    val ext = fileName?.substringAfterLast(".", "")?.uppercase() 
-                                        ?: imageUrl.substringAfterLast(".", "").substringBefore("?").uppercase()
-                                    if (ext in listOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP")) ext else "UNKNOWN"
-                                } catch (e: Exception) {
-                                    "UNKNOWN"
-                                }
-                                
-                                // 构建扩展数据
-                                val extraData = mutableMapOf<String, Any>(
-                                    "imageUrl" to imageUrl,
-                                    "imagePath" to (localUri ?: fileName ?: ""),
-                                    "imageFormat" to imageFormat,
-                                    "originalFileName" to (fileName ?: ""),
-                                    "sourceUrl" to currentUrl,
-                                    "sourceTitle" to currentTitle
+                // 显示保存位置选择对话框
+                val saveOptions = arrayOf(
+                    "保存到下载文件夹",
+                    "保存到相册",
+                    "同时保存到下载文件夹和相册",
+                    "图片收藏（仅保存到AI助手tab）"
+                )
+                AlertDialog.Builder(context)
+                    .setTitle("选择保存位置")
+                    .setItems(saveOptions) { _, which ->
+                        when (which) {
+                            0 -> {
+                                // 只保存到下载文件夹
+                                saveImageToDirectories(
+                                    imageUrl,
+                                    listOf(Environment.DIRECTORY_DOWNLOADS),
+                                    currentUrl,
+                                    currentTitle,
+                                    imageTitle
                                 )
-                                
-                                // 从文件名或URL提取可能的标签
-                                val autoTags = mutableListOf<String>()
-                                try {
-                                    // 从URL域名提取标签
-                                    val urlObj = URL(imageUrl)
-                                    val domain = urlObj.host?.replace("www.", "")?.split(".")?.firstOrNull()
-                                    if (!domain.isNullOrEmpty() && domain.length > 2) {
-                                        autoTags.add(domain)
-                                    }
-                                    
-                                    // 从文件名提取可能的标签
-                                    fileName?.let { name ->
-                                        val nameWithoutExt = name.substringBeforeLast(".")
-                                        if (nameWithoutExt.length > 2 && nameWithoutExt.length < 20) {
-                                            autoTags.add(nameWithoutExt)
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.w(TAG, "提取自动标签失败", e)
-                                }
-                                
-                                // 创建图片收藏项
-                                val collectionItem = UnifiedCollectionItem(
-                                    title = imageTitle,
-                                    content = imageUrl, // 完整图片URL作为内容
-                                    preview = "来源: ${if (currentTitle.isNotEmpty()) currentTitle else currentUrl}",
-                                    thumbnail = localUri ?: imageUrl, // 使用本地路径或原始URL作为缩略图
-                                    collectionType = CollectionType.IMAGE_COLLECTION,
-                                    sourceLocation = "搜索Tab",
-                                    sourceDetail = if (currentTitle.isNotEmpty()) currentTitle else currentUrl,
-                                    collectedTime = System.currentTimeMillis(), // 收藏时间
-                                    customTags = autoTags, // 自动提取的标签
-                                    priority = Priority.NORMAL, // 默认优先级
-                                    completionStatus = CompletionStatus.NOT_STARTED, // 完成状态
-                                    likeLevel = 0, // 默认喜欢程度
-                                    emotionTag = EmotionTag.NEUTRAL, // 默认情感标签
-                                    isEncrypted = false, // 加密状态
-                                    reminderTime = null, // 默认无提醒
-                                    extraData = extraData
+                            }
+                            1 -> {
+                                // 只保存到相册
+                                saveImageToDirectories(
+                                    imageUrl,
+                                    listOf(Environment.DIRECTORY_PICTURES),
+                                    currentUrl,
+                                    currentTitle,
+                                    imageTitle
                                 )
-                                
-                                Log.d(TAG, "准备保存图片收藏: title=${collectionItem.title}, source=${collectionItem.sourceDetail}")
-                                
-                                // 保存到收藏管理器
-                                val success = collectionManager.addCollection(collectionItem)
-                                
-                                if (success) {
-                                    Log.d(TAG, "✅ 图片已保存到收藏: id=${collectionItem.id}, title=${collectionItem.title}")
-                                    Toast.makeText(context, "图片已保存到相册和收藏", Toast.LENGTH_SHORT).show()
-                                    
-                                    // 验证保存是否成功
-                                    val savedItem = collectionManager.getCollectionById(collectionItem.id)
-                                    if (savedItem != null) {
-                                        Log.d(TAG, "✅ 验证：收藏项已成功保存，标题: ${savedItem.title}")
-                                        
-                                        // 发送广播通知收藏更新
-                                        try {
-                                            val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
-                                                putExtra("collection_type", CollectionType.IMAGE_COLLECTION.name)
-                                                putExtra("action", "add")
-                                                putExtra("collection_id", collectionItem.id)
-                                            }
-                                            context.sendBroadcast(intent)
-                                            Log.d(TAG, "✅ 已发送收藏更新广播")
-                                        } catch (e: Exception) {
-                                            Log.e(TAG, "发送收藏更新广播失败", e)
-                                        }
-                                    } else {
-                                        Log.e(TAG, "❌ 验证失败：收藏项未找到")
-                                    }
-                                } else {
-                                    Log.e(TAG, "❌ 保存图片到收藏失败: addCollection返回false")
-                                    Toast.makeText(context, "图片已保存到相册，但收藏失败", Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "❌ 保存图片到收藏时出错", e)
-                                e.printStackTrace()
-                                Toast.makeText(context, "图片已保存到相册，但收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                            2 -> {
+                                // 同时保存到下载文件夹和相册
+                                saveImageToDirectories(
+                                    imageUrl,
+                                    listOf(Environment.DIRECTORY_DOWNLOADS, Environment.DIRECTORY_PICTURES),
+                                    currentUrl,
+                                    currentTitle,
+                                    imageTitle
+                                )
+                            }
+                            3 -> {
+                                // 只保存到图片收藏（不下载文件）
+                                saveImageToCollectionOnly(
+                                    imageUrl,
+                                    imageTitle,
+                                    currentUrl,
+                                    currentTitle
+                                )
+                            }
+                            else -> {
+                                // 默认保存到相册
+                                saveImageToDirectories(
+                                    imageUrl,
+                                    listOf(Environment.DIRECTORY_PICTURES),
+                                    currentUrl,
+                                    currentTitle,
+                                    imageTitle
+                                )
                             }
                         }
                     }
-                    
-                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
-                        Log.e(TAG, "图片下载失败: downloadId=$downloadId, reason=$reason")
-                        Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(context, "图片保存失败", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                })
-                
-                if (downloadId != -1L) {
-                    Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "下载任务已创建: downloadId=$downloadId")
-                } else {
-                    Log.e(TAG, "❌ 无法创建下载任务")
-                }
+                    .setNegativeButton("取消", null)
+                    .show()
             } catch (e: Exception) {
                 Log.e(TAG, "保存图片失败", e)
                 e.printStackTrace()
@@ -1647,6 +1588,363 @@ class EnhancedMenuManager(
         context.startActivity(chooser)
         
         Log.d(TAG, "分享内容: $title - $url")
+    }
+    
+    /**
+     * 保存图片到指定目录（支持多个目录），并同时保存到图片收藏
+     * @param imageUrl 图片URL
+     * @param destinationDirs 目标目录列表
+     * @param currentUrl 当前页面URL
+     * @param currentTitle 当前页面标题
+     * @param imageTitle 图片标题
+     */
+    private fun saveImageToDirectories(
+        imageUrl: String,
+        destinationDirs: List<String>,
+        currentUrl: String,
+        currentTitle: String,
+        imageTitle: String
+    ) {
+        if (destinationDirs.isEmpty()) {
+            Log.e(TAG, "目标目录列表为空")
+            // 即使没有目标目录，也保存到收藏（仅保存图片链接）
+            Handler(Looper.getMainLooper()).post {
+                saveImageToCollection(
+                    imageUrl,
+                    imageTitle,
+                    currentUrl,
+                    currentTitle,
+                    emptyList()
+                )
+            }
+            return
+        }
+        
+        Log.d(TAG, "开始保存图片到${destinationDirs.size}个位置: $imageUrl")
+        
+        // 用于跟踪所有下载任务
+        val downloadResults = mutableListOf<Pair<String, String?>>() // Pair<目录名, 本地路径>
+        var completedCount = 0
+        val totalCount = destinationDirs.size
+        var hasSuccess = false // 标记是否有成功的下载
+        
+        // 为每个目录创建下载任务
+        destinationDirs.forEach { destinationDir ->
+            val downloadId = enhancedDownloadManager.downloadImageToDirectory(
+                imageUrl,
+                destinationDir,
+                object : EnhancedDownloadManager.DownloadCallback {
+                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                        val dirName = when (destinationDir) {
+                            Environment.DIRECTORY_PICTURES -> "相册"
+                            Environment.DIRECTORY_DOWNLOADS -> "下载文件夹"
+                            else -> "指定位置"
+                        }
+                        
+                        Log.d(TAG, "图片下载成功: $dirName, localUri=$localUri, fileName=$fileName")
+                        
+                        synchronized(downloadResults) {
+                            downloadResults.add(Pair(dirName, localUri ?: fileName))
+                            hasSuccess = true
+                            completedCount++
+                            
+                            Log.d(TAG, "下载进度: $completedCount/$totalCount, 成功: $hasSuccess")
+                            
+                            // 所有下载完成后，保存到收藏
+                            if (completedCount == totalCount) {
+                                Handler(Looper.getMainLooper()).post {
+                                    Log.d(TAG, "所有下载任务完成，开始保存到收藏")
+                                    saveImageToCollection(
+                                        imageUrl,
+                                        imageTitle,
+                                        currentUrl,
+                                        currentTitle,
+                                        downloadResults
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                        Log.e(TAG, "图片下载失败: destinationDir=$destinationDir, reason=$reason")
+                        synchronized(downloadResults) {
+                            completedCount++
+                            
+                            Log.d(TAG, "下载进度: $completedCount/$totalCount, 成功: $hasSuccess")
+                            
+                            // 所有下载完成后，保存到收藏（即使全部失败，也保存图片链接）
+                            if (completedCount == totalCount) {
+                                Handler(Looper.getMainLooper()).post {
+                                    Log.d(TAG, "所有下载任务完成（部分或全部失败），开始保存到收藏")
+                                    saveImageToCollection(
+                                        imageUrl,
+                                        imageTitle,
+                                        currentUrl,
+                                        currentTitle,
+                                        downloadResults
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+            
+            if (downloadId == -1L) {
+                Log.e(TAG, "无法创建下载任务: destinationDir=$destinationDir")
+                synchronized(downloadResults) {
+                    completedCount++
+                    if (completedCount == totalCount) {
+                        Handler(Looper.getMainLooper()).post {
+                            Log.d(TAG, "所有下载任务完成（部分创建失败），开始保存到收藏")
+                            // 即使创建失败，也保存到收藏（至少保存图片链接）
+                            saveImageToCollection(
+                                imageUrl,
+                                imageTitle,
+                                currentUrl,
+                                currentTitle,
+                                downloadResults
+                            )
+                        }
+                    }
+                }
+            } else {
+                Log.d(TAG, "下载任务已创建: downloadId=$downloadId, destinationDir=$destinationDir")
+            }
+        }
+    }
+    
+    /**
+     * 仅保存图片到收藏（不下载文件）
+     * @param imageUrl 图片URL
+     * @param imageTitle 图片标题
+     * @param currentUrl 当前页面URL
+     * @param currentTitle 当前页面标题
+     */
+    private fun saveImageToCollectionOnly(
+        imageUrl: String,
+        imageTitle: String,
+        currentUrl: String,
+        currentTitle: String
+    ) {
+        Log.d(TAG, "仅保存图片到收藏（不下载文件）: $imageUrl")
+        Toast.makeText(context, "正在保存到图片收藏...", Toast.LENGTH_SHORT).show()
+        
+        // 直接调用保存到收藏的方法，传入空的下载结果列表
+        saveImageToCollection(
+            imageUrl,
+            imageTitle,
+            currentUrl,
+            currentTitle,
+            emptyList() // 空的下载结果，表示只保存链接
+        )
+    }
+    
+    /**
+     * 保存图片到收藏
+     * @param imageUrl 图片URL
+     * @param imageTitle 图片标题
+     * @param currentUrl 当前页面URL
+     * @param currentTitle 当前页面标题
+     * @param downloadResults 下载结果列表（目录名和本地路径）
+     */
+    private fun saveImageToCollection(
+        imageUrl: String,
+        imageTitle: String,
+        currentUrl: String,
+        currentTitle: String,
+        downloadResults: List<Pair<String, String?>>
+    ) {
+        try {
+            Log.d(TAG, "开始保存图片到收藏: imageUrl=$imageUrl, imageTitle=$imageTitle")
+            Log.d(TAG, "下载结果数量: ${downloadResults.size}")
+            
+            val collectionManager = UnifiedCollectionManager.getInstance(context)
+            
+            // 使用第一个成功的下载路径作为主要路径
+            val primaryPath = downloadResults.firstOrNull()?.second
+            Log.d(TAG, "主要路径: $primaryPath")
+            
+            // 优化图片标题：如果标题太短或不够描述性，使用更详细的标题
+            val optimizedTitle = if (imageTitle.length < 5 || imageTitle == "图片") {
+                // 尝试从URL或页面标题生成更好的标题
+                val betterTitle = try {
+                    val urlFileName = imageUrl.substringAfterLast("/").substringBefore("?")
+                    if (urlFileName.isNotEmpty() && urlFileName.length > 3 && urlFileName.contains(".")) {
+                        urlFileName.substringBeforeLast(".")
+                    } else if (currentTitle.isNotEmpty() && currentTitle.length > 3) {
+                        "${currentTitle.take(20)}的图片"
+                    } else {
+                        "图片_${System.currentTimeMillis().toString().takeLast(6)}"
+                    }
+                } catch (e: Exception) {
+                    "图片_${System.currentTimeMillis().toString().takeLast(6)}"
+                }
+                betterTitle
+            } else {
+                imageTitle
+            }
+            
+            Log.d(TAG, "优化后的标题: $optimizedTitle")
+            
+            // 提取图片格式
+            val imageFormat = try {
+                val ext = imageUrl.substringAfterLast(".", "").substringBefore("?").uppercase()
+                if (ext in listOf("JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP")) ext else "UNKNOWN"
+            } catch (e: Exception) {
+                "UNKNOWN"
+            }
+            
+            // 构建保存位置信息
+            val saveLocations = if (downloadResults.isNotEmpty()) {
+                downloadResults.joinToString("、") { it.first }
+            } else {
+                "仅收藏链接"
+            }
+            
+            Log.d(TAG, "保存位置: $saveLocations")
+            
+            // 构建扩展数据
+            val extraData = mutableMapOf<String, Any>(
+                "imageUrl" to imageUrl,
+                "imagePath" to (primaryPath ?: ""),
+                "imageFormat" to imageFormat,
+                "sourceUrl" to currentUrl,
+                "sourceTitle" to currentTitle,
+                "saveLocations" to saveLocations,
+                "downloadResults" to downloadResults.map { mapOf("dir" to it.first, "path" to (it.second ?: "")) }
+            )
+            
+            // 从文件名或URL提取可能的标签
+            val autoTags = mutableListOf<String>()
+            try {
+                // 从URL域名提取标签
+                val urlObj = URL(imageUrl)
+                val domain = urlObj.host?.replace("www.", "")?.split(".")?.firstOrNull()
+                if (!domain.isNullOrEmpty() && domain.length > 2) {
+                    autoTags.add(domain)
+                }
+                
+                // 从文件名提取可能的标签
+                val fileName = imageUrl.substringAfterLast("/").substringBefore("?")
+                if (fileName.isNotEmpty() && fileName.length > 2 && fileName.length < 20) {
+                    val nameWithoutExt = fileName.substringBeforeLast(".")
+                    if (nameWithoutExt.isNotEmpty()) {
+                        autoTags.add(nameWithoutExt)
+                    }
+                }
+                
+                // 添加保存位置标签
+                if (downloadResults.any { it.first == "下载文件夹" }) {
+                    autoTags.add("下载文件夹")
+                }
+                if (downloadResults.any { it.first == "相册" }) {
+                    autoTags.add("相册")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "提取自动标签失败", e)
+            }
+            
+            // 构建预览文本，包含保存位置信息
+            val previewText = buildString {
+                if (currentTitle.isNotEmpty()) {
+                    append("来源: $currentTitle")
+                } else if (currentUrl.isNotEmpty()) {
+                    append("来源: $currentUrl")
+                }
+                if (saveLocations.isNotEmpty() && saveLocations != "仅收藏链接") {
+                    append("\n保存位置: $saveLocations")
+                }
+                if (imageFormat != "UNKNOWN") {
+                    append("\n格式: $imageFormat")
+                }
+            }
+            
+            // 创建图片收藏项
+            val collectionItem = UnifiedCollectionItem(
+                title = optimizedTitle,
+                content = imageUrl, // 完整图片URL作为内容
+                preview = previewText,
+                thumbnail = primaryPath ?: imageUrl, // 使用本地路径或原始URL作为缩略图
+                collectionType = CollectionType.IMAGE_COLLECTION,
+                sourceLocation = "搜索Tab",
+                sourceDetail = if (currentTitle.isNotEmpty()) currentTitle else currentUrl,
+                collectedTime = System.currentTimeMillis(), // 收藏时间
+                customTags = autoTags.distinct(), // 自动提取的标签（去重）
+                priority = Priority.NORMAL, // 默认优先级
+                completionStatus = CompletionStatus.NOT_STARTED, // 完成状态
+                likeLevel = 0, // 默认喜欢程度
+                emotionTag = EmotionTag.NEUTRAL, // 默认情感标签
+                isEncrypted = false, // 加密状态
+                reminderTime = null, // 默认无提醒
+                extraData = extraData
+            )
+            
+            Log.d(TAG, "准备保存图片收藏:")
+            Log.d(TAG, "  - ID: ${collectionItem.id}")
+            Log.d(TAG, "  - 标题: ${collectionItem.title}")
+            Log.d(TAG, "  - 来源: ${collectionItem.sourceDetail}")
+            Log.d(TAG, "  - 保存位置: $saveLocations")
+            Log.d(TAG, "  - 标签: ${collectionItem.customTags}")
+            Log.d(TAG, "  - 图片URL: $imageUrl")
+            
+            // 保存到收藏管理器
+            val success = collectionManager.addCollection(collectionItem)
+            
+            if (success) {
+                Log.d(TAG, "✅ 图片已保存到收藏: id=${collectionItem.id}, title=${collectionItem.title}")
+                
+                // 立即验证保存是否成功
+                val savedItem = collectionManager.getCollectionById(collectionItem.id)
+                if (savedItem != null) {
+                    Log.d(TAG, "✅ 验证成功：收藏项已保存")
+                    Log.d(TAG, "  - 保存的标题: ${savedItem.title}")
+                    Log.d(TAG, "  - 保存的类型: ${savedItem.collectionType}")
+                    
+                    // 发送广播通知收藏更新
+                    try {
+                        val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                            putExtra("collection_type", CollectionType.IMAGE_COLLECTION.name)
+                            putExtra("action", "add")
+                            putExtra("collection_id", collectionItem.id)
+                        }
+                        context.sendBroadcast(intent)
+                        Log.d(TAG, "✅ 已发送收藏更新广播")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "发送收藏更新广播失败", e)
+                    }
+                } else {
+                    Log.e(TAG, "❌ 验证失败：收藏项未找到，ID=${collectionItem.id}")
+                }
+                
+                // 构建成功提示信息
+                val successMessage = if (downloadResults.size > 1) {
+                    "图片已保存到${saveLocations}和收藏"
+                } else {
+                    "图片已保存到${downloadResults.firstOrNull()?.first ?: "指定位置"}和收藏"
+                }
+                Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+            } else {
+                Log.e(TAG, "❌ 保存图片到收藏失败: addCollection返回false")
+                val locationsMessage = if (downloadResults.size > 1) {
+                    "图片已保存到${saveLocations}，但收藏失败"
+                } else {
+                    "图片已保存到${downloadResults.firstOrNull()?.first ?: "指定位置"}，但收藏失败"
+                }
+                Toast.makeText(context, locationsMessage, Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 保存图片到收藏时出错", e)
+            e.printStackTrace()
+            val locationsMessage = if (downloadResults.size > 1) {
+                val saveLocations = downloadResults.joinToString("、") { it.first }
+                "图片已保存到${saveLocations}，但收藏失败: ${e.message}"
+            } else {
+                "图片已保存到${downloadResults.firstOrNull()?.first ?: "指定位置"}，但收藏失败: ${e.message}"
+            }
+            Toast.makeText(context, locationsMessage, Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**

@@ -1,5 +1,6 @@
 package com.example.aifloatingball.fragment
 
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -31,6 +32,8 @@ import com.example.aifloatingball.dialog.EditCollectionDrawer
 import com.example.aifloatingball.dialog.SearchCollectionPanel
 import com.example.aifloatingball.manager.UnifiedCollectionManager
 import com.example.aifloatingball.model.*
+import com.example.aifloatingball.video.SystemOverlayVideoManager
+import com.example.aifloatingball.download.EnhancedDownloadManager
 
 /**
  * 任务Fragment - 两列布局版本
@@ -63,6 +66,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     // 统一收藏管理器
     private lateinit var collectionManager: UnifiedCollectionManager
     
+    // 视频播放器管理器
+    private var videoManager: SystemOverlayVideoManager? = null
+    
+    // 下载管理器
+    private var downloadManager: EnhancedDownloadManager? = null
+    
     // 当前选中的场景
     private var currentScenario: PromptCategory? = null
     private var currentCollectionType: CollectionType? = null  // 统一收藏类型
@@ -92,6 +101,10 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         // 初始化统一收藏管理器
         collectionManager = UnifiedCollectionManager.getInstance(requireContext())
+        
+        // 初始化视频播放器和下载管理器
+        videoManager = SystemOverlayVideoManager(requireContext())
+        downloadManager = EnhancedDownloadManager(requireContext())
         
         setupViews(view)
         setupScenarioRecyclerView()
@@ -139,24 +152,32 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                     val collectionId = intent.getStringExtra("collection_id")
                     
                     Log.d(TAG, "收到收藏更新广播: type=$collectionTypeName, action=$action, id=$collectionId")
+                    Log.d(TAG, "当前显示的收藏类型: ${currentCollectionType?.name ?: "null"}")
                     
                     // 如果当前显示的是该类型的收藏，刷新列表
                     currentCollectionType?.let { currentType ->
                         try {
                             if (!collectionTypeName.isNullOrEmpty()) {
                                 val updatedType = CollectionType.valueOf(collectionTypeName)
+                                Log.d(TAG, "广播类型: ${updatedType.name}, 当前类型: ${currentType.name}")
                                 if (updatedType == currentType) {
-                                    Log.d(TAG, "刷新当前收藏列表: $currentType")
-                                    loadCollectionsForType(currentType)
+                                    Log.d(TAG, "类型匹配，刷新当前收藏列表: $currentType")
+                                    // 使用post确保在主线程执行
+                                    promptRecyclerView.post {
+                                        loadCollectionsForType(currentType)
+                                    }
                                 } else {
-                                    // 类型不匹配，不需要刷新
+                                    Log.d(TAG, "类型不匹配，不刷新列表")
                                 }
                             } else {
-                                // collectionTypeName为空，跳过
+                                Log.w(TAG, "collectionTypeName为空，跳过刷新")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "解析收藏类型失败: $collectionTypeName", e)
+                            e.printStackTrace()
                         }
+                    } ?: run {
+                        Log.d(TAG, "当前未显示收藏类型，不刷新")
                     }
                 }
             }
@@ -164,10 +185,15 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         try {
             val filter = IntentFilter("com.example.aifloatingball.COLLECTION_UPDATED")
-            requireContext().registerReceiver(collectionUpdateReceiver, filter)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                requireContext().registerReceiver(collectionUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                requireContext().registerReceiver(collectionUpdateReceiver, filter)
+            }
             Log.d(TAG, "收藏更新广播接收器已注册")
         } catch (e: Exception) {
             Log.e(TAG, "注册收藏更新广播接收器失败", e)
+            e.printStackTrace()
         }
     }
     
@@ -910,11 +936,34 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 加载指定类型的统一收藏
      */
     private fun loadCollectionsForType(type: CollectionType) {
+        Log.d(TAG, "开始加载收藏类型: ${type.displayName} (${type.name})")
+        
         // 切换到统一收藏适配器
         promptRecyclerView.adapter = collectionAdapter
         
         // 获取该类型的所有收藏
-        val collections = collectionManager.getCollectionsByType(type)
+        var collections = collectionManager.getCollectionsByType(type)
+        Log.d(TAG, "查询到 ${collections.size} 条${type.displayName}收藏")
+        
+        // 如果是视频收藏，检查并更新下载状态
+        if (type == CollectionType.VIDEO_COLLECTION) {
+            collections = checkAndUpdateVideoDownloadStatus(collections)
+        }
+        
+        // 输出所有收藏的详细信息用于调试
+        if (collections.isNotEmpty()) {
+            collections.forEachIndexed { index, item ->
+                Log.d(TAG, "收藏项[$index]: id=${item.id}, title=${item.title}, type=${item.collectionType}")
+            }
+        } else {
+            // 如果没有数据，检查所有收藏项
+            val allCollections = collectionManager.getAllCollections()
+            Log.d(TAG, "当前所有收藏项总数: ${allCollections.size}")
+            allCollections.forEachIndexed { index, item ->
+                Log.d(TAG, "所有收藏项[$index]: id=${item.id}, title=${item.title}, type=${item.collectionType?.name ?: "null"}")
+            }
+        }
+        
         originalCollections = collections
         
         // 应用排序
@@ -924,15 +973,153 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             collections.sortedByDescending { it.collectedTime }
         }
         
+        Log.d(TAG, "排序后收藏数量: ${sortedCollections.size}")
+        
         collectionAdapter.updateData(sortedCollections)
         
         if (sortedCollections.isEmpty()) {
+            Log.d(TAG, "收藏列表为空，显示空状态")
             promptEmptyState.visibility = View.VISIBLE
             promptRecyclerView.visibility = View.GONE
         } else {
+            Log.d(TAG, "收藏列表有数据，显示列表")
             promptEmptyState.visibility = View.GONE
             promptRecyclerView.visibility = View.VISIBLE
         }
+    }
+    
+    /**
+     * 检查并更新视频收藏的下载状态
+     * 通过URL匹配已完成的下载，自动更新收藏项状态
+     */
+    private fun checkAndUpdateVideoDownloadStatus(collections: List<UnifiedCollectionItem>): List<UnifiedCollectionItem> {
+        try {
+            Log.d(TAG, "开始检查视频收藏的下载状态，共 ${collections.size} 项")
+            
+            // 获取所有已完成的下载
+            val allDownloads = downloadManager?.getAllDownloads() ?: emptyList()
+            val completedDownloads = allDownloads.filter { 
+                it.status == android.app.DownloadManager.STATUS_SUCCESSFUL && 
+                it.localUri != null && 
+                it.localUri.isNotEmpty()
+            }
+            
+            Log.d(TAG, "找到 ${completedDownloads.size} 个已完成的下载")
+            
+            var updatedCount = 0
+            val updatedCollections = collections.map { item ->
+                // 只检查状态为"下载中"或"未下载"的项
+                val downloadStatus = item.extraData?.get("downloadStatus") as? String
+                val videoPath = item.extraData?.get("videoPath") as? String
+                val videoUrl = item.content
+                
+                // 如果已经有本地路径，跳过
+                if (!videoPath.isNullOrBlank()) {
+                    return@map item
+                }
+                
+                // 如果状态不是"下载中"，也跳过（可能是新添加的，还未开始下载）
+                if (downloadStatus != "downloading" && downloadStatus != null) {
+                    return@map item
+                }
+                
+                // 通过URL匹配已完成的下载
+                val matchedDownload = completedDownloads.firstOrNull { download ->
+                    // 从description中提取URL
+                    val downloadUrl = extractUrlFromDescription(download.description ?: "")
+                    // 或者通过标题匹配（如果URL匹配失败）
+                    val urlMatch = downloadUrl != null && (downloadUrl == videoUrl || 
+                        downloadUrl.replace("?", "").replace("&", "") == videoUrl.replace("?", "").replace("&", ""))
+                    val titleMatch = download.title?.contains(item.title.take(20)) == true
+                    
+                    urlMatch || titleMatch
+                }
+                
+                if (matchedDownload != null) {
+                    Log.d(TAG, "找到匹配的下载: ${item.title}, URL=$videoUrl, localUri=${matchedDownload.localUri}")
+                    
+                    // 更新收藏项状态
+                    val updatedExtraData = item.extraData.toMutableMap()
+                    updatedExtraData["videoPath"] = matchedDownload.localUri ?: ""
+                    updatedExtraData["originalFileName"] = matchedDownload.localFilename ?: ""
+                    updatedExtraData["saveLocation"] = "已下载到本地"
+                    updatedExtraData["downloadStatus"] = "completed"
+                    
+                    val updatedItem = item.copy(
+                        extraData = updatedExtraData,
+                        thumbnail = matchedDownload.localUri ?: item.thumbnail
+                    )
+                    
+                    // 更新预览文本
+                    val updatedPreview = buildString {
+                        append("已下载: ${matchedDownload.localFilename ?: "视频文件"}")
+                        val format = updatedExtraData["videoFormat"] as? String
+                        if (format != null && format != "UNKNOWN") {
+                            append("\n格式: $format")
+                        }
+                    }
+                    val finalItem = updatedItem.copy(preview = updatedPreview)
+                    
+                    // 保存更新
+                    collectionManager.updateCollection(finalItem)
+                    updatedCount++
+                    
+                    Log.d(TAG, "已更新收藏项状态: ${item.title}")
+                    return@map finalItem
+                }
+                
+                item
+            }
+            
+            if (updatedCount > 0) {
+                Log.d(TAG, "共更新了 $updatedCount 个视频收藏项的下载状态")
+                // 发送广播通知更新
+                try {
+                    val intent = android.content.Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                        putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                        putExtra("action", "batch_update")
+                    }
+                    requireContext().sendBroadcast(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "发送批量更新广播失败", e)
+                }
+            }
+            
+            return updatedCollections
+        } catch (e: Exception) {
+            Log.e(TAG, "检查视频下载状态失败", e)
+            e.printStackTrace()
+            return collections
+        }
+    }
+    
+    /**
+     * 从下载描述中提取URL
+     */
+    private fun extractUrlFromDescription(description: String?): String? {
+        if (description.isNullOrBlank()) return null
+        
+        try {
+            // 尝试从description中提取URL（格式：URL:xxx，下载管理器保存的格式）
+            val urlMatch = Regex("URL:(https?://[^\\s\\n]+)").find(description)
+            if (urlMatch != null) {
+                val url = urlMatch.groupValues[1].trim()
+                Log.d(TAG, "从description提取到URL: $url")
+                return url
+            }
+            
+            // 尝试直接匹配HTTP/HTTPS URL（备用方案）
+            val httpMatch = Regex("(https?://[^\\s\\n]+)").find(description)
+            if (httpMatch != null) {
+                val url = httpMatch.groupValues[1].trim()
+                Log.d(TAG, "从description直接匹配到URL: $url")
+                return url
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "从description提取URL失败", e)
+        }
+        
+        return null
     }
     
     /**
@@ -942,6 +1129,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         // 如果是电子书收藏，直接打开并恢复阅读进度
         if (item.collectionType == CollectionType.EBOOK_BOOKMARK) {
             openEbookCollection(item)
+            return
+        }
+        
+        // 如果是视频收藏，显示播放和下载选项
+        if (item.collectionType == CollectionType.VIDEO_COLLECTION) {
+            showVideoCollectionOptions(item)
             return
         }
         
@@ -957,6 +1150,192 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 }
             }
             .show()
+    }
+    
+    /**
+     * 显示视频收藏操作选项
+     */
+    private fun showVideoCollectionOptions(item: UnifiedCollectionItem) {
+        val videoUrl = item.content // 视频URL存储在content字段中
+        if (videoUrl.isBlank()) {
+            android.widget.Toast.makeText(requireContext(), "视频URL为空", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 检查是否已下载到本地
+        val videoPath = item.extraData?.get("videoPath") as? String
+        val isDownloaded = !videoPath.isNullOrBlank()
+        
+        // 根据是否已下载显示不同的选项
+        val options = if (isDownloaded) {
+            arrayOf("播放视频", "分享视频", "查看文件位置", "重命名文件", "编辑", "删除")
+        } else {
+            arrayOf("播放视频", "下载视频", "分享链接", "编辑", "删除")
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(item.title.take(50))
+            .setItems(options) { _, which ->
+                when {
+                    // 已下载的情况
+                    isDownloaded -> {
+                        when (which) {
+                            0 -> playVideo(item)  // 播放视频
+                            1 -> shareVideoFile(item)  // 分享视频文件
+                            2 -> showVideoFileLocation(item)  // 查看文件位置
+                            3 -> renameVideoFile(item)  // 重命名文件
+                            4 -> editCollectionItem(item)  // 编辑
+                            5 -> deleteCollectionItem(item)  // 删除
+                        }
+                    }
+                    // 未下载的情况
+                    else -> {
+                        when (which) {
+                            0 -> playVideo(item)  // 播放视频
+                            1 -> downloadVideo(item)  // 下载视频
+                            2 -> shareCollectionItem(item)  // 分享链接
+                            3 -> editCollectionItem(item)  // 编辑
+                            4 -> deleteCollectionItem(item)  // 删除
+                        }
+                    }
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 播放视频
+     * 优先使用本地已下载的文件，如果没有则使用网络URL
+     */
+    private fun playVideo(item: UnifiedCollectionItem) {
+        try {
+            // 优先检查是否有本地下载的文件
+            val videoPath = item.extraData?.get("videoPath") as? String
+            val localFile = if (!videoPath.isNullOrBlank()) {
+                try {
+                    val uri = android.net.Uri.parse(videoPath)
+                    if (uri.scheme == "file" || uri.scheme == "content") {
+                        // 检查文件是否存在
+                        val file = if (uri.scheme == "file") {
+                            java.io.File(uri.path ?: "")
+                        } else {
+                            // content:// URI，尝试打开文件描述符检查
+                            null
+                        }
+                        
+                        if (file != null && file.exists() && file.length() > 0) {
+                            Log.d(TAG, "使用本地文件播放: ${file.absolutePath}")
+                            videoPath
+                        } else if (file == null) {
+                            // content:// URI，直接使用
+                            Log.d(TAG, "使用Content URI播放: $videoPath")
+                            videoPath
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "检查本地文件失败: ${e.message}")
+                    null
+                }
+            } else {
+                null
+            }
+            
+            // 如果本地文件不存在，使用网络URL
+            val playUrl = localFile ?: item.content
+            
+            if (playUrl.isBlank()) {
+                android.widget.Toast.makeText(requireContext(), "视频URL为空", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d(TAG, "播放视频收藏: ${item.title}, URL: $playUrl (${if (localFile != null) "本地文件" else "网络URL"})")
+            
+            // 使用视频播放器播放
+            videoManager?.show(playUrl, -1, -1, -1, -1, item.title)
+            
+            val playSource = if (localFile != null) "本地文件" else "网络"
+            android.widget.Toast.makeText(requireContext(), "正在播放: ${item.title} ($playSource)", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "播放视频失败", e)
+            android.widget.Toast.makeText(requireContext(), "播放失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 下载视频
+     */
+    private fun downloadVideo(item: UnifiedCollectionItem) {
+        val videoUrl = item.content
+        if (videoUrl.isBlank()) {
+            android.widget.Toast.makeText(requireContext(), "视频URL为空", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        try {
+            Log.d(TAG, "下载视频收藏: ${item.title}, URL: $videoUrl")
+            
+            // 使用视频标题作为文件名
+            val fileName = "${item.title}.${videoUrl.substringAfterLast(".", "").substringBefore("?")}"
+            
+            downloadManager?.downloadSmart(videoUrl, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d(TAG, "视频下载成功: $fileName")
+                    
+                    // 更新收藏项，添加本地路径信息
+                    val updatedExtraData = item.extraData.toMutableMap()
+                    updatedExtraData["videoPath"] = localUri ?: ""
+                    updatedExtraData["originalFileName"] = fileName ?: ""
+                    updatedExtraData["saveLocation"] = "已下载到本地"
+                    
+                    val updatedItem = item.copy(
+                        extraData = updatedExtraData,
+                        thumbnail = localUri ?: item.thumbnail
+                    )
+                    
+                    collectionManager.updateCollection(updatedItem)
+                    
+                    android.widget.Toast.makeText(requireContext(), "视频下载完成: $fileName", android.widget.Toast.LENGTH_SHORT).show()
+                    
+                    // 发送广播通知收藏更新
+                    try {
+                        val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                            putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                            putExtra("action", "update")
+                            putExtra("collection_id", item.id)
+                        }
+                        requireContext().sendBroadcast(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "发送收藏更新广播失败", e)
+                    }
+                }
+                
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    val reasonText = when (reason) {
+                        android.app.DownloadManager.ERROR_CANNOT_RESUME -> "无法恢复下载"
+                        android.app.DownloadManager.ERROR_DEVICE_NOT_FOUND -> "存储设备未找到"
+                        android.app.DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "文件已存在"
+                        android.app.DownloadManager.ERROR_FILE_ERROR -> "文件错误"
+                        android.app.DownloadManager.ERROR_HTTP_DATA_ERROR -> "HTTP数据错误"
+                        android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE -> "存储空间不足"
+                        android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "重定向过多"
+                        android.app.DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "HTTP错误"
+                        android.app.DownloadManager.ERROR_UNKNOWN -> "未知错误"
+                        else -> "下载失败 (错误码: $reason)"
+                    }
+                    Log.e(TAG, "视频下载失败: $reasonText")
+                    android.widget.Toast.makeText(requireContext(), "视频下载失败: $reasonText", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            })
+            
+            android.widget.Toast.makeText(requireContext(), "开始下载视频...", android.widget.Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "下载视频失败", e)
+            android.widget.Toast.makeText(requireContext(), "下载失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**
@@ -1119,6 +1498,499 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             android.util.Log.e("TaskFragment", "分享收藏项失败", e)
             android.widget.Toast.makeText(requireContext(), "分享失败", android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    /**
+     * 分享视频文件（已下载到本地的视频）
+     */
+    private fun shareVideoFile(item: UnifiedCollectionItem) {
+        try {
+            val videoPath = item.extraData?.get("videoPath") as? String
+            if (videoPath.isNullOrBlank()) {
+                android.widget.Toast.makeText(requireContext(), "视频文件路径为空", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val videoUri = try {
+                android.net.Uri.parse(videoPath)
+            } catch (e: Exception) {
+                Log.e(TAG, "解析视频URI失败: $videoPath", e)
+                android.widget.Toast.makeText(requireContext(), "视频文件路径无效", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取文件对象
+            val file = when {
+                videoUri.scheme == "file" -> java.io.File(videoUri.path ?: "")
+                videoUri.scheme == "content" -> null // content:// URI，直接使用
+                else -> {
+                    // 尝试直接解析路径
+                    val path = videoPath.replace("file://", "")
+                    java.io.File(path)
+                }
+            }
+            
+            // 检查文件是否存在
+            if (file != null && !file.exists()) {
+                android.widget.Toast.makeText(requireContext(), "视频文件不存在", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 转换URI（Android 7.0+需要使用FileProvider）
+            val shareUri = if (file != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                try {
+                    // 使用FileProvider转换file:// URI为content:// URI
+                    androidx.core.content.FileProvider.getUriForFile(
+                        requireContext(),
+                        "${requireContext().packageName}.fileprovider",
+                        file
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "FileProvider转换失败，尝试使用原始URI", e)
+                    // 如果FileProvider失败，尝试使用MediaStore查找
+                    findVideoUriInMediaStore(file) ?: videoUri
+                }
+            } else {
+                videoUri
+            }
+            
+            Log.d(TAG, "分享视频URI: $shareUri (原始: $videoUri)")
+            
+            // 创建分享Intent
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "video/*"
+                putExtra(Intent.EXTRA_STREAM, shareUri)
+                putExtra(Intent.EXTRA_TEXT, "${item.title}\n\n${item.content}")
+                putExtra(Intent.EXTRA_SUBJECT, item.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            val chooserIntent = Intent.createChooser(shareIntent, "分享视频")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            chooserIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            
+            if (chooserIntent.resolveActivity(requireContext().packageManager) != null) {
+                startActivity(chooserIntent)
+                Log.d(TAG, "成功启动分享: $videoPath")
+            } else {
+                android.widget.Toast.makeText(requireContext(), "没有可用的分享应用", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "分享视频文件失败", e)
+            android.widget.Toast.makeText(requireContext(), "分享失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 通过MediaStore查找视频URI
+     */
+    private fun findVideoUriInMediaStore(file: java.io.File): android.net.Uri? {
+        return try {
+            val fileName = file.name
+            val cursor = requireContext().contentResolver.query(
+                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(android.provider.MediaStore.Video.Media._ID, android.provider.MediaStore.Video.Media.DATA),
+                "${android.provider.MediaStore.Video.Media.DATA} = ?",
+                arrayOf(file.absolutePath),
+                null
+            )
+            
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val id = it.getLong(it.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media._ID))
+                    android.net.Uri.withAppendedPath(
+                        android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                        id.toString()
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "从MediaStore查找视频URI失败", e)
+            null
+        }
+    }
+    
+    /**
+     * 查看视频文件位置
+     */
+    private fun showVideoFileLocation(item: UnifiedCollectionItem) {
+        try {
+            val videoPath = item.extraData?.get("videoPath") as? String
+            if (videoPath.isNullOrBlank()) {
+                android.widget.Toast.makeText(requireContext(), "视频文件路径为空", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val videoUri = try {
+                android.net.Uri.parse(videoPath)
+            } catch (e: Exception) {
+                Log.e(TAG, "解析视频URI失败: $videoPath", e)
+                android.widget.Toast.makeText(requireContext(), "视频文件路径无效", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取文件路径
+            val filePath = when {
+                videoUri.scheme == "file" -> videoUri.path ?: ""
+                videoUri.scheme == "content" -> {
+                    // 尝试从content URI获取真实路径
+                    try {
+                        val cursor = requireContext().contentResolver.query(
+                            videoUri,
+                            arrayOf(android.provider.MediaStore.Video.Media.DATA),
+                            null,
+                            null,
+                            null
+                        )
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val columnIndex = it.getColumnIndexOrThrow(android.provider.MediaStore.Video.Media.DATA)
+                                it.getString(columnIndex)
+                            } else {
+                                null
+                            }
+                        } ?: videoPath
+                    } catch (e: Exception) {
+                        Log.w(TAG, "无法从content URI获取路径", e)
+                        videoPath
+                    }
+                }
+                else -> videoPath
+            }
+            
+            // 显示文件信息对话框
+            val fileName = item.extraData?.get("originalFileName") as? String ?: filePath.substringAfterLast("/")
+            val file = java.io.File(filePath)
+            val fileSize = if (file.exists()) {
+                formatFileSize(file.length())
+            } else {
+                "未知"
+            }
+            
+            val message = buildString {
+                append("文件名：$fileName\n\n")
+                append("文件路径：\n$filePath\n\n")
+                append("文件大小：$fileSize")
+                if (file.exists()) {
+                    append("\n文件状态：存在")
+                } else {
+                    append("\n文件状态：不存在")
+                }
+            }
+            
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("视频文件位置")
+                .setMessage(message)
+                .setPositiveButton("打开文件位置") { _, _ ->
+                    openFileLocation(filePath)
+                }
+                .setNeutralButton("复制路径") { _, _ ->
+                    val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("文件路径", filePath)
+                    clipboard.setPrimaryClip(clip)
+                    android.widget.Toast.makeText(requireContext(), "路径已复制到剪贴板", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "查看文件位置失败", e)
+            android.widget.Toast.makeText(requireContext(), "查看失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 打开文件位置（使用系统文件管理器跳转到文件并选中）
+     */
+    private fun openFileLocation(filePath: String) {
+        try {
+            val file = java.io.File(filePath)
+            
+            if (!file.exists()) {
+                android.widget.Toast.makeText(requireContext(), "文件不存在", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 方法1：尝试使用MediaStore URI打开文件位置（Android 10+推荐）
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val mediaStoreUri = findVideoUriInMediaStore(file)
+                    if (mediaStoreUri != null) {
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(mediaStoreUri, "video/*")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            // 某些文件管理器支持这个标志来选中文件
+                            putExtra("org.openintents.extra.TITLE", file.name)
+                        }
+                        
+                        if (intent.resolveActivity(requireContext().packageManager) != null) {
+                            startActivity(intent)
+                            Log.d(TAG, "使用MediaStore URI打开文件位置: $filePath")
+                            return
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "方法1失败，尝试方法2", e)
+                }
+            }
+            
+            // 方法2：使用文件管理器打开文件所在目录（通过Intent传递文件名）
+            try {
+                val parentDir = file.parentFile
+                if (parentDir != null && parentDir.exists()) {
+                    // 尝试使用文件管理器的特定Intent
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                            try {
+                                androidx.core.content.FileProvider.getUriForFile(
+                                    requireContext(),
+                                    "${requireContext().packageName}.fileprovider",
+                                    parentDir
+                                )
+                            } catch (e: Exception) {
+                                Log.w(TAG, "FileProvider未配置，使用传统方式", e)
+                                android.net.Uri.fromFile(parentDir)
+                            }
+                        } else {
+                            android.net.Uri.fromFile(parentDir)
+                        }
+                        setDataAndType(uri, "resource/folder")
+                        // 传递文件名，某些文件管理器会选中该文件
+                        putExtra("org.openintents.extra.TITLE", file.name)
+                        putExtra("android.intent.extra.TEXT", file.name)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    
+                    startActivity(intent)
+                    // 提示用户文件位置
+                    android.widget.Toast.makeText(
+                        requireContext(),
+                        "已打开文件位置：${file.name}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    Log.d(TAG, "使用文件管理器打开目录: ${parentDir.absolutePath}")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "方法2失败，尝试方法3", e)
+            }
+            
+            // 方法3：使用系统文件选择器（Android 5.0+）
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                try {
+                    // 尝试使用DocumentsUI（系统文件管理器）
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                            try {
+                                androidx.core.content.FileProvider.getUriForFile(
+                                    requireContext(),
+                                    "${requireContext().packageName}.fileprovider",
+                                    file
+                                )
+                            } catch (e: Exception) {
+                                android.net.Uri.fromFile(file)
+                            }
+                        } else {
+                            android.net.Uri.fromFile(file)
+                        }
+                        setDataAndType(uri, "video/*")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    
+                    if (intent.resolveActivity(requireContext().packageManager) != null) {
+                        startActivity(intent)
+                        Log.d(TAG, "使用系统文件选择器打开文件")
+                        return
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "方法3失败", e)
+                }
+            }
+            
+            // 如果所有方法都失败，显示路径并复制到剪贴板
+            val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("文件路径", filePath)
+            clipboard.setPrimaryClip(clip)
+            
+            android.widget.Toast.makeText(
+                requireContext(),
+                "无法打开文件管理器\n文件路径已复制到剪贴板",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "打开文件位置失败", e)
+            android.widget.Toast.makeText(requireContext(), "打开失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 重命名视频文件
+     */
+    private fun renameVideoFile(item: UnifiedCollectionItem) {
+        try {
+            val videoPath = item.extraData?.get("videoPath") as? String
+            if (videoPath.isNullOrBlank()) {
+                android.widget.Toast.makeText(requireContext(), "视频文件路径为空", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取当前文件名
+            val currentFileName = item.extraData?.get("originalFileName") as? String
+                ?: videoPath.substringAfterLast("/")
+            
+            // 移除扩展名，只保留文件名部分
+            val nameWithoutExt = currentFileName.substringBeforeLast(".")
+            val extension = currentFileName.substringAfterLast(".", "")
+            
+            // 创建输入对话框
+            val input = android.widget.EditText(requireContext())
+            input.setText(nameWithoutExt)
+            input.selectAll()
+            input.hint = "请输入新文件名"
+            
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("重命名文件")
+                .setMessage("当前文件名：$currentFileName")
+                .setView(input)
+                .setPositiveButton("确定") { _, _ ->
+                    val newName = input.text.toString().trim()
+                    if (newName.isBlank()) {
+                        android.widget.Toast.makeText(requireContext(), "文件名不能为空", android.widget.Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    
+                    // 确保新文件名包含扩展名
+                    val newFileName = if (newName.contains(".")) {
+                        newName
+                    } else {
+                        "$newName.$extension"
+                    }
+                    
+                    // 执行重命名
+                    performRenameFile(item, videoPath, currentFileName, newFileName)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "重命名文件失败", e)
+            android.widget.Toast.makeText(requireContext(), "重命名失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 执行文件重命名操作
+     */
+    private fun performRenameFile(item: UnifiedCollectionItem, videoPath: String, oldFileName: String, newFileName: String) {
+        try {
+            val videoUri = try {
+                android.net.Uri.parse(videoPath)
+            } catch (e: Exception) {
+                Log.e(TAG, "解析视频URI失败: $videoPath", e)
+                android.widget.Toast.makeText(requireContext(), "视频文件路径无效", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取文件对象
+            val file = when {
+                videoUri.scheme == "file" -> java.io.File(videoUri.path ?: "")
+                else -> {
+                    val path = videoPath.replace("file://", "")
+                    java.io.File(path)
+                }
+            }
+            
+            if (!file.exists()) {
+                android.widget.Toast.makeText(requireContext(), "文件不存在，无法重命名", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 检查新文件名是否已存在
+            val newFile = java.io.File(file.parent, newFileName)
+            if (newFile.exists()) {
+                android.widget.Toast.makeText(requireContext(), "文件名已存在，请使用其他名称", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 执行重命名
+            val success = file.renameTo(newFile)
+            
+            if (success) {
+                Log.d(TAG, "文件重命名成功: $oldFileName -> $newFileName")
+                
+                // 更新收藏项中的文件信息
+                val updatedExtraData = item.extraData.toMutableMap()
+                updatedExtraData["originalFileName"] = newFileName
+                updatedExtraData["videoPath"] = newFile.absolutePath
+                
+                // 如果路径是file://格式，更新它
+                val newVideoPath = if (videoPath.startsWith("file://")) {
+                    "file://${newFile.absolutePath}"
+                } else {
+                    newFile.absolutePath
+                }
+                updatedExtraData["videoPath"] = newVideoPath
+                
+                val updatedItem = item.copy(
+                    extraData = updatedExtraData,
+                    thumbnail = newVideoPath
+                )
+                
+                // 更新预览文本
+                val updatedPreview = buildString {
+                    append("已下载: $newFileName")
+                    val format = updatedExtraData["videoFormat"] as? String
+                    if (format != null && format != "UNKNOWN") {
+                        append("\n格式: $format")
+                    }
+                }
+                val finalItem = updatedItem.copy(preview = updatedPreview)
+                
+                // 保存更新
+                collectionManager.updateCollection(finalItem)
+                
+                // 发送广播通知收藏更新
+                try {
+                    val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                        putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                        putExtra("action", "update")
+                        putExtra("collection_id", item.id)
+                    }
+                    requireContext().sendBroadcast(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "发送收藏更新广播失败", e)
+                }
+                
+                // 刷新列表
+                currentCollectionType?.let { loadCollectionsForType(it) }
+                
+                android.widget.Toast.makeText(requireContext(), "文件重命名成功", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                Log.e(TAG, "文件重命名失败")
+                android.widget.Toast.makeText(requireContext(), "重命名失败，请检查文件权限", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "执行文件重命名失败", e)
+            android.widget.Toast.makeText(requireContext(), "重命名失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 格式化文件大小
+     */
+    private fun formatFileSize(bytes: Long): String {
+        if (bytes < 1024) return "${bytes}B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return String.format("%.2fKB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024) return String.format("%.2fMB", mb)
+        val gb = mb / 1024.0
+        return String.format("%.2fGB", gb)
     }
     
     /**

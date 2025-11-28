@@ -275,8 +275,57 @@ class UnifiedCollectionAdapter(
             // 设置来源
             sourceText.text = item.getSourceDisplayText() + " · " + item.getFormattedCollectedTime()
             
-            // 设置预览
-            previewText.text = item.preview ?: item.content.take(200)
+            // 设置预览（对于视频收藏，显示下载状态）
+            val previewContent = if (item.collectionType == com.example.aifloatingball.model.CollectionType.VIDEO_COLLECTION) {
+                buildString {
+                    // 获取下载状态
+                    val downloadStatus = item.extraData?.get("downloadStatus") as? String
+                    val saveLocation = item.extraData?.get("saveLocation") as? String
+                    val videoPath = item.extraData?.get("videoPath") as? String
+                    
+                    // 显示下载状态（优先检查downloadStatus，然后检查文件路径）
+                    when {
+                        downloadStatus == "completed" || (!videoPath.isNullOrBlank() && saveLocation == "已下载到本地") -> {
+                            append("✅ 已下载到本地")
+                            val fileName = item.extraData?.get("originalFileName") as? String
+                            if (!fileName.isNullOrBlank()) {
+                                append(" · $fileName")
+                            } else if (!videoPath.isNullOrBlank()) {
+                                // 如果没有文件名，尝试从路径提取
+                                val pathName = videoPath.substringAfterLast("/").substringBefore("?")
+                                if (pathName.isNotEmpty() && pathName.length < 50) {
+                                    append(" · $pathName")
+                                }
+                            }
+                        }
+                        downloadStatus == "downloading" -> {
+                            append("⏳ 正在下载中...")
+                        }
+                        downloadStatus == "failed" -> {
+                            val error = item.extraData?.get("downloadError") as? String
+                            append("❌ 下载失败")
+                            if (!error.isNullOrBlank()) {
+                                append(" · $error")
+                            }
+                        }
+                        else -> {
+                            // 显示原始预览或视频链接信息
+                            val originalPreview = item.preview ?: "视频链接"
+                            append(originalPreview)
+                            append(" · 未下载")
+                        }
+                    }
+                    
+                    // 添加格式信息
+                    val format = item.extraData?.get("videoFormat") as? String
+                    if (format != null && format != "UNKNOWN") {
+                        append("\n格式: $format")
+                    }
+                }
+            } else {
+                item.preview ?: item.content.take(200)
+            }
+            previewText.text = previewContent
             previewText.visibility = if (previewText.text.isNotEmpty()) View.VISIBLE else View.GONE
             
             // 设置优先级徽章

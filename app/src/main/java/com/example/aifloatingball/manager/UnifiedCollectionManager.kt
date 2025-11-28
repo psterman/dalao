@@ -58,26 +58,60 @@ class UnifiedCollectionManager private constructor(private val context: Context)
      * 根据类型获取收藏项
      */
     fun getCollectionsByType(type: CollectionType): List<UnifiedCollectionItem> {
-        return getAllCollections().filter { it.collectionType == type }
+        val allCollections = getAllCollections()
+        Log.d(TAG, "查询类型: ${type.name} (${type.displayName}), 总收藏数: ${allCollections.size}")
+        
+        val filtered = allCollections.filter { it.collectionType == type }
+        Log.d(TAG, "匹配的收藏数: ${filtered.size}")
+        
+        // 如果查询结果为空，输出所有收藏的类型用于调试
+        if (filtered.isEmpty() && allCollections.isNotEmpty()) {
+            val typeCounts = allCollections.groupingBy { it.collectionType }.eachCount()
+            Log.d(TAG, "所有收藏的类型分布:")
+            typeCounts.forEach { (collectionType, count) ->
+                Log.d(TAG, "  - ${collectionType?.name ?: "null"}: $count 条")
+            }
+        }
+        
+        return filtered
     }
     
     /**
      * 添加收藏项
      */
     fun addCollection(item: UnifiedCollectionItem): Boolean {
+        Log.d(TAG, "添加收藏项: id=${item.id}, title=${item.title}, type=${item.collectionType?.name ?: "null"}")
+        
         val collections = getAllCollections().toMutableList()
         
         // 检查是否已存在相同ID的项
         val existingIndex = collections.indexOfFirst { it.id == item.id }
         if (existingIndex >= 0) {
             // 更新现有项
+            Log.d(TAG, "更新现有收藏项: index=$existingIndex")
             collections[existingIndex] = item.updateModifiedTime()
         } else {
             // 添加新项
+            Log.d(TAG, "添加新收藏项，当前总数: ${collections.size}")
             collections.add(item)
+            Log.d(TAG, "添加后总数: ${collections.size}")
         }
         
-        return saveCollections(collections)
+        val success = saveCollections(collections)
+        
+        if (success) {
+            // 验证保存是否成功
+            val saved = getCollectionById(item.id)
+            if (saved != null) {
+                Log.d(TAG, "✅ 收藏项保存成功: id=${saved.id}, type=${saved.collectionType?.name ?: "null"}")
+            } else {
+                Log.e(TAG, "❌ 收藏项保存后验证失败: id=${item.id}")
+            }
+        } else {
+            Log.e(TAG, "❌ 保存收藏项失败")
+        }
+        
+        return success
     }
     
     /**

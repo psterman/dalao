@@ -285,6 +285,21 @@ class EnhancedDownloadManager(private val context: Context) {
      * 下载图片
      */
     fun downloadImage(imageUrl: String, callback: DownloadCallback? = null): Long {
+        return downloadImageToDirectory(imageUrl, Environment.DIRECTORY_PICTURES, callback)
+    }
+    
+    /**
+     * 下载图片到指定目录
+     * @param imageUrl 图片URL
+     * @param destinationDir 目标目录，可以是 Environment.DIRECTORY_PICTURES 或 Environment.DIRECTORY_DOWNLOADS
+     * @param callback 下载回调
+     * @return 下载ID，失败返回-1
+     */
+    fun downloadImageToDirectory(
+        imageUrl: String, 
+        destinationDir: String, 
+        callback: DownloadCallback? = null
+    ): Long {
         if (!checkStoragePermission()) {
             Log.e(TAG, "没有存储权限，无法保存图片")
             showPermissionRequiredDialog("保存图片")
@@ -297,7 +312,7 @@ class EnhancedDownloadManager(private val context: Context) {
             fileName = fileName,
             title = "保存图片",
             description = "正在下载图片",
-            destinationDir = Environment.DIRECTORY_PICTURES,
+            destinationDir = destinationDir,
             callback = callback
         )
         
@@ -306,8 +321,14 @@ class EnhancedDownloadManager(private val context: Context) {
         //     showDownloadProgressDialog(downloadId, fileName)
         // }
         
-        Log.d(TAG, "开始下载图片: $imageUrl -> $fileName")
-        Toast.makeText(context, "开始保存图片到相册", Toast.LENGTH_SHORT).show()
+        val destinationName = when (destinationDir) {
+            Environment.DIRECTORY_PICTURES -> "相册"
+            Environment.DIRECTORY_DOWNLOADS -> "下载文件夹"
+            else -> "指定位置"
+        }
+        
+        Log.d(TAG, "开始下载图片: $imageUrl -> $fileName (保存到: $destinationName)")
+        Toast.makeText(context, "开始保存图片到$destinationName", Toast.LENGTH_SHORT).show()
         return downloadId
     }
     

@@ -28,6 +28,12 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.media3.common.util.UnstableApi
 import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.R
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.*
+import androidx.appcompat.app.AlertDialog
+import android.os.Handler
+import android.os.Looper
+import java.net.URL
 
 /**
  * 系统级悬浮窗视频播放器管理器
@@ -59,6 +65,11 @@ class SystemOverlayVideoManager(private val context: Context) {
     // 下载管理器
     private val downloadManager: EnhancedDownloadManager by lazy {
         EnhancedDownloadManager(context)
+    }
+    
+    // 统一收藏管理器
+    private val collectionManager: UnifiedCollectionManager by lazy {
+        UnifiedCollectionManager.getInstance(context)
     }
     
     // 播放列表管理器
@@ -132,6 +143,7 @@ class SystemOverlayVideoManager(private val context: Context) {
     private var originalX = 0
     private var originalY = 0
     private var currentVideoUrl: String? = null
+    private var currentPageTitle: String? = null // 当前视频的页面标题
     private var videoWidth = 0
     private var videoHeight = 0
     private var isVideoPortrait = false // 视频是否为竖屏
@@ -445,6 +457,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             Log.d(TAG, "准备播放视频: $url, 原视频位置: ($sourceX, $sourceY), 尺寸: ${sourceWidth}x${sourceHeight}")
             
             currentVideoUrl = url
+            currentPageTitle = pageTitle // 保存页面标题
             hasAutoMaximized = false // 重置自动最大化标志
             
             // 立即更新缩略图预览的视频源（确保新视频对应新缩略图）
@@ -1591,7 +1604,7 @@ class SystemOverlayVideoManager(private val context: Context) {
             applyMaterialStyle(this)
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setOnClickListener {
-                downloadVideo()
+                showVideoSaveOptions()
             }
         }
         
@@ -2484,9 +2497,48 @@ class SystemOverlayVideoManager(private val context: Context) {
     }
     
     /**
-     * 下载视频
+     * 显示视频保存选项对话框
      */
-    private fun downloadVideo() {
+    private fun showVideoSaveOptions() {
+        val videoUrl = currentVideoUrl
+        if (videoUrl.isNullOrBlank()) {
+            Toast.makeText(context, "无法获取视频地址", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val saveOptions = arrayOf(
+            "下载视频",
+            "视频收藏（仅保存到AI助手tab）",
+            "下载并收藏"
+        )
+        
+        AlertDialog.Builder(context)
+            .setTitle("选择操作")
+            .setItems(saveOptions) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 只下载视频
+                        downloadVideo(false)
+                    }
+                    1 -> {
+                        // 只保存到视频收藏
+                        saveVideoToCollectionOnly()
+                    }
+                    2 -> {
+                        // 下载并收藏
+                        downloadVideo(true)
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 下载视频
+     * @param alsoSaveToCollection 是否同时保存到收藏
+     */
+    private fun downloadVideo(alsoSaveToCollection: Boolean = false) {
         val videoUrl = currentVideoUrl
         if (videoUrl.isNullOrBlank()) {
             Toast.makeText(context, "无法获取视频地址", Toast.LENGTH_SHORT).show()
@@ -2494,11 +2546,18 @@ class SystemOverlayVideoManager(private val context: Context) {
         }
         
         try {
-            Log.d(TAG, "开始下载视频: $videoUrl")
+            Log.d(TAG, "开始下载视频: $videoUrl, alsoSaveToCollection=$alsoSaveToCollection")
             downloadManager.downloadSmart(videoUrl, object : EnhancedDownloadManager.DownloadCallback {
                 override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
                     Log.d(TAG, "视频下载成功: $fileName")
                     Toast.makeText(context, "视频下载完成: $fileName", Toast.LENGTH_SHORT).show()
+                    
+                    // 如果设置了同时保存到收藏，则保存
+                    if (alsoSaveToCollection) {
+                        Handler(Looper.getMainLooper()).post {
+                            saveVideoToCollection(localUri, fileName)
+                        }
+                    }
                 }
                 
                 override fun onDownloadFailed(downloadId: Long, reason: Int) {
@@ -2516,10 +2575,385 @@ class SystemOverlayVideoManager(private val context: Context) {
                     }
                     Log.e(TAG, "视频下载失败: $reasonText")
                     Toast.makeText(context, "视频下载失败: $reasonText", Toast.LENGTH_SHORT).show()
+                    
+                    // 即使下载失败，如果设置了同时保存到收藏，也保存视频链接
+                    if (alsoSaveToCollection) {
+                        Handler(Looper.getMainLooper()).post {
+                            saveVideoToCollectionOnly()
+                        }
+                    }
                 }
             })
         } catch (e: Exception) {
             Log.e(TAG, "下载视频失败", e)
+            Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 仅保存视频到收藏（保存后自动下载）
+     */
+    private fun saveVideoToCollectionOnly() {
+        val videoUrl = currentVideoUrl
+        if (videoUrl.isNullOrBlank()) {
+            Toast.makeText(context, "无法获取视频地址", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        Log.d(TAG, "保存视频到收藏并自动下载: $videoUrl")
+        Toast.makeText(context, "正在保存到视频收藏...", Toast.LENGTH_SHORT).show()
+        
+        // 先保存到收藏，然后自动触发下载
+        val savedItemId = saveVideoToCollection(null, null)
+        
+        // 如果保存成功，自动触发下载
+        if (savedItemId != null) {
+            Log.d(TAG, "视频收藏已保存，开始自动下载: itemId=$savedItemId")
+            downloadVideoForCollection(savedItemId, videoUrl)
+        }
+    }
+    
+    /**
+     * 保存视频到收藏
+     * @param localUri 本地文件路径（如果已下载）
+     * @param fileName 文件名（如果已下载）
+     * @return 保存的收藏项ID，如果保存失败返回null
+     */
+    private fun saveVideoToCollection(localUri: String?, fileName: String?): String? {
+        val videoUrl = currentVideoUrl
+        if (videoUrl.isNullOrBlank()) {
+            Toast.makeText(context, "无法获取视频地址", Toast.LENGTH_SHORT).show()
+            return null
+        }
+        
+        try {
+            Log.d(TAG, "开始保存视频到收藏: videoUrl=$videoUrl")
+            
+            // 提取视频标题
+            val videoTitle = extractVideoTitle(videoUrl)
+            
+            // 优化视频标题：优先使用页面标题，其次从URL提取，最后使用默认标题
+            val optimizedTitle = try {
+                // 如果有页面标题且长度合理，优先使用
+                val pageTitle = currentPageTitle?.takeIf { it.isNotBlank() && it.length > 3 && it.length < 100 }
+                if (pageTitle != null) {
+                    pageTitle
+                } else if (videoTitle.length < 5 || videoTitle == "视频") {
+                    // 从URL提取文件名
+                    val urlFileName = videoUrl.substringAfterLast("/").substringBefore("?")
+                    if (urlFileName.isNotEmpty() && urlFileName.length > 3 && urlFileName.length < 50 && urlFileName.contains(".")) {
+                        // 移除扩展名，保留文件名
+                        val nameWithoutExt = urlFileName.substringBeforeLast(".")
+                        if (nameWithoutExt.isNotEmpty()) {
+                            nameWithoutExt
+                        } else {
+                            "视频_${System.currentTimeMillis().toString().takeLast(6)}"
+                        }
+                    } else {
+                        "视频_${System.currentTimeMillis().toString().takeLast(6)}"
+                    }
+                } else {
+                    videoTitle
+                }
+            } catch (e: Exception) {
+                "视频_${System.currentTimeMillis().toString().takeLast(6)}"
+            }
+            
+            Log.d(TAG, "优化后的标题: $optimizedTitle")
+            
+            // 提取视频格式
+            val videoFormat = try {
+                val ext = videoUrl.substringAfterLast(".", "").substringBefore("?").uppercase()
+                if (ext in listOf("MP4", "WEBM", "M3U8", "FLV", "AVI", "MKV", "MOV", "WMV")) ext else "UNKNOWN"
+            } catch (e: Exception) {
+                "UNKNOWN"
+            }
+            
+            // 构建保存位置信息
+            val saveLocation = if (localUri != null && fileName != null) {
+                "已下载到本地"
+            } else {
+                "仅收藏链接"
+            }
+            
+            // 构建扩展数据
+            val extraData = mutableMapOf<String, Any>(
+                "videoUrl" to videoUrl,
+                "videoPath" to (localUri ?: ""),
+                "videoFormat" to videoFormat,
+                "originalFileName" to (fileName ?: ""),
+                "saveLocation" to saveLocation
+            )
+            
+            // 从URL提取可能的标签
+            val autoTags = mutableListOf<String>()
+            try {
+                // 从URL域名提取标签
+                val urlObj = URL(videoUrl)
+                val domain = urlObj.host?.replace("www.", "")?.split(".")?.firstOrNull()
+                if (!domain.isNullOrEmpty() && domain.length > 2) {
+                    autoTags.add(domain)
+                }
+                
+                // 从文件名提取可能的标签
+                val urlFileName = videoUrl.substringAfterLast("/").substringBefore("?")
+                if (urlFileName.isNotEmpty() && urlFileName.length > 2 && urlFileName.length < 20) {
+                    val nameWithoutExt = urlFileName.substringBeforeLast(".")
+                    if (nameWithoutExt.isNotEmpty()) {
+                        autoTags.add(nameWithoutExt)
+                    }
+                }
+                
+                // 添加视频格式标签
+                if (videoFormat != "UNKNOWN") {
+                    autoTags.add(videoFormat)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "提取自动标签失败", e)
+            }
+            
+            // 构建预览文本
+            val previewText = buildString {
+                if (saveLocation == "已下载到本地") {
+                    append("已下载: ${fileName ?: "视频文件"}")
+                } else {
+                    append("视频链接")
+                }
+                if (videoFormat != "UNKNOWN") {
+                    append("\n格式: $videoFormat")
+                }
+            }
+            
+            // 创建视频收藏项
+            val collectionItem = UnifiedCollectionItem(
+                title = optimizedTitle,
+                content = videoUrl, // 完整视频URL作为内容
+                preview = previewText,
+                thumbnail = localUri ?: videoUrl, // 使用本地路径或原始URL作为缩略图
+                collectionType = CollectionType.VIDEO_COLLECTION,
+                sourceLocation = "悬浮播放器",
+                sourceDetail = "视频播放",
+                collectedTime = System.currentTimeMillis(), // 收藏时间
+                customTags = autoTags.distinct(), // 自动提取的标签（去重）
+                priority = Priority.NORMAL, // 默认优先级
+                completionStatus = CompletionStatus.NOT_STARTED, // 完成状态
+                likeLevel = 0, // 默认喜欢程度
+                emotionTag = EmotionTag.NEUTRAL, // 默认情感标签
+                isEncrypted = false, // 加密状态
+                reminderTime = null, // 默认无提醒
+                extraData = extraData
+            )
+            
+            Log.d(TAG, "准备保存视频收藏:")
+            Log.d(TAG, "  - ID: ${collectionItem.id}")
+            Log.d(TAG, "  - 标题: ${collectionItem.title}")
+            Log.d(TAG, "  - 来源: ${collectionItem.sourceDetail}")
+            Log.d(TAG, "  - 保存位置: $saveLocation")
+            Log.d(TAG, "  - 标签: ${collectionItem.customTags}")
+            Log.d(TAG, "  - 视频URL: $videoUrl")
+            
+            // 保存到收藏管理器
+            val success = collectionManager.addCollection(collectionItem)
+            
+            if (success) {
+                Log.d(TAG, "✅ 视频已保存到收藏: id=${collectionItem.id}, title=${collectionItem.title}")
+                
+                // 立即验证保存是否成功
+                val savedItem = collectionManager.getCollectionById(collectionItem.id)
+                if (savedItem != null) {
+                    Log.d(TAG, "✅ 验证成功：收藏项已保存")
+                    Log.d(TAG, "  - 保存的标题: ${savedItem.title}")
+                    Log.d(TAG, "  - 保存的类型: ${savedItem.collectionType}")
+                    
+                    // 发送广播通知收藏更新
+                    try {
+                        val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                            putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                            putExtra("action", "add")
+                            putExtra("collection_id", collectionItem.id)
+                        }
+                        context.sendBroadcast(intent)
+                        Log.d(TAG, "✅ 已发送收藏更新广播")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "发送收藏更新广播失败", e)
+                    }
+                } else {
+                    Log.e(TAG, "❌ 验证失败：收藏项未找到，ID=${collectionItem.id}")
+                }
+                
+                val successMessage = if (saveLocation == "已下载到本地") {
+                    "视频已下载并保存到收藏"
+                } else {
+                    "视频已保存到收藏"
+                }
+                Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+                
+                // 返回保存的收藏项ID
+                return collectionItem.id
+            } else {
+                Log.e(TAG, "❌ 保存视频到收藏失败: addCollection返回false")
+                val errorMessage = if (saveLocation == "已下载到本地") {
+                    "视频已下载，但收藏失败"
+                } else {
+                    "视频收藏失败"
+                }
+                Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                return null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 保存视频到收藏时出错", e)
+            e.printStackTrace()
+            Toast.makeText(context, "保存视频到收藏失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            return null
+        }
+    }
+    
+    /**
+     * 为收藏项下载视频
+     * @param collectionItemId 收藏项ID
+     * @param videoUrl 视频URL
+     */
+    private fun downloadVideoForCollection(collectionItemId: String, videoUrl: String) {
+        try {
+            Log.d(TAG, "开始为收藏项下载视频: itemId=$collectionItemId, url=$videoUrl")
+            
+            // 更新收藏项状态为"下载中"
+            val currentItem = collectionManager.getCollectionById(collectionItemId)
+            if (currentItem != null) {
+                val updatedExtraData = currentItem.extraData.toMutableMap()
+                updatedExtraData["downloadStatus"] = "downloading"
+                val updatedItem = currentItem.copy(extraData = updatedExtraData)
+                collectionManager.updateCollection(updatedItem)
+                
+                // 发送广播通知收藏更新
+                try {
+                    val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                        putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                        putExtra("action", "update")
+                        putExtra("collection_id", collectionItemId)
+                    }
+                    context.sendBroadcast(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "发送收藏更新广播失败", e)
+                }
+            }
+            
+            // 提取视频标题作为文件名
+            val videoTitle = currentItem?.title ?: "视频_${System.currentTimeMillis().toString().takeLast(6)}"
+            val fileName = "${videoTitle}.${videoUrl.substringAfterLast(".", "mp4").substringBefore("?")}"
+            
+            // 开始下载
+            downloadManager.downloadSmart(videoUrl, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d(TAG, "收藏视频下载成功: $fileName, localUri=$localUri")
+                    
+                    // 确保在主线程更新状态和UI
+                    Handler(Looper.getMainLooper()).post {
+                        try {
+                            // 更新收藏项，添加本地路径信息
+                            val savedItem = collectionManager.getCollectionById(collectionItemId)
+                            if (savedItem != null) {
+                                val updatedExtraData = savedItem.extraData.toMutableMap()
+                                updatedExtraData["videoPath"] = localUri ?: ""
+                                updatedExtraData["originalFileName"] = fileName ?: ""
+                                updatedExtraData["saveLocation"] = "已下载到本地"
+                                updatedExtraData["downloadStatus"] = "completed"
+                                
+                                val updatedItem = savedItem.copy(
+                                    extraData = updatedExtraData,
+                                    thumbnail = localUri ?: savedItem.thumbnail
+                                )
+                                
+                                // 更新预览文本
+                                val updatedPreview = buildString {
+                                    append("已下载: ${fileName ?: "视频文件"}")
+                                    val format = updatedExtraData["videoFormat"] as? String
+                                    if (format != null && format != "UNKNOWN") {
+                                        append("\n格式: $format")
+                                    }
+                                }
+                                val finalItem = updatedItem.copy(preview = updatedPreview)
+                                
+                                val updateSuccess = collectionManager.updateCollection(finalItem)
+                                Log.d(TAG, "更新收藏项状态: success=$updateSuccess, itemId=$collectionItemId")
+                                
+                                // 发送广播通知收藏更新
+                                try {
+                                    val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                                        putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                                        putExtra("action", "update")
+                                        putExtra("collection_id", collectionItemId)
+                                    }
+                                    context.sendBroadcast(intent)
+                                    Log.d(TAG, "已发送收藏更新广播: itemId=$collectionItemId")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "发送收藏更新广播失败", e)
+                                }
+                            } else {
+                                Log.e(TAG, "未找到收藏项: itemId=$collectionItemId")
+                            }
+                            
+                            Toast.makeText(context, "视频下载完成: $fileName", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新收藏项状态失败", e)
+                            e.printStackTrace()
+                        }
+                    }
+                }
+                
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    val reasonText = when (reason) {
+                        android.app.DownloadManager.ERROR_CANNOT_RESUME -> "无法恢复下载"
+                        android.app.DownloadManager.ERROR_DEVICE_NOT_FOUND -> "存储设备未找到"
+                        android.app.DownloadManager.ERROR_FILE_ALREADY_EXISTS -> "文件已存在"
+                        android.app.DownloadManager.ERROR_FILE_ERROR -> "文件错误"
+                        android.app.DownloadManager.ERROR_HTTP_DATA_ERROR -> "HTTP数据错误"
+                        android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE -> "存储空间不足"
+                        android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS -> "重定向过多"
+                        android.app.DownloadManager.ERROR_UNHANDLED_HTTP_CODE -> "HTTP错误"
+                        android.app.DownloadManager.ERROR_UNKNOWN -> "未知错误"
+                        else -> "下载失败 (错误码: $reason)"
+                    }
+                    Log.e(TAG, "收藏视频下载失败: $reasonText")
+                    
+                    // 确保在主线程更新状态和UI
+                    Handler(Looper.getMainLooper()).post {
+                        try {
+                            // 更新收藏项状态为"下载失败"
+                            val savedItem = collectionManager.getCollectionById(collectionItemId)
+                            if (savedItem != null) {
+                                val updatedExtraData = savedItem.extraData.toMutableMap()
+                                updatedExtraData["downloadStatus"] = "failed"
+                                updatedExtraData["downloadError"] = reasonText
+                                val updatedItem = savedItem.copy(extraData = updatedExtraData)
+                                collectionManager.updateCollection(updatedItem)
+                                
+                                // 发送广播通知收藏更新
+                                try {
+                                    val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                                        putExtra("collection_type", CollectionType.VIDEO_COLLECTION.name)
+                                        putExtra("action", "update")
+                                        putExtra("collection_id", collectionItemId)
+                                    }
+                                    context.sendBroadcast(intent)
+                                    Log.d(TAG, "已发送收藏更新广播（失败）: itemId=$collectionItemId")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "发送收藏更新广播失败", e)
+                                }
+                            }
+                            
+                            Toast.makeText(context, "视频下载失败: $reasonText", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新收藏项状态失败", e)
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            })
+            
+            Toast.makeText(context, "开始下载视频...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "为收藏项下载视频失败", e)
             Toast.makeText(context, "下载失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
