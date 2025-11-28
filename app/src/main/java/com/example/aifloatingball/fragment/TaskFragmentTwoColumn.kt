@@ -2124,26 +2124,56 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 显示统一收藏筛选和排序对话框
      */
     private fun showCollectionFilterDialog() {
-        val sortDimensions = SortDimension.values().map { it.displayName }.toTypedArray()
-        val sortDirections = SortDirection.values().map { it.displayName }.toTypedArray()
+        val sortDimensions = SortDimension.values()
+        val sortDimensionNames = sortDimensions.map { dimension ->
+            // 如果当前选中的是这个维度，显示排序方向
+            if (currentSortDimension == dimension) {
+                "${dimension.displayName}（${currentSortDirection.displayName}）"
+            } else {
+                dimension.displayName
+            }
+        }.toTypedArray()
         
         var selectedDimensionIndex = currentSortDimension?.let { 
-            SortDimension.values().indexOf(it) 
-        } ?: 0
-        var selectedDirectionIndex = SortDirection.values().indexOf(currentSortDirection)
+            sortDimensions.indexOf(it) 
+        } ?: -1
         
         androidx.appcompat.app.AlertDialog.Builder(requireContext())
             .setTitle("筛选和排序")
-            .setMessage("排序维度：${sortDimensions[selectedDimensionIndex]}\n排序方向：${sortDirections[selectedDirectionIndex]}")
-            .setPositiveButton("应用") { _, _ ->
-                currentSortDimension = SortDimension.values()[selectedDimensionIndex]
-                currentSortDirection = SortDirection.values()[selectedDirectionIndex]
+            .setItems(sortDimensionNames) { dialog, which ->
+                val selectedDimension = sortDimensions[which]
+                
+                // 如果选择的是当前已选中的维度，切换排序方向
+                if (currentSortDimension == selectedDimension) {
+                    // 切换排序方向：降序 -> 升序 -> 降序
+                    currentSortDirection = if (currentSortDirection == SortDirection.DESC) {
+                        SortDirection.ASC
+                    } else {
+                        SortDirection.DESC
+                    }
+                } else {
+                    // 选择新维度，默认降序
+                    currentSortDimension = selectedDimension
+                    currentSortDirection = SortDirection.DESC
+                }
+                
+                // 立即应用排序
                 currentCollectionType?.let { loadCollectionsForType(it) }
+                
+                // 显示提示
+                android.widget.Toast.makeText(
+                    requireContext(),
+                    "已按${selectedDimension.displayName}（${currentSortDirection.displayName}）排序",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                
+                dialog.dismiss()
             }
             .setNeutralButton("清除") { _, _ ->
                 currentSortDimension = null
                 currentSortDirection = SortDirection.DESC
                 currentCollectionType?.let { loadCollectionsForType(it) }
+                android.widget.Toast.makeText(requireContext(), "已清除排序", android.widget.Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
             .show()
