@@ -56,7 +56,7 @@
             android:id="@+id/collection_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toEndOf="@id/collection_checkbox"
             android:layout_toStartOf="@id/collection_priority"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="8dp"
@@ -73,7 +73,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/collection_title"
-            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toEndOf="@id/collection_checkbox"
             android:layout_marginStart="12dp"
             android:layout_marginTop="4dp"
             android:text="来源 · 时间"
@@ -86,7 +86,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/collection_source"
-            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toEndOf="@id/collection_checkbox"
             android:layout_marginStart="12dp"
             android:layout_marginTop="8dp"
             android:text="内容预览..."
@@ -101,23 +101,24 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/collection_preview"
-            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toEndOf="@id/collection_checkbox"
             android:layout_marginStart="12dp"
             android:layout_marginTop="8dp"
             android:orientation="horizontal" />
 
-        <!-- 底部信息（喜欢程度、加密、提醒） -->
+        <!-- 底部信息（喜欢程度、加密、提醒）- 已隐藏 -->
         <TextView
             android:id="@+id/collection_bottom_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/collection_tags_container"
-            android:layout_toEndOf="@id/collection_icon"
+            android:layout_toEndOf="@id/collection_checkbox"
             android:layout_marginStart="12dp"
             android:layout_marginTop="8dp"
             android:text="⭐⭐⭐⭐☆ 🔒 ⏰"
             android:textSize="12sp"
-            android:textColor="@color/ai_assistant_text_secondary" />
+            android:textColor="@color/ai_assistant_text_secondary"
+            android:visibility="gone" />
 
     </RelativeLayout>
 

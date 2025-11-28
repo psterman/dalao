@@ -280,10 +280,8 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     }
     
     private fun setupButtons() {
-        // 收藏按钮
-        promptFavoriteButton.setOnClickListener {
-            showFavoriteDialog()
-        }
+        // 隐藏收藏按钮（去掉自动切换到我的收藏的功能）
+        promptFavoriteButton.visibility = View.GONE
         
         // 编辑按钮
         promptEditButton.setOnClickListener {
@@ -1703,7 +1701,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
     }
     
     /**
-     * 打开文件位置（使用系统文件管理器跳转到文件并选中）
+     * 打开文件位置（使用系统文件管理器跳转到文件所在目录）
      */
     private fun openFileLocation(filePath: String) {
         try {
@@ -1714,103 +1712,158 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 return
             }
             
-            // 方法1：尝试使用MediaStore URI打开文件位置（Android 10+推荐）
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                try {
-                    val mediaStoreUri = findVideoUriInMediaStore(file)
-                    if (mediaStoreUri != null) {
-                        val intent = Intent(Intent.ACTION_VIEW).apply {
-                            setDataAndType(mediaStoreUri, "video/*")
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            // 某些文件管理器支持这个标志来选中文件
-                            putExtra("org.openintents.extra.TITLE", file.name)
-                        }
-                        
-                        if (intent.resolveActivity(requireContext().packageManager) != null) {
-                            startActivity(intent)
-                            Log.d(TAG, "使用MediaStore URI打开文件位置: $filePath")
-                            return
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "方法1失败，尝试方法2", e)
-                }
+            val parentDir = file.parentFile
+            if (parentDir == null || !parentDir.exists()) {
+                android.widget.Toast.makeText(requireContext(), "无法获取文件目录", android.widget.Toast.LENGTH_SHORT).show()
+                return
             }
             
-            // 方法2：使用文件管理器打开文件所在目录（通过Intent传递文件名）
+            // 方法1：使用目录MIME类型打开文件管理器（最通用方法）
             try {
-                val parentDir = file.parentFile
-                if (parentDir != null && parentDir.exists()) {
-                    // 尝试使用文件管理器的特定Intent
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                            try {
-                                androidx.core.content.FileProvider.getUriForFile(
-                                    requireContext(),
-                                    "${requireContext().packageName}.fileprovider",
-                                    parentDir
-                                )
-                            } catch (e: Exception) {
-                                Log.w(TAG, "FileProvider未配置，使用传统方式", e)
-                                android.net.Uri.fromFile(parentDir)
-                            }
-                        } else {
-                            android.net.Uri.fromFile(parentDir)
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    val dirUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        try {
+                            androidx.core.content.FileProvider.getUriForFile(
+                                requireContext(),
+                                "${requireContext().packageName}.fileprovider",
+                                parentDir
+                            )
+                        } catch (e: Exception) {
+                            Log.w(TAG, "FileProvider转换失败，使用file://", e)
+                            android.net.Uri.parse("file://${parentDir.absolutePath}")
                         }
-                        setDataAndType(uri, "resource/folder")
-                        // 传递文件名，某些文件管理器会选中该文件
-                        putExtra("org.openintents.extra.TITLE", file.name)
-                        putExtra("android.intent.extra.TEXT", file.name)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } else {
+                        android.net.Uri.parse("file://${parentDir.absolutePath}")
                     }
                     
+                    // 使用目录MIME类型，明确表示要打开目录而不是文件
+                    setDataAndType(dirUri, "vnd.android.document/directory")
+                    // 传递文件名，某些文件管理器会选中该文件
+                    putExtra("org.openintents.extra.TITLE", file.name)
+                    putExtra("android.intent.extra.TEXT", file.name)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                
+                // 尝试启动，如果失败则使用选择器
+                try {
+                    if (intent.resolveActivity(requireContext().packageManager) != null) {
+                        startActivity(intent)
+                        Log.d(TAG, "使用方法1打开文件管理器目录: ${parentDir.absolutePath}")
+                        return
+                    }
+                } catch (e: ActivityNotFoundException) {
+                    // 如果失败，尝试使用选择器
+                    val chooserIntent = Intent.createChooser(intent, "选择文件管理器")
+                    chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(chooserIntent)
+                    Log.d(TAG, "使用文件管理器选择器打开目录")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "方法1失败，尝试方法2", e)
+            }
+            
+            // 方法2：使用resource/folder MIME类型（备用方案）
+            try {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    val dirUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                        try {
+                            androidx.core.content.FileProvider.getUriForFile(
+                                requireContext(),
+                                "${requireContext().packageName}.fileprovider",
+                                parentDir
+                            )
+                        } catch (e: Exception) {
+                            Log.w(TAG, "FileProvider转换失败，使用file://", e)
+                            android.net.Uri.parse("file://${parentDir.absolutePath}")
+                        }
+                    } else {
+                        android.net.Uri.parse("file://${parentDir.absolutePath}")
+                    }
+                    
+                    setDataAndType(dirUri, "resource/folder")
+                    // 传递文件名，某些文件管理器会选中该文件
+                    putExtra("org.openintents.extra.TITLE", file.name)
+                    putExtra("android.intent.extra.TEXT", file.name)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                
+                // 尝试启动，如果失败则使用选择器
+                try {
                     startActivity(intent)
-                    // 提示用户文件位置
-                    android.widget.Toast.makeText(
-                        requireContext(),
-                        "已打开文件位置：${file.name}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                    Log.d(TAG, "使用文件管理器打开目录: ${parentDir.absolutePath}")
+                    Log.d(TAG, "使用通用文件管理器打开目录: ${parentDir.absolutePath}")
+                    return
+                } catch (e: ActivityNotFoundException) {
+                    // 如果失败，尝试使用选择器
+                    val chooserIntent = Intent.createChooser(intent, "选择文件管理器")
+                    chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(chooserIntent)
+                    Log.d(TAG, "使用文件管理器选择器打开目录")
                     return
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "方法2失败，尝试方法3", e)
             }
             
-            // 方法3：使用系统文件选择器（Android 5.0+）
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                try {
-                    // 尝试使用DocumentsUI（系统文件管理器）
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        val uri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                            try {
-                                androidx.core.content.FileProvider.getUriForFile(
-                                    requireContext(),
-                                    "${requireContext().packageName}.fileprovider",
-                                    file
-                                )
-                            } catch (e: Exception) {
-                                android.net.Uri.fromFile(file)
-                            }
-                        } else {
-                            android.net.Uri.fromFile(file)
+            // 方法3：尝试使用第三方文件管理器（如ES文件浏览器、Solid Explorer等）
+            try {
+                val fileManagerPackages = listOf(
+                    "com.estrongs.android.pop", // ES文件浏览器
+                    "pl.solidexplorer2", // Solid Explorer
+                    "com.mi.android.globalFileexplorer", // MIUI文件管理器
+                    "com.sec.android.app.myfiles", // Samsung文件管理器
+                    "com.huawei.filemanager", // 华为文件管理器
+                    "com.oppo.filemanager", // OPPO文件管理器
+                    "com.vivo.filemanager" // vivo文件管理器
+                )
+                
+                for (packageName in fileManagerPackages) {
+                    try {
+                        val intent = Intent().apply {
+                            setPackage(packageName)
+                            action = Intent.ACTION_VIEW
+                            setData(android.net.Uri.parse("file://${parentDir.absolutePath}"))
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            putExtra("org.openintents.extra.TITLE", file.name)
                         }
-                        setDataAndType(uri, "video/*")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        
+                        if (intent.resolveActivity(requireContext().packageManager) != null) {
+                            startActivity(intent)
+                            Log.d(TAG, "使用第三方文件管理器打开: $packageName")
+                            return
+                        }
+                    } catch (e: Exception) {
+                        // 继续尝试下一个
                     }
-                    
-                    if (intent.resolveActivity(requireContext().packageManager) != null) {
-                        startActivity(intent)
-                        Log.d(TAG, "使用系统文件选择器打开文件")
-                        return
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "方法3失败", e)
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "方法3失败，尝试方法4", e)
+            }
+            
+            // 方法4：使用ACTION_GET_CONTENT打开文件选择器（最后备用）
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "*/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+                }
+                
+                val chooserIntent = Intent.createChooser(intent, "选择文件管理器查看文件位置")
+                chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(chooserIntent)
+                
+                // 提示用户文件位置
+                android.widget.Toast.makeText(
+                    requireContext(),
+                    "文件位置：${parentDir.absolutePath}\n文件名：${file.name}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                Log.d(TAG, "使用文件选择器打开")
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "方法4失败", e)
             }
             
             // 如果所有方法都失败，显示路径并复制到剪贴板
@@ -1820,7 +1873,7 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             
             android.widget.Toast.makeText(
                 requireContext(),
-                "无法打开文件管理器\n文件路径已复制到剪贴板",
+                "无法打开文件管理器\n文件路径已复制到剪贴板\n路径：$filePath",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         } catch (e: Exception) {
@@ -2100,24 +2153,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 显示统一收藏批量操作
      */
     private fun showCollectionBatchActions() {
+        // 确保获取最新的选中状态
         val selectedIds = collectionAdapter.getSelectedIds()
+        val isInSelectionMode = collectionAdapter.isSelectionMode()
         
-        if (selectedIds.isEmpty()) {
-            // 没有选中项，显示批量操作菜单
-            val options = arrayOf("全选", "视图模式", "导入", "导出")
-            androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("批量操作")
-                .setItems(options) { _, which ->
-                    when (which) {
-                        0 -> collectionAdapter.toggleSelectAll()
-                        1 -> showViewModeDialog()
-                        2 -> showImportDialog()
-                        3 -> showExportDialog()
-                    }
-                }
-                .show()
-        } else {
-            // 有选中项，显示操作菜单
+        // 如果当前是多选模式且有选中项，显示操作菜单
+        if (isInSelectionMode && selectedIds.isNotEmpty()) {
             val options = arrayOf("删除", "移动", "编辑", "取消选择")
             androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle("已选择 ${selectedIds.size} 项")
@@ -2126,7 +2167,29 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                         0 -> deleteSelectedCollections(selectedIds)
                         1 -> showMoveCollectionsDialog(selectedIds)
                         2 -> editSelectedCollections(selectedIds)
-                        3 -> collectionAdapter.clearSelection()
+                        3 -> {
+                            // 取消选择并退出多选模式
+                            collectionAdapter.clearSelection()
+                            collectionAdapter.setSelectionMode(false)
+                        }
+                    }
+                }
+                .show()
+        } else {
+            // 没有选中项或不在多选模式，显示批量操作菜单
+            val options = arrayOf("全选", "视图模式", "导入", "导出")
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("批量操作")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            // 进入多选模式并全选
+                            collectionAdapter.setSelectionMode(true)
+                            collectionAdapter.toggleSelectAll()
+                        }
+                        1 -> showViewModeDialog()
+                        2 -> showImportDialog()
+                        3 -> showExportDialog()
                     }
                 }
                 .show()

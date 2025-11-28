@@ -161,6 +161,13 @@ class UnifiedCollectionAdapter(
     }
     
     /**
+     * 检查是否在多选模式
+     */
+    fun isSelectionMode(): Boolean {
+        return isSelectionMode
+    }
+    
+    /**
      * 获取选中的项ID列表
      */
     fun getSelectedIds(): List<String> {
@@ -266,14 +273,19 @@ class UnifiedCollectionAdapter(
         private val cardView: View = itemView.findViewById(R.id.collection_card)
         
         fun bind(item: UnifiedCollectionItem) {
-            // 设置图标（使用emoji或图标资源）
-            iconView.text = item.collectionType.icon
+            // 隐藏图标
+            iconView.visibility = View.GONE
             
             // 设置标题
             titleText.text = item.title
             
-            // 设置来源
-            sourceText.text = item.getSourceDisplayText() + " · " + item.getFormattedCollectedTime()
+            // 设置来源（去掉类型名称，只显示来源和时间）
+            val sourceDisplay = item.getSourceDisplayText()
+            sourceText.text = if (sourceDisplay.isNotEmpty()) {
+                "$sourceDisplay · ${item.getFormattedCollectedTime()}"
+            } else {
+                item.getFormattedCollectedTime()
+            }
             
             // 设置预览（对于视频收藏，显示下载状态）
             val previewContent = if (item.collectionType == com.example.aifloatingball.model.CollectionType.VIDEO_COLLECTION) {
@@ -328,33 +340,14 @@ class UnifiedCollectionAdapter(
             previewText.text = previewContent
             previewText.visibility = if (previewText.text.isNotEmpty()) View.VISIBLE else View.GONE
             
-            // 设置优先级徽章
-            priorityBadge.text = when (item.priority) {
-                Priority.HIGH -> "高"
-                Priority.NORMAL -> "中"
-                Priority.LOW -> "低"
-            }
-            priorityBadge.setBackgroundColor(item.collectionType.color)
+            // 隐藏优先级徽章
+            priorityBadge.visibility = View.GONE
             
             // 设置标签
             setupTags(tagsContainer, item)
             
-            // 设置底部信息
-            val bottomInfo = buildString {
-                // 喜欢程度
-                repeat(item.likeLevel) { append("⭐") }
-                if (item.likeLevel < 5) {
-                    repeat(5 - item.likeLevel) { append("☆") }
-                }
-                append("  ")
-                
-                // 加密状态
-                if (item.isEncrypted) append("🔒 ")
-                
-                // 提醒状态
-                if (item.reminderTime != null) append("⏰ ")
-            }
-            bottomInfoText.text = bottomInfo
+            // 隐藏底部信息（星行等）
+            bottomInfoText.visibility = View.GONE
             
             // 设置选择模式
             checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
@@ -440,9 +433,19 @@ class UnifiedCollectionAdapter(
         private val cardView: View = itemView.findViewById(R.id.collection_card)
         
         fun bind(item: UnifiedCollectionItem) {
-            iconView.text = item.collectionType.icon
+            // 隐藏图标
+            iconView.visibility = View.GONE
+            
+            // 设置标题
             titleText.text = item.title
-            sourceText.text = item.getSourceDisplayText()
+            
+            // 设置来源（去掉类型名称，只显示来源和时间）
+            val sourceDisplay = item.getSourceDisplayText()
+            sourceText.text = if (sourceDisplay.isNotEmpty()) {
+                "$sourceDisplay · ${item.getFormattedCollectedTime()}"
+            } else {
+                item.getFormattedCollectedTime()
+            }
             
             checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
             checkBox.isChecked = selectedIds.contains(item.id)
@@ -491,9 +494,19 @@ class UnifiedCollectionAdapter(
         private val cardView: View = itemView.findViewById(R.id.collection_card)
         
         fun bind(item: UnifiedCollectionItem) {
-            iconView.text = item.collectionType.icon
+            // 隐藏图标
+            iconView.visibility = View.GONE
+            
+            // 设置标题
             titleText.text = item.title
-            sourceText.text = item.getSourceDisplayText() + " · " + item.getFormattedCollectedTime()
+            
+            // 设置来源（去掉类型名称，只显示来源和时间）
+            val sourceDisplay = item.getSourceDisplayText()
+            sourceText.text = if (sourceDisplay.isNotEmpty()) {
+                "$sourceDisplay · ${item.getFormattedCollectedTime()}"
+            } else {
+                item.getFormattedCollectedTime()
+            }
             
             checkBox.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
             checkBox.isChecked = selectedIds.contains(item.id)
