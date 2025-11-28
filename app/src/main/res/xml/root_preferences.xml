@@ -282,12 +282,22 @@
                 app:summary="设置第三个窗口默认使用的搜索引擎"
                 app:icon="@drawable/ic_web_default"/>
 
-            <Preference
-                app:key="reset_window_state"
-                app:title="恢复窗口位置"
-                app:summary="重置多窗口模式下的窗口大小和位置"
-                app:icon="@drawable/ic_resize"/>
+        <Preference
+            app:key="reset_window_state"
+            app:title="恢复窗口位置"
+            app:summary="重置多窗口模式下的窗口大小和位置"
+            app:icon="@drawable/ic_resize"/>
         </PreferenceCategory>
+
+        <ListPreference
+            app:key="history_limit"
+            app:title="历史记录数量"
+            app:summary="设置历史访问记录显示的最大数量"
+            app:entries="@array/history_limit_entries"
+            app:entryValues="@array/history_limit_values"
+            app:defaultValue="100"
+            app:icon="@drawable/ic_history"
+            app:useSimpleSummaryProvider="true"/>
     </PreferenceCategory>
 
     <!-- ===================================================================== -->

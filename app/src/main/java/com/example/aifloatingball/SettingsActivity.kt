@@ -300,6 +300,14 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 true
             }
 
+            // 历史记录数量设置
+            findPreference<ListPreference>("history_limit")?.setOnPreferenceChangeListener { _, newValue ->
+                val limit = (newValue as String).toIntOrNull() ?: 100
+                settingsManager.setHistoryLimit(limit)
+                android.widget.Toast.makeText(requireContext(), "历史记录数量已更新", android.widget.Toast.LENGTH_SHORT).show()
+                true
+            }
+
             // 恢复默认设置
             findPreference<Preference>("restore_defaults")?.setOnPreferenceClickListener {
                 val builder = AlertDialog.Builder(requireContext())

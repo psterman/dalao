@@ -578,8 +578,14 @@ class NewCardSelectionDialog(
             // 3. 按时间排序（最新的在前）
             historyList.sortByDescending { it.visitTime }
             
-            // 4. 限制数量（最多显示20条）
-            val limitedHistory = historyList.take(20)
+            // 4. 应用用户设置的数量限制
+            val settingsManager = com.example.aifloatingball.SettingsManager.getInstance(context)
+            val limit = settingsManager.getHistoryLimit()
+            val limitedHistory = if (limit > 0) {
+                historyList.take(limit)
+            } else {
+                historyList // 无限
+            }
             
             if (limitedHistory.isEmpty()) {
                 // 如果没有历史数据，返回一些默认的常用网站

@@ -945,6 +945,49 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("default_browser", browser)
     }
 
+    /**
+     * 历史记录数量限制选项
+     */
+    enum class HistoryLimitOption(val value: Int, val displayName: String) {
+        LIMIT_10(10, "10条"),
+        LIMIT_100(100, "100条"),
+        LIMIT_1000(1000, "1000条"),
+        UNLIMITED(-1, "无限")
+    }
+
+    /**
+     * 获取历史记录数量限制
+     * @return 限制数量，-1表示无限
+     */
+    fun getHistoryLimit(): Int {
+        val limitValue = prefs.getInt("history_limit", HistoryLimitOption.LIMIT_100.value)
+        return limitValue
+    }
+
+    /**
+     * 设置历史记录数量限制
+     * @param limit 限制数量，-1表示无限
+     */
+    fun setHistoryLimit(limit: Int) {
+        prefs.edit().putInt("history_limit", limit).apply()
+        notifyListeners("history_limit", limit)
+    }
+
+    /**
+     * 获取历史记录数量限制选项
+     */
+    fun getHistoryLimitOption(): HistoryLimitOption {
+        val limitValue = getHistoryLimit()
+        return HistoryLimitOption.values().find { it.value == limitValue } ?: HistoryLimitOption.LIMIT_100
+    }
+
+    /**
+     * 设置历史记录数量限制选项
+     */
+    fun setHistoryLimitOption(option: HistoryLimitOption) {
+        setHistoryLimit(option.value)
+    }
+
     fun getSearchHistory(): List<Map<String, Any>> {
         val json = prefs.getString(KEY_SEARCH_HISTORY, "[]")
         return gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type) ?: emptyList()

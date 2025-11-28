@@ -221,8 +221,20 @@ class HistoryPageFragment : Fragment() {
                     .toSet()
                 
                 // 只返回可见组的历史记录（groupId为null的记录也显示，兼容旧数据）
-                allHistory.filter { entry ->
+                val filteredHistory = allHistory.filter { entry ->
                     entry.groupId == null || !hiddenGroupIds.contains(entry.groupId)
+                }
+                
+                // 按时间排序（最新的在前）
+                val sortedHistory = filteredHistory.sortedByDescending { it.visitTime }
+                
+                // 应用用户设置的数量限制
+                val settingsManager = com.example.aifloatingball.SettingsManager.getInstance(requireContext())
+                val limit = settingsManager.getHistoryLimit()
+                if (limit > 0) {
+                    sortedHistory.take(limit)
+                } else {
+                    sortedHistory // 无限
                 }
             }
             

@@ -161,6 +161,14 @@
     <color name="text_primary">#1A1A1A</color>
     <color name="text_secondary">#757575</color>
 
+    <!-- 新建卡片对话框颜色 -->
+    <color name="new_card_dialog_background">#FFFFFF</color>
+    <color name="new_card_dialog_stroke">#E0E0E0</color>
+    <color name="new_card_input_background">#F5F5F5</color>
+    <color name="new_card_input_stroke">#E0E0E0</color>
+    <color name="new_card_input_text">#1A1A1A</color>
+    <color name="new_card_input_hint">#757575</color>
+
     <!-- 搜索相关颜色 -->
     <color name="search_input_background">#F5F5F5</color>
     <color name="search_input_stroke">#E0E0E0</color>

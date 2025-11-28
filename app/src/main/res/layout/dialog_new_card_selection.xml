@@ -84,6 +84,7 @@
             app:hintTextColor="@color/primary_green"
             app:startIconDrawable="@drawable/ic_search"
             app:startIconTint="@color/primary_green"
+            app:boxBackgroundColor="@color/new_card_input_background"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -93,7 +94,9 @@
                 android:hint="输入网址或搜索内容"
                 android:inputType="textUri"
                 android:imeOptions="actionGo"
-                android:textSize="14sp" />
+                android:textSize="14sp"
+                android:textColor="@color/new_card_input_text"
+                android:textColorHint="@color/new_card_input_hint" />
 
         </com.google.android.material.textfield.TextInputLayout>
 

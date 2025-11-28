@@ -541,4 +541,22 @@
     <color name="menu_button_stroke_light">#404040</color>
     <color name="menu_background_light">#1E1E1E</color>
 
+    <!-- =============================================================== -->
+    <!-- =============== 历史记录页面颜色 - 暗色模式 =================== -->
+    <!-- =============================================================== -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B8B8B8</color>
+    <color name="text_tertiary">#888888</color>
+    <color name="outline_variant">#404040</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== 新建卡片对话框颜色 - 暗色模式 ================= -->
+    <!-- =============================================================== -->
+    <color name="new_card_dialog_background">#1E1E1E</color>
+    <color name="new_card_dialog_stroke">#404040</color>
+    <color name="new_card_input_background">#2A2A2A</color>
+    <color name="new_card_input_stroke">#404040</color>
+    <color name="new_card_input_text">#FFFFFF</color>
+    <color name="new_card_input_hint">#B8B8B8</color>
+
 </resources>

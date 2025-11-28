@@ -3002,6 +3002,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 设置应用搜索页面
+     * 优化：先显示UI框架，后台异步加载应用列表
      */
     private fun setupAppSearchPage() {
         Log.d(TAG, "setupAppSearchPage被调用")
@@ -3010,6 +3011,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化应用搜索适配器
         if (!::appSearchAdapter.isInitialized) {
             Log.d(TAG, "开始初始化appSearchAdapter")
+            
+            // 先尝试使用缓存的应用列表，立即显示UI
+            val cachedApps = com.example.aifloatingball.manager.InstalledAppsRepository.getInstance(this).getCached()
+            if (cachedApps != null && cachedApps.isNotEmpty()) {
+                Log.d(TAG, "使用缓存的应用列表，共 ${cachedApps.size} 个应用")
+                currentAppConfigs.clear()
+                currentAppConfigs.addAll(cachedApps)
+            }
+            
             appSearchAdapter = AppSearchGridAdapter(this, currentAppConfigs,
                 onAppClick = { appConfig, query ->
                     handleAppSearch(appConfig, query)
@@ -3036,8 +3046,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 设置排序图标按钮
             setupSortIconButtons()
 
-            // 加载默认分类的应用
-            loadAppsByCategory(AppCategory.ALL)
+            // 如果有缓存数据，先显示缓存，然后后台刷新
+            if (cachedApps != null && cachedApps.isNotEmpty()) {
+                appSearchAdapter.updateAppConfigs(currentAppConfigs)
+                resetSearchInputIcon()
+                updateSortIconButtonsState()
+                // 隐藏加载提示（如果有）
+                findViewById<android.view.View>(R.id.app_search_loading_overlay)?.visibility = android.view.View.GONE
+                
+                // 后台异步刷新应用列表（如果缓存可能过期）
+                handler.postDelayed({
+                    loadAppsByCategory(AppCategory.ALL)
+                }, 100) // 延迟100ms，确保UI先显示
+            } else {
+                // 没有缓存，异步加载应用列表
+                loadAppsByCategory(AppCategory.ALL)
+            }
+        } else {
+            // 适配器已初始化，检查是否需要刷新数据
+            if (currentAppConfigs.isEmpty()) {
+                // 尝试使用缓存
+                val cachedApps = com.example.aifloatingball.manager.InstalledAppsRepository.getInstance(this).getCached()
+                if (cachedApps != null && cachedApps.isNotEmpty()) {
+                    currentAppConfigs.clear()
+                    currentAppConfigs.addAll(cachedApps)
+                    appSearchAdapter.updateAppConfigs(currentAppConfigs)
+                    resetSearchInputIcon()
+                    updateSortIconButtonsState()
+                    findViewById<android.view.View>(R.id.app_search_loading_overlay)?.visibility = android.view.View.GONE
+                } else {
+                    // 没有缓存，异步加载
+                    loadAppsByCategory(AppCategory.ALL)
+                }
+            }
         }
     }
 
@@ -3278,15 +3319,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 根据分类加载应用
      */
     private fun loadAppsByCategory(category: AppCategory) {
-        // 优先：设备已安装应用扫描（满足“全部标签中加载所有已安装app图标、自动分类与过滤”）
+        // 优先：设备已安装应用扫描（满足"全部标签中加载所有已安装app图标、自动分类与过滤"）
         try {
             val loadingOverlay = findViewById<android.view.View>(R.id.app_search_loading_overlay)
-            loadingOverlay?.visibility = android.view.View.VISIBLE
+            // 只在没有缓存数据时才显示加载提示
+            if (currentAppConfigs.isEmpty()) {
+                loadingOverlay?.visibility = android.view.View.VISIBLE
+            }
 
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val startTime = System.currentTimeMillis()
                 val repo = com.example.aifloatingball.manager.InstalledAppsRepository.getInstance(this@SimpleModeActivity)
-                // 扫描并获得已按规则过滤与分类的应用
-                val allApps = repo.scanInstalledSearchableApps()
+                
+                // 先尝试使用缓存
+                var allApps = repo.getCached()
+                if (allApps == null || allApps.isEmpty()) {
+                    // 缓存不存在或为空，扫描应用
+                    Log.d(TAG, "缓存不存在，开始扫描已安装应用")
+                    allApps = repo.scanInstalledSearchableApps()
+                    val scanTime = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "应用扫描完成，耗时: ${scanTime}ms，共 ${allApps.size} 个应用")
+                } else {
+                    val cacheTime = System.currentTimeMillis() - startTime
+                    Log.d(TAG, "使用缓存的应用列表，耗时: ${cacheTime}ms，共 ${allApps.size} 个应用")
+                }
+                
                 val list = if (category == AppCategory.ALL) {
                     allApps
                 } else if (category == AppCategory.CUSTOM) {
@@ -3297,6 +3354,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    val updateStartTime = System.currentTimeMillis()
                     currentAppConfigs.clear()
                     // 应用排序
                     val sortedList = appSortManager.sortApps(list, category)
@@ -3305,6 +3363,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     resetSearchInputIcon()
                     updateSortIconButtonsState()
                     loadingOverlay?.visibility = android.view.View.GONE
+                    val updateTime = System.currentTimeMillis() - updateStartTime
+                    Log.d(TAG, "应用列表更新完成，耗时: ${updateTime}ms，共 ${currentAppConfigs.size} 个应用")
                 }
             }
         } catch (e: Exception) {

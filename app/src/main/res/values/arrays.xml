@@ -220,6 +220,20 @@
         <item>3</item>
     </string-array>
 
+    <string-array name="history_limit_entries">
+        <item>10条</item>
+        <item>100条</item>
+        <item>1000条</item>
+        <item>无限</item>
+    </string-array>
+
+    <string-array name="history_limit_values">
+        <item>10</item>
+        <item>100</item>
+        <item>1000</item>
+        <item>-1</item>
+    </string-array>
+
     <!-- 应用搜索名称 -->
     <string-array name="app_search_names">
         <item>淘宝</item>
