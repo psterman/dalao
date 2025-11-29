@@ -148,28 +148,25 @@ class ChatMessageAdapter(
         private val platformIconsContainer: LinearLayout = itemView.findViewById(R.id.platform_icons_container)
 
         fun bind(message: ChatActivity.ChatMessage, position: Int) {
-            // 检查是否包含平台图标标记
-            val hasPlatformIcons = message.content.contains("[PLATFORM_ICONS]")
-            
-            if (hasPlatformIcons) {
+            // 处理消息内容：移除平台图标标记（如果存在）
+            val actualContent = if (message.content.contains("[PLATFORM_ICONS]")) {
                 // 分离内容和平台图标标记
                 val contentParts = message.content.split("[PLATFORM_ICONS]")
-                val actualContent = contentParts[0].trim()
-                
-                // 使用高级Markdown渲染器渲染AI回复内容
-                val spannableString = advancedMarkdownRenderer.renderAIResponse(actualContent)
-                messageText.text = spannableString
-                
-                // 显示平台图标
-                showPlatformIcons(message.userQuery ?: "")
+                contentParts[0].trim()
             } else {
-                // 使用高级Markdown渲染器渲染AI回复内容
-                val spannableString = advancedMarkdownRenderer.renderAIResponse(message.content)
-                messageText.text = spannableString
-                
-                // 隐藏平台图标
-                hidePlatformIcons()
+                // 没有标记，直接使用原内容
+                message.content
             }
+            
+            // 使用高级Markdown渲染器渲染AI回复内容
+            val spannableString = advancedMarkdownRenderer.renderAIResponse(actualContent)
+            messageText.text = spannableString
+            
+            // 所有AI回复都显示平台图标（使用userQuery作为搜索关键词）
+            // 如果userQuery为空，尝试从消息内容中提取关键词
+            val searchQuery = message.userQuery?.takeIf { it.isNotEmpty() } 
+                ?: extractSearchQueryFromContent(actualContent)
+            showPlatformIcons(searchQuery)
             
             timeText.text = formatTime(message.timestamp)
             
@@ -207,11 +204,25 @@ class ChatMessageAdapter(
         }
         
         /**
-         * 隐藏平台图标
+         * 从消息内容中提取搜索关键词
+         * 如果userQuery为空，尝试从AI回复内容中提取关键词
          */
-        private fun hidePlatformIcons() {
-            platformIconsContainer.removeAllViews()
-            platformIconsContainer.visibility = View.GONE
+        private fun extractSearchQueryFromContent(content: String): String {
+            // 如果内容为空或太短，返回空字符串
+            if (content.isBlank() || content.length < 3) {
+                return ""
+            }
+            
+            // 尝试提取前50个字符作为搜索关键词
+            // 移除常见的AI回复前缀（如"根据"、"建议"等）
+            val cleaned = content.trim()
+                .replace(Regex("^(根据|建议|我认为|我的看法是|让我|我可以|我理解|这是一个|根据我的分析)[，。：:]"), "")
+                .trim()
+            
+            // 取前50个字符，如果包含句号、问号、感叹号，则截取到第一个标点符号
+            val firstSentence = cleaned.split(Regex("[。！？\n]")).firstOrNull()?.take(50) ?: cleaned.take(50)
+            
+            return firstSentence.trim()
         }
 
         private fun formatTime(timestamp: Long): String {
