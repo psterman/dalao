@@ -1185,15 +1185,15 @@ class EnhancedMenuManager(
             // 添加预览窗到窗口管理器
             windowManager.addView(previewWindowView, previewWindowParams)
             
-            // 显示动画
-            container.alpha = 0f
-            container.scaleX = 0.9f
-            container.scaleY = 0.9f
+            // 初始位置：将卡片放在屏幕底部外（完全隐藏）
+            container.translationY = screenHeight.toFloat()
+            container.alpha = 1f
+            
+            // 从底部滑入动画
             container.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(250)
+                .translationY(0f)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .start()
             
             Log.d(TAG, "链接预览悬浮窗已显示: $url")
@@ -1478,49 +1478,72 @@ class EnhancedMenuManager(
         try {
             var downY = 0f
             var startTranslationY = 0f
+            var isDragging = false
             val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
             val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+            val dismissThreshold = screenHeight * 0.25f // 下滑超过25%屏幕高度则关闭
             
-            dragHandle.setOnTouchListener { _, event ->
+            // 创建统一的拖动监听器，整个卡片都可以拖动
+            val dragListener = View.OnTouchListener { view, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         downY = event.rawY
                         startTranslationY = container.translationY
+                        isDragging = false
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dy = event.rawY - downY
-                        if (dy > 0) {
+                        if (Math.abs(dy) > touchSlop) {
+                            isDragging = true
+                        }
+                        if (dy > 0 && isDragging) {
                             // 只允许向下拖动
                             container.translationY = startTranslationY + dy
+                            // 根据拖动距离调整透明度，增加视觉反馈
+                            val progress = (dy / screenHeight).coerceIn(0f, 1f)
+                            container.alpha = 1f - progress * 0.5f
                         }
                         true
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        val dy = container.translationY - startTranslationY
-                        // 拖动距离超过一定阈值则关闭，否则回弹
-                        if (dy > touchSlop * 4) {
-                            container.animate()
-                                .translationY(screenHeight)
-                                .alpha(0f)
-                                .setDuration(200)
-                                .withEndAction {
-                                    hidePreviewWindow()
-                                    container.alpha = 1f
-                                    container.translationY = 0f
-                                }
-                                .start()
-                        } else {
-                            container.animate()
-                                .translationY(0f)
-                                .setDuration(200)
-                                .start()
+                        if (isDragging) {
+                            val dy = container.translationY - startTranslationY
+                            // 拖动距离超过阈值则关闭，否则回弹
+                            if (dy > dismissThreshold) {
+                                // 向下滑出关闭
+                                container.animate()
+                                    .translationY(screenHeight)
+                                    .alpha(0f)
+                                    .setDuration(250)
+                                    .setInterpolator(android.view.animation.AccelerateInterpolator())
+                                    .withEndAction {
+                                        hidePreviewWindow(true)
+                                        container.alpha = 1f
+                                        container.translationY = 0f
+                                    }
+                                    .start()
+                            } else {
+                                // 回弹到原位
+                                container.animate()
+                                    .translationY(0f)
+                                    .alpha(1f)
+                                    .setDuration(200)
+                                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                                    .start()
+                            }
                         }
+                        isDragging = false
                         true
                     }
                     else -> false
                 }
             }
+            
+            // 标题栏和整个容器都可以拖动
+            dragHandle.setOnTouchListener(dragListener)
+            container.setOnTouchListener(dragListener)
+            
         } catch (e: Exception) {
             Log.e(TAG, "设置底部预览卡片下滑关闭行为失败", e)
         }
@@ -1536,15 +1559,19 @@ class EnhancedMenuManager(
             isPreviewShowing.set(false)
             
             val container = previewWindowView?.findViewById<androidx.cardview.widget.CardView>(R.id.preview_window_container)
+            val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
             
             if (container != null && !immediate) {
+                // 向下滑出动画
                 container.animate()
+                    .translationY(screenHeight)
                     .alpha(0f)
-                    .scaleX(0.9f)
-                    .scaleY(0.9f)
-                    .setDuration(200)
+                    .setDuration(250)
+                    .setInterpolator(android.view.animation.AccelerateInterpolator())
                     .withEndAction {
                         cleanupPreviewState()
+                        container.alpha = 1f
+                        container.translationY = 0f
                     }
                     .start()
             } else {
