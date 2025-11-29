@@ -1,6 +1,5 @@
 package com.example.aifloatingball.ui
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.text.InputType
 import android.view.LayoutInflater
@@ -9,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -18,6 +18,7 @@ import com.example.aifloatingball.adapter.GroupItemTouchHelperCallback
 import com.example.aifloatingball.adapter.TabGroupAdapter
 import com.example.aifloatingball.manager.TabGroupManager
 import com.example.aifloatingball.model.TabGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * 标签页组管理Fragment
@@ -149,22 +150,40 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入组名"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("创建新组")
             .setView(input)
-            .setPositiveButton("创建") { _, _ ->
+            .setPositiveButton("创建", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val groupName = input.text.toString().trim()
                 if (groupName.isNotEmpty()) {
                     val newGroup = groupManager.createGroup(groupName)
                     groupManager.setCurrentGroup(newGroup.id)
                     refreshGroups()
                     Toast.makeText(requireContext(), "组已创建", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 } else {
                     Toast.makeText(requireContext(), "组名不能为空", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -177,21 +196,39 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入组名"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("编辑组名")
             .setView(input)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton("保存", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val groupName = input.text.toString().trim()
                 if (groupName.isNotEmpty()) {
                     groupManager.updateGroup(group.id, name = groupName)
                     refreshGroups()
                     Toast.makeText(requireContext(), "组名已更新", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 } else {
                     Toast.makeText(requireContext(), "组名不能为空", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -205,15 +242,31 @@ class TabGroupManagerFragment : Fragment() {
                 hint = "请输入密码以删除此组"
             }
             
-            AlertDialog.Builder(requireContext())
+            val dialog = MaterialAlertDialogBuilder(requireContext())
                 .setTitle("删除加密组")
                 .setMessage("组「${group.name}」已加密，删除前需要验证密码。组内的所有标签页将被删除。")
                 .setView(passwordInput)
-                .setPositiveButton("删除") { _, _ ->
+                .setPositiveButton("删除", null)
+                .setNegativeButton("取消", null)
+                .create()
+            
+            dialog.setOnShowListener {
+                val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+                
+                // 确保按钮可见
+                positiveButton?.visibility = View.VISIBLE
+                negativeButton?.visibility = View.VISIBLE
+                
+                // 设置按钮文字颜色，确保可见
+                positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
+                negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+                
+                positiveButton?.setOnClickListener {
                     val password = passwordInput.text.toString()
                     if (password.isEmpty()) {
                         Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show()
-                        return@setPositiveButton
+                        return@setOnClickListener
                     }
                     
                     // 验证密码
@@ -221,26 +274,46 @@ class TabGroupManagerFragment : Fragment() {
                         if (groupManager.deleteGroup(group.id)) {
                             refreshGroups()
                             Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
+                            dialog.dismiss()
                         }
                     } else {
                         Toast.makeText(requireContext(), "密码错误，无法删除", Toast.LENGTH_SHORT).show()
                     }
                 }
-                .setNegativeButton("取消", null)
-                .show()
+            }
+            
+            dialog.show()
         } else {
             // 没有密码的组，直接删除
-            AlertDialog.Builder(requireContext())
+            val dialog = MaterialAlertDialogBuilder(requireContext())
                 .setTitle("删除组")
                 .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
-                .setPositiveButton("删除") { _, _ ->
+                .setPositiveButton("删除", null)
+                .setNegativeButton("取消", null)
+                .create()
+            
+            dialog.setOnShowListener {
+                val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+                
+                // 确保按钮可见
+                positiveButton?.visibility = View.VISIBLE
+                negativeButton?.visibility = View.VISIBLE
+                
+                // 设置按钮文字颜色，确保可见
+                positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_red_dark))
+                negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+                
+                positiveButton?.setOnClickListener {
                     if (groupManager.deleteGroup(group.id)) {
                         refreshGroups()
                         Toast.makeText(requireContext(), "组已删除", Toast.LENGTH_SHORT).show()
+                        dialog.dismiss()
                     }
                 }
-                .setNegativeButton("取消", null)
-                .show()
+            }
+            
+            dialog.show()
         }
     }
     
@@ -253,27 +326,48 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入密码"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("输入密码")
             .setMessage("组「${group.name}」已加密，请输入密码")
             .setView(passwordInput)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .setCancelable(false)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val password = passwordInput.text.toString()
                 val verified = groupManager.verifyGroupPassword(group.id, password) ||
                                groupManager.verifyQuickAccessCode(group.id, password)
                 if (verified) {
                     onVerified(true)
                     Toast.makeText(requireContext(), "密码正确", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 } else {
                     onVerified(false)
                     Toast.makeText(requireContext(), "密码错误", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消") { _, _ ->
+            
+            negativeButton?.setOnClickListener {
                 onVerified(false)
+                dialog.dismiss()
             }
-            .setCancelable(false)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -292,7 +386,7 @@ class TabGroupManagerFragment : Fragment() {
             items.add("设置快捷访问码")
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("组安全设置 - ${group.name}")
             .setItems(items.toTypedArray()) { _, which ->
                 when (items[which]) {
@@ -313,7 +407,15 @@ class TabGroupManagerFragment : Fragment() {
                 }
             }
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+        
+        dialog.setOnShowListener {
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            negativeButton?.visibility = View.VISIBLE
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -336,10 +438,26 @@ class TabGroupManagerFragment : Fragment() {
             addView(confirmInput)
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("设置密码")
             .setView(layout)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val password = passwordInput.text.toString()
                 val confirm = confirmInput.text.toString()
                 if (password.isEmpty()) {
@@ -350,10 +468,12 @@ class TabGroupManagerFragment : Fragment() {
                     groupManager.setGroupPassword(group.id, password)
                     refreshGroups()
                     Toast.makeText(requireContext(), "密码已设置", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -381,10 +501,26 @@ class TabGroupManagerFragment : Fragment() {
             addView(confirmInput)
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("修改密码")
             .setView(layout)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val oldPassword = oldPasswordInput.text.toString()
                 val newPassword = newPasswordInput.text.toString()
                 val confirm = confirmInput.text.toString()
@@ -399,10 +535,12 @@ class TabGroupManagerFragment : Fragment() {
                     groupManager.setGroupPassword(group.id, newPassword)
                     refreshGroups()
                     Toast.makeText(requireContext(), "密码已修改", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -414,22 +552,40 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入密码确认"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("移除密码")
             .setMessage("确定要移除组「${group.name}」的密码保护吗？")
             .setView(passwordInput)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val password = passwordInput.text.toString()
                 if (groupManager.verifyGroupPassword(group.id, password)) {
                     groupManager.removeGroupPassword(group.id)
                     refreshGroups()
                     Toast.makeText(requireContext(), "密码已移除", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 } else {
                     Toast.makeText(requireContext(), "密码错误", Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -441,21 +597,39 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入快捷访问码（特殊密码）"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("设置快捷访问码")
             .setMessage("快捷访问码是一个特殊的密码，可以用来快速访问加密的组")
             .setView(codeInput)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val code = codeInput.text.toString()
                 if (code.isEmpty()) {
                     Toast.makeText(requireContext(), "访问码不能为空", Toast.LENGTH_SHORT).show()
                 } else {
                     groupManager.setQuickAccessCode(group.id, code)
                     Toast.makeText(requireContext(), "快捷访问码已设置", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -467,15 +641,31 @@ class TabGroupManagerFragment : Fragment() {
             hint = "请输入密码或快捷访问码"
         }
         
-        AlertDialog.Builder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle("激活隐藏组")
             .setMessage("请输入隐藏组的密码或快捷访问码来激活并显示该组")
             .setView(passwordInput)
-            .setPositiveButton("激活") { _, _ ->
+            .setPositiveButton("激活", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val password = passwordInput.text.toString()
                 if (password.isEmpty()) {
                     Toast.makeText(requireContext(), "请输入密码或快捷访问码", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
+                    return@setOnClickListener
                 }
                 
                 // 查找所有隐藏的组
@@ -500,10 +690,13 @@ class TabGroupManagerFragment : Fragment() {
                 
                 if (!activated) {
                     Toast.makeText(requireContext(), "密码或快捷访问码错误，或没有匹配的隐藏组", Toast.LENGTH_SHORT).show()
+                } else {
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
 }
 

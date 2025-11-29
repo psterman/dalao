@@ -34155,22 +34155,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hint = "请输入组名"
         }
         
-        AlertDialog.Builder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("创建新组")
             .setView(input)
-            .setPositiveButton("创建") { _, _ ->
+            .setPositiveButton("创建", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val groupName = input.text.toString().trim()
                 if (groupName.isNotEmpty()) {
                     val newGroup = groupManager.createGroup(groupName)
                     groupManager.setCurrentGroup(newGroup.id)
                     onGroupCreated()
                     showMaterialToast("组已创建")
+                    dialog.dismiss()
                 } else {
                     showMaterialToast("组名不能为空")
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -34204,17 +34222,35 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示删除组对话框
      */
     private fun showDeleteGroupDialog(group: TabGroup, groupManager: TabGroupManager, onGroupDeleted: () -> Unit) {
-        AlertDialog.Builder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("删除组")
             .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
-            .setPositiveButton("删除") { _, _ ->
+            .setPositiveButton("删除", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            negativeButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 if (groupManager.deleteGroup(group.id)) {
                     onGroupDeleted()
                     showMaterialToast("组已删除")
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
@@ -34489,11 +34525,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             requestFocus()
         }
         
-        val dialog = AlertDialog.Builder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("新建标签组")
             .setMessage("为您的标签组起个名字")
             .setView(input)
-            .setPositiveButton("创建") { _, _ ->
+            .setPositiveButton("创建", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_blue_dark))
+            negativeButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 val groupName = input.text.toString().trim()
                 if (groupName.isNotEmpty()) {
                     val newGroup = groupManager.createGroup(groupName)
@@ -34501,12 +34553,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     groupManager.setCurrentGroup(newGroup.id)
                     refreshGroupTabs()
                     showMaterialToast("标签组「${groupName}」已创建")
+                    dialog.dismiss()
                 } else {
                     showMaterialToast("组名不能为空")
                 }
             }
-            .setNegativeButton("取消", null)
-            .create()
+        }
         
         dialog.show()
         
@@ -34653,17 +34705,35 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 内联删除组对话框
      */
     private fun showDeleteGroupDialogInline(group: TabGroup, groupManager: TabGroupManager) {
-        AlertDialog.Builder(this)
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle("删除组")
             .setMessage("确定要删除组「${group.name}」吗？组内的所有标签页将被删除。")
-            .setPositiveButton("删除") { _, _ ->
+            .setPositiveButton("删除", null)
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.setOnShowListener {
+            val positiveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val negativeButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            
+            // 确保按钮可见
+            positiveButton?.visibility = View.VISIBLE
+            negativeButton?.visibility = View.VISIBLE
+            
+            // 设置按钮文字颜色，确保可见
+            positiveButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.holo_red_dark))
+            negativeButton?.setTextColor(androidx.core.content.ContextCompat.getColor(this, android.R.color.darker_gray))
+            
+            positiveButton?.setOnClickListener {
                 if (groupManager.deleteGroup(group.id)) {
                     refreshGroupTabs()
                     showMaterialToast("组已删除")
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        }
+        
+        dialog.show()
     }
     
     /**
