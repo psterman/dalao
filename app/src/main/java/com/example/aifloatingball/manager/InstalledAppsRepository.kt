@@ -215,7 +215,41 @@ class InstalledAppsRepository private constructor(private val context: Context) 
             { ll: String, pp: String -> ll.contains("出行") || ll.contains("打车") || ll.contains("航旅") || pp.contains("ctrip") || pp.contains("qunar") || pp.contains("didiglobal") } to AppCategory.TRAVEL,
             { ll: String, pp: String -> ll.contains("招聘") || ll.contains("求职") || pp.contains("boss") || pp.contains("zhilian") } to AppCategory.JOBS,
             { ll: String, pp: String -> ll.contains("教育") || ll.contains("学习") || pp.contains("school") || pp.contains("study") } to AppCategory.EDUCATION,
-            { ll: String, pp: String -> ll.contains("新闻") || ll.contains("资讯") || pp.contains("news") } to AppCategory.NEWS,
+            { ll: String, pp: String -> ll.contains("新闻") || ll.contains("资讯") || pp.contains("news") || 
+                pp.contains("toutiao") || pp.contains("thepaper") || pp.contains("netease.newsreader") || 
+                pp.contains("tencent.news") } to AppCategory.NEWS,
+            
+            // 办公软件类
+            { ll: String, pp: String -> pp.contains("wps") || pp.contains("onenote") || 
+                pp.contains("microsoft.office") } to AppCategory.LIFESTYLE,
+            
+            // 搜索引擎类
+            { ll: String, pp: String -> pp.contains("googlequicksearchbox") || pp.contains("baidu.searchbox") || 
+                pp.contains("sogou") || pp.contains("qihoo.browser") || pp.contains("mycake.browser") } to AppCategory.BROWSER,
+            
+            // AI搜索类（已在AI规则中处理，这里确保分类正确）
+            { ll: String, pp: String -> pp.contains("tiangong") || pp.contains("qihoo.aisearch") || 
+                pp.contains("mindsearch") } to AppCategory.AI,
+            
+            // 购物类（扩展）
+            { ll: String, pp: String -> pp.contains("vipshop") || pp.contains("dangdang") || 
+                pp.contains("amazon.mShop") || pp.contains("mogujie") } to AppCategory.SHOPPING,
+            
+            // 图片设计类
+            { ll: String, pp: String -> pp.contains("picsart") || pp.contains("canva") || 
+                pp.contains("vsco.android") } to AppCategory.LIFESTYLE,
+            
+            // 教育类（扩展）
+            { ll: String, pp: String -> pp.contains("xuexi.android") || pp.contains("netease.edu") || 
+                pp.contains("netease.open") || pp.contains("shanbay") } to AppCategory.EDUCATION,
+            
+            // 健康医疗类
+            { ll: String, pp: String -> pp.contains("dxy.pharmacy") || pp.contains("gotokeep.keep") || 
+                pp.contains("boohee") } to AppCategory.LIFESTYLE,
+            
+            // 开发工具类
+            { ll: String, pp: String -> pp.contains("microsoft.vscode") || pp.contains("google.android.studio") || 
+                pp.contains("sublimetext") } to AppCategory.LIFESTYLE,
         )
 
         for ((pred, cat) in rules) {

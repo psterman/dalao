@@ -4326,6 +4326,60 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "com.tencent.map" -> "qqmap://search?keyword=$encodedQuery" // 腾讯地图
             "com.baidu.BaiduMap" -> "baidumap://map/place/search?query=$encodedQuery" // 百度地图
             
+            // 办公软件类
+            "cn.wps.moffice_eng" -> "wps://search?keyword=$encodedQuery" // WPS Office
+            "cn.wps.moffice" -> "wps://search?keyword=$encodedQuery" // WPS Office
+            "cn.wps.xiaomi.launcher" -> "wps://search?keyword=$encodedQuery" // WPS Office
+            "com.microsoft.office.onenote" -> "onenote://search?query=$encodedQuery" // Microsoft OneNote
+            
+            // 搜索引擎与浏览器类
+            "com.google.android.googlequicksearchbox" -> "google://search?q=$encodedQuery" // Google搜索
+            "com.baidu.searchbox" -> "baiduboxapp://search?keyword=$encodedQuery" // 百度搜索
+            "com.sohu.inputmethod.sogou" -> "sogou://search?keyword=$encodedQuery" // 搜狗搜索
+            "com.qihoo.browser" -> "qihoobrowser://search?keyword=$encodedQuery" // 360浏览器
+            "me.mycake.browser" -> "alook://search?q=$encodedQuery" // Alook浏览器
+            
+            // AI智能搜索类
+            "com.tiangong.search" -> "tiangong://search?query=$encodedQuery" // 天工AI搜索
+            "com.metaso" -> "metaso://search?query=$encodedQuery" // 秘塔AI搜索（MetaSo）
+            "com.qihoo.aisearch" -> "qihooai://search?keyword=$encodedQuery" // 360AI搜索
+            "com.deepseek.chat" -> "deepseek://search?query=$encodedQuery" // DeepSeek
+            "ai.perplexity.app.android" -> "perplexity://search?q=$encodedQuery" // Perplexity AI
+            "com.mindsearch.app" -> "mindsearch://search?query=$encodedQuery" // MindSearch
+            
+            // 购物电商类
+            "com.achievo.vipshop" -> "vipshop://search?keyword=$encodedQuery" // 唯品会
+            "com.dangdang.buy2" -> "dangdang://search?keyword=$encodedQuery" // 当当
+            "com.amazon.mShop.android.shopping" -> "amazon://search?query=$encodedQuery" // 亚马逊
+            "com.mogujie" -> "mogujie://search?keyword=$encodedQuery" // 蘑菇街
+            
+            // 图片与设计类
+            "com.picsart.studio" -> "picsart://search?query=$encodedQuery" // PicsArt
+            "com.canva.editor" -> "canva://search?query=$encodedQuery" // Canva
+            "com.vsco.android" -> "vsco://search?query=$encodedQuery" // VSCO
+            
+            // 学习与教育类
+            "cn.xuexi.android" -> "xuexi://search?keyword=$encodedQuery" // 学习强国
+            "com.netease.edu.study" -> "icourse163://search?keyword=$encodedQuery" // 中国大学MOOC
+            "com.netease.open.iStudy" -> "neteaseopen://search?keyword=$encodedQuery" // 网易公开课
+            "com.shanbay.words" -> "shanbay://search?keyword=$encodedQuery" // 扇贝单词
+            
+            // 健康医疗类
+            "com.dxy.pharmacy" -> "dxy://search?keyword=$encodedQuery" // 丁香医生
+            "com.gotokeep.keep" -> "keep://search?keyword=$encodedQuery" // Keep
+            "com.boohee.one" -> "boohee://search?keyword=$encodedQuery" // 薄荷健康
+            
+            // 新闻资讯类
+            "com.ss.android.article.news" -> "snssdk141://search?keyword=$encodedQuery" // 今日头条
+            "com.thepaper.cn" -> "thepaper://search?keyword=$encodedQuery" // 澎湃新闻
+            "com.netease.newsreader.activity" -> "netease://search?keyword=$encodedQuery" // 网易新闻
+            "com.tencent.news" -> "tencentnews://search?keyword=$encodedQuery" // 腾讯新闻
+            
+            // 开发工具类
+            "com.microsoft.vscode" -> "vscode://search?query=$encodedQuery" // Visual Studio Code
+            "com.google.android.studio" -> "androidstudio://search?query=$encodedQuery" // Android Studio
+            "com.sublimetext.three" -> "sublime://search?query=$encodedQuery" // Sublime Text
+            
             else -> null // 未知应用，返回null使用其他方案
         }
     }

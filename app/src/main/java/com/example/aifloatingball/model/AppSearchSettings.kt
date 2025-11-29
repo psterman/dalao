@@ -872,6 +872,396 @@ class AppSearchSettings(context: Context) {
                 searchUrl = "copilot://microsoft?query={q}",
                 category = AppCategory.AI,
                 description = "Copilot AI助手搜索"
+            ),
+            
+            // ========== 办公软件类 ==========
+            // WPS Office
+            AppSearchConfig(
+                appId = "wps_office",
+                appName = "WPS Office",
+                packageName = "cn.wps.moffice_eng",
+                isEnabled = true,
+                order = 64,
+                iconResId = android.R.drawable.ic_menu_manage,
+                searchUrl = "wps://search?keyword={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "WPS Office搜索文档、表格、演示文稿"
+            ),
+            // Microsoft OneNote
+            AppSearchConfig(
+                appId = "onenote",
+                appName = "Microsoft OneNote",
+                packageName = "com.microsoft.office.onenote",
+                isEnabled = true,
+                order = 65,
+                iconResId = android.R.drawable.ic_menu_manage,
+                searchUrl = "onenote://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Microsoft OneNote搜索笔记内容"
+            ),
+            
+            // ========== 搜索引擎与浏览器类 ==========
+            // Google搜索
+            AppSearchConfig(
+                appId = "google_search",
+                appName = "Google搜索",
+                packageName = "com.google.android.googlequicksearchbox",
+                isEnabled = true,
+                order = 66,
+                iconResId = android.R.drawable.ic_menu_search,
+                searchUrl = "google://search?q={q}",
+                category = AppCategory.BROWSER,
+                description = "Google搜索网页、图片、视频"
+            ),
+            // 百度搜索
+            AppSearchConfig(
+                appId = "baidu_search",
+                appName = "百度搜索",
+                packageName = "com.baidu.searchbox",
+                isEnabled = true,
+                order = 67,
+                iconResId = android.R.drawable.ic_menu_search,
+                searchUrl = "baiduboxapp://search?keyword={q}",
+                category = AppCategory.BROWSER,
+                description = "百度搜索网页、图片"
+            ),
+            // 搜狗搜索
+            AppSearchConfig(
+                appId = "sogou_search",
+                appName = "搜狗搜索",
+                packageName = "com.sohu.inputmethod.sogou",
+                isEnabled = true,
+                order = 68,
+                iconResId = android.R.drawable.ic_menu_search,
+                searchUrl = "sogou://search?keyword={q}",
+                category = AppCategory.BROWSER,
+                description = "搜狗搜索网页内容"
+            ),
+            // 360浏览器
+            AppSearchConfig(
+                appId = "360_browser",
+                appName = "360浏览器",
+                packageName = "com.qihoo.browser",
+                isEnabled = true,
+                order = 69,
+                iconResId = android.R.drawable.ic_menu_search,
+                searchUrl = "qihoobrowser://search?keyword={q}",
+                category = AppCategory.BROWSER,
+                description = "360浏览器网页搜索"
+            ),
+            // Alook浏览器
+            AppSearchConfig(
+                appId = "alook_browser",
+                appName = "Alook浏览器",
+                packageName = "me.mycake.browser",
+                isEnabled = true,
+                order = 70,
+                iconResId = android.R.drawable.ic_menu_search,
+                searchUrl = "alook://search?q={q}",
+                category = AppCategory.BROWSER,
+                description = "Alook浏览器网页搜索"
+            ),
+            
+            // ========== AI智能搜索类 ==========
+            // 天工AI搜索
+            AppSearchConfig(
+                appId = "tiangong_ai",
+                appName = "天工AI搜索",
+                packageName = "com.tiangong.search",
+                isEnabled = true,
+                order = 71,
+                iconResId = android.R.drawable.ic_menu_help,
+                searchUrl = "tiangong://search?query={q}",
+                category = AppCategory.AI,
+                description = "天工AI搜索自然语言搜索和问答"
+            ),
+            // 360AI搜索
+            AppSearchConfig(
+                appId = "360_ai_search",
+                appName = "360AI搜索",
+                packageName = "com.qihoo.aisearch",
+                isEnabled = true,
+                order = 72,
+                iconResId = android.R.drawable.ic_menu_help,
+                searchUrl = "qihooai://search?keyword={q}",
+                category = AppCategory.AI,
+                description = "360AI搜索自然语言处理搜索"
+            ),
+            // MindSearch
+            AppSearchConfig(
+                appId = "mindsearch",
+                appName = "MindSearch",
+                packageName = "com.mindsearch.app",
+                isEnabled = true,
+                order = 73,
+                iconResId = android.R.drawable.ic_menu_help,
+                searchUrl = "mindsearch://search?query={q}",
+                category = AppCategory.AI,
+                description = "MindSearch学术领域搜索"
+            ),
+            
+            // ========== 购物电商类 ==========
+            // 唯品会
+            AppSearchConfig(
+                appId = "vipshop",
+                appName = "唯品会",
+                packageName = "com.achievo.vipshop",
+                isEnabled = true,
+                order = 74,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "vipshop://search?keyword={q}",
+                category = AppCategory.SHOPPING,
+                description = "唯品会商品搜索"
+            ),
+            // 当当
+            AppSearchConfig(
+                appId = "dangdang",
+                appName = "当当",
+                packageName = "com.dangdang.buy2",
+                isEnabled = true,
+                order = 75,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "dangdang://search?keyword={q}",
+                category = AppCategory.SHOPPING,
+                description = "当当图书等搜索"
+            ),
+            // 亚马逊
+            AppSearchConfig(
+                appId = "amazon",
+                appName = "亚马逊",
+                packageName = "com.amazon.mShop.android.shopping",
+                isEnabled = true,
+                order = 76,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "amazon://search?query={q}",
+                category = AppCategory.SHOPPING,
+                description = "亚马逊商品搜索"
+            ),
+            // 蘑菇街
+            AppSearchConfig(
+                appId = "mogujie",
+                appName = "蘑菇街",
+                packageName = "com.mogujie",
+                isEnabled = true,
+                order = 77,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "mogujie://search?keyword={q}",
+                category = AppCategory.SHOPPING,
+                description = "蘑菇街时尚商品搜索"
+            ),
+            
+            // ========== 图片与设计类 ==========
+            // PicsArt
+            AppSearchConfig(
+                appId = "picsart",
+                appName = "PicsArt",
+                packageName = "com.picsart.studio",
+                isEnabled = true,
+                order = 78,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "picsart://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "PicsArt滤镜、贴纸搜索"
+            ),
+            // Canva
+            AppSearchConfig(
+                appId = "canva",
+                appName = "Canva",
+                packageName = "com.canva.editor",
+                isEnabled = true,
+                order = 79,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "canva://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Canva设计模板搜索"
+            ),
+            // VSCO
+            AppSearchConfig(
+                appId = "vsco",
+                appName = "VSCO",
+                packageName = "com.vsco.android",
+                isEnabled = true,
+                order = 80,
+                iconResId = android.R.drawable.ic_menu_gallery,
+                searchUrl = "vsco://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "VSCO滤镜预设搜索"
+            ),
+            
+            // ========== 学习与教育类 ==========
+            // 学习强国
+            AppSearchConfig(
+                appId = "xuexi",
+                appName = "学习强国",
+                packageName = "cn.xuexi.android",
+                isEnabled = true,
+                order = 81,
+                iconResId = android.R.drawable.ic_menu_info_details,
+                searchUrl = "xuexi://search?keyword={q}",
+                category = AppCategory.EDUCATION,
+                description = "学习强国课程、文章搜索"
+            ),
+            // 中国大学MOOC
+            AppSearchConfig(
+                appId = "icourse163",
+                appName = "中国大学MOOC",
+                packageName = "com.netease.edu.study",
+                isEnabled = true,
+                order = 82,
+                iconResId = android.R.drawable.ic_menu_info_details,
+                searchUrl = "icourse163://search?keyword={q}",
+                category = AppCategory.EDUCATION,
+                description = "中国大学MOOC课程搜索"
+            ),
+            // 网易公开课
+            AppSearchConfig(
+                appId = "netease_open",
+                appName = "网易公开课",
+                packageName = "com.netease.open.iStudy",
+                isEnabled = true,
+                order = 83,
+                iconResId = android.R.drawable.ic_menu_info_details,
+                searchUrl = "neteaseopen://search?keyword={q}",
+                category = AppCategory.EDUCATION,
+                description = "网易公开课课程搜索"
+            ),
+            // 扇贝单词
+            AppSearchConfig(
+                appId = "shanbay",
+                appName = "扇贝单词",
+                packageName = "com.shanbay.words",
+                isEnabled = true,
+                order = 84,
+                iconResId = android.R.drawable.ic_menu_info_details,
+                searchUrl = "shanbay://search?keyword={q}",
+                category = AppCategory.EDUCATION,
+                description = "扇贝单词词汇搜索"
+            ),
+            
+            // ========== 健康医疗类 ==========
+            // 丁香医生
+            AppSearchConfig(
+                appId = "dxy",
+                appName = "丁香医生",
+                packageName = "com.dxy.pharmacy",
+                isEnabled = true,
+                order = 85,
+                iconResId = android.R.drawable.ic_menu_mylocation,
+                searchUrl = "dxy://search?keyword={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "丁香医生疾病、药品信息搜索"
+            ),
+            // Keep
+            AppSearchConfig(
+                appId = "keep",
+                appName = "Keep",
+                packageName = "com.gotokeep.keep",
+                isEnabled = true,
+                order = 86,
+                iconResId = android.R.drawable.ic_menu_mylocation,
+                searchUrl = "keep://search?keyword={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Keep健身课程搜索"
+            ),
+            // 薄荷健康
+            AppSearchConfig(
+                appId = "boohee",
+                appName = "薄荷健康",
+                packageName = "com.boohee.one",
+                isEnabled = true,
+                order = 87,
+                iconResId = android.R.drawable.ic_menu_mylocation,
+                searchUrl = "boohee://search?keyword={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "薄荷健康食物热量搜索"
+            ),
+            
+            // ========== 新闻资讯类 ==========
+            // 今日头条
+            AppSearchConfig(
+                appId = "toutiao",
+                appName = "今日头条",
+                packageName = "com.ss.android.article.news",
+                isEnabled = true,
+                order = 88,
+                iconResId = android.R.drawable.ic_menu_recent_history,
+                searchUrl = "snssdk141://search?keyword={q}",
+                category = AppCategory.NEWS,
+                description = "今日头条新闻、资讯搜索"
+            ),
+            // 澎湃新闻
+            AppSearchConfig(
+                appId = "thepaper",
+                appName = "澎湃新闻",
+                packageName = "com.thepaper.cn",
+                isEnabled = true,
+                order = 89,
+                iconResId = android.R.drawable.ic_menu_recent_history,
+                searchUrl = "thepaper://search?keyword={q}",
+                category = AppCategory.NEWS,
+                description = "澎湃新闻搜索"
+            ),
+            // 网易新闻
+            AppSearchConfig(
+                appId = "netease_news",
+                appName = "网易新闻",
+                packageName = "com.netease.newsreader.activity",
+                isEnabled = true,
+                order = 90,
+                iconResId = android.R.drawable.ic_menu_recent_history,
+                searchUrl = "netease://search?keyword={q}",
+                category = AppCategory.NEWS,
+                description = "网易新闻搜索"
+            ),
+            // 腾讯新闻
+            AppSearchConfig(
+                appId = "tencent_news",
+                appName = "腾讯新闻",
+                packageName = "com.tencent.news",
+                isEnabled = true,
+                order = 91,
+                iconResId = android.R.drawable.ic_menu_recent_history,
+                searchUrl = "tencentnews://search?keyword={q}",
+                category = AppCategory.NEWS,
+                description = "腾讯新闻搜索"
+            ),
+            
+            // ========== 开发工具类 ==========
+            // Visual Studio Code
+            AppSearchConfig(
+                appId = "vscode",
+                appName = "Visual Studio Code",
+                packageName = "com.microsoft.vscode",
+                isEnabled = true,
+                order = 92,
+                iconResId = android.R.drawable.ic_menu_manage,
+                searchUrl = "vscode://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Visual Studio Code项目文件、代码搜索"
+            ),
+            // Android Studio
+            AppSearchConfig(
+                appId = "android_studio",
+                appName = "Android Studio",
+                packageName = "com.google.android.studio",
+                isEnabled = true,
+                order = 93,
+                iconResId = android.R.drawable.ic_menu_manage,
+                searchUrl = "androidstudio://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Android Studio项目文件、代码搜索"
+            ),
+            // Sublime Text
+            AppSearchConfig(
+                appId = "sublime",
+                appName = "Sublime Text",
+                packageName = "com.sublimetext.three",
+                isEnabled = true,
+                order = 94,
+                iconResId = android.R.drawable.ic_menu_manage,
+                searchUrl = "sublime://search?query={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "Sublime Text文件、代码搜索"
             )
         )
     }
