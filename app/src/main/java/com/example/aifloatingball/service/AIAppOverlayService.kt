@@ -586,6 +586,83 @@ class AIAppOverlayService : Service() {
             hideOverlay()
             stopSelf()
         }
+        
+        // 设置粘贴按钮：将用户在软件tab输入框中的文字复制到剪贴板
+        setupSoftwareTabPasteButton(overlayView)
+    }
+    
+    /**
+     * 设置软件tab粘贴按钮
+     * 将用户在软件tab输入框中的文字复制到剪贴板，提示用户手动粘贴
+     */
+    private fun setupSoftwareTabPasteButton(overlayView: View) {
+        try {
+            val pasteButton = overlayView.findViewById<Button>(R.id.software_tab_paste_button)
+            
+            if (pasteButton == null) {
+                Log.w(TAG, "粘贴按钮未找到，跳过设置")
+                return
+            }
+            
+            // 如果有传入的query，更新按钮文本提示
+            if (query.isNotEmpty()) {
+                val displayText = if (query.length > 15) {
+                    "📋 复制: ${query.take(15)}...（点击后手动粘贴）"
+                } else {
+                    "📋 复制: $query（点击后手动粘贴）"
+                }
+                pasteButton.text = displayText
+                Log.d(TAG, "设置粘贴按钮文本: $displayText")
+            } else {
+                pasteButton.text = "📋 复制到剪贴板（点击后手动粘贴）"
+                Log.d(TAG, "无关键词，使用默认按钮文本")
+            }
+            
+            // 粘贴按钮点击事件：复制到剪贴板并提示用户手动粘贴
+            pasteButton.setOnClickListener {
+                try {
+                    if (query.isNotEmpty()) {
+                        // 将query复制到剪贴板
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("搜索关键词", query)
+                        clipboard.setPrimaryClip(clip)
+                        Log.d(TAG, "已将关键词复制到剪贴板: ${query.take(50)}")
+                        
+                        // 提示用户手动粘贴
+                        Toast.makeText(
+                            this, 
+                            "已复制到剪贴板：$query\n请在${if (appName.isNotEmpty()) appName else "应用"}的搜索框中长按粘贴", 
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        // 如果没有query，尝试从剪贴板读取（兼容旧逻辑）
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        if (clipboard.hasPrimaryClip()) {
+                            val clipData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+                            if (!clipData.isNullOrEmpty()) {
+                                Toast.makeText(
+                                    this, 
+                                    "剪贴板内容: ${clipData.take(20)}${if (clipData.length > 20) "..." else ""}\n请在应用的搜索框中长按粘贴", 
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                Log.d(TAG, "剪贴板已有内容: ${clipData.take(50)}")
+                            } else {
+                                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "复制操作失败", e)
+                    Toast.makeText(this, "复制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            Log.d(TAG, "软件tab粘贴按钮设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置软件tab粘贴按钮失败", e)
+        }
     }
     
     /**

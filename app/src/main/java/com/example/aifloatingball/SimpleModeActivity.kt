@@ -1162,6 +1162,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 处理从其他地方传入的搜索内容
         handleIntentData()
+        
+        // 如果启动时就要显示软件tab，检查是否有搜索关键词
+        if (intent?.getBooleanExtra("show_app_search", false) == true || intent?.getStringExtra("state") == "APP_SEARCH") {
+            // 延迟处理，确保UI已初始化
+            handler.postDelayed({
+                handleAppSearchIntentQuery()
+            }, 500)
+        }
 
         // 初始化时应用左手模式布局方向
         applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
@@ -1239,7 +1247,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "onNewIntent: 检测到show_app_search参数，切换到软件tab")
             handler.postDelayed({
                 showAppSearch()
+                // 处理搜索关键词
+                handleAppSearchIntentQuery()
             }, 300) // 延迟300ms确保视图已初始化
+        } else if (currentState == UIState.APP_SEARCH) {
+            // 如果已经在软件tab，检查是否有新的搜索关键词
+            handler.postDelayed({
+                handleAppSearchIntentQuery()
+            }, 300)
         }
     }
 
@@ -2998,6 +3013,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 检查并启动网速悬浮窗服务（确保在搜索tab中常驻显示）
         checkAndStartNetworkSpeedService()
+        
+        // 检测并处理intent中的搜索关键词
+        handleAppSearchIntentQuery()
     }
 
     /**
@@ -3007,6 +3025,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupAppSearchPage() {
         Log.d(TAG, "setupAppSearchPage被调用")
         Log.d(TAG, "appSearchAdapter是否已初始化: ${::appSearchAdapter.isInitialized}")
+        
+        // 检查哪些应用支持Intent搜索（输出到日志）
+        lifecycleScope.launch(Dispatchers.IO) {
+            com.example.aifloatingball.utils.IntentSearchChecker.checkAllApps(this@SimpleModeActivity)
+        }
         
         // 初始化应用搜索适配器
         if (!::appSearchAdapter.isInitialized) {
@@ -5891,6 +5914,103 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "收到搜索内容: $searchContent")
                 // TODO: 根据需要实现预填逻辑
             }
+            
+            // 检查是否有软件tab的搜索关键词
+            val appSearchQuery = it.getStringExtra("search_query")
+                ?: it.getStringExtra("app_search_query")
+                ?: it.getStringExtra("query")
+            
+            if (!appSearchQuery.isNullOrEmpty() && currentState == UIState.APP_SEARCH) {
+                // 如果已经在软件tab，立即处理搜索关键词
+                handler.postDelayed({
+                    applyAppSearchQuery(appSearchQuery)
+                }, 300)
+            }
+        }
+    }
+    
+    /**
+     * 处理软件tab的intent搜索关键词
+     * 判断是否有搜索关键词，如果有则填充到搜索框，如果没有则正常显示应用列表
+     */
+    private fun handleAppSearchIntentQuery() {
+        try {
+            val currentIntent = intent
+            if (currentIntent == null) {
+                Log.d(TAG, "handleAppSearchIntentQuery: intent为null，正常显示应用列表")
+                return
+            }
+            
+            // 尝试从多个可能的key中获取搜索关键词
+            val searchQuery = currentIntent.getStringExtra("search_query")
+                ?: currentIntent.getStringExtra("app_search_query")
+                ?: currentIntent.getStringExtra("query")
+                ?: currentIntent.getStringExtra("search_content")
+            
+            if (!searchQuery.isNullOrEmpty()) {
+                Log.d(TAG, "检测到intent搜索关键词: $searchQuery")
+                // 延迟应用，确保搜索框已初始化
+                handler.postDelayed({
+                    applyAppSearchQuery(searchQuery)
+                }, 300)
+            } else {
+                Log.d(TAG, "没有检测到intent搜索关键词，正常显示应用列表")
+                // 没有搜索关键词，正常显示应用列表
+                // 确保搜索框为空
+                if (::appSearchInput.isInitialized) {
+                    appSearchInput.text?.clear()
+                    if (::appSearchAdapter.isInitialized) {
+                        appSearchAdapter.updateSearchQuery("")
+                    }
+                    appSearchHint?.text = "选择${currentAppCategory.displayName}应用进行搜索"
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理软件tab搜索关键词失败", e)
+        }
+    }
+    
+    /**
+     * 应用搜索关键词到搜索框
+     * @param query 搜索关键词
+     */
+    private fun applyAppSearchQuery(query: String) {
+        try {
+            if (!::appSearchInput.isInitialized) {
+                Log.w(TAG, "applyAppSearchQuery: appSearchInput未初始化，延迟重试")
+                handler.postDelayed({
+                    applyAppSearchQuery(query)
+                }, 200)
+                return
+            }
+            
+            val trimmedQuery = query.trim()
+            if (trimmedQuery.isEmpty()) {
+                Log.d(TAG, "applyAppSearchQuery: 搜索关键词为空，跳过")
+                return
+            }
+            
+            Log.d(TAG, "应用搜索关键词到搜索框: $trimmedQuery")
+            
+            // 设置搜索框文本
+            appSearchInput.setText(trimmedQuery)
+            appSearchInput.setSelection(trimmedQuery.length)
+            
+            // 更新搜索适配器的查询（用于高亮显示）
+            if (::appSearchAdapter.isInitialized) {
+                appSearchAdapter.updateSearchQuery(trimmedQuery)
+            }
+            
+            // 更新提示文本
+            appSearchHint?.text = "输入关键词：$trimmedQuery，点击应用图标进行搜索"
+            
+            // 更新输入框图标（显示清空按钮）
+            updateInputLayoutEndIcon(true)
+            updateHistoryButtonIcon(true)
+            
+            Log.d(TAG, "搜索关键词已应用到搜索框")
+        } catch (e: Exception) {
+            Log.e(TAG, "应用搜索关键词失败", e)
         }
     }
 

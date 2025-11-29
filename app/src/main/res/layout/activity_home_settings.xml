@@ -274,7 +274,7 @@
                         android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                <!-- 下载进度显示 -->
+                <!-- 网速悬浮窗全局显示 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -285,12 +285,12 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="显示下载进度"
+                        android:text="网速悬浮窗全局显示"
                         android:textSize="16sp"
                         android:textColor="@color/simple_mode_text_primary_light" />
 
                     <androidx.appcompat.widget.SwitchCompat
-                        android:id="@+id/download_progress_switch"
+                        android:id="@+id/network_speed_global_display_switch"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
                 </LinearLayout>

@@ -1,10 +1,13 @@
 package com.example.aifloatingball
 
+import android.app.Activity
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 
@@ -13,14 +16,79 @@ class App : Application() {
     companion object {
         const val CHANNEL_ID = "floating_service_channel"
         private const val TAG = "App"
+        
+        /**
+         * 应用是否在前台
+         * true: 应用在前台
+         * false: 应用在后台
+         */
+        @Volatile
+        var isAppInForeground: Boolean = false
+            private set
+        
+        /**
+         * 前台Activity数量
+         * 当数量为0时，应用在后台
+         * 当数量大于0时，应用在前台
+         */
+        private var foregroundActivityCount: Int = 0
+        
+        /**
+         * 更新应用前台状态
+         */
+        @Synchronized
+        fun updateForegroundState(isForeground: Boolean) {
+            val oldState = isAppInForeground
+            isAppInForeground = isForeground
+            if (oldState != isAppInForeground) {
+                Log.d(TAG, "应用前台状态变化: ${if (isAppInForeground) "进入前台" else "进入后台"}")
+                // 通知NetworkMonitorFloatingService状态变化
+                notifyNetworkMonitorService()
+            }
+        }
+        
+        /**
+         * 通知NetworkMonitorFloatingService应用状态变化
+         */
+        private fun notifyNetworkMonitorService() {
+            try {
+                val context = instance
+                if (context != null) {
+                    val intent = Intent(context, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
+                    intent.action = "com.example.aifloatingball.ACTION_APP_STATE_CHANGED"
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(intent)
+                    } else {
+                        context.startService(intent)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "通知NetworkMonitorFloatingService失败", e)
+            }
+        }
+        
+        /**
+         * Application实例
+         */
+        @Volatile
+        private var instance: App? = null
+        
+        /**
+         * 获取Application实例
+         */
+        fun getInstance(): App? = instance
     }
     
     override fun onCreate() {
         super.onCreate()
+        instance = this
         Log.d(TAG, "应用开始初始化")
         
         try {
             createNotificationChannel()
+            
+            // 注册Activity生命周期回调，用于检测应用前后台状态
+            registerActivityLifecycleCallbacks()
             
             // 检查悬浮窗网速开关，如果打开则自动启动服务
             checkAndStartNetworkSpeedService()
@@ -30,6 +98,73 @@ class App : Application() {
             Log.e(TAG, "应用初始化失败", e)
             Toast.makeText(this, "应用初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
+    }
+    
+    /**
+     * 注册Activity生命周期回调
+     * 用于准确检测应用是否在前台
+     */
+    private fun registerActivityLifecycleCallbacks() {
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+                // Activity创建时不做处理
+            }
+            
+            override fun onActivityStarted(activity: Activity) {
+                // Activity启动时，增加前台Activity计数
+                synchronized(App) {
+                    foregroundActivityCount++
+                    // 确保计数不为负数
+                    if (foregroundActivityCount < 0) {
+                        foregroundActivityCount = 1
+                    }
+                    // 如果计数大于0，说明应用在前台
+                    if (foregroundActivityCount > 0 && !isAppInForeground) {
+                        // 应用进入前台（可能是首次启动或从后台恢复）
+                        updateForegroundState(true)
+                    }
+                }
+                Log.d(TAG, "Activity启动: ${activity.javaClass.simpleName}, 前台Activity数量: $foregroundActivityCount, 应用在前台: $isAppInForeground")
+            }
+            
+            override fun onActivityResumed(activity: Activity) {
+                // Activity恢复时不做处理（onStarted已经处理）
+            }
+            
+            override fun onActivityPaused(activity: Activity) {
+                // Activity暂停时不做处理
+            }
+            
+            override fun onActivityStopped(activity: Activity) {
+                // Activity停止时，减少前台Activity计数
+                synchronized(App) {
+                    foregroundActivityCount--
+                    if (foregroundActivityCount == 0) {
+                        // 从1变为0，说明应用进入后台
+                        updateForegroundState(false)
+                    }
+                    // 确保计数不为负数
+                    if (foregroundActivityCount < 0) {
+                        foregroundActivityCount = 0
+                    }
+                }
+                Log.d(TAG, "Activity停止: ${activity.javaClass.simpleName}, 前台Activity数量: $foregroundActivityCount")
+            }
+            
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {
+                // 不做处理
+            }
+            
+            override fun onActivityDestroyed(activity: Activity) {
+                // Activity销毁时不做处理
+            }
+        })
+        Log.d(TAG, "Activity生命周期回调已注册")
+    }
+    
+    override fun onTerminate() {
+        super.onTerminate()
+        instance = null
     }
     
     /**

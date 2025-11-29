@@ -24,15 +24,15 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import com.example.aifloatingball.App
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.SimpleModeActivity
-import com.example.aifloatingball.download.EnhancedDownloadManager
 import java.text.DecimalFormat
 
 /**
  * 网络监控悬浮窗服务
- * 用于显示网速和下载进度
+ * 用于显示网速
  */
 class NetworkMonitorFloatingService : Service() {
     
@@ -45,46 +45,55 @@ class NetworkMonitorFloatingService : Service() {
     
     private val windowManager by lazy { getSystemService(Context.WINDOW_SERVICE) as WindowManager }
     private val settingsManager by lazy { SettingsManager.getInstance(this) }
-    private val downloadManager by lazy { EnhancedDownloadManager(this) }
     
     private var floatingView: View? = null
     private var params: WindowManager.LayoutParams? = null
     
     private var networkSpeedTextView: TextView? = null
-    private var downloadProgressTextView: TextView? = null
-    private var downloadCompleteHint: TextView? = null
     private var contentContainer: FrameLayout? = null
     
-    // 下载完成相关：记录完成的下载数量
-    private var completedDownloadCount = 0
-    
     private var isNetworkSpeedEnabled = false
-    private var isDownloadProgressEnabled = false
+    private var isGlobalDisplayEnabled = true // 默认全局显示
     
     private var lastRxBytes = 0L
     private var lastTxBytes = 0L
     private var lastTime = 0L
     
-    // 下载完成广播接收器
-    private val downloadCompleteReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.example.aifloatingball.DOWNLOAD_COMPLETE") {
-                val downloadId = intent.getLongExtra("download_id", -1L)
-                val fileName = intent.getStringExtra("file_name") ?: ""
-                if (downloadId != -1L && fileName.isNotEmpty()) {
-                    notifyDownloadComplete(downloadId, fileName)
-                }
-            }
-        }
-    }
-    
     private val updateHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
-            updateNetworkSpeed()
-            updateDownloadProgress()
-            // 即使下载进度显示未启用，也要更新下载完成数字
-            updateDownloadCompleteHint()
+            // 每次更新时重新读取设置，确保开关变化能立即生效
+            isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
+            isGlobalDisplayEnabled = settingsManager.getBoolean("network_speed_global_display", true)
+            
+            // 如果网速显示未启用，停止更新并移除悬浮窗
+            if (!isNetworkSpeedEnabled) {
+                removeFloatingView()
+                return
+            }
+            
+            // 检查是否应该显示悬浮窗
+            val shouldShow = shouldShowFloatingView()
+            val viewExists = floatingView != null && floatingView?.parent != null
+            
+            if (shouldShow && !viewExists) {
+                // 应该显示但悬浮窗不存在，创建悬浮窗
+                Log.d(TAG, "应该显示悬浮窗，创建悬浮窗 (全局显示=$isGlobalDisplayEnabled)")
+                createFloatingView()
+            } else if (!shouldShow && viewExists) {
+                // 不应该显示但悬浮窗存在，移除悬浮窗
+                Log.d(TAG, "不应该显示悬浮窗，移除悬浮窗 (全局显示=$isGlobalDisplayEnabled, 应用在前台=${App.isAppInForeground})")
+                removeFloatingView()
+                // 继续监听，等待条件满足时重新创建
+                updateHandler.postDelayed(this, UPDATE_INTERVAL)
+                return
+            }
+            
+            // 只有在悬浮窗存在时才更新内容
+            if (floatingView != null && floatingView?.parent != null) {
+                updateNetworkSpeed()
+            }
+            
             updateHandler.postDelayed(this, UPDATE_INTERVAL)
         }
     }
@@ -101,14 +110,6 @@ class NetworkMonitorFloatingService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         
-        // 注册下载完成广播接收器
-        val filter = IntentFilter("com.example.aifloatingball.DOWNLOAD_COMPLETE")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(downloadCompleteReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(downloadCompleteReceiver, filter)
-        }
-        
         // 检查悬浮窗权限（Android 6.0+需要）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!android.provider.Settings.canDrawOverlays(this)) {
@@ -120,21 +121,25 @@ class NetworkMonitorFloatingService : Service() {
         
         // 检查设置
         isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
-        isDownloadProgressEnabled = settingsManager.getBoolean("download_progress_display_enabled", false)
+        isGlobalDisplayEnabled = settingsManager.getBoolean("network_speed_global_display", true) // 默认全局显示
         
-        if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
-            createFloatingView()
-            // 初始化已完成的下载数量
-            initializeCompletedDownloadCount()
-            // 立即开始更新（如果悬浮窗创建成功）
-            if (floatingView != null) {
+        if (isNetworkSpeedEnabled) {
+            // 检查是否应该显示悬浮窗
+            if (shouldShowFloatingView()) {
+                createFloatingView()
+                // 立即开始更新（如果悬浮窗创建成功）
+                if (floatingView != null) {
+                    updateHandler.post(updateRunnable)
+                }
+            } else {
+                // 即使不应该显示，也要启动更新任务，以便检测应用回到前台
                 updateHandler.post(updateRunnable)
             }
         }
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "NetworkMonitorFloatingService onStartCommand")
+        Log.d(TAG, "NetworkMonitorFloatingService onStartCommand, action: ${intent?.action}")
         
         // 检查悬浮窗权限（Android 6.0+需要）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -147,23 +152,36 @@ class NetworkMonitorFloatingService : Service() {
         
         // 检查设置状态
         isNetworkSpeedEnabled = settingsManager.getBoolean("network_speed_display_enabled", false)
-        isDownloadProgressEnabled = settingsManager.getBoolean("download_progress_display_enabled", false)
+        isGlobalDisplayEnabled = settingsManager.getBoolean("network_speed_global_display", true) // 默认全局显示
         
-        if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
-            // 检查悬浮窗是否存在且已添加到窗口管理器
+        if (isNetworkSpeedEnabled) {
+            // 检查是否应该显示悬浮窗
+            val shouldShow = shouldShowFloatingView()
             val viewExists = floatingView != null && floatingView?.parent != null
-            if (!viewExists) {
-                // 悬浮窗不存在或已被移除，重新创建
-                Log.d(TAG, "悬浮窗不存在，重新创建")
-                createFloatingView()
-                // 立即开始更新
-                if (floatingView != null) {
-                    updateHandler.post(updateRunnable)
+            
+            Log.d(TAG, "检查悬浮窗显示状态: shouldShow=$shouldShow, viewExists=$viewExists, isGlobalDisplayEnabled=$isGlobalDisplayEnabled, isAppInForeground=${App.isAppInForeground}")
+            
+            if (shouldShow) {
+                // 应该显示，检查悬浮窗是否存在且已添加到窗口管理器
+                if (!viewExists) {
+                    // 悬浮窗不存在或已被移除，重新创建
+                    Log.d(TAG, "应该显示悬浮窗，创建悬浮窗")
+                    createFloatingView()
+                    // 立即开始更新
+                    if (floatingView != null) {
+                        updateHandler.post(updateRunnable)
+                    }
+                } else {
+                    // 悬浮窗存在，确保更新任务正在运行
+                    if (!updateHandler.hasCallbacks(updateRunnable)) {
+                        updateHandler.post(updateRunnable)
+                    }
                 }
             } else {
-                // 悬浮窗存在，更新可见性
-                updateViewVisibility()
-                // 确保更新任务正在运行
+                // 不应该显示，立即移除悬浮窗
+                Log.d(TAG, "不应该显示悬浮窗，移除悬浮窗 (全局显示=$isGlobalDisplayEnabled, 应用在前台=${App.isAppInForeground})")
+                removeFloatingView()
+                // 即使悬浮窗被移除，也要启动更新任务，以便检测应用回到前台
                 if (!updateHandler.hasCallbacks(updateRunnable)) {
                     updateHandler.post(updateRunnable)
                 }
@@ -180,11 +198,6 @@ class NetworkMonitorFloatingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "NetworkMonitorFloatingService onDestroy")
-        try {
-            unregisterReceiver(downloadCompleteReceiver)
-        } catch (e: Exception) {
-            Log.w(TAG, "注销广播接收器失败", e)
-        }
         removeFloatingView()
         updateHandler.removeCallbacks(updateRunnable)
     }
@@ -199,7 +212,7 @@ class NetworkMonitorFloatingService : Service() {
                 "网络监控悬浮窗",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "显示网速和下载进度的悬浮窗服务"
+                description = "显示网速的悬浮窗服务"
                 setShowBadge(false)
             }
             
@@ -220,7 +233,7 @@ class NetworkMonitorFloatingService : Service() {
         
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("网络监控")
-            .setContentText("正在显示网速和下载进度")
+            .setContentText("正在显示网速")
             .setSmallIcon(R.drawable.ic_settings)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
@@ -256,28 +269,10 @@ class NetworkMonitorFloatingService : Service() {
             floatingView = inflater.inflate(R.layout.floating_network_monitor, null)
             
             networkSpeedTextView = floatingView?.findViewById(R.id.network_speed_text)
-            downloadProgressTextView = floatingView?.findViewById(R.id.download_progress_text)
-            downloadCompleteHint = floatingView?.findViewById(R.id.download_complete_hint)
             contentContainer = floatingView?.findViewById(R.id.content_container)
-            
-            // 设置下载完成提示的点击事件
-            downloadCompleteHint?.setOnClickListener {
-                openDownloadManager()
-            }
-            
-            // 设置点击切换显示内容（但下载完成提示不参与切换）
-            floatingView?.setOnClickListener { view ->
-                // 如果点击的是下载完成提示，不切换显示模式
-                if (view.id != R.id.download_complete_hint) {
-                    toggleDisplayMode()
-                }
-            }
             
             // 设置拖拽
             setupDragListener()
-            
-            // 更新视图可见性
-            updateViewVisibility()
             
             // 获取状态栏高度，避免遮挡状态栏
             val statusBarHeight = getStatusBarHeight()
@@ -326,7 +321,7 @@ class NetworkMonitorFloatingService : Service() {
             floatingView = null
             // 延迟重试
             updateHandler.postDelayed({
-                if (isNetworkSpeedEnabled || isDownloadProgressEnabled) {
+                if (isNetworkSpeedEnabled) {
                     createFloatingView()
                 }
             }, 1000)
@@ -349,39 +344,6 @@ class NetworkMonitorFloatingService : Service() {
         }
     }
     
-    /**
-     * 更新视图可见性
-     */
-    private fun updateViewVisibility() {
-        networkSpeedTextView?.visibility = if (isNetworkSpeedEnabled) View.VISIBLE else View.GONE
-        downloadProgressTextView?.visibility = if (isDownloadProgressEnabled) View.VISIBLE else View.GONE
-        
-        // 下载完成提示始终可用（即使下载进度显示未启用）
-        // 如果下载完成数量大于0，显示提示
-        if (completedDownloadCount > 0) {
-            downloadCompleteHint?.text = completedDownloadCount.toString()
-            downloadCompleteHint?.visibility = View.VISIBLE
-        } else {
-            downloadCompleteHint?.visibility = View.GONE
-        }
-        
-        // 如果两个都关闭，隐藏整个悬浮窗
-        if (!isNetworkSpeedEnabled && !isDownloadProgressEnabled && completedDownloadCount == 0) {
-            removeFloatingView()
-        }
-    }
-    
-    /**
-     * 切换显示模式（网速/下载进度）
-     */
-    private fun toggleDisplayMode() {
-        if (isNetworkSpeedEnabled && isDownloadProgressEnabled) {
-            // 如果两个都启用，切换显示
-            val showSpeed = networkSpeedTextView?.visibility == View.VISIBLE
-            networkSpeedTextView?.visibility = if (showSpeed) View.GONE else View.VISIBLE
-            downloadProgressTextView?.visibility = if (showSpeed) View.VISIBLE else View.GONE
-        }
-    }
     
     /**
      * 更新网速
@@ -442,133 +404,6 @@ class NetworkMonitorFloatingService : Service() {
             lastTime = currentTime
         } catch (e: Exception) {
             Log.e(TAG, "更新网速失败", e)
-        }
-    }
-    
-    /**
-     * 更新下载进度
-     */
-    private fun updateDownloadProgress() {
-        // 即使下载进度显示未启用，也要检查并显示下载完成数字
-        // 先更新下载完成数字的显示
-        if (completedDownloadCount > 0) {
-            downloadCompleteHint?.text = completedDownloadCount.toString()
-            downloadCompleteHint?.visibility = View.VISIBLE
-        } else {
-            downloadCompleteHint?.visibility = View.GONE
-        }
-        
-        // 如果下载进度显示未启用，只更新完成数字，不更新进度文本
-        if (!isDownloadProgressEnabled || downloadProgressTextView == null) return
-        
-        try {
-            val downloads = downloadManager.getAllDownloads()
-            val activeDownloads = downloads.filter { 
-                it.status == android.app.DownloadManager.STATUS_RUNNING 
-            }
-            
-            // 统计完成的下载数量（最近完成的，用于显示提示）
-            val completedDownloads = downloads.filter {
-                it.status == android.app.DownloadManager.STATUS_SUCCESSFUL
-            }
-            
-            if (activeDownloads.isNotEmpty()) {
-                // 有活动下载，隐藏完成提示，显示下载进度
-                downloadCompleteHint?.visibility = View.GONE
-                
-                val download = activeDownloads.first()
-                val progress = if (download.bytesTotal > 0) {
-                    (download.bytesDownloaded * 100 / download.bytesTotal).toInt()
-                } else 0
-                
-                val fileName = download.localFilename ?: download.title ?: "未知文件"
-                // 截断文件名，避免过长
-                val shortFileName = if (fileName.length > 15) {
-                    fileName.substring(0, 15) + "..."
-                } else {
-                    fileName
-                }
-                val progressText = "下载: $shortFileName\n$progress%"
-                downloadProgressTextView?.text = progressText
-                Log.d(TAG, "更新下载进度: $shortFileName $progress%")
-            } else if (completedDownloadCount > 0) {
-                // 没有活动下载，但有完成的下载，显示完成数量
-                downloadCompleteHint?.text = completedDownloadCount.toString()
-                downloadCompleteHint?.visibility = View.VISIBLE
-                downloadProgressTextView?.text = "无下载任务"
-                Log.d(TAG, "显示下载完成数量: $completedDownloadCount")
-            } else {
-                // 没有活动下载，也没有完成的下载
-                downloadProgressTextView?.text = "无下载任务"
-                downloadCompleteHint?.visibility = View.GONE
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "更新下载进度失败", e)
-            downloadProgressTextView?.text = "下载进度获取失败"
-            downloadCompleteHint?.visibility = View.GONE
-        }
-    }
-    
-    /**
-     * 打开下载管理界面
-     */
-    private fun openDownloadManager() {
-        try {
-            val intent = Intent(this, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            Log.d(TAG, "打开下载管理界面")
-            
-            // 重置完成数量（用户已查看）
-            completedDownloadCount = 0
-            downloadCompleteHint?.visibility = View.GONE
-        } catch (e: Exception) {
-            Log.e(TAG, "打开下载管理界面失败", e)
-        }
-    }
-    
-    /**
-     * 初始化已完成的下载数量
-     */
-    private fun initializeCompletedDownloadCount() {
-        try {
-            val downloads = downloadManager.getAllDownloads()
-            val completedDownloads = downloads.filter {
-                it.status == android.app.DownloadManager.STATUS_SUCCESSFUL
-            }
-            completedDownloadCount = completedDownloads.size
-            Log.d(TAG, "初始化完成下载数量: $completedDownloadCount")
-            // 立即更新显示
-            updateDownloadCompleteHint()
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化完成下载数量失败", e)
-        }
-    }
-    
-    /**
-     * 更新下载完成数字提示
-     */
-    private fun updateDownloadCompleteHint() {
-        if (completedDownloadCount > 0) {
-            downloadCompleteHint?.text = completedDownloadCount.toString()
-            downloadCompleteHint?.visibility = View.VISIBLE
-        } else {
-            downloadCompleteHint?.visibility = View.GONE
-        }
-    }
-    
-    /**
-     * 通知下载完成（由EnhancedDownloadManager调用）
-     */
-    fun notifyDownloadComplete(downloadId: Long, fileName: String) {
-        updateHandler.post {
-            // 增加完成数量
-            completedDownloadCount++
-            // 立即更新显示数字
-            updateDownloadCompleteHint()
-            // 立即更新显示
-            updateDownloadProgress()
-            Log.d(TAG, "下载完成，当前完成数量: $completedDownloadCount")
         }
     }
     
@@ -636,5 +471,66 @@ class NetworkMonitorFloatingService : Service() {
             }
         }
     }
+    
+    /**
+     * 检查是否应该显示悬浮窗
+     * 如果设置为只在软件内显示，则检查应用是否在前台
+     */
+    private fun shouldShowFloatingView(): Boolean {
+        // 如果网速显示未启用，不显示悬浮窗
+        if (!isNetworkSpeedEnabled) {
+            return false
+        }
+        
+        // 如果设置为全局显示，始终显示
+        if (isGlobalDisplayEnabled) {
+            return true
+        }
+        
+        // 如果设置为只在软件内显示，检查应用是否在前台
+        // 优先使用ActivityLifecycleCallbacks检测（最准确）
+        var isInForeground = App.isAppInForeground
+        
+        // 如果ActivityLifecycleCallbacks检测结果为false，使用备用检测方法
+        // 这可以处理服务启动时ActivityLifecycleCallbacks还未初始化的情况
+        if (!isInForeground) {
+            isInForeground = checkAppInForegroundFallback()
+            if (isInForeground) {
+                Log.d(TAG, "ActivityLifecycleCallbacks检测为false，但备用检测显示应用在前台")
+            }
+        }
+        
+        Log.d(TAG, "检查悬浮窗显示: 全局显示=$isGlobalDisplayEnabled, 应用在前台=$isInForeground")
+        
+        return isInForeground
+    }
+    
+    /**
+     * 备用检测方法：检查应用是否在前台
+     * 当ActivityLifecycleCallbacks还未初始化时使用
+     * 主要用于处理服务启动时ActivityLifecycleCallbacks还未正确初始化的情况
+     */
+    private fun checkAppInForegroundFallback(): Boolean {
+        return try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            
+            // 使用 getRunningAppProcesses 检查本应用进程是否在前台
+            val runningProcesses = activityManager.runningAppProcesses
+            runningProcesses?.forEach { processInfo ->
+                if (processInfo.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                    if (processInfo.pkgList.contains(packageName)) {
+                        Log.d(TAG, "备用检测：通过getRunningAppProcesses检测到应用在前台")
+                        return true
+                    }
+                }
+            }
+            
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "备用检测失败", e)
+            false
+        }
+    }
+    
 }
 

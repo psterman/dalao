@@ -32,6 +32,7 @@ import android.app.NotificationManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
 import com.example.aifloatingball.R
@@ -47,6 +48,10 @@ import com.example.aifloatingball.MasterPromptSettingsActivity
 import com.example.aifloatingball.AIApiSettingsActivity
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
+
+    companion object {
+        private const val TAG = "SettingsActivity"
+    }
 
     private lateinit var searchManager: SettingsSearchManager
     private lateinit var resultsAdapter: SettingsSearchResultAdapter
@@ -253,6 +258,20 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             }
             "display_mode" -> {
                 updateDisplayMode()
+            }
+            "network_speed_global_display" -> {
+                // 通知网速悬浮窗服务更新显示状态
+                val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                    Log.d(TAG, "已通知网速悬浮窗服务更新显示范围设置")
+                } catch (e: Exception) {
+                    Log.e(TAG, "通知网速悬浮窗服务失败", e)
+                }
             }
         }
     }

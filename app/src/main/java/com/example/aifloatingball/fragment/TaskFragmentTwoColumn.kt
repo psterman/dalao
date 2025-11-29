@@ -1188,12 +1188,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                     }
                     // 未下载的情况
                     else -> {
-                        when (which) {
-                            0 -> playVideo(item)  // 播放视频
-                            1 -> downloadVideo(item)  // 下载视频
+                when (which) {
+                    0 -> playVideo(item)  // 播放视频
+                    1 -> downloadVideo(item)  // 下载视频
                             2 -> shareCollectionItem(item)  // 分享链接
                             3 -> editCollectionItem(item)  // 编辑
-                            4 -> deleteCollectionItem(item)  // 删除
+                    4 -> deleteCollectionItem(item)  // 删除
                         }
                     }
                 }
@@ -1246,10 +1246,10 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             val playUrl = localFile ?: item.content
             
             if (playUrl.isBlank()) {
-                android.widget.Toast.makeText(requireContext(), "视频URL为空", android.widget.Toast.LENGTH_SHORT).show()
-                return
-            }
-            
+            android.widget.Toast.makeText(requireContext(), "视频URL为空", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        
             Log.d(TAG, "播放视频收藏: ${item.title}, URL: $playUrl (${if (localFile != null) "本地文件" else "网络URL"})")
             
             // 使用视频播放器播放

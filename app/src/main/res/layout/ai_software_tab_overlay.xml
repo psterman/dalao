@@ -86,6 +86,19 @@
 
     </LinearLayout>
 
+    <!-- 粘贴按钮区域 -->
+    <Button
+        android:id="@+id/software_tab_paste_button"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:text="📋 复制到剪贴板（点击后手动粘贴）"
+        android:textSize="12sp"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/ai_overlay_button_background"
+        android:backgroundTint="@color/primary_green"
+        android:layout_marginBottom="8dp"
+        android:minWidth="120dp" />
+
     <!-- 近期搜索历史App图标容器（初始隐藏） -->
     <HorizontalScrollView
         android:id="@+id/recent_apps_scroll_view"

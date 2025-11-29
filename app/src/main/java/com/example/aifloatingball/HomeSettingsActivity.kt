@@ -35,7 +35,7 @@ class HomeSettingsActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     private lateinit var appStyleRecyclerView: RecyclerView
     private lateinit var floatingNetworkSpeedSwitch: SwitchCompat
-    private lateinit var downloadProgressSwitch: SwitchCompat
+    private lateinit var networkSpeedGlobalDisplaySwitch: SwitchCompat
     private lateinit var searchTabBackgroundImage: ImageView
     private lateinit var searchTabBackgroundBlurSwitch: SwitchCompat
     private lateinit var searchTabBackgroundDisableSwitch: SwitchCompat
@@ -83,7 +83,7 @@ class HomeSettingsActivity : AppCompatActivity() {
     private fun initViews() {
         appStyleRecyclerView = findViewById(R.id.app_style_recycler_view)
         floatingNetworkSpeedSwitch = findViewById(R.id.floating_network_speed_switch)
-        downloadProgressSwitch = findViewById(R.id.download_progress_switch)
+        networkSpeedGlobalDisplaySwitch = findViewById(R.id.network_speed_global_display_switch)
         searchTabBackgroundImage = findViewById(R.id.search_tab_background_image)
         searchTabBackgroundBlurSwitch = findViewById(R.id.search_tab_background_blur_switch)
         searchTabBackgroundDisableSwitch = findViewById(R.id.search_tab_background_disable_switch)
@@ -216,35 +216,23 @@ class HomeSettingsActivity : AppCompatActivity() {
             }
         }
         
-        // 下载进度显示开关
-        val isDownloadProgressEnabled = settingsManager.getBoolean("download_progress_display_enabled", false)
-        downloadProgressSwitch.isChecked = isDownloadProgressEnabled
-        downloadProgressSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.putBoolean("download_progress_display_enabled", isChecked)
-            Log.d(TAG, "下载进度显示开关: $isChecked")
-            // 启动/停止下载进度显示服务
+        // 网速悬浮窗全局显示开关
+        val isGlobalDisplayEnabled = settingsManager.getBoolean("network_speed_global_display", true) // 默认全局显示
+        networkSpeedGlobalDisplaySwitch.isChecked = isGlobalDisplayEnabled
+        networkSpeedGlobalDisplaySwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("network_speed_global_display", isChecked)
+            Log.d(TAG, "网速悬浮窗全局显示开关: $isChecked")
+            // 通知服务更新显示状态
             val intent = Intent(this, com.example.aifloatingball.service.NetworkMonitorFloatingService::class.java)
-            if (isChecked) {
-                // 先停止服务（如果正在运行），然后重新启动，确保服务重新检查设置
-                stopService(intent)
-                // 延迟一小段时间后重新启动，确保服务完全停止
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent)
-                        } else {
-                            startService(intent)
-                        }
-                        Log.d(TAG, "下载进度显示服务已重新启动")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "重新启动下载进度显示服务失败", e)
-                        downloadProgressSwitch.isChecked = false
-                        settingsManager.putBoolean("download_progress_display_enabled", false)
-                    }
-                }, 200)
-            } else {
-                stopService(intent)
-                Log.d(TAG, "下载进度显示服务已停止")
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+                Log.d(TAG, "已通知网速悬浮窗服务更新显示范围设置")
+            } catch (e: Exception) {
+                Log.e(TAG, "通知网速悬浮窗服务失败", e)
             }
         }
     }

@@ -668,23 +668,39 @@ class MyAccessibilityService : AccessibilityService() {
                         val query = intent.getStringExtra("query") ?: ""
                         val appName = intent.getStringExtra("app_name") ?: ""
                         
-                        Log.d(TAG, "收到自动粘贴请求: $appName ($packageName) - $query")
+                        Log.d(TAG, "📨 收到自动粘贴请求: app=$appName, package=$packageName, query=$query")
                         
                         // 创建自动粘贴请求
                         pendingAutoPaste = AutoPasteRequest(packageName, query, appName)
                         autoPasteRetryCount = 0
                         
-                        // 延迟执行自动粘贴
-                        mainHandler.postDelayed({
+                        // 立即尝试一次，然后延迟重试
+                        mainHandler.post {
                             performAutoPaste()
+                        }
+                        
+                        // 延迟执行自动粘贴（作为重试机制）
+                        mainHandler.postDelayed({
+                            if (pendingAutoPaste != null) {
+                                Log.d(TAG, "🔄 延迟重试自动粘贴")
+                            performAutoPaste()
+                            }
                         }, autoPasteDelay)
                     }
                 }
             }
             
+            // 同时注册普通广播和本地广播接收器
             val filter = IntentFilter(ACTION_AUTO_PASTE)
             registerReceiver(autoPasteReceiver, filter)
-            Log.d(TAG, "✅ 自动粘贴广播接收器注册成功")
+            
+            // 也注册本地广播接收器
+            LocalBroadcastManager.getInstance(this).registerReceiver(
+                autoPasteReceiver!!,
+                filter
+            )
+            
+            Log.d(TAG, "✅ 自动粘贴广播接收器注册成功（普通+本地）")
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 注册自动粘贴广播接收器失败", e)
@@ -697,7 +713,16 @@ class MyAccessibilityService : AccessibilityService() {
     private fun unregisterAutoPasteReceiver() {
         try {
             autoPasteReceiver?.let {
+                try {
                 unregisterReceiver(it)
+                } catch (e: Exception) {
+                    Log.w(TAG, "取消注册普通广播接收器失败", e)
+                }
+                try {
+                    LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+                } catch (e: Exception) {
+                    Log.w(TAG, "取消注册本地广播接收器失败", e)
+                }
                 autoPasteReceiver = null
                 Log.d(TAG, "✅ 自动粘贴广播接收器已取消注册")
             }
@@ -713,12 +738,12 @@ class MyAccessibilityService : AccessibilityService() {
         val request = pendingAutoPaste ?: return
         
         try {
-            Log.d(TAG, "开始执行自动粘贴: ${request.appName}")
+            Log.d(TAG, "🚀 开始执行自动粘贴: app=${request.appName}, package=${request.packageName}, query=${request.query}")
             
-            // 检查当前应用是否为目标应用
+            // 检查当前应用是否为目标应用（如果packageName为空，跳过检查）
             val currentPackage = getCurrentPackageName()
-            if (currentPackage != request.packageName) {
-                Log.w(TAG, "当前应用($currentPackage)不是目标应用(${request.packageName})，等待中...")
+            if (request.packageName.isNotEmpty() && currentPackage != request.packageName) {
+                Log.w(TAG, "⚠️ 当前应用($currentPackage)不是目标应用(${request.packageName})，等待中... (重试次数: $autoPasteRetryCount/$maxAutoPasteRetries)")
                 
                 // 重试机制
                 if (autoPasteRetryCount < maxAutoPasteRetries) {
@@ -728,21 +753,27 @@ class MyAccessibilityService : AccessibilityService() {
                     }, autoPasteDelay)
                     return
                 } else {
-                    Log.e(TAG, "自动粘贴失败：超过最大重试次数")
+                    Log.e(TAG, "❌ 自动粘贴失败：超过最大重试次数，无法匹配目标应用")
                     pendingAutoPaste = null
                     return
                 }
+            } else if (request.packageName.isEmpty()) {
+                Log.d(TAG, "ℹ️ packageName为空，跳过应用匹配检查，直接尝试粘贴")
+            } else {
+                Log.d(TAG, "✅ 应用匹配成功: $currentPackage")
             }
             
             // 查找输入框并粘贴文本
             val rootNode = rootInActiveWindow
             if (rootNode != null) {
+                Log.d(TAG, "🔍 已获取根节点，开始查找输入框...")
                 val success = findAndPasteText(rootNode, request.query)
                 if (success) {
-                    Log.d(TAG, "✅ 自动粘贴成功: ${request.appName}")
+                    Log.d(TAG, "✅✅✅ 自动粘贴成功: ${request.appName} - ${request.query}")
                     pendingAutoPaste = null
+                    autoPasteRetryCount = 0
                 } else {
-                    Log.w(TAG, "❌ 自动粘贴失败: 未找到输入框")
+                    Log.w(TAG, "❌ 自动粘贴失败: 未找到输入框 (重试次数: $autoPasteRetryCount/$maxAutoPasteRetries)")
                     // 重试
                     if (autoPasteRetryCount < maxAutoPasteRetries) {
                         autoPasteRetryCount++
@@ -750,16 +781,27 @@ class MyAccessibilityService : AccessibilityService() {
                             performAutoPaste()
                         }, autoPasteDelay)
                     } else {
+                        Log.e(TAG, "❌ 自动粘贴最终失败：超过最大重试次数，无法找到输入框")
                         pendingAutoPaste = null
                     }
                 }
             } else {
-                Log.w(TAG, "❌ 无法获取根节点")
+                Log.w(TAG, "❌ 无法获取根节点，可能应用还未完全加载")
+                // 如果无法获取根节点，也进行重试
+                if (autoPasteRetryCount < maxAutoPasteRetries) {
+                    autoPasteRetryCount++
+                    mainHandler.postDelayed({
+                        performAutoPaste()
+                    }, autoPasteDelay)
+                } else {
+                    Log.e(TAG, "❌ 自动粘贴最终失败：无法获取根节点")
                 pendingAutoPaste = null
+                }
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 执行自动粘贴异常", e)
+            e.printStackTrace()
             pendingAutoPaste = null
         }
     }
