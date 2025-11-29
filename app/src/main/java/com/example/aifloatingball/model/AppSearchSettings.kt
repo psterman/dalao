@@ -198,7 +198,7 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 5,
                 iconResId = R.drawable.ic_xiaohongshu,
-                searchUrl = "xhsdiscover://search/result?keyword={q}",
+                searchUrl = "xhsdiscover://search/result/?keyword={q}",
                 category = AppCategory.SOCIAL,
                 description = "小红书搜索"
             ),

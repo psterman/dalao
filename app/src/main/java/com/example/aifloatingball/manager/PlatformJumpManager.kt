@@ -442,33 +442,83 @@ class PlatformJumpManager(private val context: Context) {
      */
     private fun jumpToDynamicAppByPackage(packageName: String, query: String) {
         try {
-            // 尝试使用通用的搜索URL scheme
-            val searchUrl = "$packageName://search?keyword=${Uri.encode(query)}"
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
+            val cleanQuery = cleanQueryForSearch(query)
+            var intentHandled = false
             
-            Log.d(TAG, "成功跳转到动态应用: $packageName")
-            Toast.makeText(context, "正在跳转到${getAppDisplayName(packageName)}", Toast.LENGTH_SHORT).show()
+            // 方案1：尝试使用通用的搜索URL scheme
+            try {
+                val searchUrl = "$packageName://search?keyword=${Uri.encode(cleanQuery)}"
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    Log.d(TAG, "通过URL scheme跳转到动态应用搜索: $packageName, query=$cleanQuery")
+                    Toast.makeText(context, "正在跳转到${getAppDisplayName(packageName)}搜索", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "动态应用URL scheme跳转失败: $packageName, 尝试ACTION_SEARCH", e)
+            }
+            
+            // 方案2：尝试使用ACTION_SEARCH intent
+            if (!intentHandled) {
+                try {
+                    val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                        `package` = packageName
+                        putExtra(android.app.SearchManager.QUERY, cleanQuery)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    
+                    if (searchIntent.resolveActivity(context.packageManager) != null) {
+                        context.startActivity(searchIntent)
+                        Log.d(TAG, "通过ACTION_SEARCH跳转到动态应用搜索: $packageName, query=$cleanQuery")
+                        Toast.makeText(context, "正在跳转到${getAppDisplayName(packageName)}搜索", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "ACTION_SEARCH不支持: $packageName, 尝试ACTION_SEND", e)
+                }
+            }
+            
+            // 方案3：尝试使用ACTION_SEND intent（发送文本）
+            if (!intentHandled) {
+                try {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, cleanQuery)
+                        setPackage(packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    
+                    if (sendIntent.resolveActivity(context.packageManager) != null) {
+                        context.startActivity(sendIntent)
+                        Log.d(TAG, "通过ACTION_SEND跳转到动态应用: $packageName, query=$cleanQuery")
+                        Toast.makeText(context, "正在打开${getAppDisplayName(packageName)}并发送文本", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "ACTION_SEND不支持: $packageName, 降级到普通启动", e)
+                }
+            }
+            
+            // 所有搜索方案都失败，降级到普通启动
+            Log.w(TAG, "所有搜索intent方案都失败，降级到普通启动: $packageName")
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                Log.d(TAG, "成功启动动态应用: $packageName")
+                Toast.makeText(context, "已启动${getAppDisplayName(packageName)}，请手动搜索", Toast.LENGTH_SHORT).show()
+            } else {
+                throw Exception("无法获取启动Intent")
+            }
             
         } catch (e: Exception) {
-            Log.e(TAG, "动态应用URL scheme跳转失败: $packageName", e)
-            // URL scheme失败，尝试直接启动应用
-            try {
-                val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
-                    Log.d(TAG, "成功启动动态应用: $packageName")
-                    Toast.makeText(context, "已启动${getAppDisplayName(packageName)}", Toast.LENGTH_SHORT).show()
-                } else {
-                    throw Exception("无法获取启动Intent")
-                }
-            } catch (e2: Exception) {
-                Log.e(TAG, "启动动态应用失败: $packageName", e2)
-                // 启动失败，使用Web搜索
-                jumpToWebSearchForDynamicApp(getAppDisplayName(packageName), query)
-            }
+            Log.e(TAG, "启动动态应用失败: $packageName", e)
+            // 启动失败，使用Web搜索
+            jumpToWebSearchForDynamicApp(getAppDisplayName(packageName), query)
         }
     }
     
@@ -565,52 +615,120 @@ class PlatformJumpManager(private val context: Context) {
             // 清理和优化查询关键词
             val cleanQuery = cleanQueryForSearch(query)
             
-            // 构建搜索结果页面URL - 支持所有应用
-            val searchUrl = when (config.packageName) {
-                "com.ss.android.ugc.aweme" -> {
-                    // 抖音：使用与软件tab一致的URL scheme
-                    "snssdk1128://search/tabs?keyword=${Uri.encode(cleanQuery)}"
-                }
-                "com.xingin.xhs" -> {
-                    // 小红书：使用与软件tab一致的URL scheme
-                    "xhsdiscover://search/result?keyword=${Uri.encode(cleanQuery)}"
-                }
-                "com.google.android.youtube" -> {
-                    // YouTube：使用与软件tab一致的URL scheme
-                    "youtube://results?search_query=${Uri.encode(cleanQuery)}"
-                }
-                "tv.danmaku.bili" -> {
-                    // 哔哩哔哩：使用与软件tab一致的URL scheme
-                    "bilibili://search?keyword=${Uri.encode(cleanQuery)}"
-                }
-                "com.smile.gifmaker" -> {
-                    // 快手：使用通用URL scheme
-                    "kwai://search?keyword=${Uri.encode(cleanQuery)}"
-                }
-                "com.sina.weibo" -> {
-                    // 微博：使用与软件tab一致的URL scheme
-                    "sinaweibo://searchall?q=${Uri.encode(cleanQuery)}"
-                }
-                "com.douban.frodo" -> {
-                    // 豆瓣：使用与软件tab一致的URL scheme
-                    "douban:///search?q=${Uri.encode(cleanQuery)}"
-                }
-                else -> {
-                    // 其他应用：尝试使用通用搜索URL scheme
-                    "${config.urlScheme}search?keyword=${Uri.encode(cleanQuery)}"
-                }
-            }
+            // 构建搜索结果页面URL - 使用专用URL scheme
+            val encodedQuery = Uri.encode(cleanQuery)
+            val searchUrl = getAppSearchUrlScheme(config.packageName, cleanQuery, encodedQuery)
+                ?: "${config.urlScheme}search?keyword=$encodedQuery" // 降级到通用格式
             
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
             
-            Log.d(TAG, "成功跳转到${config.packageName}搜索结果页面（使用软件tab一致的URL scheme）: $cleanQuery")
-            Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}搜索结果", Toast.LENGTH_SHORT).show()
+            try {
+                if (intent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(intent)
+                    Log.d(TAG, "成功跳转到${config.packageName}搜索结果页面（使用软件tab一致的URL scheme）: $cleanQuery")
+                    Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}搜索结果", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "URL scheme跳转失败: ${config.packageName}, 尝试ACTION_SEARCH", e)
+            }
+            
+            // URL scheme失败，尝试使用ACTION_SEARCH
+            try {
+                val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                    `package` = config.packageName
+                    putExtra(android.app.SearchManager.QUERY, cleanQuery)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                if (searchIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(searchIntent)
+                    Log.d(TAG, "通过ACTION_SEARCH跳转到${config.packageName}搜索: $cleanQuery")
+                    Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}搜索结果", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "ACTION_SEARCH跳转失败: ${config.packageName}, 尝试ACTION_SEND", e)
+            }
+            
+            // ACTION_SEARCH失败，尝试使用ACTION_SEND
+            try {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, cleanQuery)
+                    setPackage(config.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                if (sendIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(sendIntent)
+                    Log.d(TAG, "通过ACTION_SEND跳转到${config.packageName}: $cleanQuery")
+                    Toast.makeText(context, "正在打开${getPlatformDisplayName(config.packageName)}并发送文本", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "ACTION_SEND跳转失败: ${config.packageName}, 尝试Web搜索", e)
+            }
+            
+            // 所有intent方案都失败，尝试Web搜索
+            Log.w(TAG, "所有应用内跳转方案都失败，尝试Web搜索")
+            jumpToWebSearch(config, query)
             
         } catch (e: Exception) {
             Log.e(TAG, "应用内跳转失败，尝试Web搜索", e)
             jumpToWebSearch(config, query)
+        }
+    }
+    
+    /**
+     * 获取应用的专用搜索URL scheme
+     * 根据包名返回正确的搜索结果页面URL
+     */
+    private fun getAppSearchUrlScheme(packageName: String, query: String, encodedQuery: String): String? {
+        return when (packageName) {
+            // 社交媒体类
+            "com.sina.weibo" -> "sinaweibo://searchall?q=$encodedQuery" // 微博
+            "com.xingin.xhs" -> "xhsdiscover://search/result/?keyword=$encodedQuery" // 小红书
+            "com.zhihu.android" -> "zhihu://search?q=$encodedQuery" // 知乎
+            "com.douban.frodo" -> "douban:///search?q=$encodedQuery" // 豆瓣
+            
+            // 视频类
+            "com.ss.android.ugc.aweme" -> "snssdk1128://search/tabs?keyword=$encodedQuery" // 抖音
+            "tv.danmaku.bili" -> "bilibili://search?keyword=$encodedQuery" // 哔哩哔哩
+            "com.smile.gifmaker" -> "kwai://search?keyword=$encodedQuery" // 快手
+            "com.youku.phone" -> "youku://search?word=$encodedQuery" // 优酷
+            "com.iqiyi.app", "com.iqiyi.hd" -> "iqiyi://search?key=$encodedQuery" // 爱奇艺
+            "com.tencent.qqlive" -> "tenvideo://search?query=$encodedQuery" // 腾讯视频
+            "com.google.android.youtube" -> "youtube://results?search_query=$encodedQuery" // YouTube
+            
+            // 购物类
+            "com.taobao.taobao" -> "taobao://s.taobao.com/search?q=$encodedQuery" // 淘宝
+            "com.tmall.wireless" -> "tmall://page.tm/search?q=$encodedQuery" // 天猫
+            "com.jingdong.app.mall" -> "openapp.jdmobile://virtual?params={\"des\":\"productList\",\"keyWord\":\"$encodedQuery\"}" // 京东
+            "com.xunmeng.pinduoduo" -> "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedQuery" // 拼多多
+            "com.taobao.fleamarket" -> "fleamarket://x_search_items?keyword=$encodedQuery" // 闲鱼
+            
+            // 生活服务类
+            "com.sankuai.meituan" -> "imeituan://www.meituan.com/search?q=$encodedQuery" // 美团
+            "me.ele" -> "eleme://search?keyword=$encodedQuery" // 饿了么
+            "com.dianping.v1" -> "dianping://searchshoplist?keyword=$encodedQuery" // 大众点评
+            
+            // 浏览器类
+            "com.UCMobile" -> "ucbrowser://search?keyword=$encodedQuery" // UC浏览器
+            "com.tencent.mtt" -> "mttbrowser://search?query=$encodedQuery" // QQ浏览器
+            "com.quark.browser" -> "quark://search?query=$encodedQuery" // 夸克
+            
+            // 音乐类
+            "com.tencent.qqmusic" -> "qqmusic://search?key=$encodedQuery" // QQ音乐
+            "com.netease.cloudmusic" -> "orpheus://search?keyword=$encodedQuery" // 网易云音乐
+            
+            // 地图导航类
+            "com.autonavi.minimap" -> "androidamap://poi?sourceApplication=aifloatingball&keywords=$encodedQuery" // 高德地图
+            "com.tencent.map" -> "qqmap://search?keyword=$encodedQuery" // 腾讯地图
+            "com.baidu.BaiduMap" -> "baidumap://map/place/search?query=$encodedQuery" // 百度地图
+            
+            else -> null // 未知应用，返回null使用通用格式
         }
     }
     

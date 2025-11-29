@@ -4064,32 +4064,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // AI应用：使用直接提问功能
                     handleAIDirectQuestion(appConfig, query)
                 } else {
-                    // 普通应用：使用应用内搜索
-                    val searchUrl = appConfig.getSearchUrl(query)
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        setPackage(appConfig.packageName)
+                    // 普通应用：使用多层次搜索intent尝试
+                    val searchSuccess = tryLaunchAppWithSearch(appConfig, query)
+                    
+                    if (searchSuccess) {
+                        // 保存搜索历史（原有系统）
+                        searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
+                        
+                        // 记录到统一收藏管理系统
+                        com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
+                            context = this,
+                            query = query,
+                            source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
+                            tags = listOf(appConfig.appName), // 添加应用名称作为标签
+                            searchType = "应用搜索"
+                        )
+                        
+                        // 延迟显示AIAppOverlayService面板（software_tab模式）
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            showAIAppOverlay(appConfig.packageName, query, appConfig.appName)
+                        }, 2000) // 延迟2秒，确保应用已启动
+                    } else {
+                        // 所有搜索方法都失败，降级到普通启动
+                        Log.w(TAG, "所有搜索方法都失败，降级到普通启动: ${appConfig.appName}")
+                        val launchIntent = packageManager.getLaunchIntentForPackage(appConfig.packageName)
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(launchIntent)
+                            Toast.makeText(this, "正在启动${appConfig.appName}，请手动搜索", Toast.LENGTH_SHORT).show()
+                            
+                            // 延迟显示AIAppOverlayService面板（software_tab模式）
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                showAIAppOverlay(appConfig.packageName, query, appConfig.appName)
+                            }, 2000)
+                        } else {
+                            Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+                        }
                     }
-
-                    startActivity(intent)
-                    Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
-
-                    // 保存搜索历史（原有系统）
-                    searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
-                    
-                    // 记录到统一收藏管理系统
-                    com.example.aifloatingball.manager.SearchHistoryAutoRecorder.recordSearchHistory(
-                        context = this,
-                        query = query,
-                        source = com.example.aifloatingball.manager.SearchHistoryAutoRecorder.SearchSource.APP_TAB,
-                        tags = listOf(appConfig.appName), // 添加应用名称作为标签
-                        searchType = "应用搜索"
-                    )
-                    
-                    // 延迟显示AIAppOverlayService面板（software_tab模式）
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        showAIAppOverlay(appConfig.packageName, query, appConfig.appName)
-                    }, 2000) // 延迟2秒，确保应用已启动
                 }
             } else {
                 // 没有搜索内容时，直接启动应用
@@ -4140,6 +4151,185 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    /**
+     * 尝试使用多种方式启动应用并搜索
+     * 按优先级尝试：URL scheme -> ACTION_SEARCH -> ACTION_SEND -> 普通启动
+     * @return 是否成功启动搜索
+     */
+    private fun tryLaunchAppWithSearch(appConfig: AppSearchConfig, query: String): Boolean {
+        try {
+            var intentHandled = false
+            val encodedQuery = android.net.Uri.encode(query, "UTF-8")
+            
+            // 方案1：尝试使用专用URL scheme（针对已知应用）
+            val searchUrl = getAppSearchUrlScheme(appConfig.packageName, query, encodedQuery)
+            if (searchUrl != null) {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        setPackage(appConfig.packageName)
+                    }
+                    
+                    Log.d(TAG, "尝试URL scheme跳转: ${appConfig.appName}, URL: $searchUrl")
+                    
+                    // 检查Intent是否可以解析
+                    val resolveInfo = intent.resolveActivity(packageManager)
+                    if (resolveInfo != null) {
+                        Log.d(TAG, "Intent可以解析，准备启动: ${appConfig.appName}")
+                        try {
+                            startActivity(intent)
+                            Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "✅ 成功通过URL scheme跳转到${appConfig.appName}搜索: $query, URL: $searchUrl")
+                            return true
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Log.w(TAG, "❌ ActivityNotFoundException: ${appConfig.appName}, URL: $searchUrl", e)
+                            // ActivityNotFoundException表示URL scheme可能不正确，继续尝试其他方法
+                        } catch (e: Exception) {
+                            Log.w(TAG, "❌ URL scheme跳转失败: ${appConfig.appName}, URL: $searchUrl", e)
+                            // 其他异常也继续尝试其他方法
+                        }
+                    } else {
+                        Log.w(TAG, "❌ Intent无法解析: ${appConfig.appName}, URL: $searchUrl")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "❌ URL scheme构建失败: ${appConfig.appName}", e)
+                }
+            } else if (appConfig.searchUrl.isNotEmpty() && appConfig.searchUrl.contains("{q}")) {
+                // 如果没有专用URL scheme，尝试使用配置的searchUrl
+                try {
+                    val searchUrl = appConfig.getSearchUrl(query)
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        setPackage(appConfig.packageName)
+                    }
+                    
+                    Log.d(TAG, "尝试配置的URL scheme跳转: ${appConfig.appName}, URL: $searchUrl")
+                    
+                    val resolveInfo = intent.resolveActivity(packageManager)
+                    if (resolveInfo != null) {
+                        try {
+                            startActivity(intent)
+                            Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "✅ 成功通过配置的URL scheme跳转到${appConfig.appName}搜索: $query")
+                            return true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "❌ 配置的URL scheme跳转失败: ${appConfig.appName}", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "❌ 配置的URL scheme构建失败: ${appConfig.appName}", e)
+                }
+            }
+            
+            // 方案2：尝试使用ACTION_SEARCH intent
+            if (!intentHandled) {
+                try {
+                    val searchIntent = Intent(Intent.ACTION_SEARCH).apply {
+                        `package` = appConfig.packageName
+                        putExtra(android.app.SearchManager.QUERY, query)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    
+                    if (searchIntent.resolveActivity(packageManager) != null) {
+                        try {
+                            startActivity(searchIntent)
+                            Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "通过ACTION_SEARCH跳转到${appConfig.appName}搜索: $query")
+                            return true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "ACTION_SEARCH跳转失败: ${appConfig.appName}", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "ACTION_SEARCH不支持: ${appConfig.appName}", e)
+                }
+            }
+            
+            // 方案3：尝试使用ACTION_SEND intent（发送文本）
+            if (!intentHandled) {
+                try {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, query)
+                        setPackage(appConfig.packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    
+                    if (sendIntent.resolveActivity(packageManager) != null) {
+                        try {
+                            startActivity(sendIntent)
+                            Toast.makeText(this, "正在打开${appConfig.appName}并发送文本：$query", Toast.LENGTH_SHORT).show()
+                            Log.d(TAG, "通过ACTION_SEND跳转到${appConfig.appName}: $query")
+                            return true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "ACTION_SEND跳转失败: ${appConfig.appName}", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "ACTION_SEND不支持: ${appConfig.appName}", e)
+                }
+            }
+            
+            // 所有方案都失败
+            Log.w(TAG, "所有搜索intent方案都失败: ${appConfig.appName}")
+            return false
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "尝试启动应用搜索失败: ${appConfig.appName}", e)
+            return false
+        }
+    }
+    
+    /**
+     * 获取应用的专用搜索URL scheme
+     * 根据包名返回正确的搜索结果页面URL
+     */
+    private fun getAppSearchUrlScheme(packageName: String, query: String, encodedQuery: String): String? {
+        return when (packageName) {
+            // 社交媒体类
+            "com.sina.weibo" -> "sinaweibo://searchall?q=$encodedQuery" // 微博
+            "com.xingin.xhs" -> "xhsdiscover://search/result/?keyword=$encodedQuery" // 小红书
+            "com.zhihu.android" -> "zhihu://search?q=$encodedQuery" // 知乎
+            "com.douban.frodo" -> "douban:///search?q=$encodedQuery" // 豆瓣
+            
+            // 视频类
+            "com.ss.android.ugc.aweme" -> "snssdk1128://search/tabs?keyword=$encodedQuery" // 抖音
+            "tv.danmaku.bili" -> "bilibili://search?keyword=$encodedQuery" // 哔哩哔哩
+            "com.smile.gifmaker" -> "kwai://search?keyword=$encodedQuery" // 快手
+            "com.youku.phone" -> "youku://search?word=$encodedQuery" // 优酷
+            "com.iqiyi.app", "com.iqiyi.hd" -> "iqiyi://search?key=$encodedQuery" // 爱奇艺
+            "com.tencent.qqlive" -> "tenvideo://search?query=$encodedQuery" // 腾讯视频
+            
+            // 购物类
+            "com.taobao.taobao" -> "taobao://s.taobao.com/search?q=$encodedQuery" // 淘宝
+            "com.tmall.wireless" -> "tmall://page.tm/search?q=$encodedQuery" // 天猫
+            "com.jingdong.app.mall" -> "openapp.jdmobile://virtual?params={\"des\":\"productList\",\"keyWord\":\"$encodedQuery\"}" // 京东
+            "com.xunmeng.pinduoduo" -> "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedQuery" // 拼多多
+            "com.taobao.fleamarket" -> "fleamarket://x_search_items?keyword=$encodedQuery" // 闲鱼
+            
+            // 生活服务类
+            "com.sankuai.meituan" -> "imeituan://www.meituan.com/search?q=$encodedQuery" // 美团
+            "me.ele" -> "eleme://search?keyword=$encodedQuery" // 饿了么
+            "com.dianping.v1" -> "dianping://searchshoplist?keyword=$encodedQuery" // 大众点评
+            
+            // 浏览器类
+            "com.UCMobile" -> "ucbrowser://search?keyword=$encodedQuery" // UC浏览器
+            "com.tencent.mtt" -> "mttbrowser://search?query=$encodedQuery" // QQ浏览器
+            "com.quark.browser" -> "quark://search?query=$encodedQuery" // 夸克
+            
+            // 音乐类
+            "com.tencent.qqmusic" -> "qqmusic://search?key=$encodedQuery" // QQ音乐
+            "com.netease.cloudmusic" -> "orpheus://search?keyword=$encodedQuery" // 网易云音乐
+            
+            // 地图导航类
+            "com.autonavi.minimap" -> "androidamap://poi?sourceApplication=aifloatingball&keywords=$encodedQuery" // 高德地图
+            "com.tencent.map" -> "qqmap://search?keyword=$encodedQuery" // 腾讯地图
+            "com.baidu.BaiduMap" -> "baidumap://map/place/search?query=$encodedQuery" // 百度地图
+            
+            else -> null // 未知应用，返回null使用其他方案
+        }
+    }
+    
     /**
      * 判断是否为AI应用
      */
