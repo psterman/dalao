@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.graphics.PixelFormat
 import android.os.Build
@@ -1115,6 +1116,7 @@ class EnhancedMenuManager(
                 .inflate(R.layout.link_preview_window, null)
             
             val container = previewWindowView!!.findViewById<androidx.cardview.widget.CardView>(R.id.preview_window_container)!!
+            val headerView = previewWindowView!!.findViewById<View>(R.id.preview_header)!!
             val previewWebView = previewWindowView!!.findViewById<WebView>(R.id.preview_webview)!!
             val loadingIndicator = previewWindowView!!.findViewById<ProgressBar>(R.id.preview_loading)!!
             val previewTitle = previewWindowView!!.findViewById<TextView>(R.id.preview_title)!!
@@ -1144,8 +1146,8 @@ class EnhancedMenuManager(
             // 🔧 设置菜单折叠功能，避免遮挡输入法
             setupPreviewMenuCollapse(container)
             
-            // 设置拖拽功能
-            setupPreviewDrag(container)
+            // 自底部弹出的预览卡片，下滑可关闭（仅对链接预览启用）
+            setupBottomSheetSwipeToDismiss(container, headerView)
             
             // 设置点击外部关闭
             previewWindowView!!.setOnTouchListener { view, event ->
@@ -1164,38 +1166,19 @@ class EnhancedMenuManager(
                 false
             }
             
-            // 计算预览窗位置和大小
+            // 创建窗口参数：全屏透明遮罩，自底部显示卡片
             val screenWidth = context.resources.displayMetrics.widthPixels
             val screenHeight = context.resources.displayMetrics.heightPixels
-            val density = context.resources.displayMetrics.density
             
-            // 测量预览窗
-            container.measure(
-                View.MeasureSpec.makeMeasureSpec((screenWidth * 0.9f).toInt(), View.MeasureSpec.AT_MOST),
-                View.MeasureSpec.makeMeasureSpec((screenHeight * 0.8f).toInt(), View.MeasureSpec.AT_MOST)
-            )
-            
-            val previewWidth = container.measuredWidth.coerceAtMost((400 * density).toInt())
-            val previewHeight = container.measuredHeight.coerceAtMost((600 * density).toInt())
-            
-            // 🔧 修复：默认将预览窗口贴到屏幕顶部，不遮挡搜索tab的标题输入框
-            val margin = (16 * density).toInt()
-            // 水平居中
-            val finalX = (screenWidth - previewWidth) / 2
-            // 垂直位置：贴到屏幕顶部，留出一些边距
-            val topMargin = (80 * density).toInt() // 留出空间给搜索tab标题栏
-            val finalY = topMargin
-            
-            // 创建窗口参数
             previewWindowParams = WindowManager.LayoutParams(
-                previewWidth,
-                previewHeight,
+                screenWidth,
+                screenHeight,
                 OVERLAY_WINDOW_TYPE,
                 MENU_WINDOW_FLAGS,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                this.x = finalX
-                this.y = finalY
+                this.x = 0
+                this.y = 0
                 gravity = Gravity.TOP or Gravity.START
             }
             
@@ -1482,6 +1465,64 @@ class EnhancedMenuManager(
                 }
                 else -> false
             }
+        }
+    }
+
+    /**
+     * 为链接预览卡片设置“自底部弹出 + 下滑关闭”的行为
+     *
+     * @param container  整个预览卡片容器（CardView）
+     * @param dragHandle 负责处理下滑手势的区域（通常是标题栏）
+     */
+    private fun setupBottomSheetSwipeToDismiss(container: View, dragHandle: View) {
+        try {
+            var downY = 0f
+            var startTranslationY = 0f
+            val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+            val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+            
+            dragHandle.setOnTouchListener { _, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downY = event.rawY
+                        startTranslationY = container.translationY
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dy = event.rawY - downY
+                        if (dy > 0) {
+                            // 只允许向下拖动
+                            container.translationY = startTranslationY + dy
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        val dy = container.translationY - startTranslationY
+                        // 拖动距离超过一定阈值则关闭，否则回弹
+                        if (dy > touchSlop * 4) {
+                            container.animate()
+                                .translationY(screenHeight)
+                                .alpha(0f)
+                                .setDuration(200)
+                                .withEndAction {
+                                    hidePreviewWindow()
+                                    container.alpha = 1f
+                                    container.translationY = 0f
+                                }
+                                .start()
+                        } else {
+                            container.animate()
+                                .translationY(0f)
+                                .setDuration(200)
+                                .start()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "设置底部预览卡片下滑关闭行为失败", e)
         }
     }
     

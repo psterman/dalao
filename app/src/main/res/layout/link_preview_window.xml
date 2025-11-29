@@ -9,15 +9,13 @@
     android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
-    <!-- 预览窗内容容器 -->
+    <!-- 预览窗内容容器：作为自底部弹出的全宽卡片 -->
     <androidx.cardview.widget.CardView
         android:id="@+id/preview_window_container"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="bottom"
         android:minWidth="320dp"
-        android:maxWidth="400dp"
-        android:maxHeight="600dp"
         app:cardCornerRadius="16dp"
         app:cardElevation="24dp"
         app:cardBackgroundColor="@color/menu_background_light">
