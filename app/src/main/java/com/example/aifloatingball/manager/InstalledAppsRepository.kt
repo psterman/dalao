@@ -117,7 +117,22 @@ class InstalledAppsRepository private constructor(private val context: Context) 
     }
 
     private fun classify(appInfo: ApplicationInfo, pkg: String, label: String): AppCategory {
-        // 1) 优先使用系统 category（Android 26+），覆盖少部分
+        val l = label.lowercase().trim()
+        val p = pkg.lowercase().trim()
+        
+        // 优先检查AI应用（在系统category之前）
+        // 这样可以确保AI应用不会被系统category误分类
+        val aiPackageNames = setOf(
+            "com.poe.android", "ai.perplexity.app.android", "com.manus.im.app",
+            "ai.x.grok", "com.microsoft.copilot", "com.google.android.apps.assistant",
+            "com.google.android.apps.gemini", "com.tencent.ima"
+        )
+        if (p in aiPackageNames) {
+            android.util.Log.d("InstalledAppsRepository", "✅ AI应用（完整包名匹配）: $label ($pkg) -> AI")
+            return AppCategory.AI
+        }
+        
+        // 1) 使用系统 category（Android 26+），但AI应用优先
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             when (appInfo.category) {
                 ApplicationInfo.CATEGORY_SOCIAL -> return AppCategory.SOCIAL
@@ -131,11 +146,64 @@ class InstalledAppsRepository private constructor(private val context: Context) 
             }
         }
 
-        val l = label.lowercase()
-        val p = pkg.lowercase()
-
         // 2) 规则与关键词（覆盖国产主流）
+        // 注意：规则按顺序匹配，AI应用规则放在最前面，确保优先匹配
         val rules: List<Pair<(String, String) -> Boolean, AppCategory>> = listOf(
+            // AI应用分类规则（最高优先级，放在最前面）
+            { ll: String, pp: String -> 
+                // 包名关键词匹配（精确匹配，避免误匹配）
+                // 完整包名匹配（最高优先级）
+                pp == "com.poe.android" || pp == "ai.perplexity.app.android" || 
+                pp == "com.manus.im.app" || pp == "ai.x.grok" || 
+                pp == "com.microsoft.copilot" || pp == "com.google.android.apps.assistant" ||
+                pp == "com.google.android.apps.gemini" || pp == "com.tencent.ima" ||
+                // 包名关键词匹配
+                (pp.contains("openai") && !pp.contains("open")) || // 避免匹配"open"关键词
+                pp.contains("deepseek") || pp.contains("kimi") || 
+                (pp.contains("gpt") && !pp.contains("script")) || // 避免匹配"script"关键词
+                pp.contains("copilot") || pp.contains("yuanbao") || 
+                pp.contains("zhipu") || pp.contains("larus.nova") || pp.contains("doubao") ||
+                pp.contains("tongyi") || pp.contains("aliyun.tongyi") || pp.contains("hunyuan") ||
+                (pp.contains("tencent.ima") && !pp.contains("tim")) || // IMA，排除TIM
+                pp.contains("com.tencent.ima") && !pp.contains("tim") || // IMA完整包名，排除TIM
+                pp.contains("wenxiaoyan") || pp.contains("baidu.newapp") || pp.contains("spark") || 
+                pp.contains("iflytek") || pp.contains("qingyan") || pp.contains("chatglm") || 
+                pp.contains("claude") || pp.contains("gemini") || pp.contains("perplexity") || 
+                pp.contains("grok") || pp.contains("manus") || pp.contains("metaso") || 
+                pp.contains("mita") || pp.contains("poe") || pp.contains("namiso") || 
+                (pp.contains("nano") && (pp.contains("ai") || pp.contains("qihoo"))) || // 纳米AI，避免误匹配其他nano应用
+                pp.contains("anthropic") || pp.contains("moonshot") || pp.contains("xinghuo") ||
+                // 新增AI应用包名匹配
+                pp.contains("monica") || pp.contains("com.monica") || // Monica
+                pp.contains("metaai") || pp.contains("meta.ai") || pp.contains("com.meta.ai") || // MetaAI
+                pp.contains("merlin") || pp.contains("com.merlin") || // Merlin
+                pp.contains("google.android.apps.assistant") || pp.contains("googleassistant") || // Google Assistant
+                pp.contains("xiaonao") || pp.contains("com.xiaonao") || pp.contains("xiaonao.ai") // 小脑
+            } to AppCategory.AI,
+            { ll: String, pp: String -> 
+                // 应用名称关键词匹配（ll已经是小写，直接匹配）
+                // 完整名称匹配（去除空格、连字符、下划线后比较）
+                val cleanName = ll.replace(" ", "").replace("-", "").replace("_", "").replace(".", "")
+                cleanName == "poe" || cleanName == "perplexity" || cleanName == "monica" || 
+                cleanName == "metaai" || cleanName == "merlin" || cleanName == "manus" || 
+                cleanName == "grok" || cleanName == "copilot" || cleanName == "小脑" ||
+                // 名称关键词匹配（ll已经是小写）
+                ll.contains("google assistant") || ll.contains("谷歌助手") || ll.contains("google助手") ||
+                (ll.contains("ai") && !ll.contains("mail")) || // 避免匹配"mail"
+                ll.contains("助手") || ll.contains("豆包") || 
+                ll.contains("千问") || ll.contains("元宝") || ll.contains("文小言") ||
+                ll.contains("星火") || ll.contains("智谱") || ll.contains("清言") ||
+                ll.contains("deepseek") || ll.contains("kimi") || ll.contains("chatgpt") ||
+                ll.contains("claude") || ll.contains("gemini") || ll.contains("grok") ||
+                ll.contains("perplexity") || ll.contains("manus") || ll.contains("秘塔") ||
+                ll.contains("poe") || ll.contains("纳米") || ll.contains("ima") ||
+                ll.contains("通义") || ll.contains("讯飞") || ll.contains("腾讯元宝") ||
+                ll.contains("monica") || ll.contains("metaai") || ll.contains("meta ai") || // Monica, MetaAI
+                ll.contains("merlin") || // Merlin
+                ll.contains("copilot") || ll.contains("小脑") // Copilot, 小脑
+            } to AppCategory.AI,
+            
+            // 其他应用分类规则（在AI规则之后）
             { _: String, pp: String -> pp.contains("taobao") || pp.contains("tmall") || pp.contains("jingdong") || pp.contains("jd") || pp.contains("xhs") || pp.contains("pinduoduo") } to AppCategory.SHOPPING,
             { ll: String, pp: String -> ll.contains("购物") || ll.contains("商城") || pp.contains("mall") } to AppCategory.SHOPPING,
             { ll: String, pp: String -> ll.contains("聊天") || ll.contains("社交") || pp.contains("weibo") || pp.contains("zhihu") || pp.contains("tiktok") || pp.contains("douyin") || pp.contains("qq") || pp.contains("wechat") || pp.contains("tim") } to AppCategory.SOCIAL,
@@ -148,12 +216,19 @@ class InstalledAppsRepository private constructor(private val context: Context) 
             { ll: String, pp: String -> ll.contains("招聘") || ll.contains("求职") || pp.contains("boss") || pp.contains("zhilian") } to AppCategory.JOBS,
             { ll: String, pp: String -> ll.contains("教育") || ll.contains("学习") || pp.contains("school") || pp.contains("study") } to AppCategory.EDUCATION,
             { ll: String, pp: String -> ll.contains("新闻") || ll.contains("资讯") || pp.contains("news") } to AppCategory.NEWS,
-            { ll: String, pp: String -> ll.contains("ai") || ll.contains("助手") || pp.contains("openai") || pp.contains("deepseek") || pp.contains("kimi") || pp.contains("gpt") || pp.contains("copilot") || pp.contains("yuanbao") || pp.contains("zhipu") } to AppCategory.AI,
         )
 
         for ((pred, cat) in rules) {
-            if (pred(l, p)) return cat
+            if (pred(l, p)) {
+                // 调试日志：记录AI应用分类
+                if (cat == AppCategory.AI) {
+                    android.util.Log.d("InstalledAppsRepository", "✅ AI应用分类: $label ($pkg) -> AI")
+                }
+                return cat
+            }
         }
+        // 调试日志：记录未匹配的应用
+        android.util.Log.d("InstalledAppsRepository", "⚠️ 未匹配应用: $label ($pkg) -> LIFESTYLE")
         return AppCategory.LIFESTYLE
     }
 }

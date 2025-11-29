@@ -1,4 +1,4 @@
-package com.example.aifloatingball.service
+ackage com.example.aifloatingball.service
 
 import android.app.Notification
 import android.app.NotificationChannel
