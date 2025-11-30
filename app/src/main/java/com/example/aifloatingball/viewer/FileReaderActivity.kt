@@ -1968,11 +1968,14 @@ private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endO
     // 应用主题颜色
     applyMenuTheme(dialogView, isDarkMode)
     
-    // 检查是否已有划线
+    // 检查是否已有划线（检查重叠，不仅仅是精确匹配）
     val existingHighlight = dataManager.getHighlights(filePath)
         .find { it.pageIndex == currentPageIndex && 
-                it.startPosition == startOffset && 
-                it.endPosition == endOffset }
+                // 检查是否有重叠：选中的文本与已有划线有交集
+                ((it.startPosition <= startOffset && it.endPosition > startOffset) ||  // 划线包含选中的起始位置
+                 (it.startPosition < endOffset && it.endPosition >= endOffset) ||      // 划线包含选中的结束位置
+                 (startOffset <= it.startPosition && endOffset >= it.endPosition))     // 选中的文本包含整个划线
+        }
     
     // 格式选项（高亮、下划线、波浪下划线）
     // 如果已有划线，使用已有的样式和颜色；否则使用默认值
