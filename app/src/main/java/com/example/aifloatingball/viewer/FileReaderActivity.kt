@@ -1125,13 +1125,28 @@ class FileReaderActivity : AppCompatActivity() {
                     .highlight-underline {
                         display: inline !important;
                         text-decoration: none !important;
-                        line-height: inherit;
+                        line-height: inherit !important;
+                        border-bottom: 3px solid;
+                        padding-bottom: 2px;
                     }
-                    /* 波浪下划线样式 - 使用SVG背景实现真实的波浪效果 */
+                    /* 波浪下划线样式 - 使用内联SVG元素实现真实的波浪效果 */
                     .highlight-wavy_underline {
                         display: inline !important;
                         text-decoration: none !important;
-                        line-height: inherit;
+                        line-height: inherit !important;
+                        position: relative !important;
+                        padding-bottom: 2px !important;
+                        vertical-align: baseline !important;
+                    }
+                    .highlight-wavy_underline svg {
+                        position: absolute !important;
+                        left: 0 !important;
+                        bottom: -2px !important;
+                        width: 100% !important;
+                        height: 4px !important;
+                        pointer-events: none !important;
+                        overflow: visible !important;
+                        z-index: 1 !important;
                     }
                     /* 确保所有高亮样式都能正确显示 */
                     span[class*="highlight-"] {
@@ -1377,15 +1392,13 @@ class FileReaderActivity : AppCompatActivity() {
                 "background-color: $color; padding: 2px 0; border-radius: 2px; display: inline !important;"
             }
             HighlightStyle.UNDERLINE -> {
-                // 下划线样式：使用边框
-                "border-bottom: 2px solid $color; padding-bottom: 1px; display: inline !important; text-decoration: none !important;"
+                // 下划线样式：使用边框，确保颜色和粗细明显
+                "border-bottom: 3px solid $color; padding-bottom: 2px; display: inline !important; text-decoration: none !important; line-height: inherit !important;"
             }
             HighlightStyle.WAVY_UNDERLINE -> {
-                // 波浪下划线样式：使用SVG背景实现真实的波浪效果
-                val svgColor = color.replace("#", "%23") // URL编码
-                // 使用更明显的波浪效果，确保颜色正确
-                val svgData = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 4'%3E%3Cpath d='M0,2 Q5,0 10,2 T20,2' stroke='$svgColor' fill='none' stroke-width='2'/%3E%3C/svg%3E"
-                "background-image: url(\"$svgData\"); background-repeat: repeat-x; background-size: 20px 4px; background-position: bottom; padding-bottom: 4px; display: inline !important; text-decoration: none !important;"
+                // 波浪下划线样式：使用内联SVG元素实现真实的波浪效果
+                // 注意：这个样式字符串会被包装在span中，实际的SVG会在applyHighlights方法中添加
+                "position: relative; display: inline !important; text-decoration: none !important; line-height: inherit !important; padding-bottom: 2px !important; vertical-align: baseline !important;"
             }
         }
     }
@@ -1482,7 +1495,18 @@ class FileReaderActivity : AppCompatActivity() {
                 val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
                 val style = highlight.style
                 val styleString = buildStyleString(color, style)
-                nestedText = "<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">$nestedText</span>"
+                
+                // 对于波浪下划线，使用内联SVG元素
+                if (style == HighlightStyle.WAVY_UNDERLINE) {
+                    // 创建内联SVG波浪线，使用唯一的pattern ID避免冲突
+                    val patternId = "wave-${highlight.id.replace("-", "")}"
+                    val escapedColor = color.replace("#", "\\#") // 转义颜色值用于CSS
+                    // SVG使用绝对定位，确保准确对齐文本底部
+                    val svgWave = "<svg style=\"position: absolute; left: 0; bottom: -2px; width: 100%; height: 4px; pointer-events: none; overflow: visible; z-index: 1;\" xmlns='http://www.w3.org/2000/svg' preserveAspectRatio='none'><defs><pattern id='$patternId' x='0' y='0' width='8' height='4' patternUnits='userSpaceOnUse' patternContentUnits='userSpaceOnUse'><path d='M0,2 Q2,0 4,2 T8,2' stroke='$color' fill='none' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></pattern></defs><rect x='0' y='0' width='100%' height='4' fill='url(#$patternId)'/></svg>"
+                    nestedText = "<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">$nestedText$svgWave</span>"
+                } else {
+                    nestedText = "<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">$nestedText</span>"
+                }
             }
             
             result.append(nestedText)
@@ -2441,23 +2465,58 @@ private fun previewHighlightInWebView(text: String, startOffset: Int, endOffset:
                             span.style.borderRadius = '2px';
                             span.style.display = 'inline';
                         } else if (styleType === 'UNDERLINE') {
-                            // 下划线样式：使用边框
-                            span.style.borderBottom = '2px solid ' + colorValue;
-                            span.style.paddingBottom = '1px';
+                            // 下划线样式：使用边框，确保颜色和粗细明显
+                            span.style.borderBottom = '3px solid ' + colorValue;
+                            span.style.paddingBottom = '2px';
                             span.style.display = 'inline';
                             span.style.textDecoration = 'none';
+                            span.style.lineHeight = 'inherit';
                         } else if (styleType === 'WAVY_UNDERLINE') {
-                            // 波浪下划线样式：使用SVG背景实现真实的波浪效果
-                            var svgColor = colorValue.replace('#', '%23'); // URL编码
-                            // 使用更明显的波浪效果，确保颜色正确
-                            var svgData = 'data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 20 4\\'%3E%3Cpath d=\\'M0,2 Q5,0 10,2 T20,2\\' stroke=\\'' + svgColor + '\\' fill=\\'none\\' stroke-width=\\'2\\'/%3E%3C/svg%3E';
-                            span.style.backgroundImage = 'url("' + svgData + '")';
-                            span.style.backgroundRepeat = 'repeat-x';
-                            span.style.backgroundSize = '20px 4px';
-                            span.style.backgroundPosition = 'bottom';
-                            span.style.paddingBottom = '4px';
+                            // 波浪下划线样式：使用内联SVG元素实现真实的波浪效果
+                            span.style.position = 'relative';
                             span.style.display = 'inline';
                             span.style.textDecoration = 'none';
+                            span.style.lineHeight = 'inherit';
+                            span.style.paddingBottom = '2px';
+                            span.style.verticalAlign = 'baseline';
+                            
+                            // 创建内联SVG波浪线，使用唯一的pattern ID
+                            var patternId = 'wave-preview-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                            var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                            svg.setAttribute('style', 'position: absolute; left: 0; bottom: -2px; width: 100%; height: 4px; pointer-events: none; overflow: visible; z-index: 1;');
+                            svg.setAttribute('preserveAspectRatio', 'none');
+                            
+                            var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                            var pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+                            pattern.setAttribute('id', patternId);
+                            pattern.setAttribute('x', '0');
+                            pattern.setAttribute('y', '0');
+                            pattern.setAttribute('width', '8');
+                            pattern.setAttribute('height', '4');
+                            pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+                            pattern.setAttribute('patternContentUnits', 'userSpaceOnUse');
+                            
+                            var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                            path.setAttribute('d', 'M0,2 Q2,0 4,2 T8,2');
+                            path.setAttribute('stroke', colorValue);
+                            path.setAttribute('fill', 'none');
+                            path.setAttribute('stroke-width', '2');
+                            path.setAttribute('stroke-linecap', 'round');
+                            path.setAttribute('stroke-linejoin', 'round');
+                            
+                            pattern.appendChild(path);
+                            defs.appendChild(pattern);
+                            svg.appendChild(defs);
+                            
+                            var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                            rect.setAttribute('x', '0');
+                            rect.setAttribute('y', '0');
+                            rect.setAttribute('width', '100%');
+                            rect.setAttribute('height', '4');
+                            rect.setAttribute('fill', 'url(#' + patternId + ')');
+                            svg.appendChild(rect);
+                            
+                            span.appendChild(svg);
                         }
                         span.style.opacity = '0.8';
                         
