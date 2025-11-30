@@ -34,6 +34,8 @@ import com.example.aifloatingball.manager.UnifiedCollectionManager
 import com.example.aifloatingball.model.*
 import com.example.aifloatingball.video.SystemOverlayVideoManager
 import com.example.aifloatingball.download.EnhancedDownloadManager
+import com.example.aifloatingball.viewer.FileReaderActivity
+import com.example.aifloatingball.viewer.ReaderDataManager
 
 /**
  * 任务Fragment - 两列布局版本
@@ -1130,6 +1132,12 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             return
         }
         
+        // 如果是读书划线，打开文件阅读器并跳转到对应位置
+        if (item.collectionType == CollectionType.READING_HIGHLIGHT) {
+            openReadingHighlight(item)
+            return
+        }
+        
         // 如果是视频收藏，显示播放和下载选项
         if (item.collectionType == CollectionType.VIDEO_COLLECTION) {
             showVideoCollectionOptions(item)
@@ -1148,6 +1156,91 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 }
             }
             .show()
+    }
+    
+    /**
+     * 打开读书划线（打开文件阅读器并跳转到对应位置）
+     */
+    private fun openReadingHighlight(item: UnifiedCollectionItem) {
+        try {
+            val filePathStr = item.extraData["filePath"] as? String
+            val pageIndex = (item.extraData["pageIndex"] as? Number)?.toInt()
+            val bookName = item.extraData["bookName"] as? String
+            
+            if (filePathStr.isNullOrEmpty()) {
+                android.widget.Toast.makeText(requireContext(), "文件路径无效", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d(TAG, "打开读书划线: filePath=$filePathStr, pageIndex=$pageIndex, bookName=$bookName")
+            
+            // 判断是URI格式还是文件路径格式
+            val uri = try {
+                android.net.Uri.parse(filePathStr)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme != null) {
+                // 是URI格式
+                when (uri.scheme) {
+                    "file" -> {
+                        // file:// URI，转换为文件路径
+                        val filePath = uri.path
+                        if (filePath != null) {
+                            val file = java.io.File(filePath)
+                            if (file.exists()) {
+                                FileReaderActivity.startWithPath(
+                                    requireActivity(),
+                                    filePath,
+                                    bookName,
+                                    pageIndex
+                                )
+                                android.widget.Toast.makeText(requireContext(), "正在打开文件...", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(requireContext(), "文件不存在: ${file.name}", android.widget.Toast.LENGTH_SHORT).show()
+                                Log.e(TAG, "文件不存在: $filePath")
+                            }
+                        } else {
+                            android.widget.Toast.makeText(requireContext(), "无法解析文件路径", android.widget.Toast.LENGTH_SHORT).show()
+                            Log.e(TAG, "无法从URI获取文件路径: $filePathStr")
+                        }
+                    }
+                    "content" -> {
+                        // content:// URI，直接使用URI打开
+                        FileReaderActivity.start(
+                            requireActivity(),
+                            uri,
+                            bookName,
+                            pageIndex
+                        )
+                        android.widget.Toast.makeText(requireContext(), "正在打开文件...", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        android.widget.Toast.makeText(requireContext(), "不支持的URI格式: ${uri.scheme}", android.widget.Toast.LENGTH_SHORT).show()
+                        Log.e(TAG, "不支持的URI格式: ${uri.scheme}")
+                    }
+                }
+            } else {
+                // 是文件路径格式
+                val file = java.io.File(filePathStr)
+                if (file.exists()) {
+                    FileReaderActivity.startWithPath(
+                        requireActivity(),
+                        filePathStr,
+                        bookName,
+                        pageIndex
+                    )
+                    android.widget.Toast.makeText(requireContext(), "正在打开文件...", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    android.widget.Toast.makeText(requireContext(), "文件不存在: ${file.name}", android.widget.Toast.LENGTH_SHORT).show()
+                    Log.e(TAG, "文件不存在: $filePathStr")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "打开读书划线失败", e)
+            android.widget.Toast.makeText(requireContext(), "打开失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**
@@ -2054,6 +2147,20 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             .setTitle("确认删除")
             .setMessage("确定要删除「${item.title.take(30)}」吗？")
             .setPositiveButton("删除") { _, _ ->
+                // 如果是读书划线，需要同时删除ReaderDataManager中的划线数据
+                if (item.collectionType == CollectionType.READING_HIGHLIGHT) {
+                    val highlightId = item.extraData["highlightId"] as? String
+                    if (!highlightId.isNullOrEmpty()) {
+                        try {
+                            val readerDataManager = ReaderDataManager(requireContext())
+                            readerDataManager.deleteHighlight(highlightId)
+                            Log.d(TAG, "已删除ReaderDataManager中的划线: $highlightId")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "删除ReaderDataManager中的划线失败", e)
+                        }
+                    }
+                }
+                
                 val success = collectionManager.deleteCollection(item.id)
                 if (success) {
                     currentCollectionType?.let { loadCollectionsForType(it) }

@@ -215,23 +215,18 @@ class ReaderDataManager(private val context: Context) {
     
     /**
      * 添加划线
+     * 支持同一个文件显示多个划线，允许重叠
      */
     fun addHighlight(highlight: Highlight) {
         val highlights = getAllHighlights().toMutableList()
-        // 检查是否已存在重叠的划线
-        val existing = highlights.find { 
-            it.filePath == highlight.filePath && 
-            it.pageIndex == highlight.pageIndex &&
-            ((it.startPosition <= highlight.startPosition && it.endPosition >= highlight.startPosition) ||
-             (it.startPosition <= highlight.endPosition && it.endPosition >= highlight.endPosition) ||
-             (highlight.startPosition <= it.startPosition && highlight.endPosition >= it.startPosition))
-        }
+        // 检查是否已存在相同ID的划线（避免重复添加）
+        val existing = highlights.find { it.id == highlight.id }
         if (existing == null) {
             highlights.add(highlight)
             saveHighlights(highlights)
-            Log.d(TAG, "添加划线: ${highlight.id}")
+            Log.d(TAG, "添加划线: ${highlight.id}, 文件=${highlight.filePath}, 页面=${highlight.pageIndex}, 位置=${highlight.startPosition}-${highlight.endPosition}")
         } else {
-            Log.d(TAG, "划线已存在，跳过添加")
+            Log.d(TAG, "划线ID已存在，跳过添加: ${highlight.id}")
         }
     }
     

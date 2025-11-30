@@ -74,14 +74,16 @@ class FileReaderActivity : AppCompatActivity() {
         private const val EXTRA_FILE_URI = "file_uri"
         private const val EXTRA_FILE_PATH = "file_path"
         private const val EXTRA_FILE_NAME = "file_name"
+        private const val EXTRA_PAGE_INDEX = "page_index"
         
         /**
          * 启动文件阅读器
          */
-        fun start(context: Activity, fileUri: Uri, fileName: String? = null) {
+        fun start(context: Activity, fileUri: Uri, fileName: String? = null, pageIndex: Int? = null) {
             val intent = Intent(context, FileReaderActivity::class.java).apply {
                 putExtra(EXTRA_FILE_URI, fileUri.toString())
                 fileName?.let { putExtra(EXTRA_FILE_NAME, it) }
+                pageIndex?.let { putExtra(EXTRA_PAGE_INDEX, it) }
             }
             context.startActivity(intent)
         }
@@ -89,10 +91,11 @@ class FileReaderActivity : AppCompatActivity() {
         /**
          * 启动文件阅读器（使用文件路径）
          */
-        fun startWithPath(context: Activity, filePath: String, fileName: String? = null) {
+        fun startWithPath(context: Activity, filePath: String, fileName: String? = null, pageIndex: Int? = null) {
             val intent = Intent(context, FileReaderActivity::class.java).apply {
                 putExtra(EXTRA_FILE_PATH, filePath)
                 fileName?.let { putExtra(EXTRA_FILE_NAME, it) }
+                pageIndex?.let { putExtra(EXTRA_PAGE_INDEX, it) }
             }
             context.startActivity(intent)
         }
@@ -920,9 +923,16 @@ class FileReaderActivity : AppCompatActivity() {
                     // 加载阅读进度（必须在分页之后）
                     loadReadingProgress()
                     
+                    // 如果Intent中指定了页面索引，优先使用（用于从读书划线跳转）
+                    val intentPageIndex = intent.getIntExtra(EXTRA_PAGE_INDEX, -1)
+                    if (intentPageIndex >= 0) {
+                        currentPageIndex = intentPageIndex.coerceIn(0, totalPages - 1)
+                        Log.d(TAG, "使用Intent指定的页面索引: $intentPageIndex")
+                    }
+                    
                     Log.d(TAG, "准备显示页面: currentPageIndex=$currentPageIndex, totalPages=$totalPages")
                     
-                    // 显示当前页（可能是上次阅读的位置）
+                    // 显示当前页（可能是上次阅读的位置或Intent指定的位置）
                     val targetPage = currentPageIndex.coerceIn(0, totalPages - 1)
                     displayPage(targetPage)
                     
@@ -1386,79 +1396,97 @@ class FileReaderActivity : AppCompatActivity() {
      * 重要：只转义文本内容，不转义HTML标签
      */
     /**
-     * 应用高亮（支持不同颜色和样式）
+     * 应用高亮（支持不同颜色和样式，支持重叠划线混合显示）
      * 注意：位置索引基于原始文本，需要在转义前计算
      * 重要：只转义文本内容，不转义HTML标签
+     * 
+     * 算法说明：
+     * 1. 将所有划线位置转换为区间
+     * 2. 找出所有需要高亮的区间段（使用区间分割算法）
+     * 3. 对于每个区间段，找出所有覆盖它的划线
+     * 4. 使用嵌套span来显示多个划线样式
      */
     private fun applyHighlights(text: String, pageIndex: Int): String {
         val highlights = dataManager.getHighlights(filePath)
             .filter { it.pageIndex == pageIndex }
-            .sortedByDescending { it.startPosition } // 从后往前处理，避免位置偏移
+            .filter { 
+                // 过滤掉无效的划线
+                it.startPosition >= 0 && 
+                it.startPosition < text.length && 
+                it.endPosition > it.startPosition &&
+                it.endPosition <= text.length
+            }
         
         if (highlights.isEmpty()) {
             // 没有高亮，直接转义并返回
             return escapeHtml(text).replace("\n", "<br>")
         }
         
-        // 使用StringBuilder提高性能，并确保HTML标签不被转义
+        // 找出所有需要高亮的区间段
+        val segments = mutableListOf<Pair<Int, Int>>() // (start, end)
+        val highlightMap = mutableMapOf<Pair<Int, Int>, MutableList<Highlight>>() // 每个区间段对应的划线列表
+        
+        // 收集所有区间的端点
+        val points = mutableSetOf<Int>()
+        highlights.forEach { highlight ->
+            points.add(highlight.startPosition)
+            points.add(highlight.endPosition)
+        }
+        points.add(0)
+        points.add(text.length)
+        
+        // 排序端点
+        val sortedPoints = points.sorted()
+        
+        // 为每个区间段找出覆盖它的划线
+        for (i in 0 until sortedPoints.size - 1) {
+            val segmentStart = sortedPoints[i]
+            val segmentEnd = sortedPoints[i + 1]
+            
+            if (segmentStart < segmentEnd) {
+                // 找出所有覆盖这个区间段的划线
+                val coveringHighlights = highlights.filter { highlight ->
+                    highlight.startPosition <= segmentStart && highlight.endPosition >= segmentEnd
+                }
+                
+                if (coveringHighlights.isNotEmpty()) {
+                    val segment = Pair(segmentStart, segmentEnd)
+                    segments.add(segment)
+                    highlightMap[segment] = coveringHighlights.toMutableList()
+                }
+            }
+        }
+        
+        // 构建HTML
         val result = StringBuilder()
         var lastIndex = 0
         
-        highlights.forEach { highlight ->
-            val start = highlight.startPosition.coerceIn(0, text.length)
-            val end = highlight.endPosition.coerceIn(start, text.length)
+        // 处理所有区间段
+        segments.forEach { segment ->
+            val segmentStart = segment.first
+            val segmentEnd = segment.second
+            val segmentHighlights = highlightMap[segment] ?: emptyList()
             
-            // 确保位置有效且不重叠
-            if (start >= 0 && start < text.length && end > start) {
-                // 如果与上一个高亮重叠，跳过或调整
-                if (start < lastIndex) {
-                    // 重叠情况：只处理不重叠的部分
-                    if (end > lastIndex) {
-                        // 有部分重叠，从lastIndex开始
-                        val actualStart = lastIndex
-                        val actualEnd = end.coerceAtMost(text.length)
-                        
-                        // 添加高亮文本（转义）
-                        val highlightedText = escapeHtml(text.substring(actualStart, actualEnd))
-                        
-                        // 使用内联样式支持不同颜色和样式
-                        val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
-                        val style = highlight.style
-                        
-                        val styleString = buildStyleString(color, style)
-                        
-                        // 添加高亮span标签（不转义，直接插入HTML）
-                        result.append("<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">")
-                        result.append(highlightedText)
-                        result.append("</span>")
-                        
-                        lastIndex = actualEnd
-                    }
-                    // 如果完全重叠，跳过
-                } else {
-                    // 不重叠，正常处理
-                    // 添加高亮之前的文本（转义）
-                    if (start > lastIndex) {
-                        result.append(escapeHtml(text.substring(lastIndex, start)))
-                    }
-                    
-                    // 获取高亮文本（转义）
-                    val highlightedText = escapeHtml(text.substring(start, end))
-                    
-                    // 使用内联样式支持不同颜色和样式
-                    val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
-                    val style = highlight.style
-                    
-                    val styleString = buildStyleString(color, style)
-                    
-                    // 添加高亮span标签（不转义，直接插入HTML）
-                    result.append("<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">")
-                    result.append(highlightedText)
-                    result.append("</span>")
-                    
-                    lastIndex = end
-                }
+            // 添加区间段之前的文本（转义）
+            if (segmentStart > lastIndex) {
+                result.append(escapeHtml(text.substring(lastIndex, segmentStart)))
             }
+            
+            // 获取区间段的文本（转义）
+            val segmentText = escapeHtml(text.substring(segmentStart, segmentEnd))
+            
+            // 使用嵌套span来显示多个划线样式
+            // 从外到内嵌套，确保所有样式都能显示
+            var nestedText = segmentText
+            segmentHighlights.forEach { highlight ->
+                val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
+                val style = highlight.style
+                val styleString = buildStyleString(color, style)
+                nestedText = "<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">$nestedText</span>"
+            }
+            
+            result.append(nestedText)
+            lastIndex = segmentEnd
         }
         
         // 添加剩余的文本（转义）
