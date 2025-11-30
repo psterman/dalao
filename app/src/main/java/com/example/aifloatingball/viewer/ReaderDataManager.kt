@@ -4,7 +4,14 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializationContext
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParseException
 import com.google.gson.reflect.TypeToken
+import java.lang.reflect.Type
 import java.util.*
 
 /**
@@ -25,7 +32,70 @@ class ReaderDataManager(private val context: Context) {
     }
     
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    private val gson = Gson()
+    
+    // 创建支持 Highlight 样式字段默认值的 Gson 实例
+    private val gson: Gson = GsonBuilder()
+        .registerTypeAdapter(Highlight::class.java, HighlightDeserializer())
+        .create()
+    
+    /**
+     * Highlight 反序列化器：处理旧数据中缺少 style 字段的情况
+     */
+    private class HighlightDeserializer : JsonDeserializer<Highlight> {
+        @Throws(JsonParseException::class)
+        override fun deserialize(
+            json: JsonElement?,
+            typeOfT: Type?,
+            context: JsonDeserializationContext?
+        ): Highlight {
+            if (json == null || !json.isJsonObject) {
+                throw JsonParseException("Invalid Highlight JSON")
+            }
+            
+            val jsonObject = json.asJsonObject
+            
+            // 解析所有字段
+            val id = jsonObject.get("id")?.asString ?: throw JsonParseException("Missing id field")
+            val filePath = jsonObject.get("filePath")?.asString ?: throw JsonParseException("Missing filePath field")
+            val pageIndex = jsonObject.get("pageIndex")?.asInt ?: throw JsonParseException("Missing pageIndex field")
+            val startPosition = jsonObject.get("startPosition")?.asInt ?: throw JsonParseException("Missing startPosition field")
+            val endPosition = jsonObject.get("endPosition")?.asInt ?: throw JsonParseException("Missing endPosition field")
+            val text = jsonObject.get("text")?.asString ?: throw JsonParseException("Missing text field")
+            val color = jsonObject.get("color")?.asString ?: "#FFEB3B"
+            val timestamp = jsonObject.get("timestamp")?.asLong ?: System.currentTimeMillis()
+            
+            // 处理 style 字段：如果不存在或为 null，使用默认值
+            val style = try {
+                val styleElement = jsonObject.get("style")
+                if (styleElement != null && !styleElement.isJsonNull) {
+                    val styleName = styleElement.asString
+                    try {
+                        HighlightStyle.valueOf(styleName)
+                    } catch (e: IllegalArgumentException) {
+                        Log.w("HighlightDeserializer", "Invalid style value: $styleName, using default")
+                        HighlightStyle.HIGHLIGHT
+                    }
+                } else {
+                    HighlightStyle.HIGHLIGHT
+                }
+            } catch (e: Exception) {
+                Log.w("HighlightDeserializer", "Error parsing style field, using default", e)
+                HighlightStyle.HIGHLIGHT
+            }
+            
+            return Highlight(
+                id = id,
+                filePath = filePath,
+                pageIndex = pageIndex,
+                startPosition = startPosition,
+                endPosition = endPosition,
+                text = text,
+                color = color,
+                style = style,
+                timestamp = timestamp
+            )
+        }
+    }
     
     // ==================== 书签管理 ====================
     
@@ -111,7 +181,32 @@ class ReaderDataManager(private val context: Context) {
         val json = prefs.getString(KEY_HIGHLIGHTS, "[]") ?: "[]"
         return try {
             val type = object : TypeToken<List<Highlight>>() {}.type
-            gson.fromJson(json, type) ?: emptyList()
+            val highlights = gson.fromJson<List<Highlight>>(json, type) ?: emptyList()
+            
+            // 自定义反序列化器已经处理了 style 字段的默认值
+            // 但为了安全起见，我们仍然检查是否有 null 值（防止其他问题）
+            val fixedHighlights = highlights.mapNotNull { highlight ->
+                try {
+                    // 确保 style 不为 null
+                    if (highlight.style == null) {
+                        Log.w(TAG, "发现 style 为 null 的划线数据: ${highlight.id}，已修复")
+                        highlight.copy(style = HighlightStyle.HIGHLIGHT)
+                    } else {
+                        highlight
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "处理划线数据时出错: ${highlight.id}", e)
+                    null // 跳过损坏的数据
+                }
+            }
+            
+            // 如果有修复的数据，保存回去
+            if (fixedHighlights.size != highlights.size) {
+                saveHighlights(fixedHighlights)
+                Log.d(TAG, "已修复并移除了 ${highlights.size - fixedHighlights.size} 条损坏的划线数据")
+            }
+            
+            fixedHighlights
         } catch (e: Exception) {
             Log.e(TAG, "解析划线失败", e)
             emptyList()

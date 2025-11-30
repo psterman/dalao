@@ -57,6 +57,21 @@
             android:padding="8dp"
             android:background="?android:attr/selectableItemBackground"/>
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#33FFFFFF"
+            android:layout_marginVertical="4dp"/>
+
+        <TextView
+            android:id="@+id/action_save_highlight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✏️ 保存划线"
+            android:textColor="@android:color/white"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"/>
+
     </LinearLayout>
 
 </FrameLayout> 

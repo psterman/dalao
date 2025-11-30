@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="0dp">
+
+    <!-- 上方操作菜单 -->
+    <LinearLayout
+        android:id="@+id/action_menu_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/text_menu_background_light"
+        android:padding="8dp"
+        android:elevation="8dp"
+        android:gravity="center_vertical">
+
+        <!-- 复制 -->
+        <LinearLayout
+            android:id="@+id/action_copy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp">
+
+            <ImageView
+                android:id="@+id/icon_copy"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_save"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_copy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="复制"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+        <!-- 取消划线 -->
+        <LinearLayout
+            android:id="@+id/action_remove_highlight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/icon_remove_highlight"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_delete"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_remove_highlight"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="取消划线"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+        <!-- 写想法 -->
+        <LinearLayout
+            android:id="@+id/action_write_idea"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp">
+
+            <ImageView
+                android:id="@+id/icon_write_idea"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_edit"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_write_idea"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="写想法"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+        <!-- 分享 -->
+        <LinearLayout
+            android:id="@+id/action_share"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp">
+
+            <ImageView
+                android:id="@+id/icon_share"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_share"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_share"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="分享"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+        <!-- 查询 -->
+        <LinearLayout
+            android:id="@+id/action_query"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="4dp">
+
+            <ImageView
+                android:id="@+id/icon_query"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_menu_search"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_query"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="查询"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+        <!-- 听当前 -->
+        <LinearLayout
+            android:id="@+id/action_listen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:layout_marginEnd="8dp">
+
+            <ImageView
+                android:id="@+id/icon_listen"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_media_play"
+                android:tint="@color/text_menu_icon_light" />
+
+            <TextView
+                android:id="@+id/text_listen"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="听当前"
+                android:textSize="12sp"
+                android:textColor="@color/text_menu_text_light" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 下方格式和颜色选择器 -->
+    <LinearLayout
+        android:id="@+id/format_color_picker_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@color/text_menu_background_light"
+        android:padding="12dp"
+        android:elevation="8dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical">
+
+        <!-- 左侧：文本格式选项 -->
+        <LinearLayout
+            android:id="@+id/format_options_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginEnd="16dp">
+
+            <!-- 高亮/填充 -->
+            <FrameLayout
+                android:id="@+id/format_highlight"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/format_button_selector">
+                
+                <TextView
+                    android:id="@+id/format_highlight_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="A"
+                    android:textSize="18sp"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/format_highlight_bg"/>
+            </FrameLayout>
+
+            <!-- 下划线 -->
+            <FrameLayout
+                android:id="@+id/format_underline"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/format_button_selector">
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView
+                        android:id="@+id/format_underline_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="A"
+                        android:textSize="18sp"
+                        android:textColor="#FFFFFF"/>
+                    <View
+                        android:id="@+id/format_underline_line"
+                        android:layout_width="20dp"
+                        android:layout_height="2dp"
+                        android:background="#FFFFFF"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- 波浪下划线 -->
+            <FrameLayout
+                android:id="@+id/format_wavy_underline"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/format_button_selector">
+                
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+                    <TextView
+                        android:id="@+id/format_wavy_underline_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="A"
+                        android:textSize="18sp"
+                        android:textColor="#FFFFFF"/>
+                    <ImageView
+                        android:id="@+id/format_wavy_underline_icon"
+                        android:layout_width="20dp"
+                        android:layout_height="4dp"
+                        android:src="@drawable/wavy_underline_icon"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- 右侧：颜色选择器 -->
+        <LinearLayout
+            android:id="@+id/color_picker_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#1A1A1A"
+            android:padding="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <!-- 粉色 -->
+            <FrameLayout
+                android:id="@+id/color_pink"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/color_circle_selector">
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/color_gradient_pink"
+                    android:backgroundTint="#FF69B4"/>
+            </FrameLayout>
+
+            <!-- 紫色 -->
+            <FrameLayout
+                android:id="@+id/color_purple"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/color_circle_selector">
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/color_gradient_purple"
+                    android:backgroundTint="#9C27B0"/>
+            </FrameLayout>
+
+            <!-- 浅蓝色 -->
+            <FrameLayout
+                android:id="@+id/color_light_blue"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/color_circle_selector">
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/color_gradient_light_blue"
+                    android:backgroundTint="#5AC8FA"/>
+            </FrameLayout>
+
+            <!-- 绿色 -->
+            <FrameLayout
+                android:id="@+id/color_green"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/color_circle_selector">
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/color_gradient_green"
+                    android:backgroundTint="#34C759"/>
+            </FrameLayout>
+
+            <!-- 黄色（默认选中） -->
+            <FrameLayout
+                android:id="@+id/color_yellow"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/color_circle_selector">
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/color_gradient_yellow"
+                    android:backgroundTint="#FFD60A"/>
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 箭头指示器（指向选中文本） -->
+    <View
+        android:id="@+id/arrow_indicator"
+        android:layout_width="12dp"
+        android:layout_height="8dp"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/arrow_up"
+        android:layout_marginTop="4dp"/>
+
+</LinearLayout>

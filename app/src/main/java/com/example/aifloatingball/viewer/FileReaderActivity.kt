@@ -58,6 +58,15 @@ import java.util.*
  * - 自动翻页
  * - 分享功能
  */
+/**
+ * 划线样式枚举
+ */
+enum class HighlightStyle {
+    HIGHLIGHT,      // 高亮/填充
+    UNDERLINE,      // 下划线
+    WAVY_UNDERLINE  // 波浪下划线
+}
+
 class FileReaderActivity : AppCompatActivity() {
     
     companion object {
@@ -1097,6 +1106,29 @@ class FileReaderActivity : AppCompatActivity() {
                     .highlight {
                         padding: 2px 0;
                     }
+                    /* 高亮样式 */
+                    .highlight-highlight {
+                        display: inline !important;
+                        line-height: inherit;
+                    }
+                    /* 下划线样式 */
+                    .highlight-underline {
+                        display: inline !important;
+                        text-decoration: none !important;
+                        line-height: inherit;
+                    }
+                    /* 波浪下划线样式 - 使用SVG背景实现真实的波浪效果 */
+                    .highlight-wavy_underline {
+                        display: inline !important;
+                        text-decoration: none !important;
+                        line-height: inherit;
+                    }
+                    /* 确保所有高亮样式都能正确显示 */
+                    span[class*="highlight-"] {
+                        display: inline !important;
+                        line-height: inherit;
+                        vertical-align: baseline;
+                    }
                 </style>
             </head>
             <body>
@@ -1113,76 +1145,184 @@ class FileReaderActivity : AppCompatActivity() {
                         // 允许选择，但阻止系统菜单
                     });
                     
-                    // 文本选择监听
+                    // 文本选择监听 - 只在手指抬起后触发
                     var lastSelection = '';
-                    var selectionTimeout = null;
-                    document.addEventListener('selectionchange', function() {
-                        // 延迟处理，避免抖动
-                        if (selectionTimeout) {
-                            clearTimeout(selectionTimeout);
-                        }
-                        selectionTimeout = setTimeout(function() {
-                            var selection = window.getSelection();
-                            var selectedText = selection.toString();
-                            if (selectedText.length > 0 && selectedText !== lastSelection) {
-                                lastSelection = selectedText;
-                                var range = selection.getRangeAt(0);
-                                var container = range.commonAncestorContainer;
+                    var isSelecting = false;
+                    
+                    // 监听触摸开始，标记正在选择
+                    document.addEventListener('touchstart', function() {
+                        isSelecting = true;
+                    }, { passive: true });
+                    
+                    document.addEventListener('mousedown', function() {
+                        isSelecting = true;
+                    });
+                    
+                    // 监听触摸/鼠标抬起，立即触发文本选择菜单
+                    function handleSelectionEnd() {
+                        isSelecting = false;
+                        // 立即检查选择，不延迟
+                        var selection = window.getSelection();
+                        var selectedText = selection.toString();
+                        if (selectedText.length > 0 && selectedText !== lastSelection) {
+                            lastSelection = selectedText;
+                            var range = selection.getRangeAt(0);
+                            
+                            // 计算选中文本在页面中的位置（基于纯文本，不包括HTML标签）
+                            var startOffset = 0;
+                            var endOffset = 0;
+                            
+                            // 获取div容器（包含文本内容）
+                            var contentDiv = document.body.querySelector('div');
+                            if (!contentDiv) {
+                                console.error('找不到内容容器');
+                                return;
+                            }
+                            
+                            // 获取所有文本节点和BR标签（按顺序）
+                            var walker = document.createTreeWalker(
+                                contentDiv,
+                                NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+                                {
+                                    acceptNode: function(node) {
+                                        if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
+                                        if (node.tagName === 'BR') return NodeFilter.FILTER_ACCEPT;
+                                        return NodeFilter.FILTER_SKIP;
+                                    }
+                                },
+                                false
+                            );
+                            
+                            var node;
+                            var currentOffset = 0;
+                            var startNode = null;
+                            var endNode = null;
+                            
+                            // 遍历所有节点，计算位置
+                            while (node = walker.nextNode()) {
+                                var nodeLength = 0;
+                                if (node.nodeType === Node.TEXT_NODE) {
+                                    nodeLength = node.textContent.length;
+                                } else if (node.tagName === 'BR') {
+                                    nodeLength = 1; // BR标签算作1个字符（换行符）
+                                }
                                 
-                                // 计算选中文本在页面中的位置
-                                var startOffset = 0;
-                                var endOffset = 0;
-                                
-                                // 获取选中文本在body中的位置
-                                var walker = document.createTreeWalker(
-                                    document.body,
-                                    NodeFilter.SHOW_TEXT,
-                                    null,
-                                    false
-                                );
-                                
-                                var node;
-                                var foundStart = false;
-                                var foundEnd = false;
-                                
-                                while (node = walker.nextNode()) {
-                                    if (node === range.startContainer || node.contains(range.startContainer)) {
-                                        startOffset = range.startOffset;
-                                        if (node !== range.startContainer) {
-                                            // 需要计算前面的文本长度
-                                            var textBefore = node.textContent.substring(0, range.startOffset);
-                                            startOffset = textBefore.length;
+                                // 检查起始位置
+                                if (startNode == null) {
+                                    // 情况1：Range起始于当前节点（文本节点）
+                                    if (range.startContainer === node) {
+                                        startNode = node;
+                                        startOffset = currentOffset + range.startOffset;
+                                    }
+                                    // 情况2：Range起始于父节点，且偏移量指向当前节点
+                                    else if (range.startContainer === node.parentNode) {
+                                        var childIndex = Array.prototype.indexOf.call(node.parentNode.childNodes, node);
+                                        if (childIndex === range.startOffset) {
+                                            startNode = node;
+                                            startOffset = currentOffset;
                                         }
-                                        foundStart = true;
                                     }
                                     
-                                    if (node === range.endContainer || node.contains(range.endContainer)) {
-                                        endOffset = range.endOffset;
-                                        if (node !== range.endContainer) {
-                                            var textBefore = node.textContent.substring(0, range.endOffset);
-                                            endOffset = textBefore.length;
-                                        }
-                                        foundEnd = true;
-                                        if (foundStart) break;
-                                    }
-                                    
-                                    if (!foundStart && !foundEnd) {
-                                        startOffset += node.textContent.length;
-                                        endOffset += node.textContent.length;
-                                    } else if (foundStart && !foundEnd) {
-                                        endOffset += node.textContent.length;
+                                    // 如果还没找到，检查是否在当前节点范围内（仅文本节点）
+                                    if (startNode == null && node.nodeType === Node.TEXT_NODE) {
+                                        // 这是一个备用检查，通常上面的检查应该足够
+                                        // 但为了保险，我们可以检查累加长度
+                                        // 这里不做额外处理，依赖精确匹配
                                     }
                                 }
                                 
-                                // 调用Android接口
-                                if (typeof Android !== 'undefined' && Android.onTextSelected) {
-                                    Android.onTextSelected(selectedText, startOffset, endOffset);
-                                } else if (typeof Android !== 'undefined' && Android.onTextSelectedSimple) {
-                                    Android.onTextSelectedSimple(selectedText);
+                                // 检查结束位置
+                                if (endNode == null) {
+                                    // 情况1：Range结束于当前节点（文本节点）
+                                    if (range.endContainer === node) {
+                                        endNode = node;
+                                        endOffset = currentOffset + range.endOffset;
+                                    }
+                                    // 情况2：Range结束于父节点，且偏移量指向当前节点
+                                    else if (range.endContainer === node.parentNode) {
+                                        var childIndex = Array.prototype.indexOf.call(node.parentNode.childNodes, node);
+                                        if (childIndex === range.endOffset) {
+                                            endNode = node;
+                                            endOffset = currentOffset;
+                                        }
+                                    }
+                                }
+                                
+                                currentOffset += nodeLength;
+                                
+                                if (startNode != null && endNode != null) {
+                                    break;
                                 }
                             }
-                        }, 50); // 延迟50ms，避免抖动但保持响应速度
-                    });
+                            
+                            // 如果没找到，使用备用方法：基于textContent计算位置
+                            // 注意：textContent会排除HTML标签，所以位置计算基于纯文本
+                            if (startOffset === 0 && endOffset === 0 || startNode == null || endNode == null) {
+                                var divText = contentDiv.textContent || '';
+                                var selectedText = range.toString();
+                                
+                                if (divText.length > 0 && selectedText.length > 0) {
+                                    // 计算从div开始到range起始位置的文本长度
+                                    var calculatedStartOffset = 0;
+                                    try {
+                                        var startRange = range.cloneRange();
+                                        startRange.setStart(contentDiv, 0);
+                                        startRange.setEnd(range.startContainer, range.startOffset);
+                                        calculatedStartOffset = startRange.toString().length;
+                                    } catch(e) {
+                                        // 如果失败，尝试通过文本搜索
+                                        var searchStart = 0;
+                                        var foundIndex = -1;
+                                        
+                                        // 尝试从当前位置附近查找
+                                        foundIndex = divText.indexOf(selectedText, searchStart);
+                                        if (foundIndex < 0) {
+                                            // 如果没找到，尝试从头查找
+                                            foundIndex = divText.indexOf(selectedText);
+                                        }
+                                        
+                                        if (foundIndex >= 0) {
+                                            calculatedStartOffset = foundIndex;
+                                        }
+                                    }
+                                    
+                                    // 计算结束位置
+                                    var calculatedEndOffset = calculatedStartOffset + selectedText.length;
+                                    
+                                    // 确保位置在有效范围内
+                                    if (calculatedStartOffset >= 0 && calculatedEndOffset <= divText.length) {
+                                        startOffset = calculatedStartOffset;
+                                        endOffset = calculatedEndOffset;
+                                    } else {
+                                        // 如果计算的位置无效，使用文本搜索
+                                        var foundIndex = divText.indexOf(selectedText);
+                                        if (foundIndex >= 0) {
+                                            startOffset = foundIndex;
+                                            endOffset = foundIndex + selectedText.length;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 最终验证：确保位置有效
+                            if (startOffset < 0) startOffset = 0;
+                            if (endOffset <= startOffset) {
+                                endOffset = startOffset + selectedText.length;
+                            }
+                            
+                            // 立即调用Android接口，无延迟
+                            if (typeof Android !== 'undefined' && Android.onTextSelected) {
+                                Android.onTextSelected(selectedText, startOffset, endOffset);
+                            } else if (typeof Android !== 'undefined' && Android.onTextSelectedSimple) {
+                                Android.onTextSelectedSimple(selectedText);
+                            }
+                        }
+                    }
+                    
+                    // 监听触摸结束
+                    document.addEventListener('touchend', handleSelectionEnd, { passive: true });
+                    // 监听鼠标抬起
+                    document.addEventListener('mouseup', handleSelectionEnd);
                     
                     // 点击其他地方时清除选择
                     document.addEventListener('mousedown', function(e) {
@@ -1218,28 +1358,115 @@ class FileReaderActivity : AppCompatActivity() {
     }
     
     /**
-     * 应用高亮（支持不同颜色）
+     * 构建样式字符串
+     */
+    private fun buildStyleString(color: String, style: HighlightStyle): String {
+        return when (style) {
+            HighlightStyle.HIGHLIGHT -> {
+                // 高亮/填充样式：使用背景色
+                "background-color: $color; padding: 2px 0; border-radius: 2px; display: inline !important;"
+            }
+            HighlightStyle.UNDERLINE -> {
+                // 下划线样式：使用边框
+                "border-bottom: 2px solid $color; padding-bottom: 1px; display: inline !important; text-decoration: none !important;"
+            }
+            HighlightStyle.WAVY_UNDERLINE -> {
+                // 波浪下划线样式：使用SVG背景实现真实的波浪效果
+                val svgColor = color.replace("#", "%23") // URL编码
+                // 使用更明显的波浪效果，确保颜色正确
+                val svgData = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 4'%3E%3Cpath d='M0,2 Q5,0 10,2 T20,2' stroke='$svgColor' fill='none' stroke-width='2'/%3E%3C/svg%3E"
+                "background-image: url(\"$svgData\"); background-repeat: repeat-x; background-size: 20px 4px; background-position: bottom; padding-bottom: 4px; display: inline !important; text-decoration: none !important;"
+            }
+        }
+    }
+    
+    /**
+     * 应用高亮（支持不同颜色和样式）
+     * 注意：位置索引基于原始文本，需要在转义前计算
+     * 重要：只转义文本内容，不转义HTML标签
+     */
+    /**
+     * 应用高亮（支持不同颜色和样式）
+     * 注意：位置索引基于原始文本，需要在转义前计算
+     * 重要：只转义文本内容，不转义HTML标签
      */
     private fun applyHighlights(text: String, pageIndex: Int): String {
         val highlights = dataManager.getHighlights(filePath)
             .filter { it.pageIndex == pageIndex }
             .sortedByDescending { it.startPosition } // 从后往前处理，避免位置偏移
         
-        var result = escapeHtml(text)
+        if (highlights.isEmpty()) {
+            // 没有高亮，直接转义并返回
+            return escapeHtml(text).replace("\n", "<br>")
+        }
+        
+        // 使用StringBuilder提高性能，并确保HTML标签不被转义
+        val result = StringBuilder()
+        var lastIndex = 0
+        
         highlights.forEach { highlight ->
-            val start = highlight.startPosition
-            val end = highlight.endPosition.coerceAtMost(result.length)
-            if (start >= 0 && start < result.length && end > start) {
-                val before = result.substring(0, start)
-                val highlighted = result.substring(start, end)
-                val after = result.substring(end)
-                // 使用内联样式支持不同颜色
-                val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
-                result = "$before<span style='background-color: $color; padding: 2px 0;'>$highlighted</span>$after"
+            val start = highlight.startPosition.coerceIn(0, text.length)
+            val end = highlight.endPosition.coerceIn(start, text.length)
+            
+            // 确保位置有效且不重叠
+            if (start >= 0 && start < text.length && end > start) {
+                // 如果与上一个高亮重叠，跳过或调整
+                if (start < lastIndex) {
+                    // 重叠情况：只处理不重叠的部分
+                    if (end > lastIndex) {
+                        // 有部分重叠，从lastIndex开始
+                        val actualStart = lastIndex
+                        val actualEnd = end.coerceAtMost(text.length)
+                        
+                        // 添加高亮文本（转义）
+                        val highlightedText = escapeHtml(text.substring(actualStart, actualEnd))
+                        
+                        // 使用内联样式支持不同颜色和样式
+                        val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
+                        val style = highlight.style
+                        
+                        val styleString = buildStyleString(color, style)
+                        
+                        // 添加高亮span标签（不转义，直接插入HTML）
+                        result.append("<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">")
+                        result.append(highlightedText)
+                        result.append("</span>")
+                        
+                        lastIndex = actualEnd
+                    }
+                    // 如果完全重叠，跳过
+                } else {
+                    // 不重叠，正常处理
+                    // 添加高亮之前的文本（转义）
+                    if (start > lastIndex) {
+                        result.append(escapeHtml(text.substring(lastIndex, start)))
+                    }
+                    
+                    // 获取高亮文本（转义）
+                    val highlightedText = escapeHtml(text.substring(start, end))
+                    
+                    // 使用内联样式支持不同颜色和样式
+                    val color = highlight.color.takeIf { it.isNotEmpty() } ?: "#FFEB3B"
+                    val style = highlight.style
+                    
+                    val styleString = buildStyleString(color, style)
+                    
+                    // 添加高亮span标签（不转义，直接插入HTML）
+                    result.append("<span style=\"$styleString\" class=\"highlight-${style.name.lowercase()}\">")
+                    result.append(highlightedText)
+                    result.append("</span>")
+                    
+                    lastIndex = end
+                }
             }
         }
         
-        return result.replace("\n", "<br>")
+        // 添加剩余的文本（转义）
+        if (lastIndex < text.length) {
+            result.append(escapeHtml(text.substring(lastIndex)))
+        }
+        
+        return result.toString().replace("\n", "<br>")
     }
     
     /**
@@ -1724,51 +1951,204 @@ class FileReaderActivity : AppCompatActivity() {
     // ==================== 划线/笔记功能 ====================
     
     /**
- * 显示文本选择对话框（iOS风格横向菜单）
+ * 显示文本选择对话框（微信读书风格菜单）
  */
 private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endOffset: Int) {
     if (selectedText.isBlank()) {
         return
     }
     
-    // 使用新的横向菜单布局
-    val dialogView = layoutInflater.inflate(R.layout.menu_text_selection, null)
+    // 检测暗色/亮色模式
+    val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+    val isDarkMode = nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
     
+    // 使用微信读书风格菜单布局
+    val dialogView = layoutInflater.inflate(R.layout.menu_text_selection_wechat_style, null)
+    
+    // 应用主题颜色
+    applyMenuTheme(dialogView, isDarkMode)
+    
+    // 检查是否已有划线
+    val existingHighlight = dataManager.getHighlights(filePath)
+        .find { it.pageIndex == currentPageIndex && 
+                it.startPosition == startOffset && 
+                it.endPosition == endOffset }
+    
+    // 格式选项（高亮、下划线、波浪下划线）
+    // 如果已有划线，使用已有的样式和颜色；否则使用默认值
+    var selectedStyle = existingHighlight?.style ?: HighlightStyle.HIGHLIGHT
+    var selectedColor = existingHighlight?.color ?: "#FFD60A"
+    var previewHighlightId: String? = null // 用于临时预览的划线ID
+    
+    // 格式选项按钮
+    val formatHighlightView = dialogView.findViewById<android.widget.FrameLayout>(R.id.format_highlight)
+    val formatUnderlineView = dialogView.findViewById<android.widget.FrameLayout>(R.id.format_underline)
+    val formatWavyUnderlineView = dialogView.findViewById<android.widget.FrameLayout>(R.id.format_wavy_underline)
+    
+    // 更新格式选项选中状态的函数（确保唯一选中）
+    fun updateFormatSelection(selectedView: android.widget.FrameLayout?) {
+        // 清除所有选中状态
+        formatHighlightView?.isSelected = false
+        formatUnderlineView?.isSelected = false
+        formatWavyUnderlineView?.isSelected = false
+        // 设置当前选中状态
+        selectedView?.isSelected = true
+    }
+    
+    // 根据已有划线或默认值选中格式
+    val defaultFormatView = when (selectedStyle) {
+        HighlightStyle.HIGHLIGHT -> formatHighlightView
+        HighlightStyle.UNDERLINE -> formatUnderlineView
+        HighlightStyle.WAVY_UNDERLINE -> formatWavyUnderlineView
+    }
+    updateFormatSelection(defaultFormatView)
+    
+    // 格式选项点击事件
+    formatHighlightView?.setOnClickListener {
+        updateFormatSelection(formatHighlightView)
+        selectedStyle = HighlightStyle.HIGHLIGHT
+        // 即时预览
+        previewHighlightInWebView(selectedText, startOffset, endOffset, selectedColor, selectedStyle, previewHighlightId)
+        previewHighlightId = "preview_${System.currentTimeMillis()}"
+    }
+    
+    formatUnderlineView?.setOnClickListener {
+        updateFormatSelection(formatUnderlineView)
+        selectedStyle = HighlightStyle.UNDERLINE
+        // 即时预览
+        previewHighlightInWebView(selectedText, startOffset, endOffset, selectedColor, selectedStyle, previewHighlightId)
+        previewHighlightId = "preview_${System.currentTimeMillis()}"
+    }
+    
+    formatWavyUnderlineView?.setOnClickListener {
+        updateFormatSelection(formatWavyUnderlineView)
+        selectedStyle = HighlightStyle.WAVY_UNDERLINE
+        // 即时预览
+        previewHighlightInWebView(selectedText, startOffset, endOffset, selectedColor, selectedStyle, previewHighlightId)
+        previewHighlightId = "preview_${System.currentTimeMillis()}"
+    }
+    
+    // 颜色选择器
+    val colorPickerContainer = dialogView.findViewById<LinearLayout>(R.id.color_picker_container)
+    val colorViews = mapOf(
+        R.id.color_pink to "#FF69B4",
+        R.id.color_purple to "#9C27B0",
+        R.id.color_light_blue to "#5AC8FA",
+        R.id.color_green to "#34C759",
+        R.id.color_yellow to "#FFD60A"
+    )
+    
+    // 根据已有划线或默认值选中颜色
+    val defaultColorId = when (selectedColor) {
+        "#FF69B4" -> R.id.color_pink
+        "#9C27B0" -> R.id.color_purple
+        "#5AC8FA" -> R.id.color_light_blue
+        "#34C759" -> R.id.color_green
+        "#FFD60A" -> R.id.color_yellow
+        else -> R.id.color_yellow
+    }
+    dialogView.findViewById<android.widget.FrameLayout>(defaultColorId)?.isSelected = true
+    
+    // 即时预览划线功能：点击颜色立即预览，延迟500ms后自动确认
+    colorViews.forEach { (id, color) ->
+        // 查找FrameLayout容器（因为现在颜色选择器是FrameLayout）
+        val colorContainer = dialogView.findViewById<View>(id) as? android.widget.FrameLayout
+        colorContainer?.setOnClickListener {
+            // 取消之前的延迟确认
+            previewHighlightRunnable?.let { previewHighlightHandler?.removeCallbacks(it) }
+            
+            // 取消所有选中状态
+            colorViews.keys.forEach { viewId ->
+                dialogView.findViewById<View>(viewId)?.isSelected = false
+            }
+            // 设置当前选中
+            colorContainer.isSelected = true
+            selectedColor = color
+            
+            // 即时预览：在WebView中临时显示划线效果（使用当前选中的格式）
+            previewHighlightInWebView(selectedText, startOffset, endOffset, color, selectedStyle, previewHighlightId)
+            previewHighlightId = "preview_${System.currentTimeMillis()}"
+            
+            // 延迟500ms后自动确认添加（给用户预览时间）
+            previewHighlightHandler = Handler(Looper.getMainLooper())
+            previewHighlightRunnable = Runnable {
+                if (textSelectionDialog?.isShowing == true) {
+                    // 清除预览
+                    clearPreviewHighlight()
+                    // 如果已有划线，更新它；否则添加新划线
+                    if (existingHighlight != null) {
+                        // 更新现有划线
+                        val updatedHighlight = existingHighlight.copy(color = color, style = selectedStyle)
+                        dataManager.deleteHighlight(existingHighlight.id)
+                        dataManager.addHighlight(updatedHighlight)
+                        syncHighlightToUnifiedCollection(updatedHighlight)
+                        displayPage(currentPageIndex)
+                        hideTextSelectionDialog()
+                        Toast.makeText(this, "已更新划线", Toast.LENGTH_SHORT).show()
+                    } else {
+                        // 添加新划线（使用当前选中的格式和颜色）
+                        addHighlight(selectedText, startOffset, endOffset, color, selectedStyle)
+                        hideTextSelectionDialog()
+                        Toast.makeText(this, "已添加划线", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            previewHighlightHandler?.postDelayed(previewHighlightRunnable!!, 500)
+        }
+    }
+    
+    // 操作菜单
     // 复制
-    dialogView.findViewById<LinearLayout>(R.id.menuCopy).setOnClickListener {
+    dialogView.findViewById<LinearLayout>(R.id.action_copy)?.setOnClickListener {
         copyText(selectedText)
         hideTextSelectionDialog()
         Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
     }
     
-    // 划线
-    dialogView.findViewById<LinearLayout>(R.id.menuHighlightText).setOnClickListener {
-        showHighlightColorPicker(selectedText, startOffset, endOffset)
+    // 取消划线（如果已有划线则显示）
+    val removeHighlightView = dialogView.findViewById<LinearLayout>(R.id.action_remove_highlight)
+    if (existingHighlight != null) {
+        removeHighlightView?.visibility = View.VISIBLE
+        removeHighlightView?.setOnClickListener {
+            dataManager.deleteHighlight(existingHighlight.id)
+            displayPage(currentPageIndex)
+            hideTextSelectionDialog()
+            Toast.makeText(this, "已取消划线", Toast.LENGTH_SHORT).show()
+        }
+        // 如果已有划线，立即显示预览效果（使用已有的样式和颜色）
+        previewHighlightInWebView(selectedText, startOffset, endOffset, existingHighlight.color, existingHighlight.style, previewHighlightId)
+        previewHighlightId = "preview_${System.currentTimeMillis()}"
+    } else {
+        removeHighlightView?.visibility = View.GONE
+        // 如果没有已有划线，也显示默认预览
+        previewHighlightInWebView(selectedText, startOffset, endOffset, selectedColor, selectedStyle, previewHighlightId)
+        previewHighlightId = "preview_${System.currentTimeMillis()}"
     }
     
-    // AI提问
-    dialogView.findViewById<LinearLayout>(R.id.menuAI).setOnClickListener {
+    // 写想法
+    dialogView.findViewById<LinearLayout>(R.id.action_write_idea)?.setOnClickListener {
         hideTextSelectionDialog()
-        showAIDialog(selectedText)
+        addNote(selectedText, startOffset)
     }
     
-    // 搜索
-    dialogView.findViewById<LinearLayout>(R.id.menuSearch).setOnClickListener {
+    // 分享
+    dialogView.findViewById<LinearLayout>(R.id.action_share)?.setOnClickListener {
+        hideTextSelectionDialog()
+        shareText(selectedText)
+    }
+    
+    // 查询
+    dialogView.findViewById<LinearLayout>(R.id.action_query)?.setOnClickListener {
         hideTextSelectionDialog()
         searchText(selectedText)
     }
     
-    // 翻译
-    dialogView.findViewById<LinearLayout>(R.id.menuTranslate).setOnClickListener {
+    // 听当前（TTS朗读）
+    dialogView.findViewById<LinearLayout>(R.id.action_listen)?.setOnClickListener {
         hideTextSelectionDialog()
-        translateText(selectedText)
+        startTTSForText(selectedText)
     }
     
-    // 分享
-    dialogView.findViewById<LinearLayout>(R.id.menuShareText).setOnClickListener {
-        shareText(selectedText)
-        hideTextSelectionDialog()
-    }
     
     // 如果已有对话框显示，先关闭
     textSelectionDialog?.dismiss()
@@ -1776,19 +2156,50 @@ private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endO
     // 创建对话框
     val dialog = android.app.Dialog(this, android.R.style.Theme_Translucent_NoTitleBar)
     dialog.setContentView(dialogView)
+    
+    // 获取屏幕尺寸和选中文本位置
+    val screenWidth = resources.displayMetrics.widthPixels
+    val screenHeight = resources.displayMetrics.heightPixels
+    
+    // 测量菜单大小
+    dialogView.measure(
+        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+    )
+    val menuWidth = dialogView.measuredWidth
+    val menuHeight = dialogView.measuredHeight
+    
+    // 定位菜单：屏幕中心，不遮挡文本选择区域
+    val params = dialog.window?.attributes
+    params?.x = (screenWidth - menuWidth) / 2
+    params?.y = screenHeight / 3 // 屏幕上方1/3处，避免遮挡选中文本
+    dialog.window?.attributes = params
+    
     dialog.window?.setLayout(
         ViewGroup.LayoutParams.WRAP_CONTENT,
         ViewGroup.LayoutParams.WRAP_CONTENT
     )
-    dialog.window?.setGravity(android.view.Gravity.CENTER)
+    dialog.window?.setGravity(android.view.Gravity.TOP or android.view.Gravity.START)
     dialog.setCancelable(true)
     dialog.setCanceledOnTouchOutside(true)
     
-    // 禁用对话框动画，避免抖动
-    dialog.window?.setWindowAnimations(0)
+    // 添加淡入动画
+    dialog.window?.setWindowAnimations(android.R.style.Animation_Dialog)
     
     // 点击对话框外部区域时关闭
     dialog.setOnDismissListener {
+        // 如果有待处理的预览任务（说明用户选择了颜色但未等到自动确认），立即执行保存
+        if (previewHighlightRunnable != null) {
+            Log.d(TAG, "对话框关闭，立即执行待处理的划线保存")
+            previewHighlightRunnable?.run()
+            previewHighlightRunnable = null
+            previewHighlightHandler?.removeCallbacksAndMessages(null)
+        } else {
+            // 只有在没有保存操作时才清除预览
+            // 因为如果执行了run()，里面会处理清除和保存
+            clearPreviewHighlight()
+        }
+        
         // 清除WebView中的文本选择
         webView.evaluateJavascript("window.getSelection().removeAllRanges();", null)
     }
@@ -1801,6 +2212,272 @@ private fun showTextSelectionDialog(selectedText: String, startOffset: Int, endO
         Log.d(TAG, "文本选择菜单已显示，选中文本: ${selectedText.take(20)}...")
     } catch (e: Exception) {
         Log.e(TAG, "显示文本选择菜单失败", e)
+    }
+}
+
+/**
+ * 应用菜单主题（暗色/亮色模式）
+ */
+private fun applyMenuTheme(dialogView: View, isDarkMode: Boolean) {
+    // 根据系统主题切换亮色/暗色模式
+    val backgroundColor = if (isDarkMode) {
+        // 暗色模式：深色背景
+        android.graphics.Color.parseColor("#2C2C2E")
+    } else {
+        // 亮色模式：浅色背景
+        android.graphics.Color.parseColor("#FFFFFF")
+    }
+    
+    val textColor = if (isDarkMode) {
+        android.graphics.Color.parseColor("#FFFFFF")
+    } else {
+        android.graphics.Color.parseColor("#333333")
+    }
+    
+    val iconColor = if (isDarkMode) {
+        android.graphics.Color.parseColor("#FFFFFF")
+    } else {
+        android.graphics.Color.parseColor("#333333")
+    }
+    
+    val colorPickerBgColor = if (isDarkMode) {
+        android.graphics.Color.parseColor("#1A1A1A")
+    } else {
+        android.graphics.Color.parseColor("#F5F5F5")
+    }
+    
+    // 应用背景色
+    dialogView.findViewById<LinearLayout>(R.id.format_color_picker_container)?.setBackgroundColor(backgroundColor)
+    dialogView.findViewById<LinearLayout>(R.id.action_menu_container)?.setBackgroundColor(backgroundColor)
+    
+    // 应用颜色选择器背景色
+    dialogView.findViewById<LinearLayout>(R.id.color_picker_container)?.setBackgroundColor(colorPickerBgColor)
+    
+    // 应用所有操作按钮的图标和文字颜色
+    dialogView.findViewById<LinearLayout>(R.id.action_menu_container)?.let { container ->
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i) as? LinearLayout
+            child?.let {
+                // 查找ImageView和TextView
+                for (j in 0 until it.childCount) {
+                    val subChild = it.getChildAt(j)
+                    when (subChild) {
+                        is android.widget.ImageView -> {
+                            subChild.setColorFilter(iconColor)
+                        }
+                        is TextView -> {
+                            subChild.setTextColor(textColor)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // 应用格式按钮文字颜色（如果亮色模式，需要调整）
+    if (!isDarkMode) {
+        dialogView.findViewById<TextView>(R.id.format_highlight_text)?.setTextColor(android.graphics.Color.parseColor("#333333"))
+        dialogView.findViewById<TextView>(R.id.format_underline_text)?.setTextColor(android.graphics.Color.parseColor("#333333"))
+        dialogView.findViewById<View>(R.id.format_underline_line)?.background?.setTint(android.graphics.Color.parseColor("#333333"))
+        dialogView.findViewById<TextView>(R.id.format_wavy_underline_text)?.setTextColor(android.graphics.Color.parseColor("#333333"))
+    }
+    
+    // 应用箭头指示器颜色
+    dialogView.findViewById<View>(R.id.arrow_indicator)?.background?.setTint(backgroundColor)
+}
+
+/**
+ * 在WebView中预览划线效果（即时预览）
+ */
+private fun previewHighlightInWebView(text: String, startOffset: Int, endOffset: Int, color: String, style: HighlightStyle, previousPreviewId: String?) {
+    try {
+        // 先清除之前的预览
+        clearPreviewHighlight()
+        
+        // 在WebView中应用预览划线（直接使用颜色值，不转义）
+        val escapedColor = color
+        val previewScript = """
+            (function() {
+                // 清除之前的预览
+                var oldPreview = document.getElementById('preview_highlight');
+                if (oldPreview) {
+                    var parent = oldPreview.parentNode;
+                    while (oldPreview.firstChild) {
+                        parent.insertBefore(oldPreview.firstChild, oldPreview);
+                    }
+                    parent.removeChild(oldPreview);
+                }
+                
+                // 获取body中的div容器（包含文本内容）
+                var body = document.body;
+                var contentDiv = body.querySelector('div');
+                if (!contentDiv) {
+                    console.error('找不到内容容器');
+                    return;
+                }
+                
+                // 获取所有文本节点（按顺序遍历，排除HTML标签）
+                // 注意：textContent会排除HTML标签，所以位置计算基于纯文本
+                // 这与文本选择时的位置计算逻辑保持一致
+                var walker = document.createTreeWalker(
+                    contentDiv,
+                    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+                    {
+                        acceptNode: function(node) {
+                            if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
+                            if (node.tagName === 'BR') return NodeFilter.FILTER_ACCEPT;
+                            return NodeFilter.FILTER_SKIP;
+                        }
+                    },
+                    false
+                );
+                
+                var node;
+                var currentOffset = 0;
+                var startNode = null;
+                var endNode = null;
+                var startNodeOffset = 0;
+                var endNodeOffset = 0;
+                
+                // 遍历所有文本节点和BR标签，找到对应位置的节点
+                while (node = walker.nextNode()) {
+                    var nodeText = '';
+                    var nodeLength = 0;
+                    
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        nodeText = node.textContent || '';
+                        nodeLength = nodeText.length;
+                    } else if (node.tagName === 'BR') {
+                        nodeLength = 1;
+                    }
+                    
+                    // 查找起始节点
+                    if (startNode == null) {
+                        if (currentOffset + nodeLength > $startOffset) {
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                startNode = node;
+                                startNodeOffset = Math.max(0, $startOffset - currentOffset);
+                            } else {
+                                // 如果起始位置在BR上，移动到下一个节点
+                                // 或者不做处理，因为BR不能作为Range的容器（通常）
+                            }
+                        } else {
+                            currentOffset += nodeLength;
+                            continue;
+                        }
+                    }
+                    
+                    // 查找结束节点
+                    if (startNode != null && endNode == null) {
+                        if (currentOffset + nodeLength >= $endOffset) {
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                endNode = node;
+                                endNodeOffset = Math.min(nodeLength, $endOffset - currentOffset);
+                                break;
+                            } else {
+                                // 如果结束位置在BR上
+                                currentOffset += nodeLength;
+                            }
+                        } else {
+                            currentOffset += nodeLength;
+                        }
+                    }
+                }
+                
+                if (startNode && endNode) {
+                    try {
+                        // 创建范围
+                        var range = document.createRange();
+                        range.setStart(startNode, startNodeOffset);
+                        range.setEnd(endNode, endNodeOffset);
+                        
+                        // 创建高亮span
+                        var span = document.createElement('span');
+                        span.id = 'preview_highlight';
+                        var styleType = '${style.name}';
+                        var colorValue = '$escapedColor';
+                        
+                        // 清除所有可能的样式，避免冲突
+                        span.style.backgroundColor = '';
+                        span.style.borderBottom = '';
+                        span.style.backgroundImage = '';
+                        span.style.textDecoration = '';
+                        
+                        if (styleType === 'HIGHLIGHT') {
+                            // 高亮/填充样式：使用背景色
+                            span.style.backgroundColor = colorValue;
+                            span.style.padding = '2px 0';
+                            span.style.borderRadius = '2px';
+                            span.style.display = 'inline';
+                        } else if (styleType === 'UNDERLINE') {
+                            // 下划线样式：使用边框
+                            span.style.borderBottom = '2px solid ' + colorValue;
+                            span.style.paddingBottom = '1px';
+                            span.style.display = 'inline';
+                            span.style.textDecoration = 'none';
+                        } else if (styleType === 'WAVY_UNDERLINE') {
+                            // 波浪下划线样式：使用SVG背景实现真实的波浪效果
+                            var svgColor = colorValue.replace('#', '%23'); // URL编码
+                            // 使用更明显的波浪效果，确保颜色正确
+                            var svgData = 'data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 20 4\\'%3E%3Cpath d=\\'M0,2 Q5,0 10,2 T20,2\\' stroke=\\'' + svgColor + '\\' fill=\\'none\\' stroke-width=\\'2\\'/%3E%3C/svg%3E';
+                            span.style.backgroundImage = 'url("' + svgData + '")';
+                            span.style.backgroundRepeat = 'repeat-x';
+                            span.style.backgroundSize = '20px 4px';
+                            span.style.backgroundPosition = 'bottom';
+                            span.style.paddingBottom = '4px';
+                            span.style.display = 'inline';
+                            span.style.textDecoration = 'none';
+                        }
+                        span.style.opacity = '0.8';
+                        
+                        // 使用surroundContents包装选中内容
+                        try {
+                            range.surroundContents(span);
+                        } catch(e) {
+                            // 如果surroundContents失败，使用extractContents和insertNode
+                            var contents = range.extractContents();
+                            span.appendChild(contents);
+                            range.insertNode(span);
+                        }
+                    } catch(e) {
+                        console.error('预览划线失败:', e);
+                    }
+                } else {
+                    console.error('找不到文本节点: startNode=' + startNode + ', endNode=' + endNode);
+                }
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(previewScript, null)
+        Log.d(TAG, "预览划线: 颜色=$color, 位置=$startOffset-$endOffset")
+    } catch (e: Exception) {
+        Log.e(TAG, "预览划线失败", e)
+    }
+}
+
+/**
+ * 清除预览划线
+ */
+private fun clearPreviewHighlight() {
+    try {
+        val clearScript = """
+            (function() {
+                var preview = document.getElementById('preview_highlight');
+                if (preview) {
+                    // 恢复原始文本
+                    var parent = preview.parentNode;
+                    while (preview.firstChild) {
+                        parent.insertBefore(preview.firstChild, preview);
+                    }
+                    parent.removeChild(preview);
+                }
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(clearScript, null)
+        Log.d(TAG, "清除预览划线")
+    } catch (e: Exception) {
+        Log.e(TAG, "清除预览划线失败", e)
     }
 }
 
@@ -1890,9 +2567,9 @@ private fun translateText(text: String) {
 }
 
 /**
- * 添加划线（带颜色）
+ * 添加划线（带颜色和样式）
  */
-private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: String = "#FFEB3B") {
+private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: String = "#FFEB3B", style: HighlightStyle = HighlightStyle.HIGHLIGHT) {
     val highlight = Highlight(
         id = UUID.randomUUID().toString(),
         filePath = filePath,
@@ -1900,17 +2577,29 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
         startPosition = startOffset,
         endPosition = endOffset,
         text = text,
-        color = color
+        color = color,
+        style = style
     )
     dataManager.addHighlight(highlight)
+    
+    // 同步到统一收藏管理器
+    syncHighlightToUnifiedCollection(highlight)
     
     // 重新显示当前页以显示划线
     displayPage(currentPageIndex)
 }
     
     private var textSelectionDialog: android.app.Dialog? = null
+    private var previewHighlightHandler: Handler? = null
+    private var previewHighlightRunnable: Runnable? = null
     
     private fun hideTextSelectionDialog() {
+        // 取消预览延迟确认
+        previewHighlightRunnable?.let { previewHighlightHandler?.removeCallbacks(it) }
+        previewHighlightHandler = null
+        previewHighlightRunnable = null
+        // 清除预览划线
+        clearPreviewHighlight()
         textSelectionDialog?.dismiss()
         textSelectionDialog = null
     }
@@ -1922,6 +2611,83 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
         // 调用带颜色参数的版本，使用默认颜色
         addHighlight(text, startOffset, endOffset, "#FFEB3B")
         Toast.makeText(this, "已添加划线", Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * 朗读选中的文本
+     */
+    private fun startTTSForText(text: String) {
+        try {
+            if (ttsManager == null) {
+                ttsManager = TTSManager.getInstance(this)
+            }
+            
+            // 停止当前播放
+            ttsManager?.stop()
+            
+            // 开始朗读选中文本
+            ttsManager?.speak(text)
+            isTTSPlaying = true
+            Toast.makeText(this, "开始朗读", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动TTS失败", e)
+            Toast.makeText(this, "朗读功能不可用", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 同步划线到统一收藏管理器
+     */
+    private fun syncHighlightToUnifiedCollection(highlight: Highlight) {
+        try {
+            val collectionManager = UnifiedCollectionManager.getInstance(this)
+            
+            // 获取文件名作为书名
+            val bookName = fileName.ifEmpty { 
+                File(filePath).nameWithoutExtension.ifEmpty { "未命名书籍" }
+            }
+            
+            // 创建预览文本（前200字符）
+            val preview = highlight.text.take(200) + if (highlight.text.length > 200) "..." else ""
+            
+            // 创建收藏项
+            val collectionItem = UnifiedCollectionItem(
+                title = highlight.text.take(50), // 标题使用划线文本的前50字符
+                content = highlight.text, // 完整内容
+                preview = preview,
+                collectionType = CollectionType.READING_HIGHLIGHT,
+                sourceLocation = "阅读器",
+                sourceDetail = bookName,
+                extraData = mapOf(
+                    "bookName" to bookName,
+                    "filePath" to filePath,
+                    "pageIndex" to highlight.pageIndex,
+                    "startPosition" to highlight.startPosition,
+                    "endPosition" to highlight.endPosition,
+                    "highlightColor" to highlight.color,
+                    "highlightId" to highlight.id
+                )
+            )
+            
+            // 保存到统一收藏管理器
+            val success = collectionManager.addCollection(collectionItem)
+            
+            if (success) {
+                Log.d(TAG, "划线已同步到统一收藏管理器: 书名=$bookName, 文本长度=${highlight.text.length}")
+                
+                // 发送广播通知收藏更新
+                val intent = android.content.Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                    putExtra("collection_type", CollectionType.READING_HIGHLIGHT.name)
+                    putExtra("action", "add")
+                    putExtra("collection_id", collectionItem.id)
+                }
+                sendBroadcast(intent)
+            } else {
+                Log.e(TAG, "同步划线到统一收藏管理器失败")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "同步划线到统一收藏管理器时发生错误", e)
+        }
     }
     
     /**

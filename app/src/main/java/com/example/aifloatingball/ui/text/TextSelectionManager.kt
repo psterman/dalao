@@ -23,6 +23,7 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.webkit.WebView
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import com.example.aifloatingball.R
 import java.util.concurrent.atomic.AtomicBoolean
@@ -407,6 +408,12 @@ class TextSelectionManager(private val context: Context, private val windowManag
                 }
             }
         }
+        
+        // 保存划线
+        val saveHighlightButton = menuView.findViewById<View>(R.id.action_save_highlight)
+        saveHighlightButton?.setOnClickListener {
+            executeSaveHighlight(webView)
+        }
     }
 
     /**
@@ -606,6 +613,159 @@ class TextSelectionManager(private val context: Context, private val windowManag
             } else {
                 callback(false)
             }
+        }
+    }
+    
+    /**
+     * 执行保存划线操作
+     */
+    private fun executeSaveHighlight(webView: WebView) {
+        // 获取选中的文本
+        webView.evaluateJavascript("(function() { return window.getSelection().toString(); })();") { selectedText ->
+            val text = selectedText?.trim('"') ?: ""
+            if (text.isEmpty()) {
+                Toast.makeText(context, "请先选择要划线的文本", Toast.LENGTH_SHORT).show()
+                return@evaluateJavascript
+            }
+            
+            // 获取页面标题和URL
+            webView.evaluateJavascript("(function() { return document.title || ''; })();") { titleResult ->
+                val pageTitle = titleResult?.trim('"') ?: ""
+                val pageUrl = webView.url ?: ""
+                
+                // 显示保存划线对话框
+                showSaveHighlightDialog(webView, text, pageTitle, pageUrl)
+            }
+        }
+    }
+    
+    /**
+     * 显示保存划线对话框
+     */
+    private fun showSaveHighlightDialog(webView: WebView, selectedText: String, pageTitle: String, pageUrl: String) {
+        try {
+            // 创建对话框布局
+            val dialogView = android.view.LayoutInflater.from(context).inflate(
+                R.layout.dialog_save_highlight, null
+            )
+            
+            // 获取输入控件
+            val bookNameInput = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(
+                R.id.input_book_name
+            )
+            val tagsInput = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(
+                R.id.input_tags
+            )
+            val noteInput = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(
+                R.id.input_note
+            )
+            
+            // 设置默认书名（使用页面标题或URL）
+            val defaultBookName = if (pageTitle.isNotEmpty()) {
+                pageTitle
+            } else if (pageUrl.isNotEmpty()) {
+                try {
+                    val uri = android.net.Uri.parse(pageUrl)
+                    uri.host ?: pageUrl
+                } catch (e: Exception) {
+                    pageUrl
+                }
+            } else {
+                "未命名书籍"
+            }
+            bookNameInput?.setText(defaultBookName)
+            
+            // 显示选中的文本预览
+            val previewText = dialogView.findViewById<TextView>(R.id.text_preview)
+            previewText?.text = "选中文本：${selectedText.take(100)}${if (selectedText.length > 100) "..." else ""}"
+            
+            // 创建对话框
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(
+                androidx.appcompat.view.ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+            )
+                .setTitle("保存读书划线")
+                .setView(dialogView)
+                .setPositiveButton("保存") { _, _ ->
+                    val bookName = bookNameInput?.text?.toString()?.trim() ?: defaultBookName
+                    val tagsStr = tagsInput?.text?.toString()?.trim() ?: ""
+                    val note = noteInput?.text?.toString()?.trim() ?: ""
+                    
+                    // 解析标签（逗号分隔）
+                    val tags = if (tagsStr.isNotEmpty()) {
+                        tagsStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                    } else {
+                        emptyList()
+                    }
+                    
+                    // 保存划线
+                    saveReadingHighlight(selectedText, bookName, pageUrl, tags, note)
+                    hideTextSelectionMenu()
+                }
+                .setNegativeButton("取消", null)
+                .create()
+            
+            dialog.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示保存划线对话框失败", e)
+            Toast.makeText(context, "显示对话框失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 保存读书划线到统一收藏管理器
+     */
+    private fun saveReadingHighlight(
+        selectedText: String,
+        bookName: String,
+        pageUrl: String,
+        tags: List<String>,
+        note: String
+    ) {
+        try {
+            val collectionManager = com.example.aifloatingball.manager.UnifiedCollectionManager.getInstance(context)
+            
+            // 创建预览文本（前200字符）
+            val preview = selectedText.take(200) + if (selectedText.length > 200) "..." else ""
+            
+            // 创建收藏项
+            val collectionItem = com.example.aifloatingball.model.UnifiedCollectionItem(
+                title = selectedText.take(50), // 标题使用选中文本的前50字符
+                content = selectedText, // 完整内容
+                preview = preview,
+                collectionType = com.example.aifloatingball.model.CollectionType.READING_HIGHLIGHT,
+                sourceLocation = "搜索Tab",
+                sourceDetail = bookName,
+                customTags = tags,
+                extraData = mapOf(
+                    "bookName" to bookName,
+                    "pageUrl" to pageUrl,
+                    "note" to note,
+                    "highlightText" to selectedText,
+                    "highlightLength" to selectedText.length
+                )
+            )
+            
+            // 保存到统一收藏管理器
+            val success = collectionManager.addCollection(collectionItem)
+            
+            if (success) {
+                Toast.makeText(context, "划线已保存到读书划线", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "保存读书划线成功: 书名=$bookName, 文本长度=${selectedText.length}")
+                
+                // 发送广播通知收藏更新
+                val intent = android.content.Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                    putExtra("collection_type", com.example.aifloatingball.model.CollectionType.READING_HIGHLIGHT.name)
+                    putExtra("action", "add")
+                    putExtra("collection_id", collectionItem.id)
+                }
+                context.sendBroadcast(intent)
+            } else {
+                Toast.makeText(context, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "保存读书划线失败")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存读书划线时发生错误", e)
+            Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 文本选择菜单颜色 - 亮色模式 -->
+    <color name="text_menu_background_light">#2C2C2E</color>
+    <color name="text_menu_text_light">#FFFFFF</color>
+    <color name="text_menu_icon_light">#FFFFFF</color>
+    
+    <!-- 文本选择菜单颜色 - 暗色模式 -->
+    <color name="text_menu_background_dark">#2C2C2E</color>
+    <color name="text_menu_text_dark">#FFFFFF</color>
+    <color name="text_menu_icon_dark">#FFFFFF</color>
+</resources>
+

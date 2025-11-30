@@ -29,6 +29,7 @@ data class Highlight(
     val endPosition: Int, // 结束位置
     val text: String, // 划线的文本内容
     val color: String = "#FFEB3B", // 高亮颜色
+    val style: HighlightStyle = HighlightStyle.HIGHLIGHT, // 划线样式
     val timestamp: Long = System.currentTimeMillis()
 ) : Serializable
 
