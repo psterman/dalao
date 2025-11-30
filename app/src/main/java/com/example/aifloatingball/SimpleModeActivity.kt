@@ -5240,8 +5240,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     currentTab.webView.visibility = View.VISIBLE
                     currentTab.webView.bringToFront()
                     
-                    browserSearchInput.setText(currentTab.url)
-                    Log.d(TAG, "更新搜索框显示当前标签页URL: ${currentTab.url}")
+                    // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                    val displayText = if (currentTab.url == "home://functional" || currentTab.url == "file:///android_asset/functional_home.html") {
+                        "首页"
+                    } else {
+                        currentTab.url
+                    }
+                    browserSearchInput.setText(displayText)
+                    Log.d(TAG, "更新搜索框显示: $displayText (原始URL: ${currentTab.url})")
                     
                     // 🔧 修复：如果当前标签页是功能主页但未加载，强制加载
                     if (currentTab.url == "home://functional" && 
@@ -7586,7 +7592,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "切换到功能主页，已刷新按钮状态和设置主题: $theme")
                 }, 300)
             } else {
-                browserSearchInput.setText(tab.url)
+                // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                val displayText = if (tab.url == "home://functional" || tab.url == "file:///android_asset/functional_home.html") {
+                    "首页"
+                } else {
+                    tab.url
+                }
+                browserSearchInput.setText(displayText)
             }
             updateBrowserFaviconButtonForUrl(tab.url)
 
@@ -7759,8 +7771,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新地址栏显示当前页面URL
             if (url != null && url.isNotEmpty()) {
                 runOnUiThread {
-                    browserSearchInput.setText(url)
-                    Log.d(TAG, "页面开始加载，更新地址栏显示URL: $url")
+                    // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                    val displayText = if (url == "home://functional" || url == "file:///android_asset/functional_home.html") {
+                        "首页"
+                    } else {
+                        url
+                    }
+                    browserSearchInput.setText(displayText)
+                    Log.d(TAG, "页面开始加载，更新地址栏显示: $displayText (原始URL: $url)")
                 }
             }
             
@@ -7783,8 +7801,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新地址栏显示当前页面URL
             if (url != null && url.isNotEmpty()) {
                 runOnUiThread {
-                    browserSearchInput.setText(url)
-                    Log.d(TAG, "更新地址栏显示URL: $url")
+                    // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                    val displayText = if (url == "home://functional" || url == "file:///android_asset/functional_home.html") {
+                        "首页"
+                    } else {
+                        url
+                    }
+                    browserSearchInput.setText(displayText)
+                    Log.d(TAG, "更新地址栏显示: $displayText (原始URL: $url)")
                 }
             }
             
@@ -7931,7 +7955,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             override fun onCardSwitched(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
                 // 更新搜索框URL与站点图标
-                browserSearchInput.setText(cardData.url)
+                // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                val displayText = if (cardData.url == "home://functional" || cardData.url == "file:///android_asset/functional_home.html") {
+                    "首页"
+                } else {
+                    cardData.url
+                }
+                browserSearchInput.setText(displayText)
                 updateBrowserFaviconButtonForUrl(cardData.url)
 
                 Log.d(TAG, "切换到卡片: ${cardData.title}")
@@ -7945,7 +7975,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onPageTitleChanged(cardData: GestureCardWebViewManager.WebViewCardData, title: String) {
                 // 优先以标题更新地址栏，空则回退到URL
                 try {
-                    val text = if (!title.isNullOrBlank()) title else cardData.url
+                    // 🔧 修复：如果是功能主页，显示"首页"而不是URL或标题
+                    val text = if (cardData.url == "home://functional" || cardData.url == "file:///android_asset/functional_home.html") {
+                        "首页"
+                    } else if (!title.isNullOrBlank()) {
+                        title
+                    } else {
+                        cardData.url
+                    }
                     browserSearchInput.setText(text)
                 } catch (_: Exception) {}
                 Log.d(TAG, "卡片标题变化: $title")
@@ -7953,7 +7990,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             override fun onPageLoadingStateChanged(cardData: GestureCardWebViewManager.WebViewCardData, isLoading: Boolean) {
                 // 页面加载状态变化时，同步地址栏与站点图标
-                browserSearchInput.setText(cardData.url)
+                // 🔧 修复：如果是功能主页，显示"首页"而不是URL
+                val displayText = if (cardData.url == "home://functional" || cardData.url == "file:///android_asset/functional_home.html") {
+                    "首页"
+                } else {
+                    cardData.url
+                }
+                browserSearchInput.setText(displayText)
                 updateBrowserFaviconButtonForUrl(cardData.url)
 
                 // 页面加载完成后注入视频检测脚本；加载中则收起悬浮播放器
@@ -8024,6 +8067,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 显示提示信息
                 Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
+            }
+
+            override fun onScroll(dy: Int) {
+                // 处理卡片滚动事件，可以在这里实现滚动相关的UI更新
+                // 例如：根据滚动方向显示/隐藏工具栏等
+                // 当前暂时不处理，保持空实现
             }
         })
 
@@ -8660,6 +8709,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 如果找到了选中的按钮，更新指示器位置
         if (newSelectedIndex >= 0 && newSelectedIndex != selectedButtonIndex) {
+            // 🔧 新增：当光标能够激活对应选项时，轻震动提醒
+            performHapticFeedbackForButtonSelection()
             selectedButtonIndex = newSelectedIndex
             val selectedButton = buttons[newSelectedIndex]
             val buttonLocation = IntArray(2)
@@ -8760,6 +8811,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 如果找到了选中的按钮，更新指示器位置
             if (newSelectedIndex >= 0 && newSelectedIndex < buttons.size && newSelectedIndex != selectedButtonIndex) {
+                // 🔧 新增：当光标能够激活对应选项时，轻震动提醒
+                performHapticFeedbackForButtonSelection()
                 selectedButtonIndex = newSelectedIndex
                 val selectedButton = buttons[newSelectedIndex]
                 val buttonLocation = IntArray(2)
@@ -9511,9 +9564,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 🔧 优化：添加防抖机制，避免频繁触发动画
     private var lastScrollTime = 0L
-    private val scrollDebounceDelay = 150L // 150ms防抖延迟，增加延迟避免频繁触发
+    private val scrollDebounceDelay = 200L // 200ms防抖延迟，避免频繁触发导致抖动
     private var accumulatedScrollY = 0 // 累计滚动距离，用于判断是否达到阈值
-    private val scrollAccumulateThreshold = 30 // 累计滚动阈值，避免小幅波动触发动画
+    private val scrollAccumulateThreshold = 50 // 累计滚动阈值，增加到50px避免小幅波动触发动画
+    private var isScrollAnimationRunning = false // 标记滚动动画是否正在运行，避免重复触发
+    private var isUIPermanentlyHidden = false // 标志：搜索tab中UI是否已被向下滚动永久隐藏
+    private var lastHideUITime = 0L // 记录上次隐藏UI的时间，用于防止立即重新显示
+    private val hideUIProtectionPeriod = 500L // UI隐藏后的保护期（毫秒），在此期间忽略向上滚动显示UI的逻辑
     
     /**
      * 处理WebView滚动事件
@@ -9523,8 +9580,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val currentTime = System.currentTimeMillis()
             
+            // 🔧 优化：如果动画正在运行，跳过处理，避免抖动
+            if (isScrollAnimationRunning) {
+                return
+            }
+            
             // 🔧 优化：添加防抖机制，避免频繁触发
             if (currentTime - lastScrollTime < scrollDebounceDelay) {
+                // 在防抖期间，继续累计滚动距离
+                if ((deltaY > 0 && accumulatedScrollY >= 0) || (deltaY < 0 && accumulatedScrollY <= 0)) {
+                    accumulatedScrollY += deltaY
+                } else {
+                    accumulatedScrollY = deltaY
+                }
                 return
             }
             lastScrollTime = currentTime
@@ -9552,6 +9620,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 如果滚动位置接近底部（距离底部小于50px），认为在底部
                 (contentHeight - scrollHeight - scrollY) < 50
             } ?: false
+            
+            // 🔧 检查是否在页面顶部（用于非阅读模式）
+            val isAtTop = scrollY <= 10 // 允许10px的误差
             
             // ==================== 阅读模式下的滚动控制逻辑 ====================
             // 目标：下滑时最大化阅读空间，上滑或到底部时显示操作控件
@@ -9623,26 +9694,91 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             
             // ==================== 非阅读模式的滚动控制逻辑 ====================
-            if (accumulatedScrollY > scrollAccumulateThreshold && currentState == UIState.BROWSER) {
-                val scrollValue = accumulatedScrollY
-                accumulatedScrollY = 0 // 重置累计值
-                
-                // 非阅读模式：隐藏搜索输入框和组标签栏，显示悬浮工具栏
-                if (isToolbarVisible) {
-                    hideToolbarOnly()
-                    hideBottomNavigationAndShowQuickActions()
+            // 🔧 优化：搜索tab中，下滑时隐藏tab栏和地址栏，显示悬浮工具栏；上滑时不显示tab栏和地址栏，只有滚动到顶部才显示
+            // 🔧 优化：在页面顶部时，强制显示tab栏和地址栏，并清除永久隐藏标志
+            // 🔧 优化：确保组件有序显示/隐藏，避免抖动
+            if (isAtTop && currentState == UIState.BROWSER) {
+                // 在页面顶部时，清除永久隐藏标志和保护期，确保显示tab栏和地址栏，隐藏悬浮工具栏
+                isUIPermanentlyHidden = false // 清除永久隐藏标志
+                lastHideUITime = 0L // 清除保护期时间戳
+                if (!isToolbarVisible || !isBottomNavVisible || isQuickActionsBarVisible) {
+                    isScrollAnimationRunning = true
+                    // 先显示地址栏
+                    if (!isToolbarVisible) {
+                        showToolbar()
+                    }
+                    // 再显示tab栏，隐藏悬浮工具栏
+                    if (!isBottomNavVisible) {
+                        showBottomNavigationAndHideQuickActions()
+                    } else if (isQuickActionsBarVisible) {
+                        hideQuickActionsBar()
+                    }
+                    // 动画完成后重置标志
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        isScrollAnimationRunning = false
+                    }, 300)
                 }
-                Log.d(TAG, "🔧 非阅读模式-下滑：隐藏搜索输入框和组标签栏，显示悬浮工具栏，累计deltaY=$scrollValue")
+                accumulatedScrollY = 0 // 重置累计值
+                Log.d(TAG, "🔧 非阅读模式-页面顶部：强制显示地址栏和tab栏，隐藏悬浮工具栏")
                 return
             }
             
-            // 向上滚动：累计滚动超过阈值时同时显示搜索输入框和组标签栏
-            // 🔧 优化：如果滚动到底部，也显示工具栏
+            // 向下滚动：永久隐藏UI，隐藏地址栏和tab栏
+            // 🔧 修复：向下滚动时设置永久隐藏标志并隐藏UI
+            if (accumulatedScrollY > scrollAccumulateThreshold && currentState == UIState.BROWSER) {
+                // 如果正在向下滚动（累计值为正），且UI还未隐藏，立即隐藏
+                if (isToolbarVisible || isBottomNavVisible) {
+                    val scrollValue = accumulatedScrollY
+                    accumulatedScrollY = 0 // 重置累计值
+                    
+                    // 非阅读模式-下滑：隐藏地址栏和tab栏，显示悬浮工具栏，并设置永久隐藏标志
+                    // 🔧 优化：确保有序隐藏，先隐藏地址栏，再隐藏tab栏并显示悬浮工具栏
+                    isScrollAnimationRunning = true
+                    
+                    // 先隐藏地址栏
+                    if (isToolbarVisible) {
+                        hideToolbarOnly()
+                    }
+                    // 再隐藏tab栏并显示悬浮工具栏
+                    if (isBottomNavVisible) {
+                        hideBottomNavigationAndShowQuickActions()
+                    } else if (!isQuickActionsBarVisible) {
+                        // 如果tab栏已隐藏但悬浮工具栏未显示，直接显示悬浮工具栏
+                        showQuickActionsBar()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            isScrollAnimationRunning = false
+                        }, 300)
+                    } else {
+                        // 如果都已经隐藏/显示，直接重置标志
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            isScrollAnimationRunning = false
+                        }, 100)
+                    }
+                    
+                    // 设置永久隐藏标志，防止上滑时重新显示
+                    isUIPermanentlyHidden = true
+                    // 记录隐藏UI的时间，用于保护期判断
+                    lastHideUITime = System.currentTimeMillis()
+                    
+                    Log.d(TAG, "🔧 非阅读模式-下滑：永久隐藏UI，隐藏地址栏和tab栏，显示悬浮工具栏，累计deltaY=$scrollValue")
+                    return
+                }
+            }
+            
+            // 向上滚动：取消隐藏UI，显示地址栏和tab栏
+            // 🔧 修复：向上滚动时清除永久隐藏标志并显示UI
             if ((accumulatedScrollY < -scrollAccumulateThreshold || isAtBottom) && currentState == UIState.BROWSER) {
                 val scrollValue = accumulatedScrollY
                 accumulatedScrollY = 0 // 重置累计值
                 
-                // 非阅读模式：显示搜索输入框和组标签栏，隐藏悬浮工具栏
+                // 清除永久隐藏标志，取消隐藏UI（用户向上滚动，表示想要操作）
+                isUIPermanentlyHidden = false
+                
+                // 非阅读模式-上滑：显示地址栏和tab栏，隐藏悬浮工具栏
+                // 🔧 优化：确保有序显示，先显示地址栏，再显示tab栏并隐藏悬浮工具栏
+                isScrollAnimationRunning = true
+                
+                // 先显示地址栏
                 if (!isToolbarVisible) {
                     showToolbar()
                 } else {
@@ -9656,8 +9792,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         }
                     }
                 }
-                showBottomNavigationAndHideQuickActions()
-                Log.d(TAG, "🔧 非阅读模式-上滑：显示搜索输入框和组标签栏，隐藏悬浮工具栏，累计deltaY=$scrollValue, 到底部=$isAtBottom")
+                // 再显示tab栏并隐藏悬浮工具栏
+                if (!isBottomNavVisible) {
+                    showBottomNavigationAndHideQuickActions()
+                } else if (isQuickActionsBarVisible) {
+                    // 如果tab栏已显示但悬浮工具栏未隐藏，直接隐藏悬浮工具栏
+                    hideQuickActionsBar()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        isScrollAnimationRunning = false
+                    }, 300)
+                } else {
+                    // 如果都已经显示/隐藏，直接重置标志
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        isScrollAnimationRunning = false
+                    }, 100)
+                }
+                
+                Log.d(TAG, "🔧 非阅读模式-上滑：取消隐藏UI，显示地址栏和tab栏，隐藏悬浮工具栏，累计deltaY=$scrollValue, 到底部=$isAtBottom")
                 return
             }
 
@@ -9746,6 +9897,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 bottomNav.translationY = navHeight
                                 bottomNav.alpha = 0f
                                 bottomNav.visibility = View.GONE
+                                // 🔧 优化：动画完成后重置滚动动画标志
+                                isScrollAnimationRunning = false
                             }
                         })
                     }
@@ -9770,6 +9923,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 确保最终位置精确为0，避免偏差
                                 browserQuickActionsBar.translationY = 0f
                                 browserQuickActionsBar.alpha = 1f
+                                // 🔧 优化：动画完成后重置滚动动画标志（如果另一个动画已经完成）
+                                if (bottomNav.visibility == View.GONE) {
+                                    isScrollAnimationRunning = false
+                                }
                             }
                         })
                     }
@@ -9867,6 +10024,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 确保最终位置精确为0
                             bottomNav.translationY = 0f
                             bottomNav.alpha = 1f
+                            // 🔧 优化：动画完成后重置滚动动画标志（如果另一个动画已经完成）
+                            if (browserQuickActionsBar.visibility == View.GONE) {
+                                isScrollAnimationRunning = false
+                            }
                         }
                     })
                 }
@@ -9891,6 +10052,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             browserQuickActionsBar.translationY = endY
                             browserQuickActionsBar.alpha = 0f
                             browserQuickActionsBar.visibility = View.GONE
+                            // 🔧 优化：动画完成后重置滚动动画标志
+                            isScrollAnimationRunning = false
                         }
                     })
                 }
@@ -13560,6 +13723,118 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 hideSwipePreviewIndicator()
                 Log.d(TAG, "结束横滑预览")
             }
+            
+            // 滚动阈值
+            private val SCROLL_THRESHOLD = 20
+            // 记录当前UI可见性状态
+            private var isUiVisible = true
+            
+            override fun onScroll(dy: Int) {
+                // 只有在浏览网页时才处理滚动隐藏逻辑（非首页）
+                if (browserHomeContent?.visibility == View.VISIBLE) return
+                
+                if (dy > SCROLL_THRESHOLD && isUiVisible) {
+                    // 向下滚动，隐藏UI
+                    hideBrowserUI()
+                    isUiVisible = false
+                } else if (dy < -SCROLL_THRESHOLD && !isUiVisible) {
+                    // 向上滚动，显示UI
+                    showBrowserUI()
+                    isUiVisible = true
+                }
+            }
+            
+            private fun hideBrowserUI() {
+                if (!::browserLayout.isInitialized) return
+
+                // 使用TransitionManager来平滑处理布局变化
+                val transition = androidx.transition.AutoTransition()
+                transition.duration = 300
+                
+                // 对浏览器布局应用过渡动画
+                androidx.transition.TransitionManager.beginDelayedTransition(browserLayout, transition)
+                
+                // 隐藏顶部地址栏
+                if (::browserToolbar.isInitialized) {
+                    browserToolbar.visibility = View.GONE
+                }
+                
+                // 隐藏顶部标签组
+                if (::browserTabContainer.isInitialized) {
+                    browserTabContainer.visibility = View.GONE
+                }
+                
+                // 隐藏底部快捷操作栏
+                if (::browserQuickActionsBar.isInitialized) {
+                    browserQuickActionsBar.visibility = View.GONE
+                }
+                
+                // 处理底部导航栏
+                val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                bottomNav?.let { nav ->
+                    (nav.parent as? ViewGroup)?.let { parent ->
+                        androidx.transition.TransitionManager.beginDelayedTransition(parent, transition)
+                    }
+                    nav.visibility = View.GONE
+                }
+                
+                // 显示悬浮工具栏
+                browserFloatingToolbar?.apply {
+                    visibility = View.VISIBLE
+                    alpha = 0f
+                    translationY = 100f
+                    animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(300)
+                        .start()
+                }
+            }
+            
+            private fun showBrowserUI() {
+                if (!::browserLayout.isInitialized) return
+
+                // 使用TransitionManager来平滑处理布局变化
+                val transition = androidx.transition.AutoTransition()
+                transition.duration = 300
+                
+                // 对浏览器布局应用过渡动画
+                androidx.transition.TransitionManager.beginDelayedTransition(browserLayout, transition)
+                
+                // 显示顶部地址栏
+                if (::browserToolbar.isInitialized) {
+                    browserToolbar.visibility = View.VISIBLE
+                }
+                
+                // 显示顶部标签组
+                if (::browserTabContainer.isInitialized) {
+                    browserTabContainer.visibility = View.VISIBLE
+                }
+                
+                // 显示底部快捷操作栏
+                if (::browserQuickActionsBar.isInitialized) {
+                    browserQuickActionsBar.visibility = View.VISIBLE
+                }
+                
+                // 显示底部导航栏
+                val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                bottomNav?.let { nav ->
+                    (nav.parent as? ViewGroup)?.let { parent ->
+                        androidx.transition.TransitionManager.beginDelayedTransition(parent, transition)
+                    }
+                    nav.visibility = View.VISIBLE
+                }
+                
+                // 隐藏悬浮工具栏
+                browserFloatingToolbar?.animate()
+                    ?.alpha(0f)
+                    ?.translationY(100f)
+                    ?.setDuration(300)
+                    ?.withEndAction { 
+                        browserFloatingToolbar?.visibility = View.GONE 
+                    }
+                    ?.start()
+            }
 
             override fun onAllCardsRemoved() {
                 // 所有卡片都被关闭，显示浏览器首页
@@ -13581,6 +13856,56 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 设置搜索栏区域的上滑手势
         setupBrowserSearchBarSwipeUpGesture()
+        
+        // 初始化悬浮工具栏按钮事件
+        setupFloatingToolbarEvents()
+    }
+    
+    // 悬浮工具栏引用
+    private var browserFloatingToolbar: androidx.cardview.widget.CardView? = null
+    
+    /**
+     * 初始化悬浮工具栏按钮事件
+     */
+    private fun setupFloatingToolbarEvents() {
+        browserFloatingToolbar = findViewById(R.id.browser_floating_toolbar)
+        
+        findViewById<ImageButton>(R.id.floating_btn_back)?.setOnClickListener {
+            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    Toast.makeText(this, "没有更多历史记录", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        
+        findViewById<ImageButton>(R.id.floating_btn_forward)?.setOnClickListener {
+            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                if (webView.canGoForward()) {
+                    webView.goForward()
+                } else {
+                    Toast.makeText(this, "没有更多前进记录", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        
+        findViewById<ImageButton>(R.id.floating_btn_home)?.setOnClickListener {
+            showBrowserHome()
+        }
+        
+        findViewById<ImageButton>(R.id.floating_btn_menu)?.setOnClickListener {
+            // 显示菜单
+            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                val enhancedMenuManager = com.example.aifloatingball.webview.EnhancedMenuManager(this, windowManager)
+                enhancedMenuManager.setOnNewTabListener { url, inBackground ->
+                    gestureCardWebViewManager?.addNewCard(url)
+                }
+                // 在屏幕底部中间显示菜单
+                val displayMetrics = resources.displayMetrics
+                enhancedMenuManager.showEnhancedRefreshMenu(webView, displayMetrics.widthPixels / 2, displayMetrics.heightPixels - 200)
+            }
+        }
     }
     
     /**
@@ -14883,6 +15208,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e(TAG, "执行震动反馈失败", e)
+        }
+    }
+    
+    /**
+     * 执行按钮选择的轻震动反馈
+     * 当用户下拉手势的光标能够激活对应选项时，轻震动提醒
+     */
+    private fun performHapticFeedbackForButtonSelection() {
+        try {
+            // 使用轻震动反馈，持续时间短，强度适中
+            performGestureVibration("light")
+            Log.d(TAG, "按钮选择震动反馈已触发")
+        } catch (e: Exception) {
+            Log.e(TAG, "执行按钮选择震动反馈失败", e)
         }
     }
 

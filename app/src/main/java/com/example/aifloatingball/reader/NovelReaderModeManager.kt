@@ -1662,17 +1662,24 @@ class NovelReaderModeManager(private val context: Context) {
                         
                         var scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
                         var clientHeight = document.documentElement.clientHeight || window.innerHeight;
-                        var isAtBottom = (scrollHeight - scrollTop - clientHeight) < 50; // 距离底部50px内认为到底部
-                        var isAtTop = scrollTop < 50; // 距离顶部50px内认为在顶部
+                        // 优化边界判断：使用更小的阈值，并添加缓冲区域，避免频繁切换
+                        // 边界区域：顶部50px内或底部50px内
+                        var distanceToBottom = scrollHeight - scrollTop - clientHeight;
+                        var isAtBottom = distanceToBottom <= 50; // 距离底部50px内认为到底部
+                        var isAtTop = scrollTop <= 50; // 距离顶部50px内认为在顶部
                         
                         // 控制顶部header显示/隐藏
+                        // 在边界位置时，优先处理边界逻辑，强制显示header，不再执行滚动方向判断
+                        // Android端会进一步处理边界区域状态记忆，避免频繁切换
                         if (isAtTop || isAtBottom) {
                             // 在顶部或底部时，强制显示header
                             if (!headerVisible) {
                                 updateHeaderVisibility(true);
                             }
+                            // 注意：这里不执行 else if 分支，避免在边界附近时产生冲突
+                            // Android端会通过边界区域状态记忆机制进一步优化
                         } else if (Math.abs(scrollDelta) > scrollThreshold) {
-                            // 只有在滚动距离超过阈值时才改变header状态
+                            // 只有在非边界位置且滚动距离超过阈值时，才根据滚动方向改变header状态
                             if (scrollDelta > 0) {
                                 // 向下滚动，隐藏header
                                 if (headerVisible) {

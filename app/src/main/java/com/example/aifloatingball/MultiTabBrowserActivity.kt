@@ -85,8 +85,19 @@ class MultiTabBrowserActivity : AppCompatActivity() {
             override fun onReaderModeEntered() {
                 runOnUiThread {
                     statusText.text = "已进入阅读模式"
+                    // 进入阅读模式前，必须先移除普通webview滚动监听，避免冲突
+                    removeNormalWebViewScrollListener()
                     // 初始化滚动处理（JavaScript已处理滚动监听）
                     setupReaderModeScrollListener()
+                    // 重置边界区域状态
+                    isInBoundaryZone = false
+                    lastScrollTop = 0
+                    isReaderModeUIPermanentlyHidden = false // 重置永久隐藏标志
+                    // 重置普通模式的滚动状态，避免状态残留
+                    normalLastScrollY = 0
+                    normalLastScrollDirection = 0
+                    normalConsecutiveScrollCount = 0
+                    isUIPermanentlyHidden = false // 重置普通模式的永久隐藏标志
                     // 确保UI初始状态为显示
                     if (!isAddressBarVisible) {
                         showAddressBarAndTabs(true)
@@ -98,6 +109,8 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                 runOnUiThread {
                     statusText.text = "已退出阅读模式"
                     removeReaderModeScrollListener()
+                    // 退出阅读模式后，设置普通webview滚动监听
+                    setupNormalWebViewScrollListener()
                     // 确保UI显示
                     showAddressBarAndTabs(true)
                 }
@@ -170,8 +183,14 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                                 showAddressBarAndTabs(true)
                             }
                         } else {
-                            // 非阅读模式，确保UI显示
-                            if (!isAddressBarVisible) {
+                            // 非阅读模式，设置普通webview滚动监听
+                            setupNormalWebViewScrollListener()
+                            // 只有在页面顶部时才确保UI显示，避免在用户滚动过程中强制显示UI
+                            val currentWebView = tabManager.getCurrentTab()?.webView
+                            val isAtTop = currentWebView?.let {
+                                !it.canScrollVertically(-1) && it.scrollY <= 5
+                            } ?: true
+                            if (isAtTop && !isAddressBarVisible) {
                                 showAddressBarAndTabs(true)
                             }
                         }
@@ -215,6 +234,22 @@ class MultiTabBrowserActivity : AppCompatActivity() {
                     if (!isAddressBarVisible) {
                         showAddressBarAndTabs(true)
                     }
+                } else {
+                    // 非阅读模式，设置普通webview滚动监听
+                    // 重置滚动状态
+                    val currentWebView = tabManager.getCurrentTab()?.webView
+                    currentWebView?.let {
+                        normalLastScrollY = it.scrollY
+                        normalLastScrollDirection = 0
+                        normalConsecutiveScrollCount = 0
+                        // 重置永久隐藏标志
+                        isUIPermanentlyHidden = false
+                        // 切换tab时，如果UI被隐藏，先显示UI
+                        if (!isAddressBarVisible) {
+                            showAddressBarAndTabs(true)
+                        }
+                    }
+                    setupNormalWebViewScrollListener()
                 }
             }
         })
@@ -238,6 +273,11 @@ class MultiTabBrowserActivity : AppCompatActivity() {
             if (tabManager.getTabCount() == 0) {
                 tabManager.addTab()
             }
+        }
+        
+        // 初始化普通webview滚动监听（如果不在阅读模式）
+        if (!readerModeManager.isReaderModeActive()) {
+            setupNormalWebViewScrollListener()
         }
     }
     
@@ -492,11 +532,12 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     override fun onDestroy() {
         tabManager.saveTabsState()
         removeReaderModeScrollListener()
+        removeNormalWebViewScrollListener()
         super.onDestroy()
         tabManager.cleanup()
     }
     
-    // ==================== 阅读模式滚动监听 ====================
+    // ==================== 滚动监听（阅读模式 + 普通模式） ====================
     
     private var isAddressBarVisible = true
     private val scrollThreshold = 15 // 滚动阈值，进一步降低以提高响应速度
@@ -505,16 +546,33 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     private var lastScrollDirection: Int = 0 // 记录上次滚动方向：1=向下，-1=向上，0=未确定
     private var consecutiveScrollCount: Int = 0 // 连续同方向滚动计数，用于防抖
     
+    // 边界区域状态记忆，避免在边界附近频繁切换
+    private var isInBoundaryZone: Boolean = false // 是否在边界区域（顶部或底部附近）
+    private var lastScrollTop: Int = 0 // 记录上次滚动位置，用于判断是否离开边界区域
+    private val boundaryZoneThreshold = 100 // 边界区域阈值（像素），离开此距离后才恢复正常滚动判断
+    private var isReaderModeUIPermanentlyHidden: Boolean = false // 标志：阅读模式下UI是否已被向下滚动永久隐藏
+    
     // 缓存UI组件引用，避免重复findViewById
     private var cachedAppBarLayout: com.google.android.material.appbar.AppBarLayout? = null
     private var cachedFloatingButton: com.google.android.material.floatingactionbutton.FloatingActionButton? = null
     private var cachedAppBarHeight: Float = 0f
+    
+    // 普通webview滚动监听相关
+    private var normalScrollHandler: android.os.Handler? = null
+    private var normalScrollListener: View.OnScrollChangeListener? = null
+    private var normalLastScrollY: Int = 0
+    private var normalLastScrollDirection: Int = 0
+    private var normalConsecutiveScrollCount: Int = 0
+    private var isUIPermanentlyHidden: Boolean = false // 标志：UI是否已被向下滚动永久隐藏
     
     /**
      * 设置阅读模式滚动监听
      * 注意：实际滚动监听由JavaScript代码处理，这里只做初始化标记
      */
     private fun setupReaderModeScrollListener() {
+        // 确保移除普通模式的滚动监听，避免冲突
+        removeNormalWebViewScrollListener()
+        
         // JavaScript代码已经处理了滚动监听，这里不需要再设置View.OnScrollChangeListener
         // 避免双重监听导致冲突
         scrollHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -557,11 +615,163 @@ class MultiTabBrowserActivity : AppCompatActivity() {
         // 重置滚动状态
         lastScrollDirection = 0
         consecutiveScrollCount = 0
+        isInBoundaryZone = false
+        lastScrollTop = 0
+        isReaderModeUIPermanentlyHidden = false // 重置永久隐藏标志
+    }
+    
+    /**
+     * 设置普通webview滚动监听（非阅读模式）
+     */
+    private fun setupNormalWebViewScrollListener() {
+        // 移除之前的监听器
+        removeNormalWebViewScrollListener()
+        
+        // 如果处于阅读模式，不设置普通滚动监听
+        if (readerModeManager.isReaderModeActive()) {
+            return
+        }
+        
+        normalScrollHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        
+        // 初始化缓存UI组件引用
+        initCachedViews()
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            // 创建滚动监听器（动态获取当前webview，避免闭包捕获问题）
+            normalScrollListener = View.OnScrollChangeListener { view, _, scrollY, _, oldScrollY ->
+                // 只在非阅读模式下处理
+                if (!readerModeManager.isReaderModeActive()) {
+                    // 动态获取当前显示的webview
+                    val currentWebView = tabManager.getCurrentTab()?.webView
+                    // 检查是否是当前显示的webview
+                    val isCurrentWebView = view == currentWebView
+                    if (isCurrentWebView) {
+                        val scrollDelta = scrollY - oldScrollY
+                        handleNormalWebViewScroll(scrollY, scrollDelta, view as android.webkit.WebView)
+                    }
+                }
+            }
+            
+            // 为所有标签页的webview设置监听器
+            tabManager.getTabs().forEach { tab ->
+                tab.webView.setOnScrollChangeListener(normalScrollListener)
+            }
+            
+            // 重置滚动状态（针对当前webview）
+            val currentWebView = tabManager.getCurrentTab()?.webView
+            currentWebView?.let {
+                normalLastScrollY = it.scrollY
+                normalLastScrollDirection = 0
+                normalConsecutiveScrollCount = 0
+                // 只有在页面顶部时才重置永久隐藏标志，避免在用户滚动过程中重置
+                val canScrollUp = it.canScrollVertically(-1)
+                val isAtTop = !canScrollUp && it.scrollY <= 5
+                if (isAtTop) {
+                    isUIPermanentlyHidden = false
+                }
+                // 如果不在顶部且UI已被隐藏，保持永久隐藏标志
+            }
+            
+            val currentPosition = tabManager.getTabs().indexOfFirst { it.webView == currentWebView }
+            Log.d(TAG, "已为所有webview设置普通滚动监听（当前标签页: $currentPosition）")
+        }
+    }
+    
+    /**
+     * 移除普通webview滚动监听
+     */
+    private fun removeNormalWebViewScrollListener() {
+        // 移除所有webview的滚动监听
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            tabManager.getTabs().forEach { tab ->
+                tab.webView.setOnScrollChangeListener(null)
+            }
+        }
+        
+        normalScrollListener = null
+        normalScrollHandler = null
+        
+        // 重置滚动状态
+        normalLastScrollY = 0
+        normalLastScrollDirection = 0
+        normalConsecutiveScrollCount = 0
+        isUIPermanentlyHidden = false // 重置永久隐藏标志
+        
+        Log.d(TAG, "已移除普通webview滚动监听")
+    }
+    
+    /**
+     * 处理普通webview滚动事件（非阅读模式）
+     * 优化：一旦向下滚动隐藏了UI，继续向下滚动时不再显示UI，只有在滚动到顶部时才显示
+     */
+    private fun handleNormalWebViewScroll(scrollY: Int, scrollDelta: Int, webView: android.webkit.WebView) {
+        // 如果不在普通模式（在阅读模式），直接返回
+        if (readerModeManager.isReaderModeActive()) {
+            return
+        }
+        
+        // 判断是否在顶部（使用更严格的判断，避免误判）
+        // 使用 canScrollVertically 来准确判断是否在顶部
+        val canScrollUp = webView.canScrollVertically(-1)
+        val isAtTop = !canScrollUp && scrollY <= 5 // 严格判断：不能向上滚动且scrollY接近0
+        
+        // 如果在顶部，显示UI并清除永久隐藏标志（但只在真正在顶部时）
+        if (isAtTop) {
+            isUIPermanentlyHidden = false // 清除永久隐藏标志
+            if (!isAddressBarVisible) {
+                showAddressBarAndTabs(true)
+            }
+            normalLastScrollY = scrollY
+            normalLastScrollDirection = 0
+            normalConsecutiveScrollCount = 0
+            return
+        }
+        
+        // 如果UI已被永久隐藏，且不在顶部，直接返回，不处理任何显示逻辑
+        if (isUIPermanentlyHidden) {
+            normalLastScrollY = scrollY
+            return
+        }
+        
+        // 注意：移除了底部显示UI的逻辑，一旦向下滚动隐藏了UI，即使滚动到底部也不会再显示
+        
+        // 根据滚动方向处理UI显示/隐藏
+        val absDelta = Math.abs(scrollDelta)
+        if (absDelta > scrollThreshold) {
+            val currentDirection = if (scrollDelta > 0) 1 else -1
+            
+            // 如果方向改变，重置计数
+            if (currentDirection != normalLastScrollDirection) {
+                normalConsecutiveScrollCount = 0
+                normalLastScrollDirection = currentDirection
+            } else {
+                normalConsecutiveScrollCount++
+            }
+            
+            // 只有在连续同方向滚动至少1次时才切换UI（减少抖动）
+            if (normalConsecutiveScrollCount >= 1) {
+                if (currentDirection > 0) {
+                    // 向下滚动，隐藏UI并设置永久隐藏标志
+                    if (isAddressBarVisible) {
+                        showAddressBarAndTabs(false)
+                        isUIPermanentlyHidden = true // 设置永久隐藏标志
+                    }
+                } else {
+                    // 向上滚动，显示UI（但不会清除永久隐藏标志，因为只有滚动到顶部才会清除）
+                    // 注意：这里不显示UI，因为一旦向下滚动隐藏了UI，只有滚动到顶部才显示
+                    // 这样可以避免在继续向下滚动时因为轻微的向上滚动而显示UI
+                }
+            }
+        }
+        
+        normalLastScrollY = scrollY
     }
     
     /**
      * 处理阅读模式滚动事件（由JavaScript回调触发）
      * 优化：添加滚动方向记忆和防抖逻辑，减少频繁切换，确保流畅响应
+     * 修复：添加边界区域状态记忆，避免在边界附近频繁切换UI
      */
     private fun handleReaderModeScroll(scrollTop: Int, scrollDelta: Int, isAtTop: Boolean, isAtBottom: Boolean) {
         // 如果不在阅读模式，直接返回
@@ -576,44 +786,94 @@ class MultiTabBrowserActivity : AppCompatActivity() {
         
         // 创建新的滚动处理动作
         pendingScrollAction = Runnable {
-            // 在顶部或底部时，强制显示UI
-            if (isAtTop || isAtBottom) {
-                if (!isAddressBarVisible) {
-                    showAddressBarAndTabs(true)
-                }
-                // 重置滚动方向记忆
-                lastScrollDirection = 0
-                consecutiveScrollCount = 0
-            } else {
-                // 根据滚动方向立即响应
-                val absDelta = Math.abs(scrollDelta)
-                if (absDelta > scrollThreshold) {
-                    val currentDirection = if (scrollDelta > 0) 1 else -1
-                    
-                    // 如果方向改变，重置计数
-                    if (currentDirection != lastScrollDirection) {
-                        consecutiveScrollCount = 0
-                        lastScrollDirection = currentDirection
-                    } else {
-                        consecutiveScrollCount++
+            // 判断是否在顶部边界区域（仅顶部，不包括底部）
+            val currentlyInBoundaryZone = isAtTop
+            
+            // 如果进入顶部边界区域，设置标志并显示UI，清除永久隐藏标志
+            if (currentlyInBoundaryZone) {
+                isReaderModeUIPermanentlyHidden = false // 清除永久隐藏标志
+                if (!isInBoundaryZone) {
+                    // 刚进入顶部边界区域，显示UI
+                    isInBoundaryZone = true
+                    if (!isAddressBarVisible) {
+                        showAddressBarAndTabs(true)
                     }
-                    
-                    // 只有在连续同方向滚动至少1次时才切换UI（减少抖动）
-                    if (consecutiveScrollCount >= 1) {
-                        if (currentDirection > 0) {
-                            // 向下滚动，隐藏UI
-                            if (isAddressBarVisible) {
-                                showAddressBarAndTabs(false)
-                            }
-                        } else {
-                            // 向上滚动，显示UI
-                            if (!isAddressBarVisible) {
-                                showAddressBarAndTabs(true)
-                            }
+                    // 重置滚动方向记忆
+                    lastScrollDirection = 0
+                    consecutiveScrollCount = 0
+                } else {
+                    // 已经在顶部边界区域内，保持UI显示状态
+                    if (!isAddressBarVisible) {
+                        showAddressBarAndTabs(true)
+                    }
+                }
+                lastScrollTop = scrollTop
+                return@Runnable // 在顶部边界区域内，直接返回，不执行滚动方向判断
+            }
+            
+            // 如果UI已被永久隐藏，且不在顶部，直接返回，不处理任何显示逻辑
+            // 注意：必须在边界区域检查之前检查永久隐藏标志，避免边界区域逻辑重新显示UI
+            if (isReaderModeUIPermanentlyHidden) {
+                // 如果UI已被永久隐藏，清除边界区域标志，避免后续逻辑干扰
+                isInBoundaryZone = false
+                lastScrollTop = scrollTop
+                return@Runnable
+            }
+            
+            // 注意：移除了底部边界区域的逻辑，一旦向下滚动隐藏了UI，即使滚动到底部也不会再显示
+            
+            // 如果之前在边界区域内，需要判断是否真正离开边界区域
+            // 注意：这个逻辑只在UI未被永久隐藏时执行
+            if (isInBoundaryZone) {
+                // 计算从上次边界位置滚动的距离
+                val distanceFromBoundary = Math.abs(scrollTop - lastScrollTop)
+                
+                // 只有当滚动距离超过阈值时，才认为真正离开边界区域
+                if (distanceFromBoundary < boundaryZoneThreshold) {
+                    // 还在边界区域附近，保持UI显示，不执行滚动方向判断
+                    // 注意：这里显示UI是合理的，因为只有在顶部附近才会进入这个逻辑
+                    if (!isAddressBarVisible) {
+                        showAddressBarAndTabs(true)
+                    }
+                    return@Runnable
+                } else {
+                    // 真正离开边界区域，恢复正常滚动判断
+                    isInBoundaryZone = false
+                    lastScrollDirection = 0
+                    consecutiveScrollCount = 0
+                }
+            }
+            
+            // 只有在非边界区域时，才根据滚动方向处理UI显示/隐藏
+            val absDelta = Math.abs(scrollDelta)
+            if (absDelta > scrollThreshold) {
+                val currentDirection = if (scrollDelta > 0) 1 else -1
+                
+                // 如果方向改变，重置计数
+                if (currentDirection != lastScrollDirection) {
+                    consecutiveScrollCount = 0
+                    lastScrollDirection = currentDirection
+                } else {
+                    consecutiveScrollCount++
+                }
+                
+                // 只有在连续同方向滚动至少1次时才切换UI（减少抖动）
+                if (consecutiveScrollCount >= 1) {
+                    if (currentDirection > 0) {
+                        // 向下滚动，隐藏UI并设置永久隐藏标志
+                        if (isAddressBarVisible) {
+                            showAddressBarAndTabs(false)
+                            isReaderModeUIPermanentlyHidden = true // 设置永久隐藏标志
                         }
+                    } else {
+                        // 向上滚动，不显示UI（但不会清除永久隐藏标志，因为只有滚动到顶部才会清除）
+                        // 注意：这里不显示UI，因为一旦向下滚动隐藏了UI，只有滚动到顶部才显示
+                        // 这样可以避免在继续向下滚动时因为轻微的向上滚动而显示UI
                     }
                 }
             }
+            
+            lastScrollTop = scrollTop
         }
         
         // 立即执行，不使用延迟，确保响应速度

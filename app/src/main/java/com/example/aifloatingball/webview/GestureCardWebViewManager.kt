@@ -133,6 +133,9 @@ class GestureCardWebViewManager(
 
         // 所有卡片关闭事件
         fun onAllCardsRemoved()
+        
+        // 页面滚动事件
+        fun onScroll(dy: Int)
     }
 
     init {
@@ -454,9 +457,9 @@ class GestureCardWebViewManager(
             handleDownloadRequest(url, userAgent, contentDisposition, mimeType, contentLength)
         }
 
-            // 通知WebView创建监听器
-            onWebViewCreatedListener?.invoke(this)
-        }
+        // 通知WebView创建监听器
+        onWebViewCreatedListener?.invoke(this)
+    }
     }
 
     /**
@@ -482,6 +485,17 @@ class GestureCardWebViewManager(
                 }
             }
             false // 不拦截事件，让WebView正常处理
+        }
+        
+        // 设置滚动监听器
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+                val dy = scrollY - oldScrollY
+                // 只有在当前显示的卡片滚动时才触发回调
+                if (cardData == webViewCards.getOrNull(currentCardIndex)) {
+                    onPageChangeListener?.onScroll(dy)
+                }
+            }
         }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
