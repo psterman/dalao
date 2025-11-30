@@ -345,6 +345,109 @@
             opacity: 0.8;
             line-height: 1.6;
         }
+        
+        /* 弹出菜单样式 */
+        .popup-menu {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            min-width: 220px;
+            max-width: 85%;
+            z-index: 1000;
+            display: none;
+            opacity: 0;
+            transform: translateX(-50%) translateY(20px);
+            transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        
+        body.dark-mode .popup-menu {
+            background: rgba(28, 28, 30, 0.95);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .popup-menu.show {
+            display: block;
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .popup-menu-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            margin-bottom: 4px;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .popup-menu-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .popup-menu-item:hover {
+            background: rgba(0, 122, 255, 0.1);
+        }
+        
+        body.dark-mode .popup-menu-item:hover {
+            background: rgba(10, 132, 255, 0.2);
+        }
+        
+        .popup-menu-item:active {
+            background: rgba(0, 122, 255, 0.2);
+            transform: scale(0.97);
+        }
+        
+        body.dark-mode .popup-menu-item:active {
+            background: rgba(10, 132, 255, 0.3);
+            transform: scale(0.97);
+        }
+        
+        .menu-icon {
+            font-size: 20px;
+            margin-right: 12px;
+            width: 24px;
+            text-align: center;
+        }
+        
+        .menu-text {
+            font-size: 16px;
+            color: #333;
+            flex: 1;
+        }
+        
+        body.dark-mode .menu-text {
+            color: #fff;
+        }
+        
+        /* 遮罩层 */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .popup-overlay.show {
+            display: block;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -354,48 +457,51 @@
             <div class="subtitle">快速访问常用功能</div>
         </div>
         <div class="button-group" id="buttonGroup">
+            <!-- 新增➕号按钮，点击弹出菜单 -->
             <div class="button-wrapper">
-                <button id="btn_new_tab" class="button" onclick="createNewTab()" data-button-id="new_tab" data-text="新建标签页">
-                    <span class="button-text">新建标签页</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_new_group" class="button" onclick="createNewGroup()" data-button-id="new_group" data-text="新建标签组">
-                    <span class="button-text">新建标签组</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_history" class="button" onclick="openHistory()" data-button-id="history" data-text="历史记录">
-                    <span class="button-text">历史记录</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_bookmarks" class="button" onclick="openBookmarks()" data-button-id="bookmarks" data-text="收藏夹">
-                    <span class="button-text">收藏夹</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_download" class="button" onclick="openDownloadManager()" data-button-id="download" data-text="下载">
-                    <span class="button-text">下载</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_file_reader" class="button" onclick="openFileReader()" data-button-id="file_reader" data-text="文件阅读">
-                    <span class="button-text">文件阅读</span>
-                </button>
-            </div>
-            
-            <div class="button-wrapper">
-                <button id="btn_settings" class="button" onclick="openSettings()" data-button-id="settings" data-text="➕">
+                <button id="btn_add_menu" class="button" onclick="toggleAddMenu()" data-button-id="add_menu" data-text="➕">
                     <span class="button-text">➕</span>
                 </button>
             </div>
+            
+            <!-- 设置按钮，改为齿轮图标 -->
+            <div class="button-wrapper">
+                <button id="btn_settings" class="button" onclick="openSettings()" data-button-id="settings" data-text="⚙️">
+                    <span class="button-text">⚙️</span>
+                </button>
+            </div>
         </div>
+        
+        <!-- 弹出菜单容器 -->
+        <div class="popup-menu" id="popupMenu">
+            <div class="popup-menu-item" onclick="handleMenuClick('new_tab')">
+                <span class="menu-icon">➕</span>
+                <span class="menu-text">新建标签页</span>
+            </div>
+            <div class="popup-menu-item" onclick="handleMenuClick('new_group')">
+                <span class="menu-icon">📁</span>
+                <span class="menu-text">新建标签组</span>
+            </div>
+            <div class="popup-menu-item" onclick="handleMenuClick('history')">
+                <span class="menu-icon">🕐</span>
+                <span class="menu-text">历史记录</span>
+            </div>
+            <div class="popup-menu-item" onclick="handleMenuClick('bookmarks')">
+                <span class="menu-icon">⭐</span>
+                <span class="menu-text">收藏夹</span>
+            </div>
+            <div class="popup-menu-item" onclick="handleMenuClick('download')">
+                <span class="menu-icon">⬇️</span>
+                <span class="menu-text">下载</span>
+            </div>
+            <div class="popup-menu-item" onclick="handleMenuClick('file_reader')">
+                <span class="menu-icon">📄</span>
+                <span class="menu-text">文件阅读</span>
+            </div>
+        </div>
+        
+        <!-- 遮罩层，点击关闭菜单 -->
+        <div class="popup-overlay" id="popupOverlay" onclick="closeAddMenu()"></div>
         
         <p class="hint">💡 提示：上滑搜索栏可查看所有标签页</p>
         <p class="hint" style="margin-top: 8px; font-size: 12px; opacity: 0.6;">这是快捷入口页面，用于快速访问常用功能</p>
@@ -466,17 +572,63 @@
             }
         }
         
-        // 按钮配置信息
+        // 弹出菜单相关函数
+        function toggleAddMenu() {
+            const menu = document.getElementById('popupMenu');
+            const overlay = document.getElementById('popupOverlay');
+            
+            if (menu && overlay) {
+                if (menu.classList.contains('show')) {
+                    closeAddMenu();
+                } else {
+                    menu.classList.add('show');
+                    overlay.classList.add('show');
+                }
+            }
+        }
+        
+        function closeAddMenu() {
+            const menu = document.getElementById('popupMenu');
+            const overlay = document.getElementById('popupOverlay');
+            
+            if (menu && overlay) {
+                menu.classList.remove('show');
+                overlay.classList.remove('show');
+            }
+        }
+        
+        function handleMenuClick(action) {
+            closeAddMenu();
+            
+            switch(action) {
+                case 'new_tab':
+                    createNewTab();
+                    break;
+                case 'new_group':
+                    createNewGroup();
+                    break;
+                case 'history':
+                    openHistory();
+                    break;
+                case 'bookmarks':
+                    openBookmarks();
+                    break;
+                case 'download':
+                    openDownloadManager();
+                    break;
+                case 'file_reader':
+                    openFileReader();
+                    break;
+            }
+        }
+        
+        // 按钮配置信息（现在只保留菜单按钮和设置按钮）
         const buttonConfigs = {
-            'new_tab': { name: '新建标签页', icon: '➕' },
-            'new_group': { name: '新建标签组', icon: '📁' },
-            'history': { name: '历史记录', icon: '🕐' },
-            'bookmarks': { name: '收藏夹', icon: '⭐' },
-            'download': { name: '下载', icon: '⬇️' },
-            'file_reader': { name: '文件阅读', icon: '📄' }
+            'add_menu': { name: '➕', icon: '➕' },
+            'settings': { name: '⚙️', icon: '⚙️' }
         };
         
-        // 长按隐藏按钮
+        // 长按隐藏按钮功能已移除，因为现在只有两个核心功能按钮
         const LONG_PRESS_DURATION = 2500; // 2.5秒长按，避免误触
         let longPressTimer = null;
         let longPressButton = null;
@@ -484,8 +636,9 @@
         let buttonHiddenByLongPress = false; // 标记按钮是否因长按而隐藏
         
         function setupButtonLongPress() {
-            // 排除设置按钮，不让它消失
-            const buttonsToSetup = Object.keys(buttonConfigs).filter(id => id !== 'settings');
+            // 现在只有两个核心按钮，不再需要长按隐藏功能
+            // 保留函数定义以保持代码兼容性，但不执行任何操作
+            return;
             buttonsToSetup.forEach(buttonId => {
                 const button = document.getElementById('btn_' + buttonId);
                 if (button) {
@@ -680,24 +833,9 @@
             }
         }
         
-        // 检查并显示恢复按钮
+        // 检查并显示恢复按钮（现在不再需要，因为只有两个核心按钮）
         function checkAndShowRestoreButton() {
-            const visibility = getButtonVisibility();
-            const hasHiddenButtons = Object.values(visibility).some(visible => !visible);
-            const restoreButton = document.getElementById('btn_restore_buttons');
-            if (restoreButton) {
-                if (hasHiddenButtons && restoreButton.style.display === 'none') {
-                    // 显示恢复按钮时，重置动画
-                    restoreButton.classList.remove('hiding');
-                    restoreButton.style.display = 'flex';
-                    restoreButton.style.animation = 'none';
-                    // 触发重排
-                    void restoreButton.offsetWidth;
-                    restoreButton.style.animation = '';
-                } else if (!hasHiddenButtons) {
-                    restoreButton.style.display = 'none';
-                }
-            }
+            // 保留函数定义以保持代码兼容性，但不执行任何操作
             updateButtonLayout();
         }
         
@@ -729,6 +867,7 @@
             const count = visibleWrappers.length;
             
             // 更新data-count属性以应用正确的布局
+            // 现在只有两个按钮，使用两列布局
             buttonGroup.setAttribute('data-count', count);
             
             // 为每个按钮添加延迟动画
@@ -740,39 +879,22 @@
             });
         }
         
-        // 根据设置显示/隐藏按钮
+        // 根据设置显示/隐藏按钮（现在只有两个核心按钮，默认都显示）
         function updateButtonVisibility() {
-            if (window.AndroidInterface && window.AndroidInterface.getButtonVisibility) {
-                try {
-                    const visibilityJson = window.AndroidInterface.getButtonVisibility();
-                    if (visibilityJson) {
-                        const visibility = JSON.parse(visibilityJson);
-                        Object.keys(buttonConfigs).forEach(buttonId => {
-                            const button = document.getElementById('btn_' + buttonId);
-                            if (button) {
-                                const isVisible = visibility[buttonId] !== false; // 默认显示
-                                if (isVisible && button.style.display === 'none') {
-                                    // 显示按钮时，重置动画
-                                    button.classList.remove('hiding');
-                                    button.style.display = 'flex';
-                                    button.style.animation = 'none';
-                                    // 触发重排
-                                    void button.offsetWidth;
-                                    button.style.animation = '';
-                                } else if (!isVisible) {
-                                    button.style.display = 'none';
-                                }
-                            }
-                        });
-                        
-                        // 更新布局
-                        updateButtonLayout();
-                        // 检查并显示恢复按钮
-                        checkAndShowRestoreButton();
-                    }
-                } catch (e) {
-                    console.error('更新按钮显示状态失败:', e);
+            // 现在只有两个核心按钮（➕号菜单按钮和设置按钮），默认都显示
+            // 保留函数定义以保持代码兼容性
+            const buttonGroup = document.getElementById('buttonGroup');
+            if (buttonGroup) {
+                // 确保两个按钮都显示
+                const addMenuButton = document.getElementById('btn_add_menu');
+                const settingsButton = document.getElementById('btn_settings');
+                if (addMenuButton) {
+                    addMenuButton.style.display = 'flex';
                 }
+                if (settingsButton) {
+                    settingsButton.style.display = 'flex';
+                }
+                updateButtonLayout();
             }
         }
         
@@ -970,13 +1092,15 @@
             console.log('主题已设置为:', theme);
         }
         
-        // 页面加载时更新按钮显示状态并设置长按事件
+        // 页面加载时初始化
         window.addEventListener('load', function() {
             updateButtonVisibility();
             setupButtonLongPress();
             setupDragAndDrop();
             loadButtonOrder();
             updateButtonLayout();
+            // 初始化弹出菜单
+            initPopupMenu();
         });
         
         // 如果页面已经加载完成，立即更新
@@ -986,6 +1110,7 @@
             setupDragAndDrop();
             loadButtonOrder();
             updateButtonLayout();
+            initPopupMenu();
         } else {
             document.addEventListener('DOMContentLoaded', function() {
                 updateButtonVisibility();
@@ -993,7 +1118,32 @@
                 setupDragAndDrop();
                 loadButtonOrder();
                 updateButtonLayout();
+                initPopupMenu();
             });
+        }
+        
+        // 初始化弹出菜单
+        function initPopupMenu() {
+            // 确保菜单初始状态是隐藏的
+            const menu = document.getElementById('popupMenu');
+            const overlay = document.getElementById('popupOverlay');
+            if (menu) {
+                menu.classList.remove('show');
+            }
+            if (overlay) {
+                overlay.classList.remove('show');
+            }
+            
+            // 点击遮罩层关闭菜单
+            if (overlay) {
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) {
+                        closeAddMenu();
+                    }
+                });
+            }
+            
+            // 点击菜单项后关闭菜单（已在handleMenuClick中处理）
         }
     </script>
 </body>
