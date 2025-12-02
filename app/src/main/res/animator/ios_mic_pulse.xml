@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/accelerate_decelerate_interpolator">
+    
+    <!-- iOS风格的脉冲动画 - 缩放 -->
+    <objectAnimator
+        android:propertyName="scaleX"
+        android:duration="1000"
+        android:valueFrom="1.0"
+        android:valueTo="1.15"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse" />
+    
+    <objectAnimator
+        android:propertyName="scaleY"
+        android:duration="1000"
+        android:valueFrom="1.0"
+        android:valueTo="1.15"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse" />
+    
+    <!-- 透明度动画 -->
+    <objectAnimator
+        android:propertyName="alpha"
+        android:duration="1000"
+        android:valueFrom="1.0"
+        android:valueTo="0.7"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="reverse" />
+</set>
+
+
+

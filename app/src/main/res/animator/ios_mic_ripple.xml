@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- iOS风格的涟漪动画 -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/accelerate_decelerate_interpolator">
+    
+    <!-- 外层涟漪 -->
+    <objectAnimator
+        android:propertyName="scaleX"
+        android:duration="2000"
+        android:valueFrom="1.0"
+        android:valueTo="1.5"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+    
+    <objectAnimator
+        android:propertyName="scaleY"
+        android:duration="2000"
+        android:valueFrom="1.0"
+        android:valueTo="1.5"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+    
+    <objectAnimator
+        android:propertyName="alpha"
+        android:duration="2000"
+        android:valueFrom="0.6"
+        android:valueTo="0.0"
+        android:valueType="floatType"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+</set>
+
+
+

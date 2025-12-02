@@ -27,11 +27,12 @@ class WebViewFactory(private val context: Context) {
     companion object {
         private const val TAG = "WebViewFactory"
         // 移动版Chrome User-Agent，适合移动端优化的网站
-        private const val MOBILE_USER_AGENT = WebViewConstants.MOBILE_USER_AGENT
+        // 使用标准移动端User-Agent（编译时常量）
+        private const val MOBILE_USER_AGENT = WebViewConstants.MOBILE_USER_AGENT_STANDARD
         // 桌面版Chrome User-Agent，用于避免搜索引擎重定向到移动应用
         private const val DESKTOP_USER_AGENT = WebViewConstants.DESKTOP_USER_AGENT
-        // 智能User-Agent，默认使用移动端
-        private const val SMART_USER_AGENT = WebViewConstants.DEFAULT_USER_AGENT
+        // 智能User-Agent，默认使用移动端（使用标准移动端User-Agent）
+        private const val SMART_USER_AGENT = WebViewConstants.MOBILE_USER_AGENT_STANDARD
         
         // 检测是否在语音胶囊模式中的方法
         private fun isInVoiceCapsuleMode(): Boolean {
@@ -491,6 +492,8 @@ class WebViewFactory(private val context: Context) {
             url.contains("360.cn") && url.contains("/s?") -> true
             url.contains("quark.sm.cn") && url.contains("/s?") -> true
             url.contains("google.com") && url.contains("/search?") -> true
+            // metaso.cn 使用桌面版User-Agent以确保页面正常加载
+            url.contains("metaso.cn") -> true
             // 其他网站使用移动版User-Agent
             else -> false
         }

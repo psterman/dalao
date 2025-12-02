@@ -35,6 +35,13 @@ object AITagManager {
                 isDefault = true
             ),
             AITag(
+                id = "voice_text",
+                name = "语音文本",
+                description = "语音转化的文本内容",
+                color = 0xFF4CAF50.toInt(),
+                isDefault = true
+            ),
+            AITag(
                 id = "custom_1",
                 name = "编程助手",
                 description = "专注于编程相关的AI助手",

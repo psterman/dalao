@@ -499,6 +499,35 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         Log.d(TAG, "切换到卡片视图模式")
     }
+    
+    /**
+     * 切换到横向拖动模式
+     */
+    private fun switchToHorizontalScrollMode() {
+        if (currentViewMode == ViewMode.HORIZONTAL_SCROLL) {
+            return // 已经是横向拖动模式
+        }
+        
+        currentViewMode = ViewMode.HORIZONTAL_SCROLL
+        
+        // 保存模式
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_VIEW_MODE, currentViewMode.ordinal).apply()
+        
+        // 切换视图显示
+        floatingWindowManager?.switchViewMode(false)
+        
+        // 如果WebViewManager还未初始化，则初始化它
+        if (webViewManager == null && xmlDefinedWebViews.isNotEmpty()) {
+            webViewManager = WebViewManager(
+                this,
+                xmlDefinedWebViews,
+                floatingWindowManager!!
+            )
+        }
+        
+        Log.d(TAG, "切换到横向拖动模式")
+    }
 
     /**
      * 创建通知渠道
@@ -604,34 +633,50 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 val query = searchQuery  // 此时已经确认非空
                 Log.d(TAG, "收到搜索请求: query='$query', engine='$engineKey', source='$searchSource'")
                 
-                // 设置搜索文本到输入框
-                floatingWindowManager?.setSearchInputText(query)
-                
-                // 确保输入框能获得焦点，防止被WebView内容抢夺
-                handler.postDelayed({
-                    ensureInputFocus()
-                }, 200)
-                
-                // 执行搜索
-                performSearch(query, engineKey ?: "google")
-                
-                // 检查是否需要显示工具栏
-                val showToolbar = it.getBooleanExtra("show_toolbar", false)
-                if (showToolbar) {
-                    // 延迟显示工具栏，等待WebView加载
+                // 检查是否是语音搜索模式
+                val isVoiceSearchMode = it.getBooleanExtra("voice_search_mode", false)
+                if (isVoiceSearchMode) {
+                    // 语音搜索模式：同时打开多个AI网页
+                    val voiceSearchEngines = it.getStringArrayExtra("voice_search_engines")
+                    if (!voiceSearchEngines.isNullOrEmpty()) {
+                        Log.d(TAG, "语音搜索模式：打开${voiceSearchEngines.size}个AI网页")
+                        performVoiceSearch(query, voiceSearchEngines)
+                    } else {
+                        // 如果没有指定引擎，使用默认的两个：百度AI对话界面（文心一言）和Google AI对话界面（Gemini）
+                        Log.d(TAG, "语音搜索模式：使用默认两个AI对话界面")
+                        performVoiceSearch(query, arrayOf("百度AI", "Google AI"))
+                    }
+                } else {
+                    // 普通搜索模式：使用原有逻辑
+                    // 设置搜索文本到输入框
+                    floatingWindowManager?.setSearchInputText(query)
+                    
+                    // 确保输入框能获得焦点，防止被WebView内容抢夺
                     handler.postDelayed({
-                        try {
-                            val toolbarIntent = Intent()
-                            toolbarIntent.setClassName(this, "com.example.aifloatingball.service.WebViewToolbarService")
-                            toolbarIntent.action = "com.example.aifloatingball.SHOW_TOOLBAR"
-                            toolbarIntent.putExtra("search_text", searchQuery)
-                            toolbarIntent.putExtra("ai_engine", engineKey ?: "Unknown")
-                            startService(toolbarIntent)
-                            Log.d(TAG, "已启动工具栏服务")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "启动工具栏服务失败", e)
-                        }
-                    }, 3000) // 3秒延迟
+                        ensureInputFocus()
+                    }, 200)
+                    
+                    // 执行搜索
+                    performSearch(query, engineKey ?: "google")
+                    
+                    // 检查是否需要显示工具栏
+                    val showToolbar = it.getBooleanExtra("show_toolbar", false)
+                    if (showToolbar) {
+                        // 延迟显示工具栏，等待WebView加载
+                        handler.postDelayed({
+                            try {
+                                val toolbarIntent = Intent()
+                                toolbarIntent.setClassName(this, "com.example.aifloatingball.service.WebViewToolbarService")
+                                toolbarIntent.action = "com.example.aifloatingball.SHOW_TOOLBAR"
+                                toolbarIntent.putExtra("search_text", searchQuery)
+                                toolbarIntent.putExtra("ai_engine", engineKey ?: "Unknown")
+                                startService(toolbarIntent)
+                                Log.d(TAG, "已启动工具栏服务")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "启动工具栏服务失败", e)
+                            }
+                        }, 3000) // 3秒延迟
+                    }
                 }
             }
             
@@ -851,6 +896,508 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
     }
 
+    /**
+     * 执行语音搜索：在多个WebView中同时打开多个AI网页并搜索
+     * @param query 搜索查询文本
+     * @param engineNames AI引擎名称数组
+     */
+    private fun performVoiceSearch(query: String, engineNames: Array<String>) {
+        Log.d(TAG, "执行语音搜索: query='$query', engines=${engineNames.contentToString()}")
+        
+        // 设置搜索文本到输入框
+        floatingWindowManager?.setSearchInputText(query)
+        
+        // 确保使用横向拖动模式
+        if (currentViewMode != ViewMode.HORIZONTAL_SCROLL) {
+            switchToHorizontalScrollMode()
+        }
+        
+        // 确保webViewManager已初始化
+        if (webViewManager == null && xmlDefinedWebViews.isNotEmpty()) {
+            webViewManager = WebViewManager(
+                this,
+                xmlDefinedWebViews,
+                floatingWindowManager!!
+            )
+            Log.d(TAG, "初始化webViewManager")
+        }
+        
+        // 确保窗口数量足够
+        val requiredWindowCount = engineNames.size
+        val currentWindowCount = getCurrentWindowCount()
+        if (currentWindowCount < requiredWindowCount) {
+            Log.d(TAG, "更新窗口数量: $currentWindowCount -> $requiredWindowCount")
+            updateWindowCount(requiredWindowCount)
+            // 等待窗口创建完成，增加延迟时间确保WebView已初始化
+            handler.postDelayed({
+                // 重新初始化webViewManager，因为窗口数量已更新
+                if (webViewManager == null && xmlDefinedWebViews.isNotEmpty()) {
+                    webViewManager = WebViewManager(
+                        this,
+                        xmlDefinedWebViews,
+                        floatingWindowManager!!
+                    )
+                }
+                loadVoiceSearchEngines(query, engineNames)
+            }, 1000) // 增加到1秒，确保WebView已创建
+        } else {
+            // 即使窗口数量足够，也稍微延迟一下，确保WebView已准备好
+            handler.postDelayed({
+                loadVoiceSearchEngines(query, engineNames)
+            }, 300)
+        }
+    }
+    
+    /**
+     * 在多个WebView中加载AI引擎并执行搜索
+     * @param query 搜索查询文本
+     * @param engineNames AI引擎名称数组
+     */
+    private fun loadVoiceSearchEngines(query: String, engineNames: Array<String>) {
+        Log.d(TAG, "加载语音搜索引擎: ${engineNames.contentToString()}")
+        
+        // 确保使用横向拖动模式
+        if (currentViewMode != ViewMode.HORIZONTAL_SCROLL) {
+            switchToHorizontalScrollMode()
+        }
+        
+        // 为每个引擎加载对应的网页
+        engineNames.forEachIndexed { index, engineName ->
+            handler.postDelayed({
+                try {
+                    Log.d(TAG, "在WebView $index 中加载引擎: $engineName")
+                    
+                    // 构建搜索URL - 优先处理百度AI和Google AI对话界面
+                    // 注意：必须优先匹配，避免被config查找逻辑覆盖
+                    val searchUrl = when {
+                        // 优先处理百度AI和Google AI对话界面，不通过config查找
+                        engineName.equals("百度AI", ignoreCase = true) || 
+                        engineName.equals("百度ai", ignoreCase = true) ||
+                        (engineName.contains("百度", ignoreCase = true) && engineName.contains("AI", ignoreCase = true)) -> {
+                            // 百度AI对话界面（文心一言）- 使用文心一言对话页面
+                            Log.d(TAG, "✓ 匹配到百度AI，使用文心一言对话界面: https://yiyan.baidu.com")
+                            "https://yiyan.baidu.com"
+                        }
+                        engineName.equals("Google AI", ignoreCase = true) || 
+                        engineName.equals("google ai", ignoreCase = true) ||
+                        engineName.equals("GoogleAI", ignoreCase = true) ||
+                        (engineName.contains("Google", ignoreCase = true) && engineName.contains("AI", ignoreCase = true)) -> {
+                            // Google AI对话界面（Gemini）- 使用Gemini对话页面
+                            Log.d(TAG, "✓ 匹配到Google AI，使用Gemini对话界面: https://gemini.google.com/app")
+                            "https://gemini.google.com/app"
+                        }
+                        // 其他引擎通过config查找
+                        else -> {
+                            // 获取AI配置
+                            var config = aiPageConfigManager.getConfigByKey(engineName)
+                            
+                            // 如果找不到配置，尝试从默认引擎列表中直接查找
+                            if (config == null) {
+                                config = AISearchEngine.DEFAULT_AI_ENGINES.find { 
+                                    it.name.equals(engineName, ignoreCase = true) ||
+                                    it.name.contains(engineName, ignoreCase = true) ||
+                                    engineName.contains(it.name, ignoreCase = true)
+                                }
+                                if (config != null) {
+                                    Log.d(TAG, "从默认引擎列表中找到配置: ${config.name}")
+                                }
+                            }
+                            
+                            // 根据config构建URL
+                            when {
+                                config != null && config.searchUrl.contains("{query}") -> {
+                                    // 如果searchUrl包含{query}占位符，直接替换
+                                    config.searchUrl.replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
+                                }
+                                engineName.contains("文心一言", ignoreCase = true) || engineName.contains("wenxin", ignoreCase = true) || engineName.contains("yiyan", ignoreCase = true) -> {
+                                    // 文心一言对话页面
+                                    "https://yiyan.baidu.com"
+                                }
+                                engineName.contains("Gemini", ignoreCase = true) || engineName.contains("gemini", ignoreCase = true) -> {
+                                    // Gemini对话页面
+                                    "https://gemini.google.com/app"
+                                }
+                                engineName.contains("秘塔", ignoreCase = true) || engineName.contains("metaso", ignoreCase = true) -> {
+                                    // 秘塔AI搜索 - 使用桌面版User-Agent以确保页面正常加载
+                                    "https://metaso.cn/?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                                }
+                                engineName.contains("豆包", ignoreCase = true) || engineName.contains("doubao", ignoreCase = true) -> {
+                                    // 豆包使用chat页面，查询参数通过JavaScript注入
+                                    "https://www.doubao.com/chat/"
+                                }
+                                engineName.contains("Perplexity", ignoreCase = true) || engineName.contains("perplexity", ignoreCase = true) -> {
+                                    // Perplexity使用搜索URL格式
+                                    "https://www.perplexity.ai/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                                }
+                                config != null -> {
+                                    // 其他情况，检查config的URL，如果是对话界面URL，直接使用，不添加查询参数
+                                    val baseUrl = config.url.trimEnd('/')
+                                    if (baseUrl.contains("yiyan.baidu.com") || baseUrl.contains("gemini.google.com")) {
+                                        // 文心一言或Gemini对话界面，直接使用URL，不添加查询参数（通过JavaScript注入）
+                                        Log.d(TAG, "使用config中的对话界面URL: $baseUrl")
+                                        baseUrl
+                                    } else {
+                                        // 其他情况，尝试在URL后添加查询参数
+                                        "$baseUrl?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                                    }
+                                }
+                                else -> {
+                                    // 如果都找不到，使用默认URL
+                                    Log.w(TAG, "无法确定引擎URL，使用默认处理: $engineName")
+                                    null
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (searchUrl != null) {
+                        Log.d(TAG, "在WebView $index 中加载URL: $searchUrl")
+                        
+                        // 确保webViewManager已初始化
+                        if (webViewManager == null && xmlDefinedWebViews.isNotEmpty()) {
+                            webViewManager = WebViewManager(
+                                this,
+                                xmlDefinedWebViews,
+                                floatingWindowManager!!
+                            )
+                        }
+                        
+                        // 在对应的WebView中加载URL
+                        webViewManager?.let { manager ->
+                            val webView = manager.getAllWebViews().getOrNull(index)
+                            if (webView != null) {
+                                // 对于 metaso，需要特殊配置WebView以确保页面正常加载
+                                if (engineName.contains("秘塔", ignoreCase = true) || engineName.contains("metaso", ignoreCase = true)) {
+                                    // 设置桌面版User-Agent
+                                    webView.settings.userAgentString = com.example.aifloatingball.utils.WebViewConstants.DESKTOP_USER_AGENT
+                                    
+                                    // 启用JavaScript（必须）
+                                    webView.settings.javaScriptEnabled = true
+                                    
+                                    // 启用Cookie管理
+                                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+                                    }
+                                    
+                                    // 启用数据库存储
+                                    webView.settings.databaseEnabled = true
+                                    
+                                    // 启用DOM存储（必须）
+                                    webView.settings.domStorageEnabled = true
+                                    
+                                    // 启用混合内容（HTTPS页面加载HTTP资源）
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                        webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                    }
+                                    
+                                    // 启用文件访问
+                                    webView.settings.allowFileAccess = true
+                                    webView.settings.allowContentAccess = true
+                                    
+                                    // 设置缓存模式
+                                    webView.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                                    
+                                    // 启用缩放支持
+                                    webView.settings.setSupportZoom(true)
+                                    webView.settings.builtInZoomControls = false
+                                    webView.settings.displayZoomControls = false
+                                    
+                                    // 设置视口
+                                    webView.settings.useWideViewPort = true
+                                    webView.settings.loadWithOverviewMode = true
+                                    
+                                    // 设置默认文本编码
+                                    webView.settings.defaultTextEncodingName = "UTF-8"
+                                    
+                                    // 确保WebView可见且尺寸正确
+                                    webView.visibility = View.VISIBLE
+                                    webView.setBackgroundColor(android.graphics.Color.WHITE)
+                                    
+                                    // 设置WebViewClient处理SSL错误和页面错误
+                                    val originalClient = webView.webViewClient
+                                    webView.webViewClient = object : android.webkit.WebViewClient() {
+                                        override fun onReceivedSslError(view: android.webkit.WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                                            // 对于metaso.cn，允许SSL错误（如果存在）
+                                            Log.w(TAG, "metaso SSL错误: ${error?.toString()}")
+                                            handler?.proceed()
+                                        }
+                                        
+                                        override fun onReceivedError(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                                            val errorCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                                error?.errorCode ?: -1
+                                            } else {
+                                                -1
+                                            }
+                                            val errorDescription = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                                error?.description?.toString() ?: "Unknown error"
+                                            } else {
+                                                "Unknown error"
+                                            }
+                                            Log.e(TAG, "metaso 页面加载错误: $errorDescription, Code: $errorCode, URL: ${request?.url}")
+                                            
+                                            // 调用原始WebViewClient的错误处理
+                                            if (originalClient != null) {
+                                                originalClient.onReceivedError(view, request, error)
+                                            }
+                                        }
+                                        
+                                        @Deprecated("Deprecated in Java")
+                                        override fun onReceivedError(view: android.webkit.WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                                            Log.e(TAG, "metaso 页面加载错误 (legacy): $description, Code: $errorCode, URL: $failingUrl")
+                                            if (originalClient != null) {
+                                                originalClient.onReceivedError(view, errorCode, description, failingUrl)
+                                            }
+                                        }
+                                        
+                                        override fun onPageStarted(view: android.webkit.WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                            Log.d(TAG, "metaso 页面开始加载: $url")
+                                            if (originalClient != null) {
+                                                originalClient.onPageStarted(view, url, favicon)
+                                            }
+                                        }
+                                        
+                                        override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                            Log.d(TAG, "metaso 页面加载完成: $url")
+                                            
+                                            // 页面加载完成后，检查页面内容
+                                            view?.evaluateJavascript("""
+                                                (function() {
+                                                    try {
+                                                        var body = document.body;
+                                                        if (body && body.innerHTML.trim().length > 0) {
+                                                            return 'SUCCESS';
+                                                        } else {
+                                                            return 'EMPTY_BODY';
+                                                        }
+                                                    } catch(e) {
+                                                        return 'ERROR: ' + e.message;
+                                                    }
+                                                })();
+                                            """.trimIndent()) { result ->
+                                                Log.d(TAG, "metaso 页面内容检查: $result")
+                                                if (result != null && result.contains("EMPTY_BODY")) {
+                                                    Log.w(TAG, "metaso 页面内容为空，尝试重新加载")
+                                                    handler.postDelayed({
+                                                        view?.reload()
+                                                    }, 1000)
+                                                }
+                                            }
+                                            
+                                            if (originalClient != null) {
+                                                originalClient.onPageFinished(view, url)
+                                            }
+                                        }
+                                        
+                                        override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                                            if (originalClient != null) {
+                                                return originalClient.shouldOverrideUrlLoading(view, request)
+                                            }
+                                            return false
+                                        }
+                                        
+                                        @Deprecated("Deprecated in Java")
+                                        override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                                            if (originalClient != null) {
+                                                return originalClient.shouldOverrideUrlLoading(view, url)
+                                            }
+                                            return false
+                                        }
+                                    }
+                                    
+                                    Log.d(TAG, "已为 metaso 配置完整WebView设置")
+                                }
+                                
+                                webView.loadUrl(searchUrl)
+                                
+                                // 对于百度AI对话界面（文心一言），需要在页面加载后通过JavaScript注入查询文本
+                                if (engineName.contains("百度AI", ignoreCase = true) || 
+                                    engineName.contains("文心一言", ignoreCase = true) || 
+                                    engineName.contains("wenxin", ignoreCase = true) || 
+                                    engineName.contains("yiyan", ignoreCase = true)) {
+                                    // 转义查询文本中的特殊字符，避免JavaScript注入攻击
+                                    val escapedQuery = query
+                                        .replace("\\", "\\\\")
+                                        .replace("'", "\\'")
+                                        .replace("\"", "\\\"")
+                                        .replace("\n", "\\n")
+                                        .replace("\r", "\\r")
+                                    
+                                    // 延迟执行JavaScript，等待页面加载完成
+                                    handler.postDelayed({
+                                        try {
+                                            val jsCode = """
+                                                (function() {
+                                                    // 尝试找到输入框并输入查询文本
+                                                    var input = document.querySelector('textarea, input[type="text"], input[type="search"], [contenteditable="true"], .input-area, .chat-input');
+                                                    if (input) {
+                                                        if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+                                                            input.value = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                                                        } else if (input.contentEditable === 'true') {
+                                                            input.textContent = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                        }
+                                                        // 尝试触发搜索或发送
+                                                        setTimeout(function() {
+                                                            var sendButton = document.querySelector('button[type="submit"], button[aria-label*="发送"], button[aria-label*="搜索"], button[aria-label*="Send"], [data-testid*="send"], .send-button, .submit-button');
+                                                            if (sendButton) {
+                                                                sendButton.click();
+                                                            }
+                                                        }, 500);
+                                                    }
+                                                })();
+                                            """.trimIndent()
+                                            webView.evaluateJavascript(jsCode, null)
+                                            Log.d(TAG, "已为文心一言注入查询文本: $query")
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "为文心一言注入查询文本失败", e)
+                                        }
+                                    }, 2000) // 等待2秒让页面加载完成
+                                }
+                                
+                                // 对于Google AI对话界面（Gemini），需要在页面加载后通过JavaScript注入查询文本
+                                if (engineName.contains("Google AI", ignoreCase = true) || 
+                                    engineName.contains("Gemini", ignoreCase = true) || 
+                                    engineName.contains("gemini", ignoreCase = true)) {
+                                    // 转义查询文本中的特殊字符，避免JavaScript注入攻击
+                                    val escapedQuery = query
+                                        .replace("\\", "\\\\")
+                                        .replace("'", "\\'")
+                                        .replace("\"", "\\\"")
+                                        .replace("\n", "\\n")
+                                        .replace("\r", "\\r")
+                                    
+                                    // 延迟执行JavaScript，等待页面加载完成
+                                    handler.postDelayed({
+                                        try {
+                                            val jsCode = """
+                                                (function() {
+                                                    // 尝试找到输入框并输入查询文本
+                                                    var input = document.querySelector('textarea, input[type="text"], input[type="search"], [contenteditable="true"], .ql-editor, .input-box');
+                                                    if (input) {
+                                                        if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+                                                            input.value = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                                                        } else if (input.contentEditable === 'true') {
+                                                            input.textContent = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                        }
+                                                        // 尝试触发搜索或发送
+                                                        setTimeout(function() {
+                                                            var sendButton = document.querySelector('button[type="submit"], button[aria-label*="发送"], button[aria-label*="搜索"], button[aria-label*="Send"], [data-testid*="send"], .send-button');
+                                                            if (sendButton) {
+                                                                sendButton.click();
+                                                            }
+                                                        }, 500);
+                                                    }
+                                                })();
+                                            """.trimIndent()
+                                            webView.evaluateJavascript(jsCode, null)
+                                            Log.d(TAG, "已为Gemini注入查询文本: $query")
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "为Gemini注入查询文本失败", e)
+                                        }
+                                    }, 2000) // 等待2秒让页面加载完成
+                                }
+                                
+                                // 对于豆包，需要在页面加载后通过JavaScript注入查询文本
+                                if (engineName.contains("豆包", ignoreCase = true) || engineName.contains("doubao", ignoreCase = true)) {
+                                    // 转义查询文本中的特殊字符，避免JavaScript注入攻击
+                                    val escapedQuery = query
+                                        .replace("\\", "\\\\")
+                                        .replace("'", "\\'")
+                                        .replace("\"", "\\\"")
+                                        .replace("\n", "\\n")
+                                        .replace("\r", "\\r")
+                                    
+                                    // 延迟执行JavaScript，等待页面加载完成
+                                    handler.postDelayed({
+                                        try {
+                                            val jsCode = """
+                                                (function() {
+                                                    // 尝试找到输入框并输入查询文本
+                                                    var input = document.querySelector('textarea, input[type="text"], input[type="search"], [contenteditable="true"]');
+                                                    if (input) {
+                                                        if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+                                                            input.value = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                                                        } else if (input.contentEditable === 'true') {
+                                                            input.textContent = '$escapedQuery';
+                                                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                                                        }
+                                                        // 尝试触发搜索或发送
+                                                        setTimeout(function() {
+                                                            var sendButton = document.querySelector('button[type="submit"], button[aria-label*="发送"], button[aria-label*="搜索"], button[aria-label*="Send"], [data-testid*="send"]');
+                                                            if (sendButton) {
+                                                                sendButton.click();
+                                                            }
+                                                        }, 500);
+                                                    }
+                                                })();
+                                            """.trimIndent()
+                                            webView.evaluateJavascript(jsCode, null)
+                                            Log.d(TAG, "已为豆包注入查询文本: $query")
+                                        } catch (e: Exception) {
+                                            Log.e(TAG, "为豆包注入查询文本失败", e)
+                                        }
+                                    }, 2000) // 等待2秒让页面加载完成
+                                }
+                                
+                                // 对于 metaso，添加页面加载完成检测和错误处理
+                                if (engineName.contains("秘塔", ignoreCase = true) || engineName.contains("metaso", ignoreCase = true)) {
+                                    // 延迟检查页面加载状态
+                                    handler.postDelayed({
+                                        val currentUrl = webView.url
+                                        if (currentUrl != null && currentUrl.contains("metaso.cn")) {
+                                            // 检查页面是否正常加载
+                                            webView.evaluateJavascript("""
+                                                (function() {
+                                                    try {
+                                                        var body = document.body;
+                                                        if (body && body.innerHTML.trim().length > 0) {
+                                                            return 'SUCCESS: Page loaded, content length: ' + body.innerHTML.length;
+                                                        } else {
+                                                            return 'WARNING: Page body is empty';
+                                                        }
+                                                    } catch(e) {
+                                                        return 'ERROR: ' + e.message;
+                                                    }
+                                                })();
+                                            """.trimIndent()) { result ->
+                                                Log.d(TAG, "metaso 页面加载检查结果: $result")
+                                                if (result != null && (result.contains("WARNING") || result.contains("ERROR"))) {
+                                                    Log.w(TAG, "metaso 页面可能未正常加载，尝试重新加载")
+                                                    // 如果页面未正常加载，尝试重新加载
+                                                    handler.postDelayed({
+                                                        webView.reload()
+                                                    }, 1000)
+                                                }
+                                            }
+                                        }
+                                    }, 3000) // 延迟3秒检查，确保页面加载完成
+                                }
+                                
+                                Log.d(TAG, "WebView $index 加载成功: $engineName")
+                            } else {
+                                Log.w(TAG, "WebView $index 不存在，无法加载: $engineName")
+                            }
+                        } ?: run {
+                            Log.e(TAG, "webViewManager未初始化，无法加载: $engineName")
+                        }
+                    } else {
+                        Log.e(TAG, "无法构建搜索URL: $engineName")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "加载引擎失败: $engineName", e)
+                }
+            }, (index * 300).toLong()) // 每个WebView延迟300ms加载，避免同时加载造成卡顿
+        }
+    }
+    
     /**
      * 在指定WebView中执行定制AI搜索
      */

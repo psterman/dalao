@@ -513,27 +513,56 @@
                 android:gravity="center_horizontal"
                 android:layout_marginBottom="32dp">
 
-                <!-- 麦克风按钮 -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/voice_mic_container"
+                <!-- 麦克风按钮容器（支持iOS动画） -->
+                <FrameLayout
                     android:layout_width="140dp"
                     android:layout_height="140dp"
-                    android:layout_marginBottom="16dp"
-                    app:cardBackgroundColor="@color/simple_mode_accent_light"
-                    app:cardCornerRadius="70dp"
-                    app:cardElevation="12dp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:rippleColor="@android:color/white">
-
-                    <ImageView
-                        android:id="@+id/voice_mic_icon"
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
+                    android:layout_marginBottom="16dp">
+                    
+                    <!-- iOS风格的涟漪效果层 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/voice_mic_ripple"
+                        android:layout_width="140dp"
+                        android:layout_height="140dp"
                         android:layout_gravity="center"
-                        android:src="@drawable/ic_mic"
-                        app:tint="@android:color/white" />
-                </com.google.android.material.card.MaterialCardView>
+                        app:cardBackgroundColor="@color/simple_mode_accent_light"
+                        app:cardCornerRadius="70dp"
+                        android:alpha="0.0"
+                        android:visibility="gone" />
+
+                    <!-- 麦克风按钮 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/voice_mic_container"
+                        android:layout_width="140dp"
+                        android:layout_height="140dp"
+                        android:layout_gravity="center"
+                        app:cardBackgroundColor="@color/simple_mode_accent_light"
+                        app:cardCornerRadius="70dp"
+                        app:cardElevation="12dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        app:rippleColor="@android:color/white">
+
+                        <ImageView
+                            android:id="@+id/voice_mic_icon"
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_mic"
+                            app:tint="@android:color/white" />
+                            
+                        <!-- 录音标识（红色圆点） -->
+                        <View
+                            android:id="@+id/voice_recording_indicator"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:layout_gravity="top|end"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:background="@drawable/recording_indicator"
+                            android:visibility="gone" />
+                    </com.google.android.material.card.MaterialCardView>
+                </FrameLayout>
 
                 <!-- 状态指示器 -->
                 <com.example.aifloatingball.ui.WaveformView
@@ -687,6 +716,23 @@
                     app:strokeColor="@color/simple_mode_accent_light"
                     android:textColor="@color/simple_mode_accent_light"
                     app:icon="@drawable/ic_clear"
+                    app:iconGravity="textStart" />
+
+                <!-- 暂停/继续按钮 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/voice_pause_button"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
+                    android:text="暂停"
+                    android:textSize="16sp"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:strokeColor="@color/simple_mode_accent_light"
+                    android:textColor="@color/simple_mode_accent_light"
+                    android:visibility="gone"
+                    app:icon="@drawable/ic_pause"
                     app:iconGravity="textStart" />
 
                 <com.google.android.material.button.MaterialButton

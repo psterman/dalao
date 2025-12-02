@@ -22,7 +22,8 @@ class WaveformView @JvmOverloads constructor(
     private val paint = Paint().apply {
         isAntiAlias = true
         color = Color.parseColor("#4CAF50")  // 默认为绿色
-        style = Paint.Style.FILL
+        style = Paint.Style.STROKE  // 使用描边模式，显示为框线
+        strokeWidth = 2f  // 设置线宽
     }
     
     private val path = Path()
@@ -78,30 +79,29 @@ class WaveformView @JvmOverloads constructor(
         val height = height.toFloat()
         val centerY = height / 2
         
-        // 计算最大振幅
-        val maxAmplitude = centerY * 0.8f * amplitude
+        // 计算最大振幅（用于框线波动，振幅较小）
+        val maxAmplitude = height * 0.3f * amplitude
         
         // 清除路径
         path.reset()
         
-        // 移动到起点
-        path.moveTo(0f, centerY)
-        
-        // 绘制正弦波
-        val step = 1f  // 每个点的步长
+        // 绘制波动线（从左上角到右上角，在框线位置）
+        val step = 2f  // 每个点的步长
+        var isFirstPoint = true
         for (x in 0 until width.toInt() step step.toInt()) {
             val xRatio = x / width
-            val y = centerY + sin(xRatio * 2 * Math.PI * waveCount + phase) * maxAmplitude
-            path.lineTo(x.toFloat(), y.toFloat())
+            // 使用正弦波生成波动效果
+            val y = centerY + sin(xRatio * 2 * Math.PI * waveCount * 2 + phase).toFloat() * maxAmplitude
+            
+            if (isFirstPoint) {
+                path.moveTo(x.toFloat(), y)
+                isFirstPoint = false
+            } else {
+                path.lineTo(x.toFloat(), y)
+            }
         }
         
-        // 完成路径
-        path.lineTo(width, centerY)
-        path.lineTo(width, height)
-        path.lineTo(0f, height)
-        path.close()
-        
-        // 绘制路径
+        // 绘制路径（只绘制线条，不填充）
         canvas.drawPath(path, paint)
     }
 } 

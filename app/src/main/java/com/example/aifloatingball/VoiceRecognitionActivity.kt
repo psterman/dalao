@@ -45,7 +45,8 @@ class VoiceRecognitionActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
-    private var recognizedText = ""
+    private var recognizedText = "" // 已确认的最终文本
+    private var currentPartialText = "" // 当前部分识别结果（临时显示）
     private lateinit var settingsManager: SettingsManager
     
     // 界面元素
@@ -73,6 +74,7 @@ class VoiceRecognitionActivity : Activity() {
         
         // 启动前清空状态
         recognizedText = ""
+        currentPartialText = ""
         recognizedTextView.setText("")
         
         // 检查权限并启动语音识别
@@ -143,12 +145,35 @@ class VoiceRecognitionActivity : Activity() {
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer?.setRecognitionListener(createRecognitionListener())
         
-        // 准备识别意图
+        // 准备识别意图 - 优化参数以提高识别效果和实时性
         val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            // 使用自由格式语言模型，识别效果更好
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            
+            // 设置语言为中文
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            
+            // 启用部分结果，实现实时流式显示
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            
+            // 增加最大结果数，可能提高部分结果更新频率
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+            
+            // 尝试优化识别参数（某些设备可能不支持，但不影响使用）
+            try {
+                // 设置更短的静音分段时间，让识别更频繁地返回结果
+                putExtra("android.speech.extra.SEGMENTATION_SILENCE_LENGTH_MS", 300) // 300ms静音后分段
+            } catch (e: Exception) {
+                Log.d(TAG, "设备不支持SEGMENTATION_SILENCE_LENGTH_MS参数")
+            }
+            
+            // 尝试设置识别超时时间（某些设备支持）
+            try {
+                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2000) // 2秒静音后完成
+                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 1500) // 1.5秒可能完成
+            } catch (e: Exception) {
+                Log.d(TAG, "设备不支持超时参数")
+            }
         }
         
         // 开始识别
@@ -202,12 +227,16 @@ class VoiceRecognitionActivity : Activity() {
             override fun onReadyForSpeech(params: Bundle?) {
                 handler.post {
                     listeningText.text = "请开始说话"
+                    // 清空部分识别结果，准备新的识别
+                    currentPartialText = ""
                 }
             }
 
             override fun onBeginningOfSpeech() {
                 handler.post {
                     listeningText.text = "正在聆听..."
+                    // 清空部分识别结果，开始新的识别
+                    currentPartialText = ""
                 }
             }
 
@@ -223,6 +252,13 @@ class VoiceRecognitionActivity : Activity() {
             override fun onEndOfSpeech() {
                 handler.post {
                     listeningText.text = "正在处理..."
+                    // 清空部分识别结果，等待最终结果
+                    currentPartialText = ""
+                    // 如果还有已确认的文本，只显示已确认的文本
+                    if (recognizedText.isNotEmpty()) {
+                        recognizedTextView.setText(recognizedText)
+                        recognizedTextView.setSelection(recognizedText.length)
+                    }
                 }
             }
 
@@ -276,14 +312,36 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun processRecognitionResults(results: Bundle?) {
         try {
-        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        if (!matches.isNullOrEmpty()) {
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
                 val newFinalText = matches[0]
+                
+                // 清除当前的部分识别结果
+                currentPartialText = ""
+                
+                // 智能合并最终结果，避免重复
+                recognizedText = if (recognizedText.isEmpty()) {
+                    newFinalText
+                } else {
+                    // 检查新文本是否已经包含在已确认文本中
+                    if (recognizedText.contains(newFinalText)) {
+                        // 如果已包含，检查是否有新增内容
+                        val newPart = newFinalText.replace(recognizedText, "").trim()
+                        if (newPart.isNotEmpty()) {
+                            "$recognizedText $newPart"
+                        } else {
+                            recognizedText // 没有新增内容
+                        }
+                    } else if (newFinalText.contains(recognizedText)) {
+                        // 如果新文本包含已确认文本，使用新文本（可能更完整）
+                        newFinalText
+                    } else {
+                        // 完全不同的文本，追加
+                        "$recognizedText $newFinalText"
+                    }
+                }
             
-                // 将新的最终结果追加到累积文本中
-                recognizedText = if (recognizedText.isEmpty()) newFinalText else "$recognizedText $newFinalText"
-            
-                // 使用累积的文本更新显示
+                // 使用累积的文本更新显示（只显示已确认的文本）
                 recognizedTextView.setText(recognizedText)
                 recognizedTextView.setSelection(recognizedText.length)
                 
@@ -292,13 +350,14 @@ class VoiceRecognitionActivity : Activity() {
                 
                 // 确保"说完了"按钮可用
                 doneButton.isEnabled = true
-                Log.d(TAG, "SpeechRecognizer识别成功，当前累积文本: '$recognizedText'")
-                // Introduce a delay to allow the recognizer to reset properly
+                Log.d(TAG, "✓ 识别成功，当前累积文本: '$recognizedText'")
+                
+                // 立即重启识别，实现无缝连续识别
                 handler.postDelayed({
-                    if (isListening) { // Prevent restart if user manually stopped
+                    if (isListening) { // 防止用户手动停止后重启
                         startVoiceRecognition()
                     }
-                }, 250)
+                }, 50) // 进一步缩短到50ms，实现更快的连续识别
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理识别结果失败: ${e.message}")
@@ -311,11 +370,46 @@ class VoiceRecognitionActivity : Activity() {
         if (!matches.isNullOrEmpty()) {
             val partialText = matches[0]
             
-            // 显示部分识别结果，追加到已确定的文本后面
+            // 更新当前部分识别结果
             if (partialText.isNotEmpty()) {
-                val displayText = if (recognizedText.isEmpty()) partialText else "$recognizedText $partialText"
-                recognizedTextView.setText(displayText)
-                recognizedTextView.setSelection(displayText.length)
+                // 检查部分结果是否有更新（避免重复更新相同内容）
+                if (partialText != currentPartialText) {
+                    currentPartialText = partialText
+                    
+                    // 智能合并：已确认的文本 + 当前部分识别结果
+                    val displayText = if (recognizedText.isEmpty()) {
+                        // 没有已确认文本，直接显示部分结果
+                        partialText
+                    } else {
+                        // 有已确认文本，需要智能合并
+                        if (partialText.startsWith(recognizedText)) {
+                            // 部分结果以已确认文本开头，直接使用部分结果（更完整）
+                            partialText
+                        } else if (recognizedText.contains(partialText)) {
+                            // 部分结果已包含在已确认文本中，只显示已确认文本
+                            recognizedText
+                        } else {
+                            // 部分结果是新增内容，追加显示
+                            "$recognizedText $partialText"
+                        }
+                    }
+                    
+                    // 实时更新显示文本（立即在主线程更新，实现流式显示）
+                    recognizedTextView.setText(displayText)
+                    recognizedTextView.setSelection(displayText.length)
+                    
+                    Log.d(TAG, "↻ 部分结果更新: '$partialText' → 显示: '$displayText'")
+                }
+            } else {
+                // 部分结果为空，清空当前部分结果
+                if (currentPartialText.isNotEmpty()) {
+                    currentPartialText = ""
+                    // 只显示已确认的文本
+                    if (recognizedText.isNotEmpty()) {
+                        recognizedTextView.setText(recognizedText)
+                        recognizedTextView.setSelection(recognizedText.length)
+                    }
+                }
             }
         }
     }
@@ -482,17 +576,22 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun triggerSearchAndDestroySimpleMode(query: String) {
         try {
-            Log.d(TAG, "准备发送'ACTION_SEARCH_AND_DESTROY'广播, 查询: '$query'")
+            Log.d(TAG, "准备启动语音搜索，查询: '$query'")
 
-            val broadcastIntent = Intent("com.example.aifloatingball.ACTION_SEARCH_AND_DESTROY").apply {
-                `package` = this@VoiceRecognitionActivity.packageName
+            // 启动DualFloatingWebViewService，默认加载百度AI对话界面（文心一言）和Google AI对话界面（Gemini）
+            val serviceIntent = Intent(this, com.example.aifloatingball.service.DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
-                // 不再需要传递引擎，SimpleModeService会自己处理
+                putExtra("voice_search_mode", true) // 标记为语音搜索模式
+                putExtra("voice_search_engines", arrayOf("百度AI", "Google AI")) // 默认两个AI对话界面：百度AI（文心一言）和Google AI（Gemini）
+                putExtra("window_count", 2) // 设置窗口数量为2
+                putExtra("use_card_view_mode", false) // 使用横向拖动模式，方便查看多个网页
+                putExtra("search_source", "语音输入")
             }
-            sendBroadcast(broadcastIntent)
+            startService(serviceIntent)
+            Log.d(TAG, "已启动DualFloatingWebViewService进行语音搜索")
             
         } catch (e: Exception) {
-            Log.e(TAG, "发送'ACTION_SEARCH_AND_DESTROY'广播失败: ${e.message}", e)
+            Log.e(TAG, "启动语音搜索失败: ${e.message}", e)
             Toast.makeText(this, "启动搜索失败", Toast.LENGTH_LONG).show()
         }
     }

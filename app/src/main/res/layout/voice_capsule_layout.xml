@@ -7,9 +7,9 @@
     android:background="@color/simple_mode_background_light">
 
 
-    <!-- 第一段：平台图标区域 - 参考对话tab中AI回复下方的图标 -->
+    <!-- 第一段：AI应用图标区域 - 显示用户常用的AI应用 -->
     <LinearLayout
-        android:id="@+id/voice_capsule_platform_icons_container"
+        android:id="@+id/voice_capsule_ai_apps_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -19,13 +19,22 @@
         android:gravity="center"
         android:background="@color/simple_mode_card_background_light"
         android:padding="12dp"
-        android:visibility="gone">
+        android:visibility="visible">
 
-        <!-- 平台图标将动态添加到这里 -->
-        <com.example.aifloatingball.ui.PlatformIconsView
-            android:id="@+id/voice_capsule_platform_icons_view"
+        <!-- AI应用图标将动态添加到这里 -->
+        <HorizontalScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:fadeScrollbars="true">
+            
+            <LinearLayout
+                android:id="@+id/voice_capsule_ai_apps_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical" />
+        </HorizontalScrollView>
 
     </LinearLayout>
 
@@ -57,206 +66,224 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:minHeight="220dp"
                 android:orientation="vertical"
                 android:padding="12dp"
                 android:background="@android:color/white">
 
-                <!-- 输入框容器 -->
-                <RelativeLayout
+                <!-- 输入框容器 - 使用FrameLayout确保正确的z-order -->
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:minHeight="200dp"
                     android:background="@drawable/voice_capsule_input_background"
                     android:padding="8dp">
 
+                    <!-- EditText层 - 最底层 -->
                     <EditText
                         android:id="@+id/voice_capsule_text_input"
                         android:layout_width="match_parent"
-                        android:layout_height="120dp"
-                        android:layout_marginBottom="40dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="0dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="40dp"
+                        android:paddingBottom="120dp"
+                        android:minHeight="180dp"
                         android:gravity="top|start"
                         android:textSize="14sp"
-                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:textColor="#000000"
                         android:hint="语音识别结果将显示在这里..."
+                        android:textColorHint="#757575"
                         android:background="@android:color/transparent"
                         android:inputType="textMultiLine"
-                        android:maxLines="4"
+                        android:maxLines="15"
+                        android:minLines="3"
                         android:scrollbars="vertical"
-                        android:overScrollMode="ifContentScrolls" />
+                        android:overScrollMode="ifContentScrolls"
+                        android:elevation="1dp" />
 
-                    <!-- 麦克风按钮 - 放在输入框右下角，支持左右手模式 -->
-                    <RelativeLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                        android:layout_alignParentBottom="true"
-                        android:layout_alignParentEnd="true"
-                        android:layout_marginBottom="4dp"
-                        android:layout_marginEnd="4dp"
-                        android:elevation="8dp"
-                        android:background="?attr/selectableItemBackgroundBorderless">
+                    <!-- 转化计时器 - 右上角 -->
+                    <TextView
+                        android:id="@+id/voice_capsule_text_conversion_timer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="top|end"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_marginTop="8dp"
+                        android:text="00:00"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="#4CAF50"
+                        android:background="@android:color/transparent"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="4dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:visibility="gone"
+                        android:clickable="false"
+                        android:focusable="false"
+                        android:elevation="10dp" />
+                    
+                    <!-- 波动线动画 - 底部 -->
+                    <com.example.aifloatingball.ui.WaveformView
+                        android:id="@+id/voice_capsule_waveform_bottom"
+                        android:layout_width="match_parent"
+                        android:layout_height="3dp"
+                        android:layout_gravity="bottom|start"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:visibility="gone"
+                        android:elevation="2dp" />
 
-                        <!-- 录音波形动画（在麦克风按钮内部） -->
-                        <com.example.aifloatingball.ui.WaveformView
-                            android:id="@+id/voice_capsule_waveform"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:layout_centerInParent="true"
-                            android:visibility="gone" />
-
-                        <!-- 麦克风按钮 -->
-                    <ImageView
-                            android:id="@+id/voice_capsule_floating_mic"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@drawable/ic_mic"
-                            android:background="@drawable/voice_capsule_app_icon_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                            android:padding="12dp"
-                            android:elevation="4dp" />
-
-                        <!-- 暂停按钮（录音停止时显示） -->
-                    <ImageView
-                            android:id="@+id/voice_capsule_pause_btn"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:src="@drawable/ic_pause"
-                            android:background="@drawable/voice_capsule_red_button_background"
-                        android:clickable="true"
-                        android:focusable="true"
-                            android:padding="12dp"
-                            android:visibility="gone"
-                            android:elevation="4dp" />
-
-                    </RelativeLayout>
-
-                    <!-- 文本工具按钮区域 - 放入输入框内 -->
+                    <!-- 按钮工具栏 - 底部，所有按钮同一行 -->
                     <LinearLayout
+                        android:id="@+id/voice_capsule_button_toolbar"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_alignParentBottom="true"
+                        android:layout_gravity="bottom|start"
                         android:orientation="horizontal"
-                        android:gravity="center"
-                        android:padding="4dp"
-                        android:background="@android:color/white">
-
+                        android:gravity="center_vertical|end"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:background="@android:color/transparent"
+                        android:elevation="20dp">
+                        
                         <!-- 清空按钮 -->
-                        <LinearLayout
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_clear_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:layout_marginEnd="8dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:background="?attr/selectableItemBackgroundBorderless">
-
-                            <ImageView
-                                android:id="@+id/voice_capsule_clear_btn"
-                                android:layout_width="32dp"
-                                android:layout_height="32dp"
-                                android:src="@drawable/ic_trash"
-                                android:background="@drawable/voice_capsule_button_background"
-                                android:padding="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="清空"
-                                android:textSize="10sp"
-                                android:textColor="@color/simple_mode_text_secondary_light"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="清空"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_trash"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="清空文本" />
 
                         <!-- 复制按钮 -->
-                        <LinearLayout
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_copy_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:layout_marginEnd="8dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:background="?attr/selectableItemBackgroundBorderless">
-
-                            <ImageView
-                                android:id="@+id/voice_capsule_copy_btn"
-                                android:layout_width="32dp"
-                                android:layout_height="32dp"
-                                android:src="@drawable/ic_copy_white"
-                                android:background="@drawable/voice_capsule_button_background"
-                                android:padding="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="复制"
-                                android:textSize="10sp"
-                                android:textColor="@color/simple_mode_text_secondary_light"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="复制"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_copy_white"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="复制文本" />
 
                         <!-- 粘贴按钮 -->
-                        <LinearLayout
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_paste_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:layout_marginEnd="8dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:background="?attr/selectableItemBackgroundBorderless">
-
-                            <ImageView
-                                android:id="@+id/voice_capsule_paste_btn"
-                                android:layout_width="32dp"
-                                android:layout_height="32dp"
-                                android:src="@drawable/ic_paste_white"
-                                android:background="@drawable/voice_capsule_button_background"
-                                android:padding="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="粘贴"
-                                android:textSize="10sp"
-                                android:textColor="@color/simple_mode_text_secondary_light"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="粘贴"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_paste_white"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="粘贴文本" />
 
                         <!-- 分享按钮 -->
-                        <LinearLayout
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_share_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:gravity="center"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:background="?attr/selectableItemBackgroundBorderless">
-
-                            <ImageView
-                                android:id="@+id/voice_capsule_share_btn"
-                                android:layout_width="32dp"
-                                android:layout_height="32dp"
-                                android:src="@drawable/ic_share"
-                                android:background="@drawable/voice_capsule_button_background"
-                                android:padding="6dp" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="分享"
-                                android:textSize="10sp"
-                                android:textColor="@color/simple_mode_text_secondary_light"
-                                android:layout_marginTop="2dp" />
-
-                        </LinearLayout>
-
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="4dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="分享"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_share"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="分享文本" />
+                        
+                        <!-- 保存按钮 -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_save_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="8dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="保存"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_save"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="保存文本"
+                            android:visibility="gone" />
+                        
+                        <!-- 开始/暂停按钮 -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/voice_capsule_start_pause_btn"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="8dp"
+                            android:minWidth="0dp"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp"
+                            android:text="开始"
+                            android:textSize="12sp"
+                            android:icon="@drawable/ic_mic"
+                            app:iconGravity="textStart"
+                            app:iconPadding="4dp"
+                            app:iconTint="@color/simple_mode_primary_light"
+                            app:strokeColor="@color/simple_mode_primary_light"
+                            app:strokeWidth="1dp"
+                            app:cornerRadius="18dp"
+                            android:contentDescription="开始/暂停语音转文本" />
                     </LinearLayout>
 
-                </RelativeLayout>
+                </FrameLayout>
 
             </LinearLayout>
 
