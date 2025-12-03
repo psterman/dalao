@@ -33,15 +33,34 @@ class AITagManager private constructor(private val context: Context) {
     
     /**
      * 获取所有标签
+     * 合并保存的标签和默认标签，确保默认标签总是存在
      */
     fun getAllTags(): List<AITag> {
         val savedTags = loadSavedTags()
-        return if (savedTags.isNotEmpty()) {
-            savedTags
-        } else {
-            // 如果没有保存的标签，返回默认标签
-            defaultTags
+        val savedTagIds = savedTags.map { it.id }.toSet()
+        
+        // 合并保存的标签和默认标签（默认标签优先，如果已保存则使用保存的版本）
+        val mergedTags = mutableListOf<AITag>()
+        
+        // 先添加默认标签（如果已保存，则使用保存的版本）
+        defaultTags.forEach { defaultTag ->
+            val savedTag = savedTags.find { it.id == defaultTag.id }
+            mergedTags.add(savedTag ?: defaultTag)
         }
+        
+        // 再添加其他保存的标签（非默认标签）
+        savedTags.forEach { savedTag ->
+            if (savedTag.id !in defaultTags.map { it.id }) {
+                mergedTags.add(savedTag)
+            }
+        }
+        
+        // 如果没有任何保存的标签，初始化并保存默认标签
+        if (savedTags.isEmpty()) {
+            saveTags(defaultTags)
+        }
+        
+        return mergedTags
     }
     
     /**

@@ -22,20 +22,24 @@ class VoiceTextTagManager(private val context: Context) {
     
     /**
      * 确保语音文本标签存在
+     * 注意：voice_text是默认标签，应该总是存在
      */
     fun ensureVoiceTextTagExists(): AITag {
         val existingTag = aiTagManager.getTag(VOICE_TEXT_TAG_ID)
         return if (existingTag != null) {
+            Log.d(TAG, "语音文本标签已存在: ${existingTag.name}")
             existingTag
         } else {
-            // 创建语音文本标签
-            val newTag = aiTagManager.createTag(
+            // 如果标签不存在，说明默认标签还没有被加载，返回一个临时标签对象
+            // 注意：这里不创建新标签，因为voice_text是默认标签，应该通过初始化加载
+            Log.w(TAG, "语音文本标签不存在，使用默认标签配置")
+            AITag(
+                id = VOICE_TEXT_TAG_ID,
                 name = VOICE_TEXT_TAG_NAME,
                 description = "语音转化的文本内容",
-                color = 0xFF4CAF50.toInt() // 绿色
+                color = 0xFF4CAF50.toInt(),
+                isDefault = true
             )
-            Log.d(TAG, "创建语音文本标签: ${newTag.name}")
-            newTag
         }
     }
     
@@ -110,7 +114,13 @@ class VoiceTextTagManager(private val context: Context) {
             "${textInfo.text.replace("|", "\\|").replace(";", "\\;")};${textInfo.createdAt}"
         }
         
-        prefs.edit().putString("texts", json).apply()
+        // 使用commit()确保立即保存
+        val success = prefs.edit().putString("texts", json).commit()
+        if (success) {
+            Log.d(TAG, "文本信息已保存到SharedPreferences，当前总数: ${texts.size}")
+        } else {
+            Log.e(TAG, "保存文本信息到SharedPreferences失败")
+        }
     }
     
     /**

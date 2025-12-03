@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:hint="语音文本内容"
+        app:boxStrokeColor="@color/simple_mode_accent_light"
+        app:hintTextColor="@color/simple_mode_accent_light">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/voice_text_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minLines="4"
+            android:maxLines="10"
+            android:gravity="top|start"
+            android:textSize="16sp"
+            android:textColor="@color/simple_mode_input_text_light"
+            android:inputType="textMultiLine|textCapSentences"
+            android:scrollbars="vertical" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+</LinearLayout>
+
+
+

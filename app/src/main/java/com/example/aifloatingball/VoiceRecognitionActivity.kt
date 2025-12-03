@@ -32,6 +32,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.service.SimpleModeService
+import com.example.aifloatingball.manager.UnifiedCollectionManager
+import com.example.aifloatingball.model.UnifiedCollectionItem
+import com.example.aifloatingball.model.CollectionType
+import com.example.aifloatingball.model.Priority
+import com.example.aifloatingball.model.CompletionStatus
+import com.example.aifloatingball.model.EmotionTag
+import com.example.aifloatingball.voice.VoiceTextTagManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
@@ -55,6 +62,7 @@ class VoiceRecognitionActivity : Activity() {
     private lateinit var listeningText: TextView
     private lateinit var recognizedTextView: EditText
     private lateinit var doneButton: MaterialButton
+    private lateinit var saveButton: MaterialButton
     private lateinit var zoomInButton: ImageButton
     private lateinit var zoomOutButton: ImageButton
 
@@ -91,6 +99,7 @@ class VoiceRecognitionActivity : Activity() {
         listeningText = findViewById(R.id.listeningText)
         recognizedTextView = findViewById(R.id.recognizedText)
         doneButton = findViewById(R.id.doneButton)
+        saveButton = findViewById(R.id.saveButton)
         zoomInButton = findViewById(R.id.zoomInButton)
         zoomOutButton = findViewById(R.id.zoomOutButton)
 
@@ -104,6 +113,12 @@ class VoiceRecognitionActivity : Activity() {
         doneButton.setOnClickListener {
             Log.d(TAG, "用户点击了'说完了'按钮")
             finishRecognition()
+        }
+        
+        // 设置保存按钮点击事件
+        saveButton.setOnClickListener {
+            Log.d(TAG, "用户点击了'保存'按钮")
+            saveVoiceText()
         }
         
         // 设置麦克风点击事件
@@ -604,6 +619,235 @@ class VoiceRecognitionActivity : Activity() {
             Log.d(TAG, "已发送关闭简易模式广播")
         } catch (e: Exception) {
             Log.e(TAG, "发送关闭广播失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 保存语音转文本到统一收藏系统和语音文本标签管理器
+     */
+    private fun saveVoiceText() {
+        val text = recognizedTextView.text.toString().trim()
+        
+        Log.d(TAG, "开始保存语音文本，文本长度: ${text.length}")
+        
+        // 保存时先停止监听，避免状态更新覆盖保存提示
+        val wasListening = isListening
+        if (wasListening) {
+            stopListening()
+        }
+        
+        if (text.isEmpty()) {
+            Log.w(TAG, "文本为空，无法保存")
+            handler.post {
+                // 更新状态文本，显示提示
+                listeningText.text = "⚠️ 没有可保存的文本"
+                // 改变背景色为橙色，表示警告
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_orange_light))
+                // 同时显示Toast提示
+                Toast.makeText(this@VoiceRecognitionActivity, "没有可保存的文本", Toast.LENGTH_SHORT).show()
+                
+                // 2秒后恢复状态
+                handler.postDelayed({
+                    if (wasListening && isListening) {
+                        listeningText.text = "正在倾听"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
+                    } else {
+                        listeningText.text = "识别已暂停"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
+                    }
+                }, 2000)
+            }
+            return
+        }
+        
+        try {
+            // 1. 保存到统一收藏管理器
+            val collectionManager = UnifiedCollectionManager.getInstance(this)
+            
+            // 创建预览文本（前200字符）
+            val preview = text.take(200) + if (text.length > 200) "..." else ""
+            
+            // 创建标题（前50字符）
+            val title = text.take(50) + if (text.length > 50) "..." else ""
+            
+            Log.d(TAG, "创建收藏项: title='$title', textLength=${text.length}")
+            
+            // 创建收藏项
+            val collectionItem = UnifiedCollectionItem(
+                title = title,
+                content = text, // 完整内容
+                preview = preview,
+                collectionType = CollectionType.VOICE_TO_TEXT,
+                sourceLocation = "语音Tab",
+                sourceDetail = "语音转文本",
+                collectedTime = System.currentTimeMillis(),
+                customTags = listOf("语音转文", "语音输入"),
+                priority = Priority.NORMAL,
+                completionStatus = CompletionStatus.NOT_STARTED,
+                likeLevel = 0,
+                emotionTag = EmotionTag.NEUTRAL,
+                isEncrypted = false,
+                reminderTime = null,
+                extraData = mapOf(
+                    "textLength" to text.length.toString(),
+                    "source" to "VoiceRecognitionActivity"
+                )
+            )
+            
+            Log.d(TAG, "收藏项创建完成: id=${collectionItem.id}, type=${collectionItem.collectionType?.name}")
+            
+            // 保存到统一收藏管理器（这是主要存储，用于AI助手tab的任务场景显示）
+            val collectionSuccess = collectionManager.addCollection(collectionItem)
+            Log.d(TAG, "统一收藏管理器保存结果: $collectionSuccess")
+            
+            // 2. 同时保存到VoiceTextTagManager（供VoiceTextFragment显示，可选）
+            val voiceTextTagManager = VoiceTextTagManager(this)
+            val voiceTextSuccess = voiceTextTagManager.saveTextToTag(text)
+            Log.d(TAG, "语音文本标签管理器保存结果: $voiceTextSuccess")
+            
+            // 只要统一收藏管理器保存成功，就认为保存成功（这是主要存储）
+            if (collectionSuccess) {
+                // 立即验证保存是否成功
+                val savedItem = collectionManager.getCollectionById(collectionItem.id)
+                if (savedItem != null) {
+                    Log.d(TAG, "✅ 验证成功：收藏项已保存到统一收藏管理器")
+                    Log.d(TAG, "  - 保存的标题: ${savedItem.title}")
+                    Log.d(TAG, "  - 保存的类型: ${savedItem.collectionType?.name}")
+                    Log.d(TAG, "  - 保存的内容长度: ${savedItem.content.length}")
+                    
+                    // 验证类型是否正确 - 立即查询验证
+                    val voiceToTextCollections = collectionManager.getCollectionsByType(CollectionType.VOICE_TO_TEXT)
+                    Log.d(TAG, "✅ 立即查询验证：当前VOICE_TO_TEXT类型收藏总数: ${voiceToTextCollections.size}")
+                    if (voiceToTextCollections.isNotEmpty()) {
+                        voiceToTextCollections.forEachIndexed { index, item ->
+                            Log.d(TAG, "  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name}")
+                        }
+                    } else {
+                        // 如果没有找到，检查所有收藏项
+                        val allCollections = collectionManager.getAllCollections()
+                        Log.d(TAG, "⚠️ 未找到VOICE_TO_TEXT类型收藏，当前所有收藏项总数: ${allCollections.size}")
+                        if (allCollections.isNotEmpty()) {
+                            val typeCounts = allCollections.groupingBy { it.collectionType?.name ?: "null" }.eachCount()
+                            Log.d(TAG, "所有收藏项的类型分布:")
+                            typeCounts.forEach { (typeName, count) ->
+                                Log.d(TAG, "  - $typeName: $count 条")
+                            }
+                            Log.d(TAG, "所有收藏项详情:")
+                            allCollections.forEachIndexed { index, item ->
+                                Log.d(TAG, "  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name ?: "null"}")
+                            }
+                        }
+                    }
+                    
+                    // 发送广播通知收藏更新，让AI助手tab中的语音转文标签自动刷新
+                    try {
+                        val intent = Intent("com.example.aifloatingball.COLLECTION_UPDATED").apply {
+                            putExtra("collection_type", CollectionType.VOICE_TO_TEXT.name)
+                            putExtra("action", "add")
+                            putExtra("collection_id", collectionItem.id)
+                            // 添加包名，确保广播能正确传递
+                            setPackage(packageName)
+                        }
+                        sendBroadcast(intent)
+                        Log.d(TAG, "✅ 已发送收藏更新广播: type=${CollectionType.VOICE_TO_TEXT.name}, id=${collectionItem.id}, package=${packageName}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ 发送收藏更新广播失败", e)
+                        e.printStackTrace()
+                    }
+                    
+                    // 显示成功提示（在状态文本中显示，确保用户能看到）
+                    handler.post {
+                        // 更新状态文本，让用户明确看到保存成功
+                        listeningText.text = "✅ 已保存到语音转文"
+                        // 改变背景色为绿色，表示成功
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_dark))
+                        // 同时显示Toast提示
+                        Toast.makeText(this@VoiceRecognitionActivity, "已保存到语音转文", Toast.LENGTH_LONG).show()
+                        
+                        // 3秒后恢复状态
+                        handler.postDelayed({
+                            if (wasListening && isListening) {
+                                listeningText.text = "正在倾听"
+                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
+                            } else {
+                                listeningText.text = "识别已暂停"
+                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
+                            }
+                        }, 3000)
+                    }
+                    Log.d(TAG, "✅ 语音文本保存成功，已显示提示")
+                } else {
+                    Log.e(TAG, "❌ 验证失败：收藏项未找到，ID=${collectionItem.id}")
+                    handler.post {
+                        // 更新状态文本，显示保存失败
+                        listeningText.text = "❌ 保存失败：验证未通过"
+                        // 改变背景色为红色，表示失败
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
+                        // 同时显示Toast提示
+                        Toast.makeText(this@VoiceRecognitionActivity, "保存失败：验证未通过", Toast.LENGTH_LONG).show()
+                        
+                        // 3秒后恢复状态
+                        handler.postDelayed({
+                            if (wasListening && isListening) {
+                                listeningText.text = "正在倾听"
+                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
+                            } else {
+                                listeningText.text = "识别已暂停"
+                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
+                            }
+                        }, 3000)
+                    }
+                }
+            } else {
+                // 统一收藏管理器保存失败
+                val errorMsg = if (!voiceTextSuccess) {
+                    "保存失败：两个存储系统都失败"
+                } else {
+                    "保存失败：统一收藏管理器失败（数据未保存到任务场景）"
+                }
+                Log.e(TAG, "❌ 语音文本保存失败: collectionSuccess=$collectionSuccess, voiceTextSuccess=$voiceTextSuccess")
+                handler.post {
+                    // 更新状态文本，显示保存失败
+                    listeningText.text = "❌ $errorMsg"
+                    // 改变背景色为红色，表示失败
+                    micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
+                    // 同时显示Toast提示
+                    Toast.makeText(this@VoiceRecognitionActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    
+                    // 3秒后恢复状态
+                    handler.postDelayed({
+                        if (wasListening && isListening) {
+                            listeningText.text = "正在倾听"
+                            micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
+                        } else {
+                            listeningText.text = "识别已暂停"
+                            micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
+                        }
+                    }, 3000)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 保存语音文本异常", e)
+            e.printStackTrace()
+            handler.post {
+                // 更新状态文本，显示保存异常
+                listeningText.text = "❌ 保存失败: ${e.message?.take(20) ?: "未知错误"}"
+                // 改变背景色为红色，表示失败
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
+                // 同时显示Toast提示
+                Toast.makeText(this@VoiceRecognitionActivity, "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
+                
+                // 3秒后恢复状态
+                handler.postDelayed({
+                    if (wasListening && isListening) {
+                        listeningText.text = "正在倾听"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
+                    } else {
+                        listeningText.text = "识别已暂停"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
+                    }
+                }, 3000)
+            }
         }
     }
     

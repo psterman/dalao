@@ -188,6 +188,26 @@ class AudioRecorderManager(private val context: Context) {
     fun getCurrentRecordingFile(): File? = outputFile
     
     /**
+     * 获取当前录音音量振幅 (0.0 - 1.0)
+     * 用于显示波形动画
+     */
+    fun getCurrentAmplitude(): Float {
+        return try {
+            if (isRecording && !isPaused && mediaRecorder != null) {
+                val maxAmplitude = mediaRecorder!!.maxAmplitude
+                // 将振幅转换为0.0-1.0范围
+                // MediaRecorder的maxAmplitude通常在0-32767之间
+                (maxAmplitude / 32767.0f).coerceIn(0.1f, 1.0f)
+            } else {
+                0.1f
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取录音振幅失败", e)
+            0.1f
+        }
+    }
+    
+    /**
      * 释放资源
      */
     private fun releaseRecorder() {

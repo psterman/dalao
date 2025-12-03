@@ -58,22 +58,81 @@ class UnifiedCollectionManager private constructor(private val context: Context)
      * 根据类型获取收藏项
      */
     fun getCollectionsByType(type: CollectionType): List<UnifiedCollectionItem> {
-        val allCollections = getAllCollections()
-        Log.d(TAG, "查询类型: ${type.name} (${type.displayName}), 总收藏数: ${allCollections.size}")
-        
-        val filtered = allCollections.filter { it.collectionType == type }
-        Log.d(TAG, "匹配的收藏数: ${filtered.size}")
-        
-        // 如果查询结果为空，输出所有收藏的类型用于调试
-        if (filtered.isEmpty() && allCollections.isNotEmpty()) {
-            val typeCounts = allCollections.groupingBy { it.collectionType }.eachCount()
-            Log.d(TAG, "所有收藏的类型分布:")
-            typeCounts.forEach { (collectionType, count) ->
-                Log.d(TAG, "  - ${collectionType?.name ?: "null"}: $count 条")
+        return try {
+            val allCollections = getAllCollections()
+            Log.d(TAG, "========== 查询类型: ${type.name} (${type.displayName}), 总收藏数: ${allCollections.size} ==========")
+            
+            // 详细检查每个收藏项的类型
+            if (allCollections.isNotEmpty()) {
+                Log.d(TAG, "开始过滤，检查每个收藏项的类型:")
+                allCollections.forEachIndexed { index, item ->
+                    try {
+                        val itemTypeName = item.collectionType?.name ?: "null"
+                        val itemTypeDisplay = item.collectionType?.displayName ?: "null"
+                        // 使用多种方式比较，确保能正确匹配
+                        val matches1 = item.collectionType == type
+                        val matches2 = item.collectionType?.name == type.name
+                        val matches3 = item.collectionType?.ordinal == type.ordinal
+                        val finalMatch = matches1 || matches2 || matches3
+                        Log.d(TAG, "  收藏项[$index]: id=${item.id.take(8)}..., title='${item.title.take(30)}...', type=$itemTypeName ($itemTypeDisplay)")
+                        Log.d(TAG, "    匹配检查: ==比较=${matches1}, name比较=${matches2}, ordinal比较=${matches3}, 最终匹配=${finalMatch}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "检查收藏项[$index]时出错", e)
+                    }
+                }
+            } else {
+                Log.d(TAG, "⚠️ 所有收藏项列表为空")
             }
+            
+            // 使用多种方式过滤，确保能正确匹配
+            val filtered = allCollections.filter { item ->
+                try {
+                    val match1 = item.collectionType == type
+                    val match2 = item.collectionType?.name == type.name
+                    val match3 = item.collectionType?.ordinal == type.ordinal
+                    match1 || match2 || match3
+                } catch (e: Exception) {
+                    Log.e(TAG, "过滤收藏项时出错: id=${item.id}", e)
+                    false
+                }
+            }
+            Log.d(TAG, "✅ 匹配的收藏数: ${filtered.size}")
+            
+            // 如果查询结果为空，输出所有收藏的类型用于调试
+            if (filtered.isEmpty() && allCollections.isNotEmpty()) {
+                Log.w(TAG, "⚠️ 未找到匹配的收藏项，所有收藏的类型分布:")
+                val typeCounts = allCollections.groupingBy { it.collectionType?.name ?: "null" }.eachCount()
+                typeCounts.forEach { (typeName, count) ->
+                    Log.w(TAG, "  - $typeName: $count 条")
+                }
+                // 检查是否有类型为null的项
+                val nullTypeCount = allCollections.count { it.collectionType == null }
+                if (nullTypeCount > 0) {
+                    Log.w(TAG, "⚠️ 发现 $nullTypeCount 条收藏项的类型为null")
+                }
+                // 输出所有收藏项的详细信息
+                Log.w(TAG, "所有收藏项详情:")
+                allCollections.forEachIndexed { index, item ->
+                    try {
+                        Log.w(TAG, "  [$index] id=${item.id.take(8)}..., title='${item.title.take(30)}...', type=${item.collectionType?.name ?: "null"}, typeClass=${item.collectionType?.javaClass?.name ?: "null"}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "输出收藏项[$index]详情时出错", e)
+                    }
+                }
+            } else if (filtered.isNotEmpty()) {
+                Log.d(TAG, "✅ 找到匹配的收藏项，详细信息:")
+                filtered.forEachIndexed { index, item ->
+                    Log.d(TAG, "  [$index] id=${item.id.take(8)}..., title='${item.title.take(30)}...', type=${item.collectionType?.name}")
+                }
+            }
+            
+            Log.d(TAG, "========== 查询完成，返回 ${filtered.size} 条 ==========")
+            filtered
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 查询收藏项时发生异常", e)
+            e.printStackTrace()
+            emptyList()
         }
-        
-        return filtered
     }
     
     /**
@@ -429,8 +488,9 @@ class UnifiedCollectionManager private constructor(private val context: Context)
     private fun saveCollections(collections: List<UnifiedCollectionItem>): Boolean {
         return try {
             val json = gson.toJson(collections)
-            prefs.edit().putString(KEY_COLLECTIONS, json).apply()
-            Log.d(TAG, "保存收藏项成功: ${collections.size} 条")
+            // 使用commit()确保立即保存，而不是异步的apply()
+            val success = prefs.edit().putString(KEY_COLLECTIONS, json).commit()
+            Log.d(TAG, "保存收藏项: ${collections.size} 条, commit结果: $success")
             
             // 验证保存是否成功
             val savedJson = prefs.getString(KEY_COLLECTIONS, "[]")

@@ -156,30 +156,33 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                     Log.d(TAG, "收到收藏更新广播: type=$collectionTypeName, action=$action, id=$collectionId")
                     Log.d(TAG, "当前显示的收藏类型: ${currentCollectionType?.name ?: "null"}")
                     
-                    // 如果当前显示的是该类型的收藏，刷新列表
-                    currentCollectionType?.let { currentType ->
-                        try {
-                            if (!collectionTypeName.isNullOrEmpty()) {
-                                val updatedType = CollectionType.valueOf(collectionTypeName)
-                                Log.d(TAG, "广播类型: ${updatedType.name}, 当前类型: ${currentType.name}")
+                    try {
+                        if (!collectionTypeName.isNullOrEmpty()) {
+                            val updatedType = CollectionType.valueOf(collectionTypeName)
+                            Log.d(TAG, "广播类型: ${updatedType.name} (${updatedType.displayName})")
+                            
+                            // 如果当前显示的是该类型的收藏，刷新列表
+                            currentCollectionType?.let { currentType ->
+                                Log.d(TAG, "当前类型: ${currentType.name} (${currentType.displayName})")
                                 if (updatedType == currentType) {
-                                    Log.d(TAG, "类型匹配，刷新当前收藏列表: $currentType")
+                                    Log.d(TAG, "✅ 类型匹配，刷新当前收藏列表: $currentType")
                                     // 使用post确保在主线程执行
                                     promptRecyclerView.post {
                                         loadCollectionsForType(currentType)
                                     }
                                 } else {
-                                    Log.d(TAG, "类型不匹配，不刷新列表")
+                                    Log.d(TAG, "类型不匹配（${updatedType.name} != ${currentType.name}），不刷新列表")
                                 }
-                            } else {
-                                Log.w(TAG, "collectionTypeName为空，跳过刷新")
+                            } ?: run {
+                                Log.d(TAG, "当前未显示收藏类型（用户可能还未点击标签），广播已接收但暂不刷新")
+                                Log.d(TAG, "提示：当用户点击'${updatedType.displayName}'标签时，数据会自动加载")
                             }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "解析收藏类型失败: $collectionTypeName", e)
-                            e.printStackTrace()
+                        } else {
+                            Log.w(TAG, "collectionTypeName为空，跳过刷新")
                         }
-                    } ?: run {
-                        Log.d(TAG, "当前未显示收藏类型，不刷新")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析收藏类型失败: $collectionTypeName", e)
+                        e.printStackTrace()
                     }
                 }
             }
@@ -445,6 +448,10 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             name = CollectionType.CLIPBOARD_HISTORY.displayName,
             collectionType = CollectionType.CLIPBOARD_HISTORY
         ))
+        scenarios.add(ScenarioItem(
+            name = CollectionType.VOICE_TO_TEXT.displayName,
+            collectionType = CollectionType.VOICE_TO_TEXT
+        ))
         
         // 3. 添加其他Prompt分类
         val excludedCategories = setOf(
@@ -473,21 +480,26 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 选择场景
      */
     private fun selectScenario(scenario: ScenarioItem) {
+        Log.d(TAG, "选择场景: name=${scenario.name}, collectionType=${scenario.collectionType?.name ?: "null"}, category=${scenario.category?.name ?: "null"}")
+        
         scenarioAdapter.setSelectedScenario(scenario)
         selectedScenarioTitle.text = scenario.name
         
         // 判断是Prompt分类还是统一收藏类型
         if (scenario.collectionType != null) {
             // 统一收藏类型
+            Log.d(TAG, "选择统一收藏类型: ${scenario.collectionType.name} (${scenario.collectionType.displayName})")
             currentCollectionType = scenario.collectionType
             currentScenario = null
             loadCollectionsForType(scenario.collectionType)
         } else {
             // Prompt分类
+            Log.d(TAG, "选择Prompt分类: ${scenario.category?.name ?: "null"}")
             currentScenario = scenario.category
             currentCollectionType = null
             currentScenario?.let { loadPromptsForScenario(it) } ?: run {
                 // 用户自定义分组暂无内容
+                Log.d(TAG, "用户自定义分组暂无内容")
                 originalPrompts = emptyList()
                 promptAdapter.updateData(emptyList())
                 promptEmptyState.visibility = View.VISIBLE
@@ -936,10 +948,11 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
      * 加载指定类型的统一收藏
      */
     private fun loadCollectionsForType(type: CollectionType) {
-        Log.d(TAG, "开始加载收藏类型: ${type.displayName} (${type.name})")
+        Log.d(TAG, "========== 开始加载收藏类型: ${type.displayName} (${type.name}) ==========")
         
         // 切换到统一收藏适配器
         promptRecyclerView.adapter = collectionAdapter
+        Log.d(TAG, "已切换到统一收藏适配器")
         
         // 获取该类型的所有收藏
         var collections = collectionManager.getCollectionsByType(type)
@@ -952,15 +965,26 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         // 输出所有收藏的详细信息用于调试
         if (collections.isNotEmpty()) {
+            Log.d(TAG, "找到 ${collections.size} 条收藏，详细信息：")
             collections.forEachIndexed { index, item ->
-                Log.d(TAG, "收藏项[$index]: id=${item.id}, title=${item.title}, type=${item.collectionType}")
+                Log.d(TAG, "  收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name}, contentLength=${item.content.length}")
             }
         } else {
             // 如果没有数据，检查所有收藏项
             val allCollections = collectionManager.getAllCollections()
-            Log.d(TAG, "当前所有收藏项总数: ${allCollections.size}")
-            allCollections.forEachIndexed { index, item ->
-                Log.d(TAG, "所有收藏项[$index]: id=${item.id}, title=${item.title}, type=${item.collectionType?.name ?: "null"}")
+            Log.d(TAG, "⚠️ 当前所有收藏项总数: ${allCollections.size}")
+            if (allCollections.isNotEmpty()) {
+                Log.d(TAG, "所有收藏项的类型分布：")
+                val typeCounts = allCollections.groupingBy { it.collectionType?.name ?: "null" }.eachCount()
+                typeCounts.forEach { (typeName, count) ->
+                    Log.d(TAG, "  - $typeName: $count 条")
+                }
+                Log.d(TAG, "所有收藏项详情：")
+                allCollections.forEachIndexed { index, item ->
+                    Log.d(TAG, "  所有收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name ?: "null"}")
+                }
+            } else {
+                Log.d(TAG, "⚠️ 数据库中没有任何收藏项")
             }
         }
         
@@ -975,16 +999,25 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         
         Log.d(TAG, "排序后收藏数量: ${sortedCollections.size}")
         
+        // 更新适配器数据
         collectionAdapter.updateData(sortedCollections)
+        Log.d(TAG, "已调用适配器updateData，数据量: ${sortedCollections.size}")
         
-        if (sortedCollections.isEmpty()) {
-            Log.d(TAG, "收藏列表为空，显示空状态")
-            promptEmptyState.visibility = View.VISIBLE
-            promptRecyclerView.visibility = View.GONE
-        } else {
-            Log.d(TAG, "收藏列表有数据，显示列表")
-            promptEmptyState.visibility = View.GONE
-            promptRecyclerView.visibility = View.VISIBLE
+        // 确保在主线程更新UI
+        promptRecyclerView.post {
+            if (sortedCollections.isEmpty()) {
+                Log.d(TAG, "收藏列表为空，显示空状态")
+                promptEmptyState.visibility = View.VISIBLE
+                promptRecyclerView.visibility = View.GONE
+            } else {
+                Log.d(TAG, "收藏列表有数据，显示列表")
+                promptEmptyState.visibility = View.GONE
+                promptRecyclerView.visibility = View.VISIBLE
+                // 强制刷新RecyclerView
+                collectionAdapter.notifyDataSetChanged()
+                Log.d(TAG, "已调用notifyDataSetChanged，强制刷新RecyclerView")
+            }
+            Log.d(TAG, "========== 加载完成 ==========")
         }
     }
     

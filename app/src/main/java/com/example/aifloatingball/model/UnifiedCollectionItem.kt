@@ -243,7 +243,7 @@ data class UnifiedCollectionItem(
 }
 
 /**
- * 收藏类型枚举（合并后9种）
+ * 收藏类型枚举（合并后10种）
  * 注意：搜索历史合并为1种，但通过sourceDetail标记来源
  */
 enum class CollectionType(
@@ -259,6 +259,7 @@ enum class CollectionType(
     VIDEO_COLLECTION("视频收藏", "🎬", 0xFF9C27B0.toInt()),
     READING_HIGHLIGHT("读书划线", "✏️", 0xFF00BCD4.toInt()),
     CLIPBOARD_HISTORY("剪贴板历史", "📋", 0xFF9E9E9E.toInt()),
+    VOICE_TO_TEXT("语音转文", "🎤", 0xFF4CAF50.toInt()),  // 语音转文本
     MY_COLLECTIONS("我的收藏", "❤️", 0xFFF44336.toInt())  // 原有分类
 }
 
