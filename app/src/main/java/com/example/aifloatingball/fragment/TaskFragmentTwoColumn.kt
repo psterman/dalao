@@ -294,7 +294,15 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
         }
         
         // 新增分类按钮
-        promptAddCategoryButton.setOnClickListener { showAddCategoryDialog() }
+        promptAddCategoryButton.setOnClickListener { 
+            if (currentCollectionType == CollectionType.VOICE_TO_TEXT) {
+                // 语音转文场景：显示查看所有数据对话框
+                showAllVoiceToTextItemsDialog()
+            } else {
+                // 其他场景：显示添加分类对话框
+                showAddCategoryDialog()
+            }
+        }
         
         // 搜索按钮
         promptSearchButton.setOnClickListener {
@@ -968,6 +976,19 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
             Log.d(TAG, "找到 ${collections.size} 条收藏，详细信息：")
             collections.forEachIndexed { index, item ->
                 Log.d(TAG, "  收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name}, contentLength=${item.content.length}")
+                Log.d(TAG, "    内容预览: ${item.content.take(100)}")
+                Log.d(TAG, "    来源: ${item.sourceLocation}, 详情: ${item.sourceDetail}")
+                Log.d(TAG, "    创建时间: ${item.collectedTime}")
+            }
+            
+            // 如果查询到的数量较多，输出警告并提示可以查看所有数据
+            if (collections.size > 1) {
+                Log.w(TAG, "⚠️ 查询到 ${collections.size} 条${type.displayName}收藏")
+                Log.w(TAG, "所有查询到的收藏项列表：")
+                collections.forEachIndexed { index, item ->
+                    val contentPreview = if (item.content.isNotEmpty()) item.content.take(50) else "(空内容)"
+                    Log.w(TAG, "  [$index] id=${item.id.take(12)}..., title='${item.title.take(30)}', content='$contentPreview'")
+                }
             }
         } else {
             // 如果没有数据，检查所有收藏项
@@ -1018,7 +1039,130 @@ class TaskFragmentTwoColumn : AIAssistantCenterFragment() {
                 Log.d(TAG, "已调用notifyDataSetChanged，强制刷新RecyclerView")
             }
             Log.d(TAG, "========== 加载完成 ==========")
+            
+            // 如果查询到的数据量大于显示的数据量，显示提示
+            if (collections.size > sortedCollections.size) {
+                Log.w(TAG, "⚠️ 数据不一致：查询到 ${collections.size} 条，但只显示 ${sortedCollections.size} 条")
+            }
         }
+    }
+    
+    /**
+     * 显示所有语音转文数据的调试对话框（用于查看和删除所有数据）
+     */
+    private fun showAllVoiceToTextItemsDialog() {
+        val allItems = collectionManager.getCollectionsByType(CollectionType.VOICE_TO_TEXT)
+        
+        if (allItems.isEmpty()) {
+            android.widget.Toast.makeText(requireContext(), "没有语音转文数据", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val itemsText = allItems.mapIndexed { index, item ->
+            val contentPreview = if (item.content.isNotEmpty()) item.content.take(50) else "(空内容)"
+            "${index + 1}. ${item.title}\n   内容: $contentPreview\n   ID: ${item.id.take(12)}...\n   时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(item.collectedTime))}"
+        }.joinToString("\n\n")
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("所有语音转文数据 (共${allItems.size}条)")
+            .setMessage(itemsText)
+            .setPositiveButton("查看详情") { _, _ ->
+                showVoiceToTextItemsDetailDialog(allItems)
+            }
+            .setNeutralButton("批量删除") { _, _ ->
+                showBatchDeleteDialog(allItems)
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+    
+    /**
+     * 显示语音转文数据详情对话框
+     */
+    private fun showVoiceToTextItemsDetailDialog(items: List<UnifiedCollectionItem>) {
+        val detailText = items.mapIndexed { index, item ->
+            """
+            ========== 第${index + 1}条 ==========
+            ID: ${item.id}
+            标题: ${item.title}
+            内容: ${item.content}
+            内容长度: ${item.content.length}
+            来源: ${item.sourceLocation}
+            详情: ${item.sourceDetail}
+            创建时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(item.collectedTime))}
+            标签: ${item.customTags.joinToString(", ")}
+            """.trimIndent()
+        }.joinToString("\n\n")
+        
+        val scrollView = android.widget.ScrollView(requireContext())
+        val textView = android.widget.TextView(requireContext())
+        textView.text = detailText
+        textView.textSize = 12f
+        textView.setPadding(32, 32, 32, 32)
+        scrollView.addView(textView)
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("语音转文数据详情")
+            .setView(scrollView)
+            .setPositiveButton("确定", null)
+            .show()
+    }
+    
+    /**
+     * 显示批量删除对话框
+     */
+    private fun showBatchDeleteDialog(items: List<UnifiedCollectionItem>) {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("批量删除")
+            .setMessage("确定要删除所有 ${items.size} 条语音转文数据吗？\n\n此操作不可恢复！")
+            .setPositiveButton("删除全部") { _, _ ->
+                var deletedCount = 0
+                items.forEach { item ->
+                    if (collectionManager.deleteCollection(item.id)) {
+                        deletedCount++
+                    }
+                }
+                android.widget.Toast.makeText(requireContext(), "已删除 $deletedCount 条数据", android.widget.Toast.LENGTH_LONG).show()
+                // 刷新列表
+                currentCollectionType?.let { loadCollectionsForType(it) }
+            }
+            .setNeutralButton("选择性删除") { _, _ ->
+                showSelectiveDeleteDialog(items)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 显示选择性删除对话框
+     */
+    private fun showSelectiveDeleteDialog(items: List<UnifiedCollectionItem>) {
+        val itemTitles = items.mapIndexed { index, item ->
+            val contentPreview = if (item.content.isNotEmpty()) item.content.take(30) else "(空内容)"
+            "${index + 1}. ${item.title} - $contentPreview"
+        }.toTypedArray()
+        
+        val selectedItems = BooleanArray(items.size)
+        
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("选择要删除的数据")
+            .setMultiChoiceItems(itemTitles, selectedItems) { _, which, isChecked ->
+                selectedItems[which] = isChecked
+            }
+            .setPositiveButton("删除选中") { _, _ ->
+                val itemsToDelete = items.filterIndexed { index, _ -> selectedItems[index] }
+                var deletedCount = 0
+                itemsToDelete.forEach { item ->
+                    if (collectionManager.deleteCollection(item.id)) {
+                        deletedCount++
+                    }
+                }
+                android.widget.Toast.makeText(requireContext(), "已删除 $deletedCount 条数据", android.widget.Toast.LENGTH_LONG).show()
+                // 刷新列表
+                currentCollectionType?.let { loadCollectionsForType(it) }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
     
     /**
