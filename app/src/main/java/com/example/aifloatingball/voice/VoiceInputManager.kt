@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -55,9 +57,21 @@ class VoiceInputManager(private val activity: Activity) {
     }
     
     private var callback: VoiceInputCallback? = null
+    private var speechRecognizer: SpeechRecognizer? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var recognizerBusyRetryCount = 0
+    private val MAX_RECOGNIZER_BUSY_RETRIES = 3
     
     fun setCallback(callback: VoiceInputCallback) {
         this.callback = callback
+    }
+    
+    /**
+     * 释放语音识别器资源
+     */
+    fun release() {
+        releaseSpeechRecognizer()
+        handler.removeCallbacksAndMessages(null)
     }
 
     /**
@@ -265,87 +279,202 @@ class VoiceInputManager(private val activity: Activity) {
      * 启动SpeechRecognizer语音识别
      */
     private fun startSpeechRecognizer() {
-        try {
-            val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity)
-            
-            val recognitionListener = object : android.speech.RecognitionListener {
-                override fun onReadyForSpeech(params: android.os.Bundle?) {
-                    Log.d(TAG, "SpeechRecognizer准备就绪")
-                }
-                
-                override fun onBeginningOfSpeech() {
-                    Log.d(TAG, "开始说话")
-                }
-                
-                override fun onRmsChanged(rmsdB: Float) {
-                    // 可以在这里更新音量指示器
-                }
-                
-                override fun onBufferReceived(buffer: ByteArray?) {
-                    // 处理音频缓冲区
-                }
-                
-                override fun onEndOfSpeech() {
-                    Log.d(TAG, "说话结束")
-                }
-                
-                override fun onError(error: Int) {
-                    val errorMessage = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "音频错误"
-                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "没有匹配的语音"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙碌"
-                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
-                        else -> "未知错误: $error"
-                    }
-                    Log.e(TAG, "SpeechRecognizer错误: $errorMessage")
-                    callback?.onVoiceInputError(errorMessage)
-                }
-                
-                override fun onResults(results: android.os.Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        val recognizedText = matches[0]
-                        Log.d(TAG, "语音识别结果: $recognizedText")
-                        callback?.onVoiceInputResult(recognizedText)
-                    } else {
-                        callback?.onVoiceInputError("没有识别到语音内容")
-                    }
-                }
-                
-                override fun onPartialResults(partialResults: android.os.Bundle?) {
-                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        Log.d(TAG, "部分识别结果: ${matches[0]}")
-                    }
-                }
-                
-                override fun onEvent(eventType: Int, params: android.os.Bundle?) {
-                    // 处理其他事件
-                }
-            }
-            
-            speechRecognizer.setRecognitionListener(recognitionListener)
-            
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话...")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            }
-            
-            speechRecognizer.startListening(intent)
-            Log.d(TAG, "SpeechRecognizer开始监听")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "启动SpeechRecognizer失败", e)
-            callback?.onVoiceInputError("启动语音识别失败: ${e.message}")
+        // 确保前一个识别器被完全释放（重要：避免识别器忙碌错误）
+        releaseSpeechRecognizer()
+        
+        // 给识别器一些时间完全释放（特别是对于魅族等设备）
+        val releaseDelay = if (Build.MANUFACTURER.lowercase().contains("meizu")) {
+            300L // 魅族手机需要更长的释放时间
+        } else {
+            100L // 其他手机
         }
+        
+        handler.postDelayed({
+            try {
+                // 创建新的语音识别器
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity)
+                
+                val recognitionListener = object : android.speech.RecognitionListener {
+                    override fun onReadyForSpeech(params: android.os.Bundle?) {
+                        Log.d(TAG, "SpeechRecognizer准备就绪")
+                    }
+                    
+                    override fun onBeginningOfSpeech() {
+                        Log.d(TAG, "开始说话")
+                    }
+                    
+                    override fun onRmsChanged(rmsdB: Float) {
+                        // 可以在这里更新音量指示器
+                    }
+                    
+                    override fun onBufferReceived(buffer: ByteArray?) {
+                        // 处理音频缓冲区
+                    }
+                    
+                    override fun onEndOfSpeech() {
+                        Log.d(TAG, "说话结束")
+                    }
+                    
+                    override fun onError(error: Int) {
+                        handler.post {
+                            handleRecognitionError(error)
+                        }
+                    }
+                    
+                    override fun onResults(results: android.os.Bundle?) {
+                        handler.post {
+                            // 识别成功，重置识别器忙碌重试计数
+                            recognizerBusyRetryCount = 0
+                            
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val recognizedText = matches[0]
+                                Log.d(TAG, "语音识别结果: $recognizedText")
+                                callback?.onVoiceInputResult(recognizedText)
+                            } else {
+                                callback?.onVoiceInputError("没有识别到语音内容")
+                            }
+                        }
+                    }
+                    
+                    override fun onPartialResults(partialResults: android.os.Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        if (!matches.isNullOrEmpty()) {
+                            Log.d(TAG, "部分识别结果: ${matches[0]}")
+                        }
+                    }
+                    
+                    override fun onEvent(eventType: Int, params: android.os.Bundle?) {
+                        // 处理其他事件
+                    }
+                }
+                
+                speechRecognizer?.setRecognitionListener(recognitionListener)
+                
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话...")
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                }
+                
+                speechRecognizer?.startListening(intent)
+                Log.d(TAG, "SpeechRecognizer开始监听")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "启动SpeechRecognizer失败", e)
+                callback?.onVoiceInputError("启动语音识别失败: ${e.message}")
+            }
+        }, releaseDelay)
+    }
+    
+    /**
+     * 处理语音识别错误
+     */
+    private fun handleRecognitionError(error: Int) {
+        // 处理识别器忙碌错误 - 这是可恢复的错误，需要先释放识别器再重试
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            Log.w(TAG, "识别器忙碌，尝试释放并重试 (重试次数: $recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)")
+            
+            // 如果超过最大重试次数，尝试使用系统语音输入
+            if (recognizerBusyRetryCount >= MAX_RECOGNIZER_BUSY_RETRIES) {
+                Log.e(TAG, "识别器忙碌重试次数已达上限，切换到系统语音输入")
+                recognizerBusyRetryCount = 0 // 重置计数器
+                // 完全释放识别器
+                releaseSpeechRecognizer()
+                // 延迟后尝试系统语音输入
+                handler.postDelayed({
+                    if (trySystemVoiceInput()) {
+                        Log.d(TAG, "已切换到系统语音输入")
+                    } else {
+                        // 如果系统语音输入也失败，尝试品牌特定方案
+                        if (tryBrandSpecificVoiceInput()) {
+                            Log.d(TAG, "已切换到品牌特定语音输入")
+                        } else {
+                            callback?.onVoiceInputError("识别器忙碌，请稍后重试")
+                        }
+                    }
+                }, 1000)
+                return
+            }
+            
+            // 增加重试计数
+            recognizerBusyRetryCount++
+            
+            // 完全释放识别器
+            releaseSpeechRecognizer()
+            
+            // 延迟后重新启动识别（给识别器足够时间释放）
+            // 魅族手机可能需要更长的延迟时间
+            val retryDelay = if (Build.MANUFACTURER.lowercase().contains("meizu")) {
+                2000L // 魅族手机延迟2秒
+            } else {
+                1000L // 其他手机延迟1秒
+            }
+            
+            handler.postDelayed({
+                Log.d(TAG, "重试启动语音识别")
+                startSpeechRecognizer()
+            }, retryDelay)
+            
+            return
+        }
+        
+        // 重置识别器忙碌重试计数（其他错误时重置）
+        recognizerBusyRetryCount = 0
+        
+        // 对于非致命错误，自动重启监听
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+            
+            Log.d(TAG, "非致命错误 ($error)，自动重启监听")
+            
+            // 完全释放识别器
+            releaseSpeechRecognizer()
+            
+            // 延迟后重启识别
+            handler.postDelayed({
+                startSpeechRecognizer()
+            }, 500)
+            
+            return
+        }
+        
+        // 对于其他致命错误，报告错误
+        val errorMessage = when (error) {
+            SpeechRecognizer.ERROR_AUDIO -> "音频错误"
+            SpeechRecognizer.ERROR_NETWORK -> "网络错误"
+            SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
+            SpeechRecognizer.ERROR_SERVER -> "服务器错误"
+            else -> "识别错误 (代码: $error)"
+        }
+        
+        Log.e(TAG, "致命语音识别错误: $errorMessage")
+        callback?.onVoiceInputError(errorMessage)
+    }
+    
+    /**
+     * 释放语音识别器
+     */
+    private fun releaseSpeechRecognizer() {
+        speechRecognizer?.apply {
+            try {
+                cancel() // 先取消当前识别
+            } catch (e: Exception) {
+                Log.w(TAG, "取消识别器时出错: ${e.message}")
+            }
+            try {
+                destroy() // 然后销毁识别器
+            } catch (e: Exception) {
+                Log.w(TAG, "销毁识别器时出错: ${e.message}")
+            }
+        }
+        speechRecognizer = null
+        Log.d(TAG, "语音识别器已释放")
     }
     
     /**

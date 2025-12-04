@@ -7372,6 +7372,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         INSTANCE = null
 
+        // 释放语音输入管理器资源
+        try {
+            if (::voiceInputManager.isInitialized) {
+                voiceInputManager.release()
+                Log.d(TAG, "VoiceInputManager资源已释放")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "释放VoiceInputManager资源失败", e)
+        }
+
         // 立即清理所有延迟任务，防止在Activity销毁后执行
         try {
             handler.removeCallbacksAndMessages(null)
@@ -32764,21 +32774,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 copyText()
             }
             
-            findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_paste_btn)?.setOnClickListener {
-                pasteText()
-            }
-            
-            findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_share_btn)?.setOnClickListener {
-                shareText()
-            }
-            
             // 确保所有按钮可见（现在都在同一个工具栏中）
             val clearBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_clear_btn)
             val copyBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_copy_btn)
-            val pasteBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_paste_btn)
-            val shareBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_share_btn)
             
-            listOf(clearBtn, copyBtn, pasteBtn, shareBtn).forEach { btn ->
+            listOf(clearBtn, copyBtn).forEach { btn ->
                 btn?.apply {
                     visibility = View.VISIBLE
                     alpha = 1.0f
@@ -33782,10 +33782,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 确保所有按钮始终可见（现在都在同一个工具栏中）
                 val clearBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_clear_btn)
                 val copyBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_copy_btn)
-                val pasteBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_paste_btn)
-                val shareBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_capsule_share_btn)
-                
-                listOf(clearBtn, copyBtn, pasteBtn, shareBtn).forEach { btn ->
+                listOf(clearBtn, copyBtn).forEach { btn ->
                     btn?.apply {
                         visibility = View.VISIBLE
                         alpha = 1.0f
@@ -34884,7 +34881,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showMoreOptionsDialog() {
         try {
-            val options = arrayOf("清空文本", "复制文本", "粘贴文本", "分享文本")
+            val options = arrayOf("清空文本", "复制文本")
             
             AlertDialog.Builder(this)
                 .setTitle("更多选项")
@@ -34892,8 +34889,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     when (which) {
                         0 -> clearText()
                         1 -> copyText()
-                        2 -> pasteText()
-                        3 -> shareText()
                     }
                 }
                 .setNegativeButton("取消", null)

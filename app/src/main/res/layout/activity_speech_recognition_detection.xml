@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#F5F5F5">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="语音识别服务检测"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingBottom="16dp"
+        android:textColor="#333333" />
+
+    <!-- 状态文本 -->
+    <TextView
+        android:id="@+id/detectionStatusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="准备开始检测..."
+        android:textSize="16sp"
+        android:gravity="center"
+        android:padding="12dp"
+        android:background="#FFFFFF"
+        android:layout_marginBottom="16dp"
+        android:textColor="#333333" />
+
+    <!-- 进度条 -->
+    <ProgressBar
+        android:id="@+id/detectionProgressBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:indeterminate="true"
+        android:visibility="visible" />
+
+    <!-- 结果滚动视图 -->
+    <ScrollView
+        android:id="@+id/detectionResultScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/detectionResultText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="4dp" />
+
+    </ScrollView>
+
+    <!-- 按钮区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="16dp">
+
+        <Button
+            android:id="@+id/detectionRetryButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="重新检测"
+            android:layout_marginEnd="8dp"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/detectionCloseButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="关闭"
+            android:layout_marginStart="8dp"
+            android:enabled="false" />
+
+    </LinearLayout>
+
+</LinearLayout>
+
+

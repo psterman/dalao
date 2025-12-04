@@ -3,22 +3,25 @@ package com.example.aifloatingball
 import android.Manifest
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import java.lang.ref.WeakReference
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.view.animation.LinearInterpolator
@@ -39,6 +42,8 @@ import com.example.aifloatingball.model.Priority
 import com.example.aifloatingball.model.CompletionStatus
 import com.example.aifloatingball.model.EmotionTag
 import com.example.aifloatingball.voice.VoiceTextTagManager
+import com.example.aifloatingball.voice.SpeechRecognitionDetectionActivity
+import com.example.aifloatingball.utils.VoiceLog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
@@ -47,14 +52,32 @@ class VoiceRecognitionActivity : Activity() {
         private const val VOICE_RECOGNITION_REQUEST_CODE = 1001
         private const val SYSTEM_VOICE_REQUEST_CODE = 1002
         private const val TAG = "VoiceRecognitionActivity"
+        // 强制冷却时间（毫秒）- 防止连续识别导致 ERROR_RECOGNIZER_BUSY
+        private const val COOLING_DOWN_DELAY_MS = 1000L // 1秒冷却
+    }
+    
+    /**
+     * 识别器状态机，防止连续识别导致 ERROR_RECOGNIZER_BUSY
+     */
+    private enum class RecognizerState {
+        IDLE,           // 空闲状态，可以启动识别
+        LISTENING,      // 正在监听
+        COOLING_DOWN    // 冷却中，禁止启动新识别
     }
 
     private val handler = Handler(Looper.getMainLooper())
+    // 跟踪所有待执行的 Runnable，以便在 onDestroy 中移除
+    private val pendingRunnables = mutableSetOf<Runnable>()
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var recognizedText = "" // 已确认的最终文本
     private var currentPartialText = "" // 当前部分识别结果（临时显示）
     private lateinit var settingsManager: SettingsManager
+    private var recognizerBusyRetryCount = 0 // 识别器忙碌重试计数
+    private val MAX_RECOGNIZER_BUSY_RETRIES = 3 // 最大重试次数
+    private var isXiaomiAivsService = false // 是否是小米 Aivs 服务
+    private var isSavingVoiceText = false // 防抖标志：是否正在保存语音文本
+    private var recognizerState = RecognizerState.IDLE // 识别器状态
     
     // 界面元素
     private lateinit var micContainer: MaterialCardView
@@ -65,6 +88,9 @@ class VoiceRecognitionActivity : Activity() {
     private lateinit var saveButton: MaterialButton
     private lateinit var zoomInButton: ImageButton
     private lateinit var zoomOutButton: ImageButton
+    
+    // 复用的麦克风动画器，避免高频创建动画导致性能问题
+    private lateinit var micAnimator: ObjectAnimator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,24 +132,40 @@ class VoiceRecognitionActivity : Activity() {
         // Load the saved font size, or use the default
         val savedSize = settingsManager.getVoiceInputTextSize()
         recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedSize)
+        
+        // 初始化复用的麦克风动画器，避免高频创建动画导致性能问题
+        micAnimator = ObjectAnimator.ofPropertyValuesHolder(
+            micContainer,
+            PropertyValuesHolder.ofFloat("scaleX", 1f),
+            PropertyValuesHolder.ofFloat("scaleY", 1f)
+        ).apply {
+            duration = 150
+            interpolator = LinearInterpolator()
+        }
     }
     
     private fun setupClickListeners() {
         // 设置说完了按钮点击事件
         doneButton.setOnClickListener {
-            Log.d(TAG, "用户点击了'说完了'按钮")
+            VoiceLog.d("用户点击了'说完了'按钮")
             finishRecognition()
         }
         
         // 设置保存按钮点击事件
         saveButton.setOnClickListener {
-            Log.d(TAG, "用户点击了'保存'按钮")
+            VoiceLog.d("用户点击了'保存'按钮")
             saveVoiceText()
         }
         
         // 设置麦克风点击事件
         micContainer.setOnClickListener {
             toggleListening()
+        }
+        
+        // 设置麦克风长按事件 - 启动语音识别服务检测
+        micContainer.setOnLongClickListener {
+            startDetectionActivity()
+            true
         }
 
         zoomInButton.setOnClickListener {
@@ -146,19 +188,139 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun startVoiceRecognition() {
+        // 检查识别器状态：如果正在冷却，跳过启动
+        if (recognizerState == RecognizerState.COOLING_DOWN) {
+            VoiceLog.d("识别器冷却中，跳过启动（防止 ERROR_RECOGNIZER_BUSY）")
+            return
+        }
+        
+        // 优先检测华为设备：华为 Mate 60 / Pura 70 系列，isRecognitionAvailable() 因 HMS ML Kit 存在返回 true
+        // 但 SpeechRecognizer.createSpeechRecognizer() 可能返回 null 或调用崩溃
+        if (isHuaweiDevice() && !hasHmsCore()) {
+            VoiceLog.w("华为设备但未安装 HMS Core，直接使用系统语音输入（避免 createSpeechRecognizer 返回 null）")
+            trySystemVoiceInput()
+            return
+        }
+        
         // 首先检查设备是否支持语音识别
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             // 如果不支持，尝试使用系统语音输入Intent
             trySystemVoiceInput()
             return
         }
+        
+        // 设置状态为监听中
+        recognizerState = RecognizerState.LISTENING
+        VoiceLog.d("识别器状态: IDLE -> LISTENING")
+        
+        // 检测是否是小米 Aivs 服务（优先使用小米 Aivs SDK）
+        isXiaomiAivsService = detectXiaomiAivsService()
+        VoiceLog.d("检测到语音识别服务类型: ${if (isXiaomiAivsService) "✅ 小米 Aivs SDK（优先使用）" else "其他服务"}")
 
-        // 确保前一个识别器被释放
+        // 确保前一个识别器被完全释放（重要：避免识别器忙碌错误）
         releaseSpeechRecognizer()
         
-        // 创建新的语音识别器
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-        speechRecognizer?.setRecognitionListener(createRecognitionListener())
+        // 给识别器一些时间完全释放
+        val releaseDelay = if (Build.MANUFACTURER.lowercase().contains("meizu")) {
+            300L // 魅族手机需要更长的释放时间
+        } else {
+            100L // 其他手机
+        }
+        
+        val createRunnable = CreateRecognizerRunnable(this)
+        safePostDelayed(releaseDelay, createRunnable)
+    }
+    
+    /**
+     * 创建 SpeechRecognizer，优先使用小米 Aivs SDK
+     * 如果检测到小米 Aivs 服务，直接使用它；否则使用默认服务
+     */
+    private fun createSpeechRecognizerWithAivsPriority(): SpeechRecognizer? {
+        try {
+            // 优先使用小米 Aivs SDK
+            if (isXiaomiAivsService) {
+                val aivsService = findXiaomiAivsService()
+                if (aivsService != null) {
+                    VoiceLog.d("✅ 使用小米 Aivs SDK: ${aivsService.packageName}/${aivsService.className}")
+                    try {
+                        return SpeechRecognizer.createSpeechRecognizer(this, aivsService)
+                    } catch (e: Exception) {
+                        VoiceLog.e("使用小米 Aivs SDK 创建 SpeechRecognizer 失败: ${e.message}", e)
+                        // 继续尝试默认方式
+                    }
+                } else {
+                    VoiceLog.w("⚠️ 检测到小米设备但未找到 Aivs 服务组件，使用默认方式")
+                }
+            }
+            
+            // 使用默认创建方式（系统会自动选择可用的服务）
+            VoiceLog.d("使用默认方式创建 SpeechRecognizer")
+            return SpeechRecognizer.createSpeechRecognizer(this)
+        } catch (e: Exception) {
+            VoiceLog.e("创建 SpeechRecognizer 失败: ${e.message}", e)
+            return null
+        }
+    }
+    
+    /**
+     * 查找小米 Aivs 语音识别服务组件
+     * 优先查找 com.xiaomi.mibrain.speech（Aivs SDK）
+     */
+    private fun findXiaomiAivsService(): ComponentName? {
+        try {
+            val pm = packageManager
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            
+            // 查询所有能处理语音识别的服务
+            val services = pm.queryIntentServices(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            
+            // 小米 Aivs 相关的包名（按优先级排序）
+            val xiaomiAivsPackages = listOf(
+                "com.xiaomi.mibrain.speech",  // 小米 Aivs SDK（最高优先级）
+                "com.miui.voiceassist",        // 小爱同学
+                "com.xiaomi.voiceassist"       // 小米语音助手
+            )
+            
+            // 优先查找 com.xiaomi.mibrain.speech
+            for (targetPackage in xiaomiAivsPackages) {
+                for (serviceInfo in services) {
+                    val packageName = serviceInfo.serviceInfo.packageName
+                    val className = serviceInfo.serviceInfo.name
+                    
+                    if (packageName.equals(targetPackage, ignoreCase = true)) {
+                        VoiceLog.d("✅ 找到小米 Aivs 服务: $packageName/$className")
+                        return ComponentName(packageName, className)
+                    }
+                }
+            }
+            
+            // 如果没有找到精确匹配，查找包含关键词的服务
+            for (serviceInfo in services) {
+                val packageName = serviceInfo.serviceInfo.packageName
+                val className = serviceInfo.serviceInfo.name
+                
+                if (xiaomiAivsPackages.any { packageName.contains(it, ignoreCase = true) }) {
+                    VoiceLog.d("✅ 找到小米相关语音服务: $packageName/$className")
+                    return ComponentName(packageName, className)
+                }
+            }
+            
+            VoiceLog.d("未找到小米 Aivs 服务组件")
+            return null
+        } catch (e: Exception) {
+            VoiceLog.e("查找小米 Aivs 服务时出错: ${e.message}", e)
+            return null
+        }
+    }
+    
+    private fun prepareAndStartRecognition() {
+        if (speechRecognizer == null) {
+            VoiceLog.e("SpeechRecognizer为null，无法启动识别")
+            // 如果识别器为null，尝试重新创建
+            val retryRunnable = RetryStartRecognitionRunnable(this, 500)
+            safePostDelayed(500, retryRunnable)
+            return
+        }
         
         // 准备识别意图 - 优化参数以提高识别效果和实时性
         val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -179,7 +341,7 @@ class VoiceRecognitionActivity : Activity() {
                 // 设置更短的静音分段时间，让识别更频繁地返回结果
                 putExtra("android.speech.extra.SEGMENTATION_SILENCE_LENGTH_MS", 300) // 300ms静音后分段
             } catch (e: Exception) {
-                Log.d(TAG, "设备不支持SEGMENTATION_SILENCE_LENGTH_MS参数")
+                VoiceLog.d("设备不支持SEGMENTATION_SILENCE_LENGTH_MS参数")
             }
             
             // 尝试设置识别超时时间（某些设备支持）
@@ -187,7 +349,7 @@ class VoiceRecognitionActivity : Activity() {
                 putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2000) // 2秒静音后完成
                 putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 1500) // 1.5秒可能完成
             } catch (e: Exception) {
-                Log.d(TAG, "设备不支持超时参数")
+                VoiceLog.d("设备不支持超时参数")
             }
         }
         
@@ -195,9 +357,32 @@ class VoiceRecognitionActivity : Activity() {
         try {
             isListening = true
             updateListeningState(true)
+            
+            // 再次检查识别器是否可用
+            if (speechRecognizer == null) {
+                VoiceLog.e("SpeechRecognizer在启动前变为null")
+                val retryRunnable = RetryStartRecognitionRunnable(this, 500)
+                safePostDelayed(500, retryRunnable)
+                return
+            }
+            
             speechRecognizer?.startListening(recognizerIntent)
+            VoiceLog.d("语音识别已启动")
+        } catch (e: IllegalStateException) {
+            // 捕获"not connected to the recognition service"异常
+            VoiceLog.e("SpeechRecognizer 未连接: ${e.message}", e)
+            // 释放并重试
+            releaseSpeechRecognizer()
+            val updateRunnable = UpdateTextRunnable(
+                this,
+                "服务未连接，正在重试...",
+                android.R.color.holo_orange_light
+            )
+            safePost(updateRunnable)
+            val retryRunnable = RetryStartRecognitionRunnable(this, 1000)
+            safePostDelayed(1000, retryRunnable)
         } catch (e: Exception) {
-            Log.e(TAG, "SpeechRecognizer 启动失败: ${e.message}")
+            VoiceLog.e("SpeechRecognizer 启动失败: ${e.message}", e)
             // 如果SpeechRecognizer失败，尝试系统语音输入
             trySystemVoiceInput()
         }
@@ -222,6 +407,9 @@ class VoiceRecognitionActivity : Activity() {
         isListening = false
         updateListeningState(false)
         speechRecognizer?.stopListening()
+        // 重置状态为空闲
+        recognizerState = RecognizerState.IDLE
+        VoiceLog.d("识别器状态: -> IDLE（用户停止监听）")
     }
     
     private fun updateListeningState(listening: Boolean) {
@@ -238,80 +426,199 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun createRecognitionListener(): RecognitionListener {
-        return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                handler.post {
-                    listeningText.text = "请开始说话"
-                    // 清空部分识别结果，准备新的识别
-                    currentPartialText = ""
-                }
-            }
-
-            override fun onBeginningOfSpeech() {
-                handler.post {
-                    listeningText.text = "正在聆听..."
-                    // 清空部分识别结果，开始新的识别
-                    currentPartialText = ""
-                }
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {
-                // 根据音量大小更新波形动画
-                handler.post {
-                    updateMicAnimation(rmsdB)
-                }
-            }
-
-            override fun onBufferReceived(buffer: ByteArray?) {}
-
-            override fun onEndOfSpeech() {
-                handler.post {
-                    listeningText.text = "正在处理..."
-                    // 清空部分识别结果，等待最终结果
-                    currentPartialText = ""
-                    // 如果还有已确认的文本，只显示已确认的文本
-                    if (recognizedText.isNotEmpty()) {
-                        recognizedTextView.setText(recognizedText)
-                        recognizedTextView.setSelection(recognizedText.length)
+        return SafeRecognitionListener(this)
+    }
+    
+    /**
+     * 安全的 RecognitionListener，使用 WeakReference 避免内存泄漏
+     */
+    private class SafeRecognitionListener(
+        activity: VoiceRecognitionActivity
+    ) : RecognitionListener {
+        private val activityRef = WeakReference(activity)
+        
+        override fun onReadyForSpeech(params: Bundle?) {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = object : Runnable {
+                    override fun run() {
+                        activityRef.get()?.let { act ->
+                            if (act.isDestroyed || act.isFinishing) return
+                            act.listeningText.text = "请开始说话"
+                            act.currentPartialText = ""
+                        }
                     }
                 }
+                activity.safePost(runnable)
             }
+        }
 
-            override fun onError(error: Int) {
-                handler.post {
-                    handleRecognitionError(error)
+        override fun onBeginningOfSpeech() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = object : Runnable {
+                    override fun run() {
+                        activityRef.get()?.let { act ->
+                            if (act.isDestroyed || act.isFinishing) return
+                            act.listeningText.text = "正在聆听..."
+                            act.currentPartialText = ""
+                        }
+                    }
+                }
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onRmsChanged(rmsdB: Float) {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = UpdateMicAnimationRunnable(activity, rmsdB)
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onBufferReceived(buffer: ByteArray?) {}
+
+        override fun onEndOfSpeech() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = OnEndOfSpeechRunnable(activity)
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onError(error: Int) {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = HandleErrorRunnable(activity, error)
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onResults(results: Bundle?) {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = ProcessResultsRunnable(activity, results)
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onPartialResults(partialResults: Bundle?) {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = ProcessPartialResultsRunnable(activity, partialResults)
+                activity.safePost(runnable)
+            }
+        }
+
+        override fun onEvent(eventType: Int, params: Bundle?) {}
+    }
+    
+    /**
+     * 静态内部类：更新麦克风动画
+     */
+    private class UpdateMicAnimationRunnable(
+        activity: VoiceRecognitionActivity,
+        private val rmsdB: Float
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.updateMicAnimation(rmsdB)
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：处理语音结束
+     */
+    private class OnEndOfSpeechRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.listeningText.text = "正在处理..."
+                activity.currentPartialText = ""
+                if (activity.recognizedText.isNotEmpty()) {
+                    activity.recognizedTextView.setText(activity.recognizedText)
+                    activity.recognizedTextView.setSelection(activity.recognizedText.length)
                 }
             }
-
-            override fun onResults(results: Bundle?) {
-                handler.post {
-                    processRecognitionResults(results)
-                }
+        }
+    }
+    
+    /**
+     * 静态内部类：处理识别错误
+     */
+    private class HandleErrorRunnable(
+        activity: VoiceRecognitionActivity,
+        private val error: Int
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.handleRecognitionError(error)
             }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                handler.post {
-                    processPartialResults(partialResults)
-                }
+        }
+    }
+    
+    /**
+     * 静态内部类：处理识别结果
+     */
+    private class ProcessResultsRunnable(
+        activity: VoiceRecognitionActivity,
+        private val results: Bundle?
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.recognizerBusyRetryCount = 0
+                activity.processRecognitionResults(results)
             }
-
-            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+    
+    /**
+     * 静态内部类：处理部分识别结果
+     */
+    private class ProcessPartialResultsRunnable(
+        activity: VoiceRecognitionActivity,
+        private val partialResults: Bundle?
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.processPartialResults(partialResults)
+            }
         }
     }
     
     private fun updateMicAnimation(rmsdB: Float) {
-        val minScale = 1.0f
-        val maxScale = 1.2f
-        // Clamp and normalize the rmsdB value. Range from 0 to 10 is a reasonable expectation for speech.
-        val normalizedRms = (rmsdB).coerceIn(0f, 10f) / 10f 
-        val targetScale = minScale + (maxScale - minScale) * normalizedRms
-
-        // Animate the mic container scale
-        micContainer.animate()
-            .scaleX(targetScale)
-            .scaleY(targetScale)
-            .setDuration(150) // Smooth transition
-            .start()
+        // 计算目标缩放值：1.0f + (rmsdB / 10f) * 0.2f，范围在 1.0f 到 1.2f 之间
+        val targetScale = 1f + (rmsdB.coerceIn(0f, 10f) / 10f) * 0.2f
+        
+        // 使用复用的动画器，避免高频创建新动画导致性能问题
+        if (::micAnimator.isInitialized) {
+            // 更新 PropertyValuesHolder 的值
+            micAnimator.setValues(
+                PropertyValuesHolder.ofFloat("scaleX", targetScale),
+                PropertyValuesHolder.ofFloat("scaleY", targetScale)
+            )
+            if (!micAnimator.isRunning) {
+                micAnimator.start()
+            }
+        }
     }
     
     private fun adjustTextSize(adjustment: Float) {
@@ -327,32 +634,63 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun processRecognitionResults(results: Bundle?) {
         try {
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (!matches.isNullOrEmpty()) {
-                val newFinalText = matches[0]
+            if (results == null) {
+                VoiceLog.w("识别结果 Bundle 为 null")
+                return
+            }
+            
+            // 如果是小米 Aivs 服务，尝试从 RecognizeResult 中提取文本
+            var newFinalText: String? = null
+            if (isXiaomiAivsService) {
+                newFinalText = extractTextFromXiaomiAivsResult(results)
+                VoiceLog.d("从小米 Aivs RecognizeResult 提取文本: $newFinalText")
+            }
+            
+            // 如果小米 Aivs 提取失败，或不是小米 Aivs，使用标准方式
+            if (newFinalText.isNullOrEmpty()) {
+                val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    newFinalText = matches[0]
+                }
+            }
+            
+            if (!newFinalText.isNullOrEmpty()) {
                 
                 // 清除当前的部分识别结果
                 currentPartialText = ""
                 
-                // 智能合并最终结果，避免重复
+                // 智能合并最终结果，使用编辑距离算法避免重复累积
                 recognizedText = if (recognizedText.isEmpty()) {
                     newFinalText
                 } else {
-                    // 检查新文本是否已经包含在已确认文本中
-                    if (recognizedText.contains(newFinalText)) {
-                        // 如果已包含，检查是否有新增内容
-                        val newPart = newFinalText.replace(recognizedText, "").trim()
-                        if (newPart.isNotEmpty()) {
-                            "$recognizedText $newPart"
-                        } else {
-                            recognizedText // 没有新增内容
-                        }
-                    } else if (newFinalText.contains(recognizedText)) {
-                        // 如果新文本包含已确认文本，使用新文本（可能更完整）
+                    // 先检查包含关系（快速判断）
+                    val isNewContainsOld = newFinalText.contains(recognizedText)
+                    val isOldContainsNew = recognizedText.contains(newFinalText)
+                    
+                    if (isNewContainsOld && !isOldContainsNew) {
+                        // 新文本包含旧文本，使用新文本（更完整，避免重复）
+                        // 例如："你好" -> "你好你好"，使用"你好你好"
+                        VoiceLog.d("新文本包含旧文本，使用新文本: '$newFinalText'")
                         newFinalText
+                    } else if (isOldContainsNew && !isNewContainsOld) {
+                        // 旧文本包含新文本，保持旧文本（更完整）
+                        // 例如："你好你好" -> "你好"，保持"你好你好"
+                        VoiceLog.d("旧文本包含新文本，保持旧文本: '$recognizedText'")
+                        recognizedText
                     } else {
-                        // 完全不同的文本，追加
-                        "$recognizedText $newFinalText"
+                        // 使用编辑距离算法判断相似度
+                        val similarity = calculateSimilarity(recognizedText, newFinalText)
+                        VoiceLog.d("文本相似度计算: recognizedText='$recognizedText', newFinalText='$newFinalText', similarity=$similarity")
+                        
+                        if (similarity > 0.8f) {
+                            // 相似度 >80%，认为是修正而非追加（避免"你好" + "你好你好" = "你好 你好你好"的问题）
+                            VoiceLog.d("相似度 >80%，使用新文本作为修正: '$newFinalText'")
+                            newFinalText
+                        } else {
+                            // 相似度较低，认为是新内容，追加
+                            VoiceLog.d("相似度 <=80%，追加新文本: '$recognizedText' + '$newFinalText'")
+                            "$recognizedText $newFinalText"
+                        }
                     }
                 }
             
@@ -365,25 +703,43 @@ class VoiceRecognitionActivity : Activity() {
                 
                 // 确保"说完了"按钮可用
                 doneButton.isEnabled = true
-                Log.d(TAG, "✓ 识别成功，当前累积文本: '$recognizedText'")
+                VoiceLog.d("✓ 识别成功，当前累积文本: '$recognizedText'")
                 
-                // 立即重启识别，实现无缝连续识别
-                handler.postDelayed({
-                    if (isListening) { // 防止用户手动停止后重启
-                        startVoiceRecognition()
-                    }
-                }, 50) // 进一步缩短到50ms，实现更快的连续识别
+                // 设置冷却状态，防止连续识别导致 ERROR_RECOGNIZER_BUSY
+                recognizerState = RecognizerState.COOLING_DOWN
+                VoiceLog.d("识别器状态: LISTENING -> COOLING_DOWN（强制冷却 ${COOLING_DOWN_DELAY_MS}ms）")
+                
+                // 冷却后重启识别，实现连续听写（避免 ERROR_RECOGNIZER_BUSY）
+                val coolingRunnable = CoolingDownCompleteRunnable(this)
+                safePostDelayed(COOLING_DOWN_DELAY_MS, coolingRunnable)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "处理识别结果失败: ${e.message}")
+            VoiceLog.e("处理识别结果失败: ${e.message}")
             showError("处理识别结果失败")
         }
     }
     
     private fun processPartialResults(partialResults: Bundle?) {
-        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        if (!matches.isNullOrEmpty()) {
-            val partialText = matches[0]
+        if (partialResults == null) {
+            return
+        }
+        
+        // 如果是小米 Aivs 服务，尝试从 RecognizeResult 中提取文本
+        var partialText: String? = null
+        if (isXiaomiAivsService) {
+            partialText = extractTextFromXiaomiAivsResult(partialResults)
+            VoiceLog.d("从小米 Aivs 部分结果提取文本: $partialText")
+        }
+        
+        // 如果小米 Aivs 提取失败，或不是小米 Aivs，使用标准方式
+        if (partialText.isNullOrEmpty()) {
+            val matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
+                partialText = matches[0]
+            }
+        }
+        
+        if (!partialText.isNullOrEmpty()) {
             
             // 更新当前部分识别结果
             if (partialText.isNotEmpty()) {
@@ -413,7 +769,7 @@ class VoiceRecognitionActivity : Activity() {
                     recognizedTextView.setText(displayText)
                     recognizedTextView.setSelection(displayText.length)
                     
-                    Log.d(TAG, "↻ 部分结果更新: '$partialText' → 显示: '$displayText'")
+                    VoiceLog.d("↻ 部分结果更新: '$partialText' → 显示: '$displayText'")
                 }
             } else {
                 // 部分结果为空，清空当前部分结果
@@ -430,24 +786,139 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun handleRecognitionError(error: Int) {
-        // 对于非致命错误，自动重启监听
+        // 处理客户端错误（通常表示连接问题）
+        if (error == SpeechRecognizer.ERROR_CLIENT) {
+            VoiceLog.w("识别器连接错误，尝试重新连接 (重试次数: $recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)")
+            
+            // 设置冷却状态，防止连续错误导致忙碌
+            recognizerState = RecognizerState.COOLING_DOWN
+            VoiceLog.d("识别器状态: LISTENING -> COOLING_DOWN（ERROR_CLIENT）")
+            
+            // 如果超过最大重试次数，尝试使用系统语音输入
+            if (recognizerBusyRetryCount >= MAX_RECOGNIZER_BUSY_RETRIES) {
+                VoiceLog.e("连接重试次数已达上限，切换到系统语音输入")
+                recognizerBusyRetryCount = 0 // 重置计数器
+                recognizerState = RecognizerState.IDLE // 重置状态
+                val updateRunnable = UpdateTextRunnable(
+                    this,
+                    "连接失败，切换到系统语音输入...",
+                    android.R.color.holo_orange_light
+                )
+                safePost(updateRunnable)
+                // 完全释放识别器
+                releaseSpeechRecognizer()
+                // 延迟后尝试系统语音输入
+                val trySystemRunnable = TrySystemVoiceInputRunnable(this)
+                safePostDelayed(1000, trySystemRunnable)
+                return
+            }
+            
+            // 增加重试计数
+            recognizerBusyRetryCount++
+            
+            // 完全释放识别器
+            releaseSpeechRecognizer()
+            
+            // 更新UI提示
+            val updateRunnable = UpdateTextRunnable(
+                this,
+                "连接失败，正在重试... ($recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)",
+                android.R.color.holo_orange_light
+            )
+            safePost(updateRunnable)
+            
+            // 延迟后重新启动识别（给识别器足够时间释放和重新连接）
+            val retryDelay = when {
+                Build.MANUFACTURER.lowercase().contains("xiaomi") -> 2000L // 小米设备延迟2秒
+                Build.MANUFACTURER.lowercase().contains("meizu") -> 3000L // 魅族手机延迟3秒
+                Build.MANUFACTURER.lowercase().contains("oppo") -> 3000L // OPPO手机延迟3秒
+                else -> 2000L // 其他手机延迟2秒
+            }
+            
+            // 使用冷却完成回调来重启识别
+            val coolingRunnable = CoolingDownCompleteRunnable(this)
+            safePostDelayed(retryDelay, coolingRunnable)
+            
+            return
+        }
+        
+        // 处理识别器忙碌错误 - 这是可恢复的错误，需要先释放识别器再重试
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            VoiceLog.w("识别器忙碌，尝试释放并重试 (重试次数: $recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)")
+            
+            // 设置冷却状态，防止立即重试导致更严重的忙碌
+            recognizerState = RecognizerState.COOLING_DOWN
+            VoiceLog.d("识别器状态: LISTENING -> COOLING_DOWN（ERROR_RECOGNIZER_BUSY）")
+            
+            // 如果超过最大重试次数，尝试使用系统语音输入
+            if (recognizerBusyRetryCount >= MAX_RECOGNIZER_BUSY_RETRIES) {
+                VoiceLog.e("识别器忙碌重试次数已达上限，切换到系统语音输入")
+                recognizerBusyRetryCount = 0 // 重置计数器
+                recognizerState = RecognizerState.IDLE // 重置状态
+                val updateRunnable = UpdateTextRunnable(
+                    this,
+                    "识别器忙碌，切换到系统语音输入...",
+                    android.R.color.holo_orange_light
+                )
+                safePost(updateRunnable)
+                // 完全释放识别器
+                releaseSpeechRecognizer()
+                // 延迟后尝试系统语音输入
+                val trySystemRunnable = TrySystemVoiceInputRunnable(this)
+                safePostDelayed(1000, trySystemRunnable)
+                return
+            }
+            
+            // 增加重试计数
+            recognizerBusyRetryCount++
+            
+            // 完全释放识别器
+            releaseSpeechRecognizer()
+            
+            // 更新UI提示
+            val updateRunnable = UpdateTextRunnable(
+                this,
+                "识别器忙碌，正在重试... ($recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)",
+                android.R.color.holo_orange_light
+            )
+            safePost(updateRunnable)
+            
+            // 延迟后重新启动识别（给识别器足够时间释放和冷却）
+            // 魅族和OPPO设备需要更长的延迟时间
+            val retryDelay = when {
+                Build.MANUFACTURER.lowercase().contains("meizu") -> 3000L // 魅族手机延迟3秒
+                Build.MANUFACTURER.lowercase().contains("oppo") -> 3000L // OPPO手机延迟3秒
+                else -> 2000L // 其他手机延迟2秒
+            }
+            
+            // 使用冷却完成回调来重启识别
+            val coolingRunnable = CoolingDownCompleteRunnable(this)
+            safePostDelayed(retryDelay, coolingRunnable)
+            
+            return
+        }
+        
+        // 重置识别器忙碌重试计数（其他错误时重置）
+        recognizerBusyRetryCount = 0
+        
+        // 对于非致命错误，自动重启监听（ERROR_CLIENT已在上面单独处理）
         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
-            error == SpeechRecognizer.ERROR_CLIENT ||
             error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
             
-            Log.d(TAG, "Non-critical error ($error), restarting listener.")
+            VoiceLog.d("Non-critical error ($error), restarting listener.")
+            
+            // 设置冷却状态，防止连续错误导致忙碌
+            recognizerState = RecognizerState.COOLING_DOWN
+            VoiceLog.d("识别器状态: LISTENING -> COOLING_DOWN（非致命错误）")
             
             // 给出清晰的反馈，但绝不覆盖用户的输入
             listeningText.text = "请再说一遍"
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
 
-            // 在安全延迟后重启识别过程
-            handler.postDelayed({
-                if (isListening) {
-                    startVoiceRecognition()
-                }
-            }, 500) 
+            // 在安全延迟后重启识别过程（使用冷却完成回调）
+            val coolingRunnable = CoolingDownCompleteRunnable(this)
+            safePostDelayed(500, coolingRunnable) 
 
             return
         }
@@ -456,19 +927,18 @@ class VoiceRecognitionActivity : Activity() {
         val errorMessage = when (error) {
             SpeechRecognizer.ERROR_AUDIO -> "音频错误"
             SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-            SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+            SpeechRecognizer.ERROR_CLIENT -> "连接错误（已重试）"
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "没有录音权限"
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别服务忙"
             SpeechRecognizer.ERROR_SERVER -> "服务器错误"
             else -> "识别错误 (代码: $error)"
         }
         
-        Log.e(TAG, "Fatal Speech Recognition Error: $errorMessage")
+        VoiceLog.e("Fatal Speech Recognition Error: $errorMessage")
         showError(errorMessage)
     }
 
     private fun trySystemVoiceInput() {
-        Log.d(TAG, "尝试使用系统语音输入Intent")
+        VoiceLog.d("尝试使用系统语音输入Intent")
         
         // 创建系统语音识别Intent
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -491,14 +961,14 @@ class VoiceRecognitionActivity : Activity() {
                 showVoiceRecognitionNotAvailableDialog()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "启动系统语音输入失败: ${e.message}")
+            VoiceLog.e("启动系统语音输入失败: ${e.message}")
             showVoiceRecognitionNotAvailableDialog()
         }
     }
 
     private fun showVoiceRecognitionNotAvailableDialog() {
         // 不再显示弹窗，直接切换到手动输入模式
-        Log.d(TAG, "语音识别不可用，自动切换到手动输入模式")
+        VoiceLog.d("语音识别不可用，自动切换到手动输入模式")
 
         // 允许用户手动输入文本
         listeningText.text = "请在下方输入文本，然后点击'说完了'"
@@ -511,7 +981,7 @@ class VoiceRecognitionActivity : Activity() {
 
         // 确保"说完了"按钮可用
         doneButton.isEnabled = true
-        Log.d(TAG, "已切换到手动输入模式")
+        VoiceLog.d("已切换到手动输入模式")
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -522,7 +992,7 @@ class VoiceRecognitionActivity : Activity() {
                 val results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 if (!results.isNullOrEmpty()) {
                     val recognizedSystemText = results[0]
-                    Log.d(TAG, "系统语音输入结果: $recognizedSystemText")
+                    VoiceLog.d("系统语音输入结果: $recognizedSystemText")
                     
                     // 将系统语音识别结果添加到现有文本
                     recognizedText = if (recognizedText.isEmpty()) {
@@ -540,7 +1010,7 @@ class VoiceRecognitionActivity : Activity() {
                     
                     // 更新"说完了"按钮的可见性和状态
                     doneButton.isEnabled = true
-                    Log.d(TAG, "系统语音输入成功，当前文本: '$recognizedText'")
+                    VoiceLog.d("系统语音输入成功，当前文本: '$recognizedText'")
                 } else {
                     listeningText.text = "未识别到语音，请重试"
                     micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
@@ -576,14 +1046,14 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun finishRecognition() {
         val finalText = recognizedTextView.text.toString().trim()
-        Log.d(TAG, "finishRecognition 被调用，文本长度: ${finalText.length}，内容: '$finalText'")
+        VoiceLog.d("finishRecognition 被调用，文本长度: ${finalText.length}，内容: '$finalText'")
         
         if (finalText.isNotEmpty()) {
-            Log.d(TAG, "识别完成，文本: $finalText")
+            VoiceLog.d("识别完成，文本: $finalText")
             // 发送广播，命令SimpleModeService启动搜索并自我销毁
             triggerSearchAndDestroySimpleMode(finalText)
         } else {
-            Log.d(TAG, "识别完成，但无文本。")
+            VoiceLog.d("识别完成，但无文本。")
             Toast.makeText(this, "没有识别到文本", Toast.LENGTH_SHORT).show()
         }
         finish()
@@ -591,7 +1061,7 @@ class VoiceRecognitionActivity : Activity() {
 
     private fun triggerSearchAndDestroySimpleMode(query: String) {
         try {
-            Log.d(TAG, "准备启动语音搜索，查询: '$query'")
+            VoiceLog.d("准备启动语音搜索，查询: '$query'")
 
             // 启动DualFloatingWebViewService，默认加载百度AI对话界面（文心一言）和Google AI对话界面（Gemini）
             val serviceIntent = Intent(this, com.example.aifloatingball.service.DualFloatingWebViewService::class.java).apply {
@@ -603,10 +1073,10 @@ class VoiceRecognitionActivity : Activity() {
                 putExtra("search_source", "语音输入")
             }
             startService(serviceIntent)
-            Log.d(TAG, "已启动DualFloatingWebViewService进行语音搜索")
+            VoiceLog.d("已启动DualFloatingWebViewService进行语音搜索")
             
         } catch (e: Exception) {
-            Log.e(TAG, "启动语音搜索失败: ${e.message}", e)
+            VoiceLog.e("启动语音搜索失败: ${e.message}", e)
             Toast.makeText(this, "启动搜索失败", Toast.LENGTH_LONG).show()
         }
     }
@@ -616,19 +1086,37 @@ class VoiceRecognitionActivity : Activity() {
             // 发送广播通知SimpleModeService关闭
             val closeIntent = Intent("com.example.aifloatingball.ACTION_CLOSE_SIMPLE_MODE")
             sendBroadcast(closeIntent)
-            Log.d(TAG, "已发送关闭简易模式广播")
+            VoiceLog.d("已发送关闭简易模式广播")
         } catch (e: Exception) {
-            Log.e(TAG, "发送关闭广播失败: ${e.message}")
+            VoiceLog.e("发送关闭广播失败: ${e.message}")
         }
     }
     
     /**
      * 保存语音转文本到统一收藏系统和语音文本标签管理器
+     * 添加防抖机制，防止重复调用
      */
     private fun saveVoiceText() {
+        // 先检查生命周期
+        if (isFinishing || isDestroyed) {
+            VoiceLog.d("Activity 已销毁，忽略保存操作")
+            return
+        }
+        
+        // 防抖：如果正在保存，显示提示而不是静默忽略
+        if (isSavingVoiceText) {
+            VoiceLog.d("正在保存中，显示提示")
+            Toast.makeText(this, "正在保存中...", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         val text = recognizedTextView.text.toString().trim()
         
-        Log.d(TAG, "开始保存语音文本，文本长度: ${text.length}")
+        VoiceLog.d("开始保存语音文本，文本长度: ${text.length}")
+        
+        // 设置防抖标志并立即禁用按钮，防止重复点击
+        isSavingVoiceText = true
+        saveButton.isEnabled = false // 立即禁用按钮，给用户明确反馈
         
         // 保存时先停止监听，避免状态更新覆盖保存提示
         val wasListening = isListening
@@ -637,25 +1125,14 @@ class VoiceRecognitionActivity : Activity() {
         }
         
         if (text.isEmpty()) {
-            Log.w(TAG, "文本为空，无法保存")
-            handler.post {
-                // 更新状态文本，显示提示
-                listeningText.text = "⚠️ 没有可保存的文本"
-                // 改变背景色为橙色，表示警告
-                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_orange_light))
-                // 同时显示Toast提示
-                Toast.makeText(this@VoiceRecognitionActivity, "没有可保存的文本", Toast.LENGTH_SHORT).show()
-                
-                // 2秒后恢复状态
-                handler.postDelayed({
-                    if (wasListening && isListening) {
-                        listeningText.text = "正在倾听"
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
-                    } else {
-                        listeningText.text = "识别已暂停"
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
-                    }
-                }, 2000)
+            VoiceLog.w("文本为空，无法保存")
+            // 使用finally确保状态重置
+            try {
+                val warningRunnable = ShowEmptyTextWarningRunnable(this, wasListening)
+                safePost(warningRunnable)
+            } finally {
+                // 1秒后重置状态和按钮
+                resetSaveButtonState()
             }
             return
         }
@@ -670,7 +1147,7 @@ class VoiceRecognitionActivity : Activity() {
             // 创建标题（前50字符）
             val title = text.take(50) + if (text.length > 50) "..." else ""
             
-            Log.d(TAG, "创建收藏项: title='$title', textLength=${text.length}")
+            VoiceLog.d("创建收藏项: title='$title', textLength=${text.length}")
             
             // 创建收藏项
             val collectionItem = UnifiedCollectionItem(
@@ -694,47 +1171,47 @@ class VoiceRecognitionActivity : Activity() {
                 )
             )
             
-            Log.d(TAG, "收藏项创建完成: id=${collectionItem.id}, type=${collectionItem.collectionType?.name}")
+            VoiceLog.d("收藏项创建完成: id=${collectionItem.id}, type=${collectionItem.collectionType?.name}")
             
             // 保存到统一收藏管理器（这是主要存储，用于AI助手tab的任务场景显示）
             val collectionSuccess = collectionManager.addCollection(collectionItem)
-            Log.d(TAG, "统一收藏管理器保存结果: $collectionSuccess")
+            VoiceLog.d("统一收藏管理器保存结果: $collectionSuccess")
             
             // 2. 同时保存到VoiceTextTagManager（供VoiceTextFragment显示，可选）
             val voiceTextTagManager = VoiceTextTagManager(this)
             val voiceTextSuccess = voiceTextTagManager.saveTextToTag(text)
-            Log.d(TAG, "语音文本标签管理器保存结果: $voiceTextSuccess")
+            VoiceLog.d("语音文本标签管理器保存结果: $voiceTextSuccess")
             
             // 只要统一收藏管理器保存成功，就认为保存成功（这是主要存储）
             if (collectionSuccess) {
                 // 立即验证保存是否成功
                 val savedItem = collectionManager.getCollectionById(collectionItem.id)
                 if (savedItem != null) {
-                    Log.d(TAG, "✅ 验证成功：收藏项已保存到统一收藏管理器")
-                    Log.d(TAG, "  - 保存的标题: ${savedItem.title}")
-                    Log.d(TAG, "  - 保存的类型: ${savedItem.collectionType?.name}")
-                    Log.d(TAG, "  - 保存的内容长度: ${savedItem.content.length}")
+                    VoiceLog.d("✅ 验证成功：收藏项已保存到统一收藏管理器")
+                    VoiceLog.d("  - 保存的标题: ${savedItem.title}")
+                    VoiceLog.d("  - 保存的类型: ${savedItem.collectionType?.name}")
+                    VoiceLog.d("  - 保存的内容长度: ${savedItem.content.length}")
                     
                     // 验证类型是否正确 - 立即查询验证
                     val voiceToTextCollections = collectionManager.getCollectionsByType(CollectionType.VOICE_TO_TEXT)
-                    Log.d(TAG, "✅ 立即查询验证：当前VOICE_TO_TEXT类型收藏总数: ${voiceToTextCollections.size}")
+                    VoiceLog.d("✅ 立即查询验证：当前VOICE_TO_TEXT类型收藏总数: ${voiceToTextCollections.size}")
                     if (voiceToTextCollections.isNotEmpty()) {
                         voiceToTextCollections.forEachIndexed { index, item ->
-                            Log.d(TAG, "  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name}")
+                            VoiceLog.d("  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name}")
                         }
                     } else {
                         // 如果没有找到，检查所有收藏项
                         val allCollections = collectionManager.getAllCollections()
-                        Log.d(TAG, "⚠️ 未找到VOICE_TO_TEXT类型收藏，当前所有收藏项总数: ${allCollections.size}")
+                        VoiceLog.d("⚠️ 未找到VOICE_TO_TEXT类型收藏，当前所有收藏项总数: ${allCollections.size}")
                         if (allCollections.isNotEmpty()) {
                             val typeCounts = allCollections.groupingBy { it.collectionType?.name ?: "null" }.eachCount()
-                            Log.d(TAG, "所有收藏项的类型分布:")
+                            VoiceLog.d("所有收藏项的类型分布:")
                             typeCounts.forEach { (typeName, count) ->
-                                Log.d(TAG, "  - $typeName: $count 条")
+                                VoiceLog.d("  - $typeName: $count 条")
                             }
-                            Log.d(TAG, "所有收藏项详情:")
+                            VoiceLog.d("所有收藏项详情:")
                             allCollections.forEachIndexed { index, item ->
-                                Log.d(TAG, "  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name ?: "null"}")
+                                VoiceLog.d("  - 收藏项[$index]: id=${item.id}, title='${item.title}', type=${item.collectionType?.name ?: "null"}")
                             }
                         }
                     }
@@ -749,54 +1226,20 @@ class VoiceRecognitionActivity : Activity() {
                             setPackage(packageName)
                         }
                         sendBroadcast(intent)
-                        Log.d(TAG, "✅ 已发送收藏更新广播: type=${CollectionType.VOICE_TO_TEXT.name}, id=${collectionItem.id}, package=${packageName}")
+                        VoiceLog.d("✅ 已发送收藏更新广播: type=${CollectionType.VOICE_TO_TEXT.name}, id=${collectionItem.id}, package=${packageName}")
                     } catch (e: Exception) {
-                        Log.e(TAG, "❌ 发送收藏更新广播失败", e)
+                        VoiceLog.e("❌ 发送收藏更新广播失败", e)
                         e.printStackTrace()
                     }
                     
                     // 显示成功提示（在状态文本中显示，确保用户能看到）
-                    handler.post {
-                        // 更新状态文本，让用户明确看到保存成功
-                        listeningText.text = "✅ 已保存到语音转文"
-                        // 改变背景色为绿色，表示成功
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_dark))
-                        // 同时显示Toast提示
-                        Toast.makeText(this@VoiceRecognitionActivity, "已保存到语音转文", Toast.LENGTH_LONG).show()
-                        
-                        // 3秒后恢复状态
-                        handler.postDelayed({
-                            if (wasListening && isListening) {
-                                listeningText.text = "正在倾听"
-                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
-                            } else {
-                                listeningText.text = "识别已暂停"
-                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
-                            }
-                        }, 3000)
-                    }
-                    Log.d(TAG, "✅ 语音文本保存成功，已显示提示")
+                    val successRunnable = ShowSaveSuccessRunnable(this, wasListening)
+                    safePost(successRunnable)
+                    VoiceLog.d("✅ 语音文本保存成功，已显示提示")
                 } else {
-                    Log.e(TAG, "❌ 验证失败：收藏项未找到，ID=${collectionItem.id}")
-                    handler.post {
-                        // 更新状态文本，显示保存失败
-                        listeningText.text = "❌ 保存失败：验证未通过"
-                        // 改变背景色为红色，表示失败
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
-                        // 同时显示Toast提示
-                        Toast.makeText(this@VoiceRecognitionActivity, "保存失败：验证未通过", Toast.LENGTH_LONG).show()
-                        
-                        // 3秒后恢复状态
-                        handler.postDelayed({
-                            if (wasListening && isListening) {
-                                listeningText.text = "正在倾听"
-                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
-                            } else {
-                                listeningText.text = "识别已暂停"
-                                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
-                            }
-                        }, 3000)
-                    }
+                    VoiceLog.e("❌ 验证失败：收藏项未找到，ID=${collectionItem.id}")
+                    val errorRunnable = ShowSaveErrorRunnable(this, "保存失败：验证未通过", wasListening)
+                    safePost(errorRunnable)
                 }
             } else {
                 // 统一收藏管理器保存失败
@@ -805,71 +1248,128 @@ class VoiceRecognitionActivity : Activity() {
                 } else {
                     "保存失败：统一收藏管理器失败（数据未保存到任务场景）"
                 }
-                Log.e(TAG, "❌ 语音文本保存失败: collectionSuccess=$collectionSuccess, voiceTextSuccess=$voiceTextSuccess")
-                handler.post {
-                    // 更新状态文本，显示保存失败
-                    listeningText.text = "❌ $errorMsg"
-                    // 改变背景色为红色，表示失败
-                    micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
-                    // 同时显示Toast提示
-                    Toast.makeText(this@VoiceRecognitionActivity, errorMsg, Toast.LENGTH_LONG).show()
-                    
-                    // 3秒后恢复状态
-                    handler.postDelayed({
-                        if (wasListening && isListening) {
-                            listeningText.text = "正在倾听"
-                            micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
-                        } else {
-                            listeningText.text = "识别已暂停"
-                            micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
-                        }
-                    }, 3000)
-                }
+                VoiceLog.e("❌ 语音文本保存失败: collectionSuccess=$collectionSuccess, voiceTextSuccess=$voiceTextSuccess")
+                val errorRunnable = ShowSaveErrorRunnable(this, errorMsg, wasListening)
+                safePost(errorRunnable)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 保存语音文本异常", e)
+            VoiceLog.e("❌ 保存语音文本异常", e)
             e.printStackTrace()
-            handler.post {
-                // 更新状态文本，显示保存异常
-                listeningText.text = "❌ 保存失败: ${e.message?.take(20) ?: "未知错误"}"
-                // 改变背景色为红色，表示失败
-                micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_red_dark))
-                // 同时显示Toast提示
-                Toast.makeText(this@VoiceRecognitionActivity, "保存失败: ${e.message}", Toast.LENGTH_LONG).show()
-                
-                // 3秒后恢复状态
-                handler.postDelayed({
-                    if (wasListening && isListening) {
-                        listeningText.text = "正在倾听"
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.holo_green_light))
-                    } else {
-                        listeningText.text = "识别已暂停"
-                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this@VoiceRecognitionActivity, android.R.color.darker_gray))
-                    }
-                }, 3000)
-            }
+            val errorMsg = "保存失败: ${e.message?.take(20) ?: "未知错误"}"
+            val errorRunnable = ShowSaveErrorRunnable(this, errorMsg, wasListening)
+            safePost(errorRunnable)
+        } finally {
+            // 无论成功失败，1秒后重置状态和按钮（缩短冷却时间，提升用户体验）
+            resetSaveButtonState()
         }
+    }
+    
+    /**
+     * 重置保存按钮状态（1秒冷却）
+     */
+    private fun resetSaveButtonState() {
+        val resetRunnable = ResetSaveButtonStateRunnable(this)
+        safePostDelayed(1000, resetRunnable) // 1秒冷却足够
     }
     
     private fun showError(message: String) {
         listeningText.text = message
         // 3秒后自动关闭
-        handler.postDelayed({ finish() }, 3000)
+        val finishRunnable = FinishActivityRunnable(this)
+        safePostDelayed(3000, finishRunnable)
     }
     
+    /**
+     * 启动语音识别服务检测 Activity
+     */
+    private fun startDetectionActivity() {
+        try {
+            val intent = Intent(this, SpeechRecognitionDetectionActivity::class.java)
+            startActivity(intent)
+            VoiceLog.d("已启动语音识别服务检测")
+        } catch (e: Exception) {
+            VoiceLog.e("启动检测 Activity 失败", e)
+            Toast.makeText(this, "启动检测失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 释放语音识别器（复用模式：只取消，不销毁）
+     * 删除 destroy() 调用，只保留 cancel()，以便复用 SpeechRecognizer
+     */
     private fun releaseSpeechRecognizer() {
         speechRecognizer?.apply {
-            cancel()
-            destroy()
+            try {
+                cancel() // 取消当前识别，但不销毁识别器以便复用
+            } catch (e: Exception) {
+                VoiceLog.w("取消识别器时出错: ${e.message}")
+            }
+            // 注意：不再调用 destroy()，以便复用 SpeechRecognizer
+        }
+        // 注意：不再设置为 null，保持引用以便复用
+        VoiceLog.d("语音识别器已取消（保持引用以便复用）")
+    }
+    
+    /**
+     * 完全销毁语音识别器（仅在 Activity 销毁时调用）
+     */
+    private fun destroySpeechRecognizer() {
+        speechRecognizer?.apply {
+            try {
+                cancel() // 先取消当前识别
+            } catch (e: Exception) {
+                VoiceLog.w("取消识别器时出错: ${e.message}")
+            }
+            try {
+                destroy() // 然后销毁识别器
+            } catch (e: Exception) {
+                VoiceLog.w("销毁识别器时出错: ${e.message}")
+            }
         }
         speechRecognizer = null
+        VoiceLog.d("语音识别器已完全销毁")
     }
 
     override fun onDestroy() {
         super.onDestroy()
         
-        // 释放语音识别器
-        releaseSpeechRecognizer()
+        // 停止 AnimatedVectorDrawable，防止渲染线程泄漏
+        if (::micIcon.isInitialized) {
+            try {
+                val drawable = micIcon.drawable
+                if (drawable is AnimatedVectorDrawable) {
+                    drawable.stop()
+                    VoiceLog.d("已停止 AnimatedVectorDrawable 动画")
+                }
+            } catch (e: Exception) {
+                VoiceLog.e("停止 AnimatedVectorDrawable 时出错: ${e.message}", e)
+            }
+        }
+        
+        // 取消麦克风动画器，防止资源泄漏
+        if (::micAnimator.isInitialized) {
+            try {
+                if (micAnimator.isRunning) {
+                    micAnimator.cancel()
+                }
+                VoiceLog.d("已取消麦克风动画器")
+            } catch (e: Exception) {
+                VoiceLog.e("取消麦克风动画器时出错: ${e.message}", e)
+            }
+        }
+        
+        // 完全销毁语音识别器（Activity 销毁时）
+        destroySpeechRecognizer()
+        
+        // 重置状态机
+        recognizerState = RecognizerState.IDLE
+        VoiceLog.d("识别器状态: -> IDLE（Activity 销毁）")
+        
+        // 移除所有待执行的 Runnable，防止内存泄漏
+        pendingRunnables.forEach { runnable ->
+            handler.removeCallbacks(runnable)
+        }
+        pendingRunnables.clear()
         
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
@@ -879,5 +1379,650 @@ class VoiceRecognitionActivity : Activity() {
         super.finish()
         // 设置退出动画
         overridePendingTransition(0, R.anim.slide_down)
+    }
+    
+    /**
+     * 检测是否是小米 Aivs 服务
+     * 简化逻辑：只要检测到小米设备和小米语音服务包，就强制使用 Aivs
+     * 避免小米国际版因预装 Google App 而被误判为 Google 服务
+     */
+    private fun detectXiaomiAivsService(): Boolean {
+        try {
+            // 简化逻辑：只要检测到小米设备和小米语音服务包，就强制用 Aivs
+            val isXiaomi = Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
+                           Build.BRAND.equals("Xiaomi", ignoreCase = true) ||
+                           Build.BRAND.equals("Redmi", ignoreCase = true)
+            
+            val hasAivs = hasXiaomiSpeechService(this) // 只检测核心包
+            
+            VoiceLog.d("小米检测: isXiaomi=$isXiaomi, hasAivs=$hasAivs")
+            
+            val isAivs = isXiaomi && hasAivs
+            
+            if (isAivs) {
+                VoiceLog.d("✅ 检测到小米 Aivs 服务，强制使用 Aivs（忽略 Google 服务检测）")
+            } else {
+                VoiceLog.d("❌ 未检测到小米 Aivs 服务: isXiaomi=$isXiaomi, hasAivs=$hasAivs")
+            }
+            
+            return isAivs
+        } catch (e: Exception) {
+            VoiceLog.e("检测小米 Aivs 服务时出错: ${e.message}", e)
+            return false
+        }
+    }
+    
+    /**
+     * 检查是否是强依赖 Google 的方案
+     */
+    private fun hasGoogleSpeechLikeService(ctx: Context): Boolean {
+        val pm = ctx.packageManager
+        val googleCandidates = listOf(
+            "com.google.android.googlequicksearchbox",   // Google App
+            "com.google.android.tts",                    // Text-to-speech (间接参考)
+            "com.google.android.apps.speechservices",    // Speech Services by Google
+        )
+        return googleCandidates.any { pkg ->
+            try {
+                pm.getPackageInfo(pkg, 0)
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+    
+    /**
+     * 检查小米语音服务包是否存在
+     */
+    private fun hasXiaomiSpeechService(ctx: Context): Boolean {
+        val pm = ctx.packageManager
+        val xiaomiSpeechPackages = listOf(
+            "com.xiaomi.mibrain.speech",      // 小米语音服务（Aivs）- 这是关键包
+            "com.miui.voiceassist",            // 小爱同学
+            "com.xiaomi.voiceassist"           // 小米语音助手
+        )
+        var foundPackage: String? = null
+        val hasService = xiaomiSpeechPackages.any { pkg ->
+            try {
+                pm.getPackageInfo(pkg, 0)
+                foundPackage = pkg
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+        if (foundPackage != null) {
+            VoiceLog.d("✅ 找到小米语音服务包: $foundPackage")
+        } else {
+            VoiceLog.d("❌ 未找到小米语音服务包")
+        }
+        return hasService
+    }
+    
+    /**
+     * 从小米 Aivs 的 RecognizeResult Bundle 中提取文本
+     * 小米 Aivs 可能使用不同的 key 来存储识别结果
+     */
+    private fun extractTextFromXiaomiAivsResult(bundle: Bundle): String? {
+        try {
+            // 方法1: 尝试标准的 RESULTS_RECOGNITION
+            val standardResults = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!standardResults.isNullOrEmpty()) {
+                VoiceLog.d("从标准 RESULTS_RECOGNITION 获取文本: ${standardResults[0]}")
+                return standardResults[0]
+            }
+            
+            // 方法2: 尝试可能的 Aivs 特定 key
+            val possibleKeys = listOf(
+                "results_recognition",           // 可能的变体
+                "recognition_result",            // 识别结果
+                "text",                          // 文本
+                "transcript",                    // 转录文本
+                "result",                        // 结果
+                "speech_result",                 // 语音结果
+                "aivs_result",                   // Aivs 结果
+                "xiaomi_result"                  // 小米结果
+            )
+            
+            for (key in possibleKeys) {
+                try {
+                    // 尝试作为 String 获取
+                    val text = bundle.getString(key)
+                    if (!text.isNullOrEmpty()) {
+                        VoiceLog.d("从 key '$key' 获取文本: $text")
+                        return text
+                    }
+                    
+                    // 尝试作为 StringArrayList 获取
+                    val textList = bundle.getStringArrayList(key)
+                    if (!textList.isNullOrEmpty()) {
+                        VoiceLog.d("从 key '$key' (ArrayList) 获取文本: ${textList[0]}")
+                        return textList[0]
+                    }
+                } catch (e: Exception) {
+                    // 忽略单个 key 的错误，继续尝试下一个
+                }
+            }
+            
+            // 方法3: 遍历所有 key，查找可能的文本内容
+            VoiceLog.d("尝试遍历 Bundle 中的所有 key...")
+            val allKeys = bundle.keySet()
+            VoiceLog.d("Bundle 包含的 keys: $allKeys")
+            
+            for (key in allKeys) {
+                try {
+                    val value = bundle.get(key)
+                    if (value is String && value.isNotEmpty() && value.length > 1) {
+                        // 如果值看起来像文本（长度>1且包含中文字符或常见字符）
+                        if (value.any { it.isLetterOrDigit() || it.isWhitespace() }) {
+                            VoiceLog.d("从 key '$key' 找到可能的文本: $value")
+                            // 如果 key 名称包含 result、text、transcript 等关键词，优先返回
+                            val keyLower = key.lowercase()
+                            if (keyLower.contains("result") || keyLower.contains("text") || 
+                                keyLower.contains("transcript") || keyLower.contains("recognition")) {
+                                VoiceLog.d("✅ 从关键 key '$key' 提取文本: $value")
+                                return value
+                            }
+                        }
+                    } else if (value is ArrayList<*> && value.isNotEmpty()) {
+                        val firstItem = value[0]
+                        if (firstItem is String && firstItem.isNotEmpty()) {
+                            VoiceLog.d("从 key '$key' (ArrayList) 找到可能的文本: $firstItem")
+                            // ArrayList 中的第一个字符串项，很可能是结果
+                            return firstItem
+                        }
+                    }
+                } catch (e: Exception) {
+                    // 忽略单个 key 的错误
+                    VoiceLog.w("读取 key '$key' 时出错: ${e.message}")
+                }
+            }
+            
+            VoiceLog.w("未能从小米 Aivs RecognizeResult 中提取文本，Bundle keys: $allKeys")
+            return null
+        } catch (e: Exception) {
+            VoiceLog.e("提取小米 Aivs 文本时出错: ${e.message}", e)
+            return null
+        }
+    }
+    
+    /**
+     * 安全地执行延迟任务，使用静态内部类避免内存泄漏
+     */
+    private fun safePostDelayed(delayMillis: Long, runnable: Runnable) {
+        pendingRunnables.add(runnable)
+        handler.postDelayed(runnable, delayMillis)
+    }
+    
+    /**
+     * 安全地执行任务，使用静态内部类避免内存泄漏
+     */
+    private fun safePost(runnable: Runnable) {
+        pendingRunnables.add(runnable)
+        handler.post(runnable)
+    }
+    
+    /**
+     * 静态内部类：重试启动语音识别
+     */
+    private class RetryStartRecognitionRunnable(
+        activity: VoiceRecognitionActivity,
+        private val delay: Long
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing && activity.isListening) {
+                    activity.startVoiceRecognition()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：更新UI文本
+     */
+    private class UpdateTextRunnable(
+        activity: VoiceRecognitionActivity,
+        private val text: String,
+        private val colorResId: Int
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing) {
+                    activity.listeningText.text = text
+                    activity.micContainer.setCardBackgroundColor(
+                        ContextCompat.getColor(activity, colorResId)
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：显示Toast
+     */
+    private class ShowToastRunnable(
+        activity: VoiceRecognitionActivity,
+        private val message: String,
+        private val duration: Int
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing) {
+                    Toast.makeText(activity, message, duration).show()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：恢复状态
+     */
+    private class RestoreStateRunnable(
+        activity: VoiceRecognitionActivity,
+        private val wasListening: Boolean
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.isSavingVoiceText = false // 重置防抖标志
+                activity.saveButton.isEnabled = true // 重新启用按钮
+                if (wasListening && activity.isListening) {
+                    activity.listeningText.text = "正在倾听"
+                    activity.micContainer.setCardBackgroundColor(
+                        ContextCompat.getColor(activity, android.R.color.holo_green_light)
+                    )
+                } else {
+                    activity.listeningText.text = "识别已暂停"
+                    activity.micContainer.setCardBackgroundColor(
+                        ContextCompat.getColor(activity, android.R.color.darker_gray)
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：重置保存按钮状态（1秒冷却）
+     */
+    private class ResetSaveButtonStateRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.isSavingVoiceText = false // 重置防抖标志
+                activity.saveButton.isEnabled = true // 重新启用按钮
+                VoiceLog.d("保存按钮状态已重置（1秒冷却完成）")
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：显示保存成功提示
+     */
+    private class ShowSaveSuccessRunnable(
+        activity: VoiceRecognitionActivity,
+        private val wasListening: Boolean
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.listeningText.text = "✅ 已保存到语音转文"
+                activity.micContainer.setCardBackgroundColor(
+                    ContextCompat.getColor(activity, android.R.color.holo_green_dark)
+                )
+                Toast.makeText(activity, "已保存到语音转文", Toast.LENGTH_LONG).show()
+                
+                // 缩短到1秒后恢复状态（按钮状态已在finally中重置）
+                val restoreRunnable = RestoreStateRunnable(activity, wasListening)
+                activity.safePostDelayed(1000, restoreRunnable)
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：显示保存失败提示
+     */
+    private class ShowSaveErrorRunnable(
+        activity: VoiceRecognitionActivity,
+        private val errorMsg: String,
+        private val wasListening: Boolean
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.listeningText.text = "❌ $errorMsg"
+                activity.micContainer.setCardBackgroundColor(
+                    ContextCompat.getColor(activity, android.R.color.holo_red_dark)
+                )
+                Toast.makeText(activity, errorMsg, Toast.LENGTH_LONG).show()
+                
+                // 缩短到1秒后恢复状态（按钮状态已在finally中重置）
+                val restoreRunnable = RestoreStateRunnable(activity, wasListening)
+                activity.safePostDelayed(1000, restoreRunnable)
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：显示空文本警告
+     */
+    private class ShowEmptyTextWarningRunnable(
+        activity: VoiceRecognitionActivity,
+        private val wasListening: Boolean
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                activity.listeningText.text = "⚠️ 没有可保存的文本"
+                activity.micContainer.setCardBackgroundColor(
+                    ContextCompat.getColor(activity, android.R.color.holo_orange_light)
+                )
+                Toast.makeText(activity, "没有可保存的文本", Toast.LENGTH_SHORT).show()
+                
+                // 缩短到1秒后恢复状态（按钮状态已在finally中重置）
+                val restoreRunnable = RestoreStateRunnable(activity, wasListening)
+                activity.safePostDelayed(1000, restoreRunnable)
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：完成Activity
+     */
+    private class FinishActivityRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing) {
+                    activity.finish()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：尝试系统语音输入
+     */
+    private class TrySystemVoiceInputRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing && activity.isListening) {
+                    activity.trySystemVoiceInput()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：冷却完成，重启识别
+     */
+    private class CoolingDownCompleteRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                
+                // 冷却完成，重置状态为空闲
+                activity.recognizerState = RecognizerState.IDLE
+                VoiceLog.d("识别器状态: COOLING_DOWN -> IDLE（冷却完成）")
+                
+                // 如果仍在监听状态，重启识别
+                if (activity.isListening) {
+                    VoiceLog.d("冷却完成，重启语音识别")
+                    activity.startVoiceRecognition()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：准备并启动识别
+     */
+    private class PrepareAndStartRecognitionRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (!activity.isDestroyed && !activity.isFinishing) {
+                    activity.prepareAndStartRecognition()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：创建识别器
+     */
+    private class CreateRecognizerRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                try {
+                    // 创建语音识别器（优先使用小米 Aivs SDK）
+                    activity.speechRecognizer = activity.createSpeechRecognizerWithAivsPriority()
+                    
+                    // 创建识别器后必须空检测（华为 HMS 场景下可能返回 null）
+                    if (activity.speechRecognizer == null) {
+                        VoiceLog.w("无法创建 SpeechRecognizer（返回 null）")
+                        // 华为设备特殊处理：降级到手动输入
+                        if (activity.isHuaweiDevice()) {
+                            VoiceLog.w("华为设备创建识别器失败，降级到手动输入模式")
+                            activity.showManualInputMode()
+                        } else {
+                            // 其他设备尝试系统语音输入
+                            activity.trySystemVoiceInput()
+                        }
+                        return
+                    }
+                    
+                    activity.speechRecognizer?.setRecognitionListener(activity.createRecognitionListener())
+                    
+                    // 等待服务连接建立
+                    val connectionDelay = if (activity.isXiaomiAivsService) {
+                        500L // 小米 Aivs SDK 需要500ms连接时间
+                    } else {
+                        200L // 其他服务200ms
+                    }
+                    
+                    val prepareRunnable = PrepareAndStartRecognitionRunnable(activity)
+                    activity.safePostDelayed(connectionDelay, prepareRunnable)
+                } catch (e: Exception) {
+                    VoiceLog.e("创建SpeechRecognizer失败: ${e.message}", e)
+                    // 华为设备创建失败时，降级到手动输入
+                    if (activity.isHuaweiDevice()) {
+                        VoiceLog.w("华为设备创建识别器异常，降级到手动输入模式")
+                        activity.showManualInputMode()
+                    } else {
+                        activity.trySystemVoiceInput()
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 静态内部类：显示手动输入模式
+     */
+    private class ShowManualInputModeRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                
+                // 重置状态
+                activity.recognizerState = RecognizerState.IDLE
+                
+                // 更新UI提示
+                activity.listeningText.text = "请在下方输入文本，然后点击'说完了'"
+                activity.micContainer.setCardBackgroundColor(
+                    ContextCompat.getColor(activity, android.R.color.darker_gray)
+                )
+                
+                // 聚焦到文本输入框
+                activity.recognizedTextView.requestFocus()
+                
+                // 显示键盘
+                val imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(activity.recognizedTextView, InputMethodManager.SHOW_IMPLICIT)
+                
+                // 确保"说完了"按钮可用
+                activity.doneButton.isEnabled = true
+                
+                // 显示提示信息
+                Toast.makeText(
+                    activity,
+                    "语音识别不可用，请手动输入文本",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+    
+    /**
+     * 检测是否是华为设备
+     */
+    private fun isHuaweiDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+        return manufacturer.contains("huawei") || brand.contains("huawei") ||
+               manufacturer.contains("honor") || brand.contains("honor")
+    }
+    
+    /**
+     * 检测是否安装了 HMS Core（华为移动服务核心）
+     * 华为设备需要 HMS Core 才能正常使用 SpeechRecognizer
+     */
+    private fun hasHmsCore(): Boolean {
+        return try {
+            val pm = packageManager
+            // HMS Core 的包名
+            val hmsCorePackage = "com.huawei.hms"
+            pm.getPackageInfo(hmsCorePackage, PackageManager.GET_ACTIVITIES)
+            VoiceLog.d("✅ 检测到 HMS Core 已安装")
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            VoiceLog.d("❌ 未检测到 HMS Core: ${e.message}")
+            false
+        } catch (e: Exception) {
+            VoiceLog.w("检测 HMS Core 时出错: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * 显示手动输入模式（华为设备创建识别器失败时的降级方案）
+     */
+    private fun showManualInputMode() {
+        VoiceLog.d("切换到手动输入模式")
+        
+        // 重置状态
+        recognizerState = RecognizerState.IDLE
+        
+        // 更新UI提示（使用静态内部类避免内存泄漏）
+        val showManualRunnable = ShowManualInputModeRunnable(this)
+        safePost(showManualRunnable)
+    }
+    
+    /**
+     * 计算两个字符串的相似度（0.0-1.0）
+     * 使用编辑距离算法，相似度越高表示两个文本越相似
+     * 
+     * @param s1 第一个字符串
+     * @param s2 第二个字符串
+     * @return 相似度（0.0-1.0），1.0表示完全相同
+     */
+    private fun calculateSimilarity(s1: String, s2: String): Float {
+        // 简单实现：计算最长公共子序列
+        val longer = if (s1.length > s2.length) s1 else s2
+        val shorter = if (s1.length > s2.length) s2 else s1
+        
+        if (longer.isEmpty()) {
+            return 1.0f
+        }
+        
+        val editDistance = levenshteinDistance(longer, shorter)
+        val similarity = (longer.length - editDistance).toFloat() / longer.length
+        
+        VoiceLog.d("相似度计算: s1='$s1' (${s1.length}), s2='$s2' (${s2.length}), editDistance=$editDistance, similarity=$similarity")
+        
+        return similarity.coerceIn(0.0f, 1.0f)
+    }
+    
+    /**
+     * 计算两个字符串的编辑距离（Levenshtein Distance）
+     * 编辑距离是指将一个字符串转换为另一个字符串所需的最少单字符编辑（插入、删除或替换）次数
+     * 
+     * @param s1 第一个字符串
+     * @param s2 第二个字符串
+     * @return 编辑距离
+     */
+    private fun levenshteinDistance(s1: String, s2: String): Int {
+        if (s1 == s2) return 0
+        if (s1.isEmpty()) return s2.length
+        if (s2.isEmpty()) return s1.length
+        
+        val m = s1.length
+        val n = s2.length
+        val dp = Array(m + 1) { IntArray(n + 1) }
+        
+        // 初始化第一行和第一列
+        for (i in 0..m) {
+            dp[i][0] = i
+        }
+        for (j in 0..n) {
+            dp[0][j] = j
+        }
+        
+        // 填充动态规划表
+        for (i in 1..m) {
+            for (j in 1..n) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                dp[i][j] = minOf(
+                    dp[i - 1][j] + 1,      // 删除
+                    dp[i][j - 1] + 1,      // 插入
+                    dp[i - 1][j - 1] + cost // 替换
+                )
+            }
+        }
+        
+        return dp[m][n]
     }
 }

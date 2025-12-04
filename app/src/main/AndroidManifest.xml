@@ -326,6 +326,11 @@
             android:theme="@style/Theme.AIFloatingBall.VoiceRecognition"
             android:exported="false" />
         <activity
+            android:name=".voice.SpeechRecognitionDetectionActivity"
+            android:theme="@style/Theme.AppCompat.Light.Dialog"
+            android:exported="false"
+            android:launchMode="singleTop" />
+        <activity
             android:name=".BookmarkActivity"
             android:exported="false"
             android:label="书签管理"
