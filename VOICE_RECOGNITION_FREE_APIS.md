@@ -182,3 +182,7 @@ recognizer.release()
 
 
 
+
+
+
+

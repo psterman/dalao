@@ -2,7 +2,6 @@
 package com.example.aifloatingball
 
 import android.Manifest
-import android.animation.AnimatorInflater
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
@@ -666,8 +665,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var isRecordingAudio = false
     private var isRecordingPaused = false
     private var currentRecordingFile: File? = null
-    private var iosMicAnimator: AnimatorSet? = null
-    private var iosMicRippleAnimator: AnimatorSet? = null
     
     // 录音计时器
     private var recordingTimerHandler: Handler? = null
@@ -1575,9 +1572,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val isDarkMode = isDarkMode()
         val cardBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_card_background_light)
 
-        // 更新Prompt预览页面中的卡片
-        findViewById<androidx.cardview.widget.CardView>(R.id.prompt_preview_layout)?.let { cardView ->
-            cardView.setCardBackgroundColor(cardBackground)
+        // 更新Prompt预览页面中的卡片（prompt_preview_layout是LinearLayout，需要查找其中的CardView）
+        findViewById<android.widget.LinearLayout>(R.id.prompt_preview_layout)?.let { layout ->
+            // 在LinearLayout中查找CardView子视图
+            for (i in 0 until layout.childCount) {
+                val child = layout.getChildAt(i)
+                if (child is androidx.cardview.widget.CardView) {
+                    child.setCardBackgroundColor(cardBackground)
+                    break
+                }
+            }
         }
 
         // 更新语音页面中的卡片
@@ -1600,8 +1604,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val inputBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_input_background_light)
         val textColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light)
 
-        // 更新浏览器页面的搜索框背景
-        val browserLayout = findViewById<LinearLayout>(R.id.browser_layout)
+        // 更新浏览器页面的搜索框背景（browser_layout是DrawerLayout，需要递归查找其中的子视图）
+        val browserLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
         browserLayout?.let { layout ->
             // 递归更新浏览器页面中的所有元素
             updateBrowserElementsRecursively(layout, cardBackground, inputBackground, textColor)
@@ -1899,8 +1903,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             // 新布局的搜索框背景色已在CardView中设置，无需额外更新
 
-            // 更新搜索输入框文字颜色
-            findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.app_search_input)?.setTextColor(textColor)
+            // 更新搜索输入框文字颜色（使用EditText，不是TextInputEditText）
+            findViewById<android.widget.EditText>(R.id.app_search_input)?.setTextColor(textColor)
 
             // 更新卡片背景色
             updateAppSearchCardBackgrounds(cardBackground)
@@ -2026,8 +2030,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceSaveButton = findViewById(R.id.voice_save_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
         
-        // 初始化录音管理器
-        audioRecorderManager = com.example.aifloatingball.voice.AudioRecorderManager(this)
+        // 移除音频录制管理器（不再需要音频录制，只保留语音识别转文本）
+        // audioRecorderManager = com.example.aifloatingball.voice.AudioRecorderManager(this)
         recordingTagManager = com.example.aifloatingball.voice.VoiceRecordingTagManager(this)
         recordingTagManager?.ensureRecordingTagExists()
         
@@ -2581,7 +2585,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 更新原始输入框（保持同步）
                         voiceTextInput.setText(newText)
                         voiceTextInput.setSelection(newText.length)
-                        voiceStatusText.text = "识别完成，可以继续说话或点击麦克风停止录音"
+                        // 移除状态文本提示，专注于显示识别结果
                         voiceSearchButton.isEnabled = true
 
                                 // 在胶囊模式下，保持录音状态，不重置isListening
@@ -6603,153 +6607,46 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun updateVoiceListeningState(listening: Boolean) {
         if (listening) {
-            voiceStatusText.text = "正在倾听..."
+            // 移除状态文本提示，专注于语音转文本功能
             voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
             // 显示录音标识
             voiceRecordingIndicator.visibility = View.VISIBLE
-            // 启动iOS风格动画
-            startIOSMicAnimation()
-            // 开始录音
-            startAudioRecording()
+            // 注意：不再启动音频录制，只进行语音识别转文本
             // 添加震动反馈
             performVibration("light")
         } else {
-            voiceStatusText.text = "点击麦克风开始语音输入"
+            // 移除状态文本提示
             voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.colorPrimary))
             // 隐藏录音标识
             voiceRecordingIndicator.visibility = View.GONE
-            // 停止动画
-            stopIOSMicAnimation()
-            // 停止录音并保存
-            stopAudioRecording()
+            // 注意：不再停止音频录制，只停止语音识别
             // 添加震动反馈
             performVibration("light")
         }
     }
     
     /**
-     * 启动iOS风格的麦克风动画
-     */
-    private fun startIOSMicAnimation() {
-        stopIOSMicAnimation()
-        
-        // 主按钮脉冲动画
-        val pulseAnimator = AnimatorInflater.loadAnimator(this, R.animator.ios_mic_pulse)
-        pulseAnimator.setTarget(voiceMicContainer)
-        iosMicAnimator = pulseAnimator as? AnimatorSet
-        iosMicAnimator?.start()
-        
-        // 涟漪效果动画
-        voiceMicRipple.visibility = View.VISIBLE
-        val rippleAnimator = AnimatorInflater.loadAnimator(this, R.animator.ios_mic_ripple)
-        rippleAnimator.setTarget(voiceMicRipple)
-        iosMicRippleAnimator = rippleAnimator as? AnimatorSet
-        iosMicRippleAnimator?.start()
-    }
-    
-    /**
-     * 停止iOS风格的麦克风动画
-     */
-    private fun stopIOSMicAnimation() {
-        iosMicAnimator?.cancel()
-        iosMicAnimator = null
-        iosMicRippleAnimator?.cancel()
-        iosMicRippleAnimator = null
-        voiceMicRipple.visibility = View.GONE
-        voiceMicContainer.clearAnimation()
-        voiceMicRipple.clearAnimation()
-    }
-    
-    /**
-     * 开始音频录音
+     * 开始音频录音（已废弃，不再使用音频录制）
      */
     private fun startAudioRecording() {
-        try {
-            // 检查录音权限
-            val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-            if (!hasPermission) {
-                Log.e(TAG, "没有录音权限，无法开始录音")
-                return
-            }
-            
-            // 开始录音
-            currentRecordingFile = audioRecorderManager?.startRecording()
-            if (currentRecordingFile != null) {
-                isRecordingAudio = true
-                isRecordingPaused = false
-                
-                // 显示暂停按钮和保存按钮（原始布局）
-                voicePauseButton.visibility = View.VISIBLE
-                voicePauseButton.text = "暂停"
-                voiceSaveButton.visibility = View.VISIBLE
-                
-                // 更新按钮状态（胶囊布局）
-                updateCapsuleRecordingState(true)
-                
-                // 显示并启动录音计时器
-                recordingStartTime = System.currentTimeMillis()
-                totalPausedTime = 0
-                
-                // 启动录音波动动画更新
-                startWaveformAnimation()
-                
-                // 添加震动反馈
-                performVibration("light")
-                
-                Log.d(TAG, "开始录音: ${currentRecordingFile?.absolutePath}")
-            } else {
-                Log.e(TAG, "开始录音失败")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "开始录音异常", e)
-        }
+        // 不再使用音频录制，只进行语音识别转文本
+        Log.d(TAG, "音频录制功能已移除，只进行语音识别转文本")
     }
     
     /**
-     * 停止音频录音
+     * 停止音频录音（已废弃，不再使用音频录制）
      */
     private fun stopAudioRecording() {
-        if (!isRecordingAudio) {
-            return
-        }
-        
-        try {
-            // 停止录音
-            val recordingFile = audioRecorderManager?.stopRecording()
-            if (recordingFile != null) {
-                currentRecordingFile = recordingFile
-                Log.d(TAG, "录音已停止: ${recordingFile.absolutePath}")
-            }
-            
-            // 停止波动动画
-            stopWaveformAnimation()
-            
-            isRecordingAudio = false
-            isRecordingPaused = false
-            
-            // 隐藏暂停按钮，但保留保存按钮（原始布局）
-            voicePauseButton.visibility = View.GONE
-            // 根据文本内容决定是否显示保存按钮
-            updateSaveButtonVisibility()
-            
-            // 更新按钮状态（胶囊布局）
-            updateCapsuleRecordingState(false)
-            
-            // 添加震动反馈
-            performVibration("light")
-            
-            Log.d(TAG, "停止录音")
-        } catch (e: Exception) {
-            Log.e(TAG, "停止录音异常", e)
-        }
+        // 不再使用音频录制，只进行语音识别转文本
+        Log.d(TAG, "音频录制功能已移除，只进行语音识别转文本")
     }
     
     /**
-     * 切换录音暂停/继续
+     * 切换语音识别暂停/继续（不再控制音频录制）
      */
     private fun toggleRecordingPause() {
-        if (!isRecordingAudio) {
-            Log.w(TAG, "未在录音，无法暂停")
+        if (!isListening) {
+            Log.w(TAG, "未在识别，无法暂停")
             return
         }
         
@@ -6771,88 +6668,98 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .start()
         }
         
-        if (isRecordingPaused) {
-            // 继续录音
-            val resumed = audioRecorderManager?.resumeRecording() ?: false
-            if (resumed) {
-                isRecordingPaused = false
-                voicePauseButton.text = "暂停"
-                voiceStatusText.text = "正在录音..."
-                
-                // 更新胶囊布局中的暂停按钮图标和状态
-                pauseButton?.text = "暂停"
-                pauseButton?.setIconResource(R.drawable.ic_pause)
-                
-                // 恢复计时器
-                recordingStartTime = System.currentTimeMillis() - totalPausedTime
-                
-                // 恢复波动动画
-                startWaveformAnimation()
-                
-                // 刷新UI状态
-                updateCapsuleRecordingState(true)
-                
-                // 添加震动反馈
-                performVibration("light")
-                
-                Log.d(TAG, "录音已继续")
-                Toast.makeText(this, "录音已继续", Toast.LENGTH_SHORT).show()
+        if (isVoiceRecognitionPaused) {
+            // 继续语音识别
+            isVoiceRecognitionPaused = false
+            voicePauseButton.text = "暂停"
+            
+            // 更新胶囊布局中的暂停按钮图标和状态
+            pauseButton?.text = "暂停"
+            pauseButton?.setIconResource(R.drawable.ic_pause)
+            
+            // 恢复计时器
+            if (hasTextConverted) {
+                textConversionStartTime = System.currentTimeMillis() - (totalPausedTime)
+                if (!isTextConversionPaused) {
+                    startTextConversionTimer()
+                }
+            } else {
+                conversionStartTime = System.currentTimeMillis() - totalConversionPausedTime
+                if (!isConversionPaused) {
+                    startConversionTimer()
+                }
             }
+            
+            // 恢复波动动画
+            startWaveformAnimation()
+            
+            // 继续语音识别
+            if (shouldContinueRecording) {
+                continueRecording()
+            }
+            
+            // 刷新UI状态
+            updateCapsuleRecordingState(true)
+            
+            // 添加震动反馈
+            performVibration("light")
+            
+            Log.d(TAG, "语音识别已继续")
+            Toast.makeText(this, "语音识别已继续", Toast.LENGTH_SHORT).show()
         } else {
-            // 暂停录音
-            // 暂停录音
-            val paused = audioRecorderManager?.pauseRecording() ?: false
-            if (paused) {
-                isRecordingPaused = true
-                voicePauseButton.text = "继续"
-                voiceStatusText.text = "录音已暂停"
-                
-                // 更新胶囊布局中的暂停按钮图标和状态
-                pauseButton?.text = "继续"
-                pauseButton?.setIconResource(R.drawable.ic_play)
-                
-                // 暂停计时器
-                totalPausedTime += System.currentTimeMillis() - recordingStartTime
-                
-                // 停止波动动画
-                stopWaveformAnimation()
-                
-                // 刷新UI状态
-                updateCapsuleRecordingState(true)
-                
-                // 添加震动反馈
-                performVibration("light")
-                
-                Log.d(TAG, "录音已暂停")
-                Toast.makeText(this, "录音已暂停", Toast.LENGTH_SHORT).show()
+            // 暂停语音识别
+            isVoiceRecognitionPaused = true
+            voicePauseButton.text = "继续"
+            voiceStatusText.text = "语音识别已暂停"
+            
+            // 更新胶囊布局中的暂停按钮图标和状态
+            pauseButton?.text = "继续"
+            pauseButton?.setIconResource(R.drawable.ic_play)
+            
+            // 暂停计时器
+            if (hasTextConverted) {
+                totalPausedTime += System.currentTimeMillis() - textConversionStartTime
+                stopTextConversionTimer()
+            } else {
+                totalConversionPausedTime += System.currentTimeMillis() - conversionStartTime
+                stopConversionTimer()
             }
+            
+            // 停止波动动画
+            stopWaveformAnimation()
+            
+            // 停止语音识别
+            stopVoiceRecognition()
+            
+            // 刷新UI状态
+            updateCapsuleRecordingState(true)
+            
+            // 添加震动反馈
+            performVibration("light")
+            
+            Log.d(TAG, "语音识别已暂停")
+            Toast.makeText(this, "语音识别已暂停", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun createVoiceRecognitionListener(): RecognitionListener {
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                handler.post {
-                    voiceStatusText.text = "请开始说话"
-                }
+                // 移除状态文本提示，专注于语音转文本功能
             }
 
             override fun onBeginningOfSpeech() {
-                handler.post {
-                    voiceStatusText.text = "正在聆听..."
-                }
+                // 移除状态文本提示，专注于语音转文本功能
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // 可以根据音量调整麦克风图标大小
+                // 移除动画逻辑，不再需要麦克风动画
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {}
 
             override fun onEndOfSpeech() {
-                handler.post {
-                    voiceStatusText.text = "正在处理..."
-                }
+                // 移除状态文本提示，专注于语音转文本功能
             }
 
             override fun onError(error: Int) {
@@ -6885,7 +6792,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             voiceTextInput.setText(recognizedText)
             voiceTextInput.setSelection(recognizedText.length)
-            voiceStatusText.text = "识别完成，继续说话或点击搜索"
+            // 移除状态文本提示，专注于显示识别结果
             voiceSearchButton.isEnabled = true
             // 更新保存按钮可见性
             updateSaveButtonVisibility()
@@ -6926,7 +6833,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (error == SpeechRecognizer.ERROR_NO_MATCH ||
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
             error == SpeechRecognizer.ERROR_CLIENT) {
-            voiceStatusText.text = "请再说一遍"
+            // 移除状态文本提示，专注于语音转文本功能
             handler.postDelayed({
                 if (isListening) {
                     startVoiceRecognition()
@@ -6970,7 +6877,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             if (activities.isNotEmpty()) {
                 // 有可用的语音识别应用，启动系统语音输入
-                voiceStatusText.text = "启动系统语音输入..."
+                // 移除状态文本提示，专注于语音转文本功能
                 startActivityForResult(intent, SYSTEM_VOICE_REQUEST_CODE)
             } else {
                 // 没有可用的语音识别应用
@@ -32913,8 +32820,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 voiceInputManager = VoiceInputManager(this)
             }
             
-            // 开始音频录制（用于保存MP3文件）
-            startAudioRecording()
+            // 注意：不再启动音频录制，只进行语音识别转文本
             
             // 设置录音状态
             isListening = true
@@ -32944,7 +32850,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 更新原始输入框（保持同步）
                                 voiceTextInput.setText(newText)
                                 voiceTextInput.setSelection(newText.length)
-                                voiceStatusText.text = "识别完成，可以继续说话或点击麦克风停止录音"
+                                // 移除状态文本提示，专注于显示识别结果
                                 voiceSearchButton.isEnabled = true
                                 
                                 // 如果有文本转化，切换到文本转化计时器
@@ -33026,12 +32932,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isVoiceRecognitionPaused = false  // 重置暂停状态
             isConversionPaused = false  // 重置转换暂停状态
             
-            // 确保音频录制已启动（如果还没有启动）
-            if (!isRecordingAudio) {
-                startAudioRecording()
-            }
+            // 注意：不再启动音频录制，只进行语音识别转文本
             
-            // 开始计时器（录音时使用转换计时器）
+            // 开始计时器（语音识别时使用转换计时器）
             stopTextConversionTimer() // 停止文本转化计时器
             startConversionTimer()
             
@@ -33061,12 +32964,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun continueRecording() {
         try {
-            Log.d(TAG, "继续录音")
+            Log.d(TAG, "继续语音识别")
             
-            // 检查录音权限
+            // 检查录音权限（语音识别需要）
             val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             if (!hasPermission) {
-                Log.e(TAG, "没有录音权限，无法继续录音")
+                Log.e(TAG, "没有录音权限，无法继续语音识别")
                 return
             }
             
@@ -33085,18 +32988,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新UI状态
             updateCapsuleRecordingState(true)
             
-            Log.d(TAG, "已继续录音")
+            Log.d(TAG, "已继续语音识别")
         } catch (e: Exception) {
-            Log.e(TAG, "继续录音失败", e)
+            Log.e(TAG, "继续语音识别失败", e)
         }
     }
     
     /**
-     * 完成录音
+     * 完成语音识别
      */
     private fun finishRecording() {
         try {
-            Log.d(TAG, "完成录音")
+            Log.d(TAG, "完成语音识别")
             
             // 设置标志停止继续录音
             shouldContinueRecording = false
@@ -33131,8 +33034,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "停止语音输入管理器失败: ${e.message}")
             }
             
-            // 停止录音并保存
-            stopAudioRecording()
+            // 注意：不再停止音频录制，只停止语音识别
             
             // 停止计时器
             stopConversionTimer()
@@ -33185,27 +33087,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 启动录音计时器
+     * 启动录音计时器（已废弃，不再使用音频录制）
      */
     private fun startRecordingTimer() {
-        // 录音计时器已移除，只使用转换计时器
-        
-        recordingTimerRunnable = object : Runnable {
-            override fun run() {
-                if (isRecordingAudio && !isRecordingPaused) {
-                    val elapsed = System.currentTimeMillis() - recordingStartTime
-                    val totalSeconds = (elapsed / 1000).toInt()
-                    val minutes = totalSeconds / 60
-                    val seconds = totalSeconds % 60
-                    
-                    // 录音计时器已移除，只使用转换计时器
-                    // 不再更新录音计时器
-                    
-                    recordingTimerHandler?.postDelayed(this, 1000) // 每秒更新
-                }
-            }
-        }
-        recordingTimerHandler?.post(recordingTimerRunnable!!)
+        // 录音计时器已移除，只使用转换计时器（语音识别转文本）
+        // 不再需要录音计时器
     }
     
     /**
@@ -33570,16 +33456,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var waveformUpdateRunnable: Runnable? = null
     
     /**
-     * 启动波形振幅定时更新
+     * 启动波形振幅定时更新（已废弃，不再使用音频录制）
      */
     private fun startWaveformAmplitudeUpdate() {
         stopWaveformAmplitudeUpdate()
         
+        // 不再使用音频录制，波形动画使用固定振幅或基于语音识别状态
         waveformUpdateRunnable = object : Runnable {
             override fun run() {
-                if (isRecordingAudio && !isRecordingPaused) {
-                    // 获取当前录音振幅
-                    val amplitude = audioRecorderManager?.getCurrentAmplitude() ?: 0.1f
+                if (isListening && !isVoiceRecognitionPaused) {
+                    // 使用固定振幅或基于语音识别状态（不再从MediaRecorder获取）
+                    val amplitude = 0.5f // 固定振幅，表示正在识别
                     
                     // 更新波形视图
                     findViewById<com.example.aifloatingball.ui.WaveformView>(R.id.voice_waveform)?.setAmplitude(amplitude)
@@ -33610,7 +33497,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun updateSaveButtonVisibility() {
         try {
             val hasText = voiceTextInput.text.toString().trim().isNotEmpty()
-            voiceSaveButton.visibility = if (hasText && !isRecordingAudio) {
+            // 不再检查 isRecordingAudio，只要有文本就显示保存按钮
+            voiceSaveButton.visibility = if (hasText) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -34022,8 +33910,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun initializeCapsuleWebViews() {
         try {
-            // 获取双窗口浮动WebView容器
-            val dualWebViewContainer = findViewById<FrameLayout>(R.id.voice_capsule_dual_webview_container)
+            // 获取双窗口浮动WebView容器（实际是LinearLayout）
+            val dualWebViewContainer = findViewById<android.widget.LinearLayout>(R.id.voice_capsule_dual_webview_container)
             
             // 初始化语音胶囊双窗口WebView组件
             val firstWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.first_floating_webview)

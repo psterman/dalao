@@ -1,10 +1,6 @@
 package com.example.aifloatingball
 
 import android.Manifest
-import android.animation.AnimatorSet
-import android.animation.ObjectAnimator
-import android.animation.PropertyValuesHolder
-import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -24,7 +20,6 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.TypedValue
 import android.view.View
-import android.view.animation.LinearInterpolator
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
@@ -78,6 +73,11 @@ class VoiceRecognitionActivity : Activity() {
     private var isXiaomiAivsService = false // 是否是小米 Aivs 服务
     private var isSavingVoiceText = false // 防抖标志：是否正在保存语音文本
     private var recognizerState = RecognizerState.IDLE // 识别器状态
+    private var isRecognizerReady = false // 识别器是否已准备好（已连接到服务）
+    private var connectionTimeoutRunnable: Runnable? = null // 连接超时任务
+    private val CONNECTION_TIMEOUT_MS = 5000L // 连接超时时间（5秒，某些设备需要更长时间）
+    private var isStartingRecognition = false // 是否正在启动识别（防止重复启动）
+    private var shouldDestroyRecognizerOnRelease = false // 是否应该在释放时销毁识别器（错误情况下需要完全销毁）
     
     // 界面元素
     private lateinit var micContainer: MaterialCardView
@@ -88,9 +88,6 @@ class VoiceRecognitionActivity : Activity() {
     private lateinit var saveButton: MaterialButton
     private lateinit var zoomInButton: ImageButton
     private lateinit var zoomOutButton: ImageButton
-    
-    // 复用的麦克风动画器，避免高频创建动画导致性能问题
-    private lateinit var micAnimator: ObjectAnimator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,16 +129,6 @@ class VoiceRecognitionActivity : Activity() {
         // Load the saved font size, or use the default
         val savedSize = settingsManager.getVoiceInputTextSize()
         recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedSize)
-        
-        // 初始化复用的麦克风动画器，避免高频创建动画导致性能问题
-        micAnimator = ObjectAnimator.ofPropertyValuesHolder(
-            micContainer,
-            PropertyValuesHolder.ofFloat("scaleX", 1f),
-            PropertyValuesHolder.ofFloat("scaleY", 1f)
-        ).apply {
-            duration = 150
-            interpolator = LinearInterpolator()
-        }
     }
     
     private fun setupClickListeners() {
@@ -188,16 +175,42 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun startVoiceRecognition() {
+        // 防止重复启动：如果正在启动，直接返回
+        if (isStartingRecognition) {
+            VoiceLog.d("⚠️ 识别器正在启动中，跳过重复启动")
+            return
+        }
+        
         // 检查识别器状态：如果正在冷却，跳过启动
         if (recognizerState == RecognizerState.COOLING_DOWN) {
             VoiceLog.d("识别器冷却中，跳过启动（防止 ERROR_RECOGNIZER_BUSY）")
             return
         }
         
+        // 如果已经在监听中且识别器已准备好，不需要重复启动
+        if (isListening && recognizerState == RecognizerState.LISTENING && 
+            speechRecognizer != null && isRecognizerReady) {
+            VoiceLog.d("⚠️ 识别器已在监听中且已准备好，跳过重复启动")
+            return
+        }
+        
+        // 如果识别器存在但未准备好，需要等待或重新创建
+        if (speechRecognizer != null && !isRecognizerReady && isStartingRecognition) {
+            VoiceLog.d("⚠️ 识别器存在但未准备好，等待连接...")
+            // 设置连接超时，如果超时则重新创建
+            setupConnectionTimeout()
+            return
+        }
+        
+        // 设置启动标志，防止重复启动
+        isStartingRecognition = true
+        VoiceLog.d("开始启动语音识别...")
+        
         // 优先检测华为设备：华为 Mate 60 / Pura 70 系列，isRecognitionAvailable() 因 HMS ML Kit 存在返回 true
         // 但 SpeechRecognizer.createSpeechRecognizer() 可能返回 null 或调用崩溃
         if (isHuaweiDevice() && !hasHmsCore()) {
             VoiceLog.w("华为设备但未安装 HMS Core，直接使用系统语音输入（避免 createSpeechRecognizer 返回 null）")
+            isStartingRecognition = false // 重置标志
             trySystemVoiceInput()
             return
         }
@@ -205,9 +218,13 @@ class VoiceRecognitionActivity : Activity() {
         // 首先检查设备是否支持语音识别
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             // 如果不支持，尝试使用系统语音输入Intent
+            isStartingRecognition = false // 重置标志
             trySystemVoiceInput()
             return
         }
+        
+        // 重置准备状态（确保每次启动都是干净的状态）
+        isRecognizerReady = false
         
         // 设置状态为监听中
         recognizerState = RecognizerState.LISTENING
@@ -216,15 +233,23 @@ class VoiceRecognitionActivity : Activity() {
         // 检测是否是小米 Aivs 服务（优先使用小米 Aivs SDK）
         isXiaomiAivsService = detectXiaomiAivsService()
         VoiceLog.d("检测到语音识别服务类型: ${if (isXiaomiAivsService) "✅ 小米 Aivs SDK（优先使用）" else "其他服务"}")
-
+        
         // 确保前一个识别器被完全释放（重要：避免识别器忙碌错误）
-        releaseSpeechRecognizer()
+        // 如果识别器存在且状态异常（未准备好），需要完全销毁并重新创建
+        if (speechRecognizer != null && !isRecognizerReady) {
+            // 如果识别器未准备好，说明可能有问题，需要完全销毁
+            shouldDestroyRecognizerOnRelease = true
+            releaseSpeechRecognizer()
+        } else if (speechRecognizer != null) {
+            // 如果识别器已准备好，只需要取消即可
+            releaseSpeechRecognizer()
+        }
         
         // 给识别器一些时间完全释放
-        val releaseDelay = if (Build.MANUFACTURER.lowercase().contains("meizu")) {
-            300L // 魅族手机需要更长的释放时间
-        } else {
-            100L // 其他手机
+        val releaseDelay = when {
+            Build.MANUFACTURER.lowercase().contains("meizu") -> 500L // 魅族手机需要更长的释放时间
+            Build.MANUFACTURER.lowercase().contains("oppo") -> 500L // OPPO手机也需要更长时间
+            else -> 200L // 其他手机正常释放
         }
         
         val createRunnable = CreateRecognizerRunnable(this)
@@ -322,6 +347,15 @@ class VoiceRecognitionActivity : Activity() {
             return
         }
         
+        // 检查识别器是否已准备好（已连接到服务）
+        if (!isRecognizerReady) {
+            VoiceLog.w("识别器尚未准备好，等待连接...")
+            // 如果还没准备好，等待 onReadyForSpeech 回调
+            // 设置连接超时，如果超时未连接则重试
+            setupConnectionTimeout()
+            return
+        }
+        
         // 准备识别意图 - 优化参数以提高识别效果和实时性
         val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             // 使用自由格式语言模型，识别效果更好
@@ -355,22 +389,38 @@ class VoiceRecognitionActivity : Activity() {
         
         // 开始识别
         try {
-            isListening = true
-            updateListeningState(true)
-            
             // 再次检查识别器是否可用
             if (speechRecognizer == null) {
                 VoiceLog.e("SpeechRecognizer在启动前变为null")
+                isStartingRecognition = false
                 val retryRunnable = RetryStartRecognitionRunnable(this, 500)
                 safePostDelayed(500, retryRunnable)
                 return
             }
             
+            // 再次确认识别器已准备好（双重检查，确保连接状态）
+            if (!isRecognizerReady) {
+                VoiceLog.w("⚠️ 识别器在启动前未准备好，等待连接...")
+                setupConnectionTimeout()
+                return
+            }
+            
+            isListening = true
+            updateListeningState(true)
+            
+            // 启动识别
             speechRecognizer?.startListening(recognizerIntent)
-            VoiceLog.d("语音识别已启动")
+            // 重置启动标志（识别已成功启动）
+            isStartingRecognition = false
+            VoiceLog.d("✅ 语音识别已启动（识别器已连接）")
         } catch (e: IllegalStateException) {
             // 捕获"not connected to the recognition service"异常
             VoiceLog.e("SpeechRecognizer 未连接: ${e.message}", e)
+            // 重置准备状态和启动标志
+            isRecognizerReady = false
+            isStartingRecognition = false
+            // 标记需要完全销毁识别器（错误情况下需要重新创建）
+            shouldDestroyRecognizerOnRelease = true
             // 释放并重试
             releaseSpeechRecognizer()
             val updateRunnable = UpdateTextRunnable(
@@ -379,12 +429,41 @@ class VoiceRecognitionActivity : Activity() {
                 android.R.color.holo_orange_light
             )
             safePost(updateRunnable)
-            val retryRunnable = RetryStartRecognitionRunnable(this, 1000)
-            safePostDelayed(1000, retryRunnable)
+            // 增加重试延迟，给识别器足够时间完全释放
+            val retryDelay = when {
+                Build.MANUFACTURER.lowercase().contains("meizu") -> 3000L // 魅族手机延迟3秒
+                Build.MANUFACTURER.lowercase().contains("oppo") -> 3000L // OPPO手机延迟3秒
+                else -> 2000L // 其他手机延迟2秒
+            }
+            val retryRunnable = RetryStartRecognitionRunnable(this, retryDelay)
+            safePostDelayed(retryDelay, retryRunnable)
         } catch (e: Exception) {
             VoiceLog.e("SpeechRecognizer 启动失败: ${e.message}", e)
+            // 重置准备状态和启动标志
+            isRecognizerReady = false
+            isStartingRecognition = false
             // 如果SpeechRecognizer失败，尝试系统语音输入
             trySystemVoiceInput()
+        }
+    }
+    
+    /**
+     * 设置连接超时机制
+     * 如果识别器在指定时间内未准备好，则重试或降级
+     */
+    private fun setupConnectionTimeout() {
+        // 取消之前的超时任务
+        connectionTimeoutRunnable?.let { timeoutRunnable ->
+            handler.removeCallbacks(timeoutRunnable)
+            pendingRunnables.remove(timeoutRunnable)
+        }
+        
+        // 创建新的超时任务
+        connectionTimeoutRunnable = ConnectionTimeoutRunnable(this)
+        connectionTimeoutRunnable?.let { timeoutRunnable ->
+            pendingRunnables.add(timeoutRunnable)
+            handler.postDelayed(timeoutRunnable, CONNECTION_TIMEOUT_MS)
+            VoiceLog.d("已设置连接超时：${CONNECTION_TIMEOUT_MS}ms")
         }
     }
     
@@ -405,6 +484,7 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun stopListening() {
         isListening = false
+        isStartingRecognition = false // 重置启动标志
         updateListeningState(false)
         speechRecognizer?.stopListening()
         // 重置状态为空闲
@@ -415,12 +495,10 @@ class VoiceRecognitionActivity : Activity() {
     private fun updateListeningState(listening: Boolean) {
         isListening = listening
         
-        // 更新UI状态
+        // 更新UI状态（简化：只更新颜色，不显示状态文本）
         if (listening) {
-            listeningText.text = "正在倾听"
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
         } else {
-            listeningText.text = "识别已暂停"
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
         }
     }
@@ -444,8 +522,33 @@ class VoiceRecognitionActivity : Activity() {
                     override fun run() {
                         activityRef.get()?.let { act ->
                             if (act.isDestroyed || act.isFinishing) return
-                            act.listeningText.text = "请开始说话"
-                            act.currentPartialText = ""
+                            // 标记识别器已准备好
+                            act.isRecognizerReady = true
+                            VoiceLog.d("✅ 识别器已准备好，可以开始识别")
+                            
+                            // 取消连接超时任务
+                            act.connectionTimeoutRunnable?.let { timeoutRunnable ->
+                                act.handler.removeCallbacks(timeoutRunnable)
+                                act.pendingRunnables.remove(timeoutRunnable)
+                                act.connectionTimeoutRunnable = null
+                            }
+                            
+                            // 如果正在启动识别（isStartingRecognition = true）且状态为监听中，立即启动识别
+                            if (act.isStartingRecognition && act.recognizerState == RecognizerState.LISTENING) {
+                                VoiceLog.d("识别器已准备好，立即启动识别")
+                                // 注意：prepareAndStartRecognition 会在成功启动后重置 isStartingRecognition
+                                act.prepareAndStartRecognition()
+                            } else if (act.isListening && act.recognizerState == RecognizerState.LISTENING) {
+                                // 如果已经在监听状态但未启动，也尝试启动
+                                VoiceLog.d("识别器已准备好，启动识别（已在监听状态）")
+                                act.prepareAndStartRecognition()
+                            } else {
+                                // 如果不在监听状态，重置启动标志
+                                VoiceLog.d("识别器已准备好，但不在监听状态，重置启动标志")
+                                act.isStartingRecognition = false
+                                // 移除状态文本提示，专注于语音转文本
+                                act.currentPartialText = ""
+                            }
                         }
                     }
                 }
@@ -454,13 +557,13 @@ class VoiceRecognitionActivity : Activity() {
         }
 
         override fun onBeginningOfSpeech() {
+            // 移除状态文本提示，专注于语音转文本功能
             activityRef.get()?.let { activity ->
                 if (activity.isDestroyed || activity.isFinishing) return
                 val runnable = object : Runnable {
                     override fun run() {
                         activityRef.get()?.let { act ->
                             if (act.isDestroyed || act.isFinishing) return
-                            act.listeningText.text = "正在聆听..."
                             act.currentPartialText = ""
                         }
                     }
@@ -470,11 +573,7 @@ class VoiceRecognitionActivity : Activity() {
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            activityRef.get()?.let { activity ->
-                if (activity.isDestroyed || activity.isFinishing) return
-                val runnable = UpdateMicAnimationRunnable(activity, rmsdB)
-                activity.safePost(runnable)
-            }
+            // 移除动画逻辑，不再需要麦克风动画
         }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -490,6 +589,8 @@ class VoiceRecognitionActivity : Activity() {
         override fun onError(error: Int) {
             activityRef.get()?.let { activity ->
                 if (activity.isDestroyed || activity.isFinishing) return
+                // 重置准备状态（错误时连接可能断开）
+                activity.isRecognizerReady = false
                 val runnable = HandleErrorRunnable(activity, error)
                 activity.safePost(runnable)
             }
@@ -515,23 +616,6 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     /**
-     * 静态内部类：更新麦克风动画
-     */
-    private class UpdateMicAnimationRunnable(
-        activity: VoiceRecognitionActivity,
-        private val rmsdB: Float
-    ) : Runnable {
-        private val activityRef = WeakReference(activity)
-        
-        override fun run() {
-            activityRef.get()?.let { activity ->
-                if (activity.isDestroyed || activity.isFinishing) return
-                activity.updateMicAnimation(rmsdB)
-            }
-        }
-    }
-    
-    /**
      * 静态内部类：处理语音结束
      */
     private class OnEndOfSpeechRunnable(
@@ -542,7 +626,7 @@ class VoiceRecognitionActivity : Activity() {
         override fun run() {
             activityRef.get()?.let { activity ->
                 if (activity.isDestroyed || activity.isFinishing) return
-                activity.listeningText.text = "正在处理..."
+                // 移除"正在处理"状态提示，专注于显示识别结果
                 activity.currentPartialText = ""
                 if (activity.recognizedText.isNotEmpty()) {
                     activity.recognizedTextView.setText(activity.recognizedText)
@@ -604,22 +688,6 @@ class VoiceRecognitionActivity : Activity() {
         }
     }
     
-    private fun updateMicAnimation(rmsdB: Float) {
-        // 计算目标缩放值：1.0f + (rmsdB / 10f) * 0.2f，范围在 1.0f 到 1.2f 之间
-        val targetScale = 1f + (rmsdB.coerceIn(0f, 10f) / 10f) * 0.2f
-        
-        // 使用复用的动画器，避免高频创建新动画导致性能问题
-        if (::micAnimator.isInitialized) {
-            // 更新 PropertyValuesHolder 的值
-            micAnimator.setValues(
-                PropertyValuesHolder.ofFloat("scaleX", targetScale),
-                PropertyValuesHolder.ofFloat("scaleY", targetScale)
-            )
-            if (!micAnimator.isRunning) {
-                micAnimator.start()
-            }
-        }
-    }
     
     private fun adjustTextSize(adjustment: Float) {
         val currentSizeSp = recognizedTextView.textSize / resources.displayMetrics.scaledDensity
@@ -698,8 +766,7 @@ class VoiceRecognitionActivity : Activity() {
                 recognizedTextView.setText(recognizedText)
                 recognizedTextView.setSelection(recognizedText.length)
                 
-                // 提示用户并立即重启识别，以实现连续听写
-                listeningText.text = "请继续说话或点击'说完了'开始搜索"
+                // 立即重启识别，以实现连续听写（移除状态提示）
                 
                 // 确保"说完了"按钮可用
                 doneButton.isEnabled = true
@@ -799,12 +866,15 @@ class VoiceRecognitionActivity : Activity() {
                 VoiceLog.e("连接重试次数已达上限，切换到系统语音输入")
                 recognizerBusyRetryCount = 0 // 重置计数器
                 recognizerState = RecognizerState.IDLE // 重置状态
+                isStartingRecognition = false // 重置启动标志
                 val updateRunnable = UpdateTextRunnable(
                     this,
                     "连接失败，切换到系统语音输入...",
                     android.R.color.holo_orange_light
                 )
                 safePost(updateRunnable)
+                // 标记需要完全销毁识别器
+                shouldDestroyRecognizerOnRelease = true
                 // 完全释放识别器
                 releaseSpeechRecognizer()
                 // 延迟后尝试系统语音输入
@@ -816,6 +886,8 @@ class VoiceRecognitionActivity : Activity() {
             // 增加重试计数
             recognizerBusyRetryCount++
             
+            // 标记需要完全销毁识别器（连接错误需要重新创建）
+            shouldDestroyRecognizerOnRelease = true
             // 完全释放识别器
             releaseSpeechRecognizer()
             
@@ -855,12 +927,15 @@ class VoiceRecognitionActivity : Activity() {
                 VoiceLog.e("识别器忙碌重试次数已达上限，切换到系统语音输入")
                 recognizerBusyRetryCount = 0 // 重置计数器
                 recognizerState = RecognizerState.IDLE // 重置状态
+                isStartingRecognition = false // 重置启动标志
                 val updateRunnable = UpdateTextRunnable(
                     this,
                     "识别器忙碌，切换到系统语音输入...",
                     android.R.color.holo_orange_light
                 )
                 safePost(updateRunnable)
+                // 标记需要完全销毁识别器
+                shouldDestroyRecognizerOnRelease = true
                 // 完全释放识别器
                 releaseSpeechRecognizer()
                 // 延迟后尝试系统语音输入
@@ -872,6 +947,8 @@ class VoiceRecognitionActivity : Activity() {
             // 增加重试计数
             recognizerBusyRetryCount++
             
+            // 标记需要完全销毁识别器（忙碌错误需要重新创建）
+            shouldDestroyRecognizerOnRelease = true
             // 完全释放识别器
             releaseSpeechRecognizer()
             
@@ -912,8 +989,7 @@ class VoiceRecognitionActivity : Activity() {
             recognizerState = RecognizerState.COOLING_DOWN
             VoiceLog.d("识别器状态: LISTENING -> COOLING_DOWN（非致命错误）")
             
-            // 给出清晰的反馈，但绝不覆盖用户的输入
-            listeningText.text = "请再说一遍"
+            // 更新UI颜色提示（移除状态文本）
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
 
             // 在安全延迟后重启识别过程（使用冷却完成回调）
@@ -923,18 +999,48 @@ class VoiceRecognitionActivity : Activity() {
             return
         }
 
-        // 对于其他致命错误，向用户显示消息并关闭活动
+        // 对于其他致命错误，尝试降级处理而不是直接显示错误
         val errorMessage = when (error) {
-            SpeechRecognizer.ERROR_AUDIO -> "音频错误"
-            SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-            SpeechRecognizer.ERROR_CLIENT -> "连接错误（已重试）"
+            SpeechRecognizer.ERROR_AUDIO -> "音频错误，尝试系统语音输入..."
+            SpeechRecognizer.ERROR_NETWORK -> "网络错误，尝试系统语音输入..."
+            SpeechRecognizer.ERROR_CLIENT -> "连接错误，尝试系统语音输入..."
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "没有录音权限"
-            SpeechRecognizer.ERROR_SERVER -> "服务器错误"
-            else -> "识别错误 (代码: $error)"
+            SpeechRecognizer.ERROR_SERVER -> "服务器错误，尝试系统语音输入..."
+            else -> "识别错误 (代码: $error)，尝试系统语音输入..."
         }
         
-        VoiceLog.e("Fatal Speech Recognition Error: $errorMessage")
-        showError(errorMessage)
+        VoiceLog.e("Fatal Speech Recognition Error: $errorMessage (代码: $error)")
+        
+        // 对于可以降级的错误，尝试系统语音输入
+        if (error == SpeechRecognizer.ERROR_AUDIO ||
+            error == SpeechRecognizer.ERROR_NETWORK ||
+            error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_SERVER) {
+            // 重置状态
+            recognizerState = RecognizerState.IDLE
+            isStartingRecognition = false
+            isRecognizerReady = false
+            
+            // 更新UI提示
+            val updateRunnable = UpdateTextRunnable(
+                this,
+                errorMessage,
+                android.R.color.holo_orange_light
+            )
+            safePost(updateRunnable)
+            
+            // 标记需要完全销毁识别器
+            shouldDestroyRecognizerOnRelease = true
+            // 释放识别器
+            releaseSpeechRecognizer()
+            
+            // 延迟后尝试系统语音输入
+            val trySystemRunnable = TrySystemVoiceInputRunnable(this)
+            safePostDelayed(1000, trySystemRunnable)
+        } else {
+            // 对于权限错误等无法降级的错误，显示错误提示
+            showError(errorMessage)
+        }
     }
 
     private fun trySystemVoiceInput() {
@@ -1273,10 +1379,13 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun showError(message: String) {
-        listeningText.text = message
-        // 3秒后自动关闭
-        val finishRunnable = FinishActivityRunnable(this)
-        safePostDelayed(3000, finishRunnable)
+        // 不显示弹窗，只更新状态文本，提供更友好的错误提示
+        VoiceLog.e("显示错误: $message")
+        listeningText.text = "⚠️ $message"
+        micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+        
+        // 不自动关闭，让用户可以选择重试或手动输入
+        // 如果用户需要，可以点击麦克风重试
     }
     
     /**
@@ -1294,26 +1403,63 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     /**
-     * 释放语音识别器（复用模式：只取消，不销毁）
-     * 删除 destroy() 调用，只保留 cancel()，以便复用 SpeechRecognizer
+     * 释放语音识别器
+     * 根据 shouldDestroyRecognizerOnRelease 标志决定是复用还是完全销毁
      */
     private fun releaseSpeechRecognizer() {
+        // 取消连接超时任务
+        connectionTimeoutRunnable?.let { timeoutRunnable ->
+            handler.removeCallbacks(timeoutRunnable)
+            pendingRunnables.remove(timeoutRunnable)
+            connectionTimeoutRunnable = null
+        }
+        
+        // 重置准备状态和启动标志
+        isRecognizerReady = false
+        
         speechRecognizer?.apply {
             try {
-                cancel() // 取消当前识别，但不销毁识别器以便复用
+                cancel() // 先取消当前识别
             } catch (e: Exception) {
                 VoiceLog.w("取消识别器时出错: ${e.message}")
             }
-            // 注意：不再调用 destroy()，以便复用 SpeechRecognizer
+            
+            // 如果需要完全销毁（错误情况下），则销毁识别器
+            if (shouldDestroyRecognizerOnRelease) {
+                try {
+                    destroy() // 完全销毁识别器
+                    VoiceLog.d("语音识别器已完全销毁（错误恢复）")
+                } catch (e: Exception) {
+                    VoiceLog.w("销毁识别器时出错: ${e.message}")
+                }
+            } else {
+                VoiceLog.d("语音识别器已取消（保持引用以便复用）")
+            }
         }
-        // 注意：不再设置为 null，保持引用以便复用
-        VoiceLog.d("语音识别器已取消（保持引用以便复用）")
+        
+        // 如果需要完全销毁，则设置为 null
+        if (shouldDestroyRecognizerOnRelease) {
+            speechRecognizer = null
+        }
+        
+        // 重置销毁标志
+        shouldDestroyRecognizerOnRelease = false
     }
     
     /**
      * 完全销毁语音识别器（仅在 Activity 销毁时调用）
      */
     private fun destroySpeechRecognizer() {
+        // 取消连接超时任务
+        connectionTimeoutRunnable?.let { timeoutRunnable ->
+            handler.removeCallbacks(timeoutRunnable)
+            pendingRunnables.remove(timeoutRunnable)
+            connectionTimeoutRunnable = null
+        }
+        
+        // 重置准备状态
+        isRecognizerReady = false
+        
         speechRecognizer?.apply {
             try {
                 cancel() // 先取消当前识别
@@ -1343,18 +1489,6 @@ class VoiceRecognitionActivity : Activity() {
                 }
             } catch (e: Exception) {
                 VoiceLog.e("停止 AnimatedVectorDrawable 时出错: ${e.message}", e)
-            }
-        }
-        
-        // 取消麦克风动画器，防止资源泄漏
-        if (::micAnimator.isInitialized) {
-            try {
-                if (micAnimator.isRunning) {
-                    micAnimator.cancel()
-                }
-                VoiceLog.d("已取消麦克风动画器")
-            } catch (e: Exception) {
-                VoiceLog.e("取消麦克风动画器时出错: ${e.message}", e)
             }
         }
         
@@ -1574,8 +1708,17 @@ class VoiceRecognitionActivity : Activity() {
         
         override fun run() {
             activityRef.get()?.let { activity ->
-                if (!activity.isDestroyed && !activity.isFinishing && activity.isListening) {
+                if (activity.isDestroyed || activity.isFinishing) return
+                
+                // 确保启动标志已重置
+                activity.isStartingRecognition = false
+                
+                // 如果仍在监听状态，重试启动识别
+                if (activity.isListening) {
+                    VoiceLog.d("重试启动语音识别（延迟: ${delay}ms）")
                     activity.startVoiceRecognition()
+                } else {
+                    VoiceLog.d("不再监听，跳过重试")
                 }
             }
         }
@@ -1637,7 +1780,6 @@ class VoiceRecognitionActivity : Activity() {
                 activity.isSavingVoiceText = false // 重置防抖标志
                 activity.saveButton.isEnabled = true // 重新启用按钮
                 if (wasListening && activity.isListening) {
-                    activity.listeningText.text = "正在倾听"
                     activity.micContainer.setCardBackgroundColor(
                         ContextCompat.getColor(activity, android.R.color.holo_green_light)
                     )
@@ -1822,6 +1964,55 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     /**
+     * 静态内部类：连接超时处理
+     */
+    private class ConnectionTimeoutRunnable(
+        activity: VoiceRecognitionActivity
+    ) : Runnable {
+        private val activityRef = WeakReference(activity)
+        
+        override fun run() {
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                
+                // 检查是否已准备好
+                if (!activity.isRecognizerReady) {
+                    VoiceLog.w("⚠️ 连接超时：识别器在 ${activity.CONNECTION_TIMEOUT_MS}ms 内未准备好")
+                    
+                    // 重置准备状态和启动标志
+                    activity.isRecognizerReady = false
+                    activity.isStartingRecognition = false
+                    
+                    // 标记需要完全销毁识别器（连接超时需要重新创建）
+                    activity.shouldDestroyRecognizerOnRelease = true
+                    // 释放识别器
+                    activity.releaseSpeechRecognizer()
+                    
+                    // 更新UI提示
+                    val updateRunnable = UpdateTextRunnable(
+                        activity,
+                        "连接超时，正在重试...",
+                        android.R.color.holo_orange_light
+                    )
+                    activity.safePost(updateRunnable)
+                    
+                    // 延迟后重试（给识别器足够时间释放）
+                    val retryDelay = if (activity.isXiaomiAivsService) {
+                        2000L // 小米 Aivs SDK 需要更长的重试延迟
+                    } else {
+                        1500L // 其他服务1.5秒
+                    }
+                    
+                    val retryRunnable = RetryStartRecognitionRunnable(activity, retryDelay)
+                    activity.safePostDelayed(retryDelay, retryRunnable)
+                } else {
+                    VoiceLog.d("✅ 连接超时检查：识别器已准备好，无需处理")
+                }
+            }
+        }
+    }
+    
+    /**
      * 静态内部类：创建识别器
      */
     private class CreateRecognizerRunnable(
@@ -1850,17 +2041,23 @@ class VoiceRecognitionActivity : Activity() {
                         return
                     }
                     
+                    // 重置准备状态
+                    activity.isRecognizerReady = false
+                    
                     activity.speechRecognizer?.setRecognitionListener(activity.createRecognitionListener())
                     
-                    // 等待服务连接建立
-                    val connectionDelay = if (activity.isXiaomiAivsService) {
-                        500L // 小米 Aivs SDK 需要500ms连接时间
-                    } else {
-                        200L // 其他服务200ms
-                    }
+                    // 设置连接超时机制
+                    activity.setupConnectionTimeout()
                     
-                    val prepareRunnable = PrepareAndStartRecognitionRunnable(activity)
-                    activity.safePostDelayed(connectionDelay, prepareRunnable)
+                    // 设置监听状态，等待 onReadyForSpeech 回调
+                    activity.isListening = true
+                    activity.updateListeningState(true)
+                    activity.recognizerState = RecognizerState.LISTENING
+                    // 注意：保持 isStartingRecognition = true，直到识别真正启动
+                    VoiceLog.d("识别器已创建，等待服务连接（onReadyForSpeech）...")
+                    
+                    // 注意：不再使用固定延迟，而是等待 onReadyForSpeech 回调
+                    // 如果超时未收到回调，ConnectionTimeoutRunnable 会处理
                 } catch (e: Exception) {
                     VoiceLog.e("创建SpeechRecognizer失败: ${e.message}", e)
                     // 华为设备创建失败时，降级到手动输入

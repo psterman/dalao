@@ -136,10 +136,33 @@ class TTSManager private constructor(private val context: Context) : TextToSpeec
             
             // 尝试初始化TTS引擎，使用默认引擎
             val defaultEngine = try {
-                // 使用反射调用getDefaultEngine方法
+                // 使用反射调用getDefaultEngine方法（Android API 21+）
+                // 注意：此方法在某些Android版本中可能不存在，需要降级处理
                 val engineClass = TextToSpeech.Engine::class.java
-                val method = engineClass.getMethod("getDefaultEngine")
-                method.invoke(null) as? String
+                // 先尝试无参数版本（旧版本）
+                val method = try {
+                    engineClass.getMethod("getDefaultEngine")
+                } catch (e: NoSuchMethodException) {
+                    // 如果无参数版本不存在，尝试带Context参数的版本（新版本）
+                    try {
+                        engineClass.getMethod("getDefaultEngine", android.content.Context::class.java)
+                    } catch (e2: NoSuchMethodException) {
+                        null // 方法完全不存在
+                    }
+                }
+                
+                method?.let { m ->
+                    m.isAccessible = true
+                    if (m.parameterCount == 0) {
+                        m.invoke(null) as? String
+                    } else {
+                        m.invoke(null, context) as? String
+                    }
+                }
+            } catch (e: NoSuchMethodException) {
+                // 方法不存在，使用系统默认引擎
+                Log.d(TAG, "getDefaultEngine方法不可用，使用系统默认引擎")
+                null
             } catch (e: Exception) {
                 Log.w(TAG, "获取默认TTS引擎失败", e)
                 null
