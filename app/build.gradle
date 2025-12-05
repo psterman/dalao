@@ -164,6 +164,17 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
     // SmoothStreaming 支持
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
+    
+    // Vosk语音识别库
+    // 注意：vosk-android库需要手动添加
+    // 方式1：从GitHub下载aar文件并放在libs目录，然后取消注释下面这行
+    // implementation files('libs/vosk-android-release.aar')
+    
+    // 方式2：如果vosk-android发布到Maven仓库，可以使用以下依赖
+    // implementation 'com.alphacephei:vosk-android:0.3.45'
+    
+    // 方式3：使用JitPack（如果vosk-android在GitHub上）
+    // implementation 'com.github.alphacephei:vosk-android:0.3.45'
 }
 
 tasks.withType(JavaCompile).configureEach {

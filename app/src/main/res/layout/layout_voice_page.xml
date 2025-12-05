@@ -245,6 +245,58 @@
                             android:checked="false"
                             style="@style/SimpleModeSwitch" />
                     </LinearLayout>
+                    
+                    <!-- Vosk离线语音识别开关 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="8dp"
+                        android:layout_marginTop="8dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/voice_vosk_icon"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_mic"
+                            app:tint="@color/simple_mode_accent_light"
+                            android:layout_marginEnd="16dp" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Vosk离线语音识别"
+                                android:textSize="16sp"
+                                android:textColor="@color/simple_mode_text_primary_light" />
+
+                            <TextView
+                                android:id="@+id/voice_vosk_desc"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="使用本地Vosk模型进行语音识别"
+                                android:textSize="14sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+                        </LinearLayout>
+
+                        <!-- Vosk开关 -->
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/voice_vosk_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            style="@style/SimpleModeSwitch" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -38,6 +38,69 @@
 
     </LinearLayout>
 
+    <!-- Vosk离线语音识别开关卡片 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/voice_capsule_vosk_settings_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/voice_capsule_vosk_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_mic"
+                app:tint="@color/simple_mode_accent_light"
+                android:layout_marginEnd="12dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Vosk离线语音识别"
+                    android:textSize="15sp"
+                    android:textColor="@color/simple_mode_text_primary_light" />
+
+                <TextView
+                    android:id="@+id/voice_capsule_vosk_desc"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="使用本地Vosk模型进行语音识别"
+                    android:textSize="13sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <!-- Vosk开关 -->
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/voice_capsule_vosk_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false"
+                style="@style/SimpleModeSwitch" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
     <!-- 第二段：语音输入文本编辑区域 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/voice_capsule_input_card"

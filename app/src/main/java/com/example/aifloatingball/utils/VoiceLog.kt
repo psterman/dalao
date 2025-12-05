@@ -47,11 +47,16 @@ object VoiceLog {
      * 输出 Warning 级别日志
      * 
      * @param message 日志消息
+     * @param throwable 可选的异常对象
      */
     @JvmStatic
-    fun w(message: String) {
+    fun w(message: String, throwable: Throwable? = null) {
         if (BuildConfig.DEBUG) {
-            Log.w(TAG, message)
+            if (throwable != null) {
+                Log.w(TAG, message, throwable)
+            } else {
+                Log.w(TAG, message)
+            }
         }
     }
     

@@ -38,9 +38,15 @@ import com.example.aifloatingball.model.CompletionStatus
 import com.example.aifloatingball.model.EmotionTag
 import com.example.aifloatingball.voice.VoiceTextTagManager
 import com.example.aifloatingball.voice.SpeechRecognitionDetectionActivity
+import com.example.aifloatingball.voice.VoskManager
 import com.example.aifloatingball.utils.VoiceLog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.media.AudioFormat
+import android.media.AudioManager
+import org.json.JSONObject
 
 class VoiceRecognitionActivity : Activity() {
     companion object {
@@ -79,6 +85,15 @@ class VoiceRecognitionActivity : Activity() {
     private var isStartingRecognition = false // 是否正在启动识别（防止重复启动）
     private var shouldDestroyRecognizerOnRelease = false // 是否应该在释放时销毁识别器（错误情况下需要完全销毁）
     
+    // Vosk相关
+    private var voskManager: VoskManager? = null
+    private var audioRecord: AudioRecord? = null
+    private var voskRecordingThread: Thread? = null
+    private var isVoskRecording = false
+    private val SAMPLE_RATE = 16000 // Vosk需要16kHz采样率
+    private val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
+    private val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
+    
     // 界面元素
     private lateinit var micContainer: MaterialCardView
     private lateinit var micIcon: ImageView
@@ -108,11 +123,16 @@ class VoiceRecognitionActivity : Activity() {
         currentPartialText = ""
         recognizedTextView.setText("")
         
-        // 检查权限并启动语音识别
-        if (hasAudioPermission()) {
-        startVoiceRecognition()
+        // 检查是否启用Vosk
+        if (settingsManager.isVoskEnabled()) {
+            initializeVosk()
         } else {
-            requestAudioPermission()
+            // 检查权限并启动语音识别
+            if (hasAudioPermission()) {
+                startVoiceRecognition()
+            } else {
+                requestAudioPermission()
+            }
         }
     }
 
@@ -146,7 +166,12 @@ class VoiceRecognitionActivity : Activity() {
         
         // 设置麦克风点击事件
         micContainer.setOnClickListener {
-            toggleListening()
+            // 如果启用了Vosk，使用Vosk识别
+            if (settingsManager.isVoskEnabled()) {
+                toggleVoskListening()
+            } else {
+                toggleListening()
+            }
         }
         
         // 设置麦克风长按事件 - 启动语音识别服务检测
@@ -468,6 +493,12 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun toggleListening() {
+        // 如果启用了Vosk，使用Vosk识别
+        if (settingsManager.isVoskEnabled()) {
+            toggleVoskListening()
+            return
+        }
+        
         if (isListening) {
             // 如果正在监听，停止监听
             stopListening()
@@ -1495,6 +1526,9 @@ class VoiceRecognitionActivity : Activity() {
         // 完全销毁语音识别器（Activity 销毁时）
         destroySpeechRecognizer()
         
+        // 释放Vosk资源
+        releaseVosk()
+        
         // 重置状态机
         recognizerState = RecognizerState.IDLE
         VoiceLog.d("识别器状态: -> IDLE（Activity 销毁）")
@@ -2221,5 +2255,242 @@ class VoiceRecognitionActivity : Activity() {
         }
         
         return dp[m][n]
+    }
+    
+    /**
+     * 初始化Vosk
+     */
+    private fun initializeVosk() {
+        VoiceLog.d("开始初始化Vosk")
+        voskManager = VoskManager.getInstance(this)
+        
+        // 检查模型是否已下载
+        if (!voskManager!!.isModelDownloaded()) {
+            VoiceLog.d("Vosk模型未下载，开始下载")
+            listeningText.text = "正在下载Vosk模型..."
+            micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
+            
+            voskManager!!.downloadModel(
+                onProgress = { downloaded, total, sourceUrl ->
+                    val progress = (downloaded * 100 / total).toInt()
+                    val downloadedMB = downloaded / 1024 / 1024
+                    val totalMB = total / 1024 / 1024
+                    
+                    // 提取镜像源简称
+                    val sourceName = when {
+                        sourceUrl?.contains("ghp.ci") == true -> "镜像源1"
+                        sourceUrl?.contains("gh.llkk.cc") == true -> "镜像源2"
+                        sourceUrl?.contains("ghproxy.net") == true -> "镜像源3"
+                        sourceUrl?.contains("mirror.ghproxy.com") == true -> "镜像源4"
+                        sourceUrl?.contains("ghproxy.com") == true -> "镜像源5"
+                        sourceUrl?.contains("jsdelivr") == true -> "CDN镜像"
+                        sourceUrl?.contains("github.com") == true -> "GitHub"
+                        else -> "下载中"
+                    }
+                    
+                    listeningText.text = "下载模型 ($sourceName) $progress%\n${downloadedMB}MB / ${totalMB}MB"
+                },
+                onComplete = {
+                    VoiceLog.d("Vosk模型下载完成，开始初始化")
+                    listeningText.text = "模型下载完成，正在初始化..."
+                    if (voskManager!!.initializeModel()) {
+                        VoiceLog.d("Vosk初始化成功，开始录音")
+                        listeningText.text = "离线语音识别已就绪\n点击麦克风开始录音"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+                        startVoskRecognition()
+                    } else {
+                        VoiceLog.e("Vosk初始化失败")
+                        listeningText.text = "模型初始化失败\n请重启应用重试"
+                        micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+                    }
+                },
+                onError = { error ->
+                    VoiceLog.e("Vosk模型下载失败: $error")
+                    listeningText.text = "模型下载失败\n$error\n\n点击麦克风重新下载"
+                    micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+                }
+            )
+        } else {
+            // 模型已下载，直接初始化
+            VoiceLog.d("Vosk模型已下载，开始初始化")
+            listeningText.text = "正在初始化Vosk..."
+            if (voskManager!!.initializeModel()) {
+                VoiceLog.d("Vosk初始化成功")
+                listeningText.text = "Vosk已就绪，点击麦克风开始录音"
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+                startVoskRecognition()
+            } else {
+                VoiceLog.e("Vosk初始化失败")
+                listeningText.text = "Vosk初始化失败，请重试"
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+            }
+        }
+    }
+    
+    /**
+     * 启动Vosk录音识别
+     */
+    private fun startVoskRecognition() {
+        if (!hasAudioPermission()) {
+            requestAudioPermission()
+            return
+        }
+        
+        if (isVoskRecording) {
+            stopVoskRecognition()
+            return
+        }
+        
+        try {
+            val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
+            if (bufferSize == AudioRecord.ERROR_BAD_VALUE || bufferSize == AudioRecord.ERROR) {
+                VoiceLog.e("无法获取AudioRecord缓冲区大小")
+                showError("无法初始化录音")
+                return
+            }
+            
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE,
+                CHANNEL_CONFIG,
+                AUDIO_FORMAT,
+                bufferSize * 2
+            )
+            
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                VoiceLog.e("AudioRecord初始化失败")
+                showError("无法初始化录音")
+                return
+            }
+            
+            audioRecord?.startRecording()
+            isVoskRecording = true
+            isListening = true
+            updateListeningState(true)
+            
+            // 重置识别器
+            voskManager?.reset()
+            
+            // 启动录音线程
+            voskRecordingThread = Thread {
+                val buffer = ByteArray(bufferSize)
+                while (isVoskRecording && !Thread.currentThread().isInterrupted) {
+                    val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                    if (bytesRead > 0) {
+                        // 识别音频数据
+                        val result = voskManager?.recognize(buffer)
+                        if (result != null) {
+                            try {
+                                val jsonResult = JSONObject(result)
+                                val text = jsonResult.optString("text", "")
+                                
+                                if (text.isNotEmpty()) {
+                                    handler.post {
+                                        if (jsonResult.has("partial")) {
+                                            // 部分结果
+                                            currentPartialText = text
+                                            val displayText = if (recognizedText.isEmpty()) {
+                                                text
+                                            } else {
+                                                "$recognizedText $text"
+                                            }
+                                            recognizedTextView.setText(displayText)
+                                            recognizedTextView.setSelection(displayText.length)
+                                        } else {
+                                            // 最终结果
+                                            recognizedText = if (recognizedText.isEmpty()) {
+                                                text
+                                            } else {
+                                                "$recognizedText $text"
+                                            }
+                                            recognizedText = recognizedText.trim()
+                                            recognizedTextView.setText(recognizedText)
+                                            recognizedTextView.setSelection(recognizedText.length)
+                                            currentPartialText = ""
+                                            
+                                            // 自动继续录音
+                                            voskManager?.reset()
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                VoiceLog.e("解析Vosk结果失败: ${e.message}", e)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            voskRecordingThread?.start()
+            VoiceLog.d("Vosk录音已启动")
+        } catch (e: Exception) {
+            VoiceLog.e("启动Vosk录音失败: ${e.message}", e)
+            showError("启动录音失败: ${e.message}")
+            isVoskRecording = false
+            isListening = false
+            updateListeningState(false)
+        }
+    }
+    
+    /**
+     * 停止Vosk录音识别
+     */
+    private fun stopVoskRecognition() {
+        isVoskRecording = false
+        isListening = false
+        updateListeningState(false)
+        
+        try {
+            voskRecordingThread?.interrupt()
+            voskRecordingThread = null
+            
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+            
+            // 获取最终结果
+            val finalResult = voskManager?.getFinalResult()
+            if (finalResult != null) {
+                try {
+                    val jsonResult = JSONObject(finalResult)
+                    val text = jsonResult.optString("text", "")
+                    if (text.isNotEmpty()) {
+                        recognizedText = if (recognizedText.isEmpty()) {
+                            text
+                        } else {
+                            "$recognizedText $text"
+                        }.trim()
+                        recognizedTextView.setText(recognizedText)
+                        recognizedTextView.setSelection(recognizedText.length)
+                    }
+                } catch (e: Exception) {
+                    VoiceLog.e("解析最终结果失败: ${e.message}", e)
+                }
+            }
+            
+            VoiceLog.d("Vosk录音已停止")
+        } catch (e: Exception) {
+            VoiceLog.e("停止Vosk录音失败: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * 释放Vosk资源
+     */
+    private fun releaseVosk() {
+        stopVoskRecognition()
+        voskManager?.release()
+        voskManager = null
+    }
+    
+    /**
+     * 切换Vosk录音状态
+     */
+    private fun toggleVoskListening() {
+        if (isVoskRecording) {
+            stopVoskRecognition()
+        } else {
+            startVoskRecognition()
+        }
     }
 }

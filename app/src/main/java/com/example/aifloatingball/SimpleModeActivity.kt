@@ -658,6 +658,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceSaveButton: MaterialButton
     private lateinit var voiceSearchButton: MaterialButton
     private lateinit var voiceInteractionModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
+    private var voiceVoskSwitch: com.google.android.material.switchmaterial.SwitchMaterial? = null
+    private var voiceVoskDesc: TextView? = null
     
     // 录音相关
     private var audioRecorderManager: com.example.aifloatingball.voice.AudioRecorderManager? = null
@@ -695,6 +697,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 需要根据语音支持情况控制显示的UI元素
     private var voiceHintText: TextView? = null
     private var voiceSettingsCard: MaterialCardView? = null
+    private var voiceVoskSettingsCard: MaterialCardView? = null
 
     // 应用搜索页面组件
     private lateinit var appCategorySidebar: LinearLayout
@@ -2041,12 +2044,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         textConversionTimerHandler = Handler(Looper.getMainLooper())
         voiceTextTagManager = com.example.aifloatingball.voice.VoiceTextTagManager(this)
         voiceInteractionModeSwitch = findViewById(R.id.voice_interaction_mode_switch)
+        
+        // 初始化Vosk开关（支持三组ID，根据布局显示情况选择）
+        try {
+            // 优先查找胶囊布局中的Vosk开关
+            voiceVoskSwitch = findViewById(R.id.voice_capsule_vosk_switch)
+            voiceVoskDesc = findViewById(R.id.voice_capsule_vosk_desc)
+            Log.d(TAG, "找到胶囊布局中的Vosk开关")
+        } catch (e: Exception) {
+            // 如果胶囊布局找不到，尝试查找第一组ID（正常布局）
+            try {
+                voiceVoskSwitch = findViewById(R.id.voice_vosk_switch)
+                voiceVoskDesc = findViewById(R.id.voice_vosk_desc)
+                Log.d(TAG, "找到正常布局中的Vosk开关")
+            } catch (e1: Exception) {
+                // 如果第一组找不到，尝试查找第二组ID（原始布局）
+                try {
+                    voiceVoskSwitch = findViewById(R.id.voice_original_vosk_switch)
+                    voiceVoskDesc = findViewById(R.id.voice_original_vosk_desc)
+                    Log.d(TAG, "找到原始布局中的Vosk开关")
+                } catch (e2: Exception) {
+                    Log.w(TAG, "未找到Vosk开关控件: ${e2.message}")
+                }
+            }
+        }
 
         // TTS朗读按钮 - 使用麦克风按钮代替
 
         // 查找需要根据语音支持情况控制的UI元素
         voiceHintText = findViewById(R.id.voice_hint_text)
         voiceSettingsCard = findViewById(R.id.voice_settings_card)
+        // 初始化Vosk设置卡片（支持胶囊布局和正常布局）
+        try {
+            voiceVoskSettingsCard = findViewById(R.id.voice_capsule_vosk_settings_card)
+            Log.d(TAG, "找到胶囊布局中的Vosk设置卡片")
+        } catch (e: Exception) {
+            try {
+                voiceVoskSettingsCard = findViewById(R.id.voice_vosk_settings_card)
+                Log.d(TAG, "找到正常布局中的Vosk设置卡片")
+            } catch (e2: Exception) {
+                Log.w(TAG, "未找到Vosk设置卡片: ${e2.message}")
+            }
+        }
 
         // 应用搜索页面组件初始化
         try {
@@ -2242,11 +2281,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化麦克风按钮外观
         updateMicButtonAppearance()
         
+        // 设置Vosk开关监听器
+        setupVoskSwitch()
+        
+        // 确保Vosk设置卡片始终可见（不依赖系统语音识别）
+        voiceVoskSettingsCard?.visibility = View.VISIBLE
+        
         // 调试：检查麦克风按钮状态
         Log.d(TAG, "麦克风按钮初始化完成:")
         Log.d(TAG, "  按钮可见性: ${voiceMicContainer.visibility}")
         Log.d(TAG, "  按钮是否启用: ${voiceMicContainer.isEnabled}")
         Log.d(TAG, "  当前模式: ${if (isMicInTTSMode) "TTS朗读" else "语音输入"}")
+        Log.d(TAG, "  Vosk设置卡片可见性: ${voiceVoskSettingsCard?.visibility}")
     }
 
     /**
@@ -2268,6 +2314,171 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    /**
+     * 设置Vosk开关监听器
+     */
+    private fun setupVoskSwitch() {
+        voiceVoskSwitch?.let { switch ->
+            // 初始化开关状态
+            switch.isChecked = settingsManager.isVoskEnabled()
+            updateVoskSwitchUI(switch.isChecked)
+            
+            // 设置监听器
+            switch.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    // 启用Vosk：检查并下载/初始化模型
+                    checkAndSetupVoskModel()
+                } else {
+                    // 禁用Vosk：释放资源
+                    settingsManager.setVoskEnabled(false)
+                    updateVoskSwitchUI(false)
+                    Toast.makeText(this, "已禁用Vosk离线语音识别", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    
+    /**
+     * 检查并设置Vosk模型（下载和初始化）
+     */
+    private fun checkAndSetupVoskModel() {
+        val voskManager = com.example.aifloatingball.voice.VoskManager.getInstance(this)
+        
+        // 检查模型是否已下载
+        if (voskManager.isModelDownloaded()) {
+            // 模型已下载，检查是否已初始化
+            if (voskManager.isInitialized()) {
+                // 已初始化，直接启用
+                settingsManager.setVoskEnabled(true)
+                updateVoskSwitchUI(true)
+                Toast.makeText(this, "Vosk离线语音识别已启用", Toast.LENGTH_SHORT).show()
+            } else {
+                // 需要初始化
+                initializeVoskModel(voskManager)
+            }
+        } else {
+            // 模型未下载，开始下载
+            downloadVoskModel(voskManager)
+        }
+    }
+    
+    /**
+     * 下载Vosk模型（无感安装，后台静默下载）
+     */
+    private fun downloadVoskModel(voskManager: com.example.aifloatingball.voice.VoskManager) {
+        // 使用轻量级Toast通知，不阻塞用户操作
+        val initialToast = Toast.makeText(this, "正在后台下载Vosk模型（约50MB）...", Toast.LENGTH_LONG)
+        initialToast.show()
+        
+        // 更新UI提示
+        voiceVoskDesc?.text = "正在下载Vosk模型..."
+        
+        voskManager.downloadModel(
+            onProgress = { downloaded, total, url ->
+                val progress = if (total > 0) (downloaded * 100 / total).toInt() else 0
+                // 静默更新描述文本，不显示弹窗
+                runOnUiThread {
+                    voiceVoskDesc?.text = "正在下载Vosk模型... $progress% (${formatFileSize(downloaded)}/${formatFileSize(total)})"
+                }
+            },
+            onComplete = {
+                // 下载完成，静默初始化模型
+                runOnUiThread {
+                    voiceVoskDesc?.text = "下载完成，正在初始化..."
+                    Toast.makeText(this, "Vosk模型下载完成，正在初始化...", Toast.LENGTH_SHORT).show()
+                }
+                initializeVoskModel(voskManager, silent = true)
+            },
+            onError = { error ->
+                // 下载失败，重置开关状态
+                runOnUiThread {
+                    voiceVoskSwitch?.isChecked = false
+                    settingsManager.setVoskEnabled(false)
+                    updateVoskSwitchUI(false)
+                    // 使用Toast而不是弹窗，减少干扰
+                    Toast.makeText(this, "下载失败：$error\n请检查网络后重试", Toast.LENGTH_LONG).show()
+                }
+            }
+        )
+    }
+    
+    /**
+     * 初始化Vosk模型
+     * @param silent 是否静默模式（不显示弹窗，只显示Toast）
+     */
+    private fun initializeVoskModel(voskManager: com.example.aifloatingball.voice.VoskManager, silent: Boolean = false) {
+        // 声明progressDialog在外部作用域，以便在runOnUiThread中访问
+        val progressDialog: android.app.ProgressDialog? = if (!silent) {
+            android.app.ProgressDialog(this).apply {
+                setTitle("初始化Vosk模型")
+                setMessage("正在初始化Vosk模型...")
+                setCancelable(false)
+                setCanceledOnTouchOutside(false)
+                show()
+            }
+        } else {
+            null
+        }
+        
+        // 在后台线程初始化
+        Thread {
+            val success = voskManager.initializeModel()
+            
+            runOnUiThread {
+                // 关闭进度对话框
+                progressDialog?.dismiss()
+                
+                if (success) {
+                    // 初始化成功，启用Vosk
+                    settingsManager.setVoskEnabled(true)
+                    updateVoskSwitchUI(true)
+                    Toast.makeText(this, "✅ Vosk离线语音识别已启用", Toast.LENGTH_SHORT).show()
+                } else {
+                    // 初始化失败，重置开关状态
+                    voiceVoskSwitch?.isChecked = false
+                    settingsManager.setVoskEnabled(false)
+                    updateVoskSwitchUI(false)
+                    
+                    if (silent) {
+                        // 静默模式：使用Toast
+                        Toast.makeText(this, "初始化失败：请确保已添加vosk-android依赖库", Toast.LENGTH_LONG).show()
+                    } else {
+                        // 非静默模式：显示弹窗
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("初始化失败")
+                            .setMessage("Vosk模型初始化失败。\n\n请确保已添加vosk-android依赖库。")
+                            .setPositiveButton("确定", null)
+                            .show()
+                    }
+                }
+            }
+        }.start()
+    }
+    
+    /**
+     * 格式化文件大小
+     */
+    private fun formatFileSize(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return String.format("%.1f KB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024) return String.format("%.1f MB", mb)
+        val gb = mb / 1024.0
+        return String.format("%.2f GB", gb)
+    }
+    
+    /**
+     * 更新Vosk开关UI显示
+     */
+    private fun updateVoskSwitchUI(enabled: Boolean) {
+        voiceVoskDesc?.text = if (enabled) {
+            "使用本地Vosk模型进行语音识别（已启用）"
+        } else {
+            "使用本地Vosk模型进行语音识别"
+        }
+    }
+    
     private fun setupVoiceMicListener() {
         Log.d(TAG, "设置麦克风按钮监听器")
         
@@ -2695,6 +2906,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 显示语音提示文本和设置
                 voiceHintText?.visibility = View.VISIBLE
                 voiceSettingsCard?.visibility = View.VISIBLE
+                voiceVoskSettingsCard?.visibility = View.VISIBLE
 
                 Log.d(TAG, "显示语音UI：SpeechRecognizer可用")
             } else {
@@ -2703,9 +2915,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 voiceStatusText.text = "请直接输入文本"
                 voiceStatusText.setTextColor(ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light))
 
-                // 隐藏语音提示文本和设置
+                // 隐藏在线语音相关的提示和设置
                 voiceHintText?.visibility = View.GONE
                 voiceSettingsCard?.visibility = View.GONE
+                
+                // Vosk离线语音识别卡片始终显示（不依赖系统SpeechRecognizer）
+                voiceVoskSettingsCard?.visibility = View.VISIBLE
 
                 // 自动聚焦到文本输入框并显示输入法
                 voiceTextInput.requestFocus()
@@ -6842,11 +7057,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } else if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                    error == SpeechRecognizer.ERROR_SERVER ||
                    error == SpeechRecognizer.ERROR_NETWORK) {
-            // 对于服务相关错误，尝试系统语音输入
-            Log.w(TAG, "SpeechRecognizer服务错误，尝试系统语音输入: $errorMessage")
+            // 对于服务相关错误，不再尝试系统语音输入（避免系统弹窗）
+            Log.w(TAG, "SpeechRecognizer服务错误: $errorMessage")
             isListening = false
             updateVoiceListeningState(false)
-            trySystemVoiceInput()
+            voiceStatusText.text = errorMessage
+            // 已禁用系统语音输入，避免显示系统弹窗
+            // trySystemVoiceInput()
         } else {
             voiceStatusText.text = errorMessage
             isListening = false
@@ -32722,6 +32939,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 // 显示胶囊布局
                 voiceCapsuleLayout?.visibility = View.VISIBLE
+                
+                // 确保胶囊布局中的Vosk设置卡片可见
+                findViewById<com.google.android.material.card.MaterialCardView>(R.id.voice_capsule_vosk_settings_card)?.visibility = View.VISIBLE
                 
                 // 设置为胶囊模式
                 isVoiceCapsuleMode = true

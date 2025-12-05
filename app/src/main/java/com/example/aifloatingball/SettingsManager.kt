@@ -1210,6 +1210,30 @@ class SettingsManager private constructor(context: Context) {
     fun setVoiceInputTextSize(size: Float) {
         prefs.edit().putFloat("voice_input_text_size", size).apply()
     }
+    
+    // Vosk语音识别设置
+    fun isVoskEnabled(): Boolean {
+        return prefs.getBoolean("vosk_enabled", false)
+    }
+    
+    fun setVoskEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("vosk_enabled", enabled).apply()
+        notifyListeners("vosk_enabled", enabled)
+    }
+    
+    fun getVoskModelPath(): String? {
+        return prefs.getString("vosk_model_path", null)
+    }
+    
+    fun setVoskModelPath(path: String?) {
+        prefs.edit().putString("vosk_model_path", path).apply()
+        notifyListeners("vosk_model_path", path)
+    }
+    
+    fun isVoskModelDownloaded(): Boolean {
+        val modelPath = getVoskModelPath()
+        return !modelPath.isNullOrEmpty() && java.io.File(modelPath).exists()
+    }
 
     fun isOnboardingComplete(): Boolean {
         return prefs.getBoolean("onboarding_complete", false)

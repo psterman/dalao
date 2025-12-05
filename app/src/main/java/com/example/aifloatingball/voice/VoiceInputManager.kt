@@ -238,17 +238,18 @@ class VoiceInputManager(private val activity: Activity) {
             return
         }
         
-        // 第2层：尝试品牌特定方案
-        if (tryBrandSpecificVoiceInput()) {
-            Log.d(TAG, "使用品牌特定语音输入")
-            return
-        }
+        // 注意：已禁用系统语音输入Intent和品牌特定方案，避免显示系统弹窗
+        // 第2层：尝试品牌特定方案（已禁用，避免系统弹窗）
+        // if (tryBrandSpecificVoiceInput()) {
+        //     Log.d(TAG, "使用品牌特定语音输入")
+        //     return
+        // }
         
-        // 第3层：尝试系统语音输入Intent
-        if (trySystemVoiceInput()) {
-            Log.d(TAG, "使用系统语音输入Intent")
-            return
-        }
+        // 第3层：尝试系统语音输入Intent（已禁用，避免系统弹窗）
+        // if (trySystemVoiceInput()) {
+        //     Log.d(TAG, "使用系统语音输入Intent")
+        //     return
+        // }
         
         // 第4层：尝试输入法语音输入
         if (tryIMEVoiceInput()) {
@@ -256,7 +257,7 @@ class VoiceInputManager(private val activity: Activity) {
             return
         }
         
-        // 第5层：显示选择对话框
+        // 第5层：显示选择对话框（已移除系统语音输入选项）
         Log.d(TAG, "所有语音输入方案都不可用，显示选择对话框")
         showVoiceInputOptions()
     }
@@ -377,25 +378,14 @@ class VoiceInputManager(private val activity: Activity) {
         if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
             Log.w(TAG, "识别器忙碌，尝试释放并重试 (重试次数: $recognizerBusyRetryCount/$MAX_RECOGNIZER_BUSY_RETRIES)")
             
-            // 如果超过最大重试次数，尝试使用系统语音输入
+            // 如果超过最大重试次数，不再尝试系统语音输入（避免系统弹窗）
             if (recognizerBusyRetryCount >= MAX_RECOGNIZER_BUSY_RETRIES) {
-                Log.e(TAG, "识别器忙碌重试次数已达上限，切换到系统语音输入")
+                Log.e(TAG, "识别器忙碌重试次数已达上限，不再尝试系统语音输入（避免系统弹窗）")
                 recognizerBusyRetryCount = 0 // 重置计数器
                 // 完全释放识别器
                 releaseSpeechRecognizer()
-                // 延迟后尝试系统语音输入
-                handler.postDelayed({
-                    if (trySystemVoiceInput()) {
-                        Log.d(TAG, "已切换到系统语音输入")
-                    } else {
-                        // 如果系统语音输入也失败，尝试品牌特定方案
-                        if (tryBrandSpecificVoiceInput()) {
-                            Log.d(TAG, "已切换到品牌特定语音输入")
-                        } else {
-                            callback?.onVoiceInputError("识别器忙碌，请稍后重试")
-                        }
-                    }
-                }, 1000)
+                // 直接报告错误，不再尝试系统语音输入
+                callback?.onVoiceInputError("识别器忙碌，请稍后重试")
                 return
             }
             
@@ -682,11 +672,12 @@ class VoiceInputManager(private val activity: Activity) {
         val options = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
         
-        // 系统语音输入
-        if (hasSystemVoiceInput()) {
-            options.add("系统语音输入")
-            actions.add { trySystemVoiceInput() }
-        }
+        // 注意：已移除系统语音输入选项，避免显示系统弹窗
+        // 系统语音输入（已禁用，避免系统弹窗）
+        // if (hasSystemVoiceInput()) {
+        //     options.add("系统语音输入")
+        //     actions.add { trySystemVoiceInput() }
+        // }
         
         // 输入法语音输入
         options.add("输入法语音输入")
