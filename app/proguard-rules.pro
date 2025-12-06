@@ -95,6 +95,7 @@
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
 
+
 # ==================== 资源压缩保留规则 ====================
 # 保留动态加载的资源
 -keep class **.R$layout { *; }
@@ -143,26 +144,3 @@
 -keep class javax.servlet.** { *; }
 -keep class org.eclipse.jetty.** { *; }
 -dontwarn org.eclipse.jetty.**
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

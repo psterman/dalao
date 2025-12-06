@@ -227,7 +227,8 @@ class VoiceInputManager(private val activity: Activity) {
             callback?.onVoiceInputError("需要录音权限才能使用语音识别")
             return
         }
-        
+
+        // 优先检查 Vosk 离线模型是否启用
         // 第1层：尝试SpeechRecognizer
         val isRecognitionAvailable = SpeechRecognizer.isRecognitionAvailable(activity)
         Log.d(TAG, "SpeechRecognizer可用性: $isRecognitionAvailable")
@@ -785,5 +786,12 @@ class VoiceInputManager(private val activity: Activity) {
                 }
             }
         }
+    }
+
+    /**
+     * 通用停止方法
+     */
+    fun stopVoiceInput() {
+        releaseSpeechRecognizer()
     }
 }

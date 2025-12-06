@@ -1,29 +1,35 @@
 pluginManagement {
     repositories {
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
         gradlePluginPortal()
         google()
         mavenCentral()
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
     }
 }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        // 优先使用国内镜像源（阿里云）
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        
+        // JitPack (Vosk等库常用备用源)
+        maven { url 'https://jitpack.io' }
+        
         google()
         mavenCentral()
+        
         // 添加4th Line仓库（包含Cling库，允许不安全的HTTP连接）
         maven {
             url 'http://4thline.org/m2/'
             allowInsecureProtocol = true
         }
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/jcenter' }
     }
 }
 
 rootProject.name = "AIFloatingBall"
-include ':app' 
+include ':app'
