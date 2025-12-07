@@ -183,6 +183,9 @@ dependencies {
     // SmoothStreaming 支持
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
     
+    // Vosk 离线语音识别库
+    implementation 'com.alphacephei:vosk-android:0.3.45'
+    
 }
 
 tasks.withType(JavaCompile).configureEach {

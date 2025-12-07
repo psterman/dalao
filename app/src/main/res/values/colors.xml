@@ -953,4 +953,11 @@
     <color name="card_view_tab_normal_text">#666666</color>
 
     <color name="popup_text_light">#333333</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== iOS Switch 开关颜色 ======================== -->
+    <!-- =============================================================== -->
+    <!-- iOS 风格开关轨道颜色 -->
+    <color name="ios_switch_track_on">#34C759</color>      <!-- iOS 绿色：开启状态 -->
+    <color name="ios_switch_track_off">#E5E5EA</color>    <!-- iOS 浅灰色：关闭状态 -->
 </resources>
