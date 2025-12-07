@@ -22,6 +22,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
+import com.example.aifloatingball.voice.VoskManager
 import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
 import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 import com.example.aifloatingball.service.MyAccessibilityService
@@ -948,6 +949,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var voiceSupportInfo: VoiceInputManager.VoiceSupportInfo? = null
     private val handler = Handler(Looper.getMainLooper())
     
+    // Vosk离线语音识别相关
+    private var voskManager: VoskManager? = null
+    private var isVoskInitialized = false
+    
     // TTS朗读相关
     private lateinit var ttsManager: TTSManager
     private var isTTSEnabled = false
@@ -979,6 +984,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var autoPasteSwitch: SwitchMaterial
     private lateinit var multiTabBrowserSwitch: SwitchMaterial
     private lateinit var notificationListenerSwitch: SwitchMaterial
+    private lateinit var voskOfflineVoiceSwitch: SwitchMaterial
 
 
     private lateinit var floatingBallSettingsContainer: MaterialCardView
@@ -2171,6 +2177,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         autoPasteSwitch = findViewById(R.id.auto_paste_switch)
         multiTabBrowserSwitch = findViewById(R.id.multi_tab_browser_switch)
         notificationListenerSwitch = findViewById(R.id.notification_listener_switch)
+        voskOfflineVoiceSwitch = findViewById(R.id.vosk_offline_voice_switch)
 
 
         aiApiSettingsItem = findViewById(R.id.ai_api_settings_item)
@@ -2480,6 +2487,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         notificationListenerSwitch.setOnCheckedChangeListener { _, isChecked ->
             // 通知监听器设置需要使用通用的putBoolean方法
             settingsManager.putBoolean("enable_notification_listener", isChecked)
+        }
+
+        voskOfflineVoiceSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("use_vosk_offline_voice", isChecked)
+            Log.d(TAG, "Vosk离线语音识别设置: $isChecked")
+            if (isChecked) {
+                Toast.makeText(this, "已启用Vosk离线语音识别", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "已切换到系统语音识别", Toast.LENGTH_SHORT).show()
+            }
         }
 
 
@@ -3031,6 +3048,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             autoPasteSwitch.isChecked = settingsManager.isAutoPasteEnabled()
             multiTabBrowserSwitch.isChecked = settingsManager.getBoolean("use_multi_tab_browser", false)
             notificationListenerSwitch.isChecked = settingsManager.getBoolean("enable_notification_listener", false)
+            voskOfflineVoiceSwitch.isChecked = settingsManager.getBoolean("use_vosk_offline_voice", false)
 
             // 加载透明度设置 - getBallAlpha()返回0-255，需要转换为0-100
             ballAlphaSeekbar.progress = ((settingsManager.getBallAlpha() / 255.0) * 100).toInt()
@@ -6573,9 +6591,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return
         }
 
-        // 直接使用SpeechRecognizer（因为按钮只在支持时才显示）
+        // 检查是否启用Vosk离线语音识别
+        val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+        
+        if (useVosk) {
+            // 使用Vosk离线语音识别
+            startVoskRecognition()
+        } else {
+            // 使用系统SpeechRecognizer
+            startSystemVoiceRecognition()
+        }
+    }
+    
+    /**
+     * 启动系统语音识别
+     */
+    private fun startSystemVoiceRecognition() {
         // 释放之前的识别器
         releaseSpeechRecognizer()
+        releaseVoskManager()
 
         // 创建新的语音识别器
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
@@ -6593,6 +6627,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isListening = true
             updateVoiceListeningState(true)
             speechRecognizer?.startListening(intent)
+            Log.d(TAG, "系统语音识别已启动")
         } catch (e: Exception) {
             Log.e(TAG, "SpeechRecognizer启动失败", e)
             voiceStatusText.text = "语音识别启动失败"
@@ -6600,10 +6635,139 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             updateVoiceListeningState(false)
         }
     }
+    
+    /**
+     * 启动Vosk离线语音识别
+     */
+    private fun startVoskRecognition() {
+        Log.d(TAG, "启动Vosk离线语音识别")
+        
+        // 释放系统语音识别器
+        releaseSpeechRecognizer()
+        
+        // 初始化VoskManager（如果尚未初始化）
+        if (voskManager == null) {
+            voskManager = VoskManager(this)
+            voskManager?.setCallback(object : VoskManager.VoskCallback {
+                override fun onPartialResult(text: String) {
+                    handler.post {
+                        // 处理部分识别结果
+                        if (text.isNotEmpty() && text != "{\"partial\" : \"\"}") {
+                            try {
+                                val jsonObject = org.json.JSONObject(text)
+                                val partialText = jsonObject.optString("partial", "").trim()
+                                if (partialText.isNotEmpty()) {
+                                    // 部分结果直接显示，不累加到recognizedText
+                                    val displayText = if (recognizedText.isEmpty()) partialText else "$recognizedText $partialText"
+                                    voiceTextInput.setText(displayText)
+                                    voiceTextInput.setSelection(displayText.length)
+                                    updateSaveButtonVisibility()
+                                    Log.d(TAG, "Vosk部分结果: $partialText")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "解析Vosk部分结果失败: $text", e)
+                            }
+                        }
+                    }
+                }
+                
+                override fun onFinalResult(text: String) {
+                    handler.post {
+                        // 处理最终识别结果
+                        if (text.isNotEmpty() && text != "{\"text\" : \"\"}") {
+                            try {
+                                val jsonObject = org.json.JSONObject(text)
+                                val finalText = jsonObject.optString("text", "").trim()
+                                if (finalText.isNotEmpty()) {
+                                    // 最终结果累加到recognizedText
+                                    recognizedText = if (recognizedText.isEmpty()) finalText else "$recognizedText $finalText"
+                                    voiceTextInput.setText(recognizedText)
+                                    voiceTextInput.setSelection(recognizedText.length)
+                                    voiceSearchButton.isEnabled = true
+                                    updateSaveButtonVisibility()
+                                    Log.d(TAG, "Vosk最终结果: $finalText")
+                                    
+                                    // 自动重启识别以支持连续语音输入
+                                    handler.postDelayed({
+                                        if (isListening) {
+                                            startVoskRecognition()
+                                        }
+                                    }, 250)
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "解析Vosk最终结果失败: $text", e)
+                            }
+                        }
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    handler.post {
+                        Log.e(TAG, "Vosk识别错误: $error")
+                        voiceStatusText.text = "Vosk识别错误: $error"
+                        isListening = false
+                        updateVoiceListeningState(false)
+                    }
+                }
+                
+                override fun onModelStatus(isReady: Boolean, message: String) {
+                    handler.post {
+                        if (isReady) {
+                            Log.d(TAG, "Vosk模型已就绪: $message")
+                            // 模型已就绪，开始识别
+                            if (isListening) {
+                                voskManager?.startRecognition()
+                            }
+                        } else {
+                            Log.d(TAG, "Vosk模型状态: $message")
+                            voiceStatusText.text = message
+                            if (message.contains("下载") || message.contains("加载")) {
+                                // 正在下载或加载模型，保持等待状态
+                            } else {
+                                // 其他错误，停止识别
+                                isListening = false
+                                updateVoiceListeningState(false)
+                            }
+                        }
+                    }
+                }
+            })
+        }
+        
+        // 检查模型是否已初始化
+        if (!isVoskInitialized) {
+            // 初始化模型（异步）
+            isListening = true
+            updateVoiceListeningState(true)
+            voiceStatusText.text = "正在初始化Vosk模型..."
+            
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                val success = voskManager?.initializeModel(true) ?: false
+                if (success) {
+                    isVoskInitialized = true
+                    voskManager?.startRecognition()
+                } else {
+                    isListening = false
+                    updateVoiceListeningState(false)
+                    voiceStatusText.text = "Vosk模型初始化失败"
+                }
+            }
+        } else {
+            // 模型已初始化，直接开始识别
+            isListening = true
+            updateVoiceListeningState(true)
+            voskManager?.startRecognition()
+        }
+    }
 
     private fun stopVoiceRecognition() {
         isListening = false
+        
+        // 停止系统语音识别
         speechRecognizer?.stopListening()
+        
+        // 停止Vosk识别
+        voskManager?.stopRecognition()
         
         updateVoiceListeningState(false)
     }
@@ -6943,6 +7107,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         speechRecognizer = null
         isListening = false
+    }
+    
+    /**
+     * 释放VoskManager资源
+     */
+    private fun releaseVoskManager() {
+        voskManager?.release()
+        voskManager = null
+        isVoskInitialized = false
     }
 
     private fun minimizeToService() {
@@ -7368,6 +7541,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 释放语音识别器
         releaseSpeechRecognizer()
+        
+        // 释放VoskManager资源
+        releaseVoskManager()
 
         // 保存悬浮卡片状态
         gestureCardWebViewManager?.saveCardsState()

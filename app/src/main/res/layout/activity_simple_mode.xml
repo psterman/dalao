@@ -1138,6 +1138,51 @@
                             android:layout_height="wrap_content"
                             style="@style/SimpleModeSwitch" />
                     </LinearLayout>
+
+                    <!-- 分隔线 -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/simple_mode_divider_light"
+                        android:layout_marginVertical="8dp" />
+
+                    <!-- Vosk离线语音识别 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:padding="12dp"
+                        android:background="?attr/selectableItemBackground">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Vosk离线语音识别"
+                                android:textSize="16sp"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:layout_marginBottom="4dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="使用Vosk离线模型进行语音转文本，无需网络连接，保护隐私"
+                                android:textSize="14sp"
+                                android:textColor="@color/simple_mode_text_secondary_light" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/vosk_offline_voice_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
