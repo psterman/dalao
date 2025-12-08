@@ -144,3 +144,23 @@
 -keep class javax.servlet.** { *; }
 -keep class org.eclipse.jetty.** { *; }
 -dontwarn org.eclipse.jetty.**
+
+# ==================== JNA (Java Native Access) ====================
+# Vosk 依赖 JNA 来加载原生库，必须保留所有 JNA 类
+-keep class com.sun.jna.** { *; }
+-keepclassmembers class * extends com.sun.jna.** { public *; }
+-keepclassmembers class com.sun.jna.** { *; }
+-dontwarn com.sun.jna.**
+# 保留 JNA 的原生方法调用
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# ==================== Vosk 语音识别库 ====================
+-keep class org.vosk.** { *; }
+-keepclassmembers class org.vosk.** { *; }
+-dontwarn org.vosk.**
+# 保留 Vosk 的原生方法
+-keepclasseswithmembernames class org.vosk.** {
+    native <methods>;
+}

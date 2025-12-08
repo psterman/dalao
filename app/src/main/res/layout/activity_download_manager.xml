@@ -144,6 +144,19 @@
                     android:paddingEnd="16dp"
                     android:gravity="center" />
 
+                <TextView
+                    android:id="@+id/chip_vosk_models"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="Vosk模型"
+                    android:textSize="14sp"
+                    android:textColor="#000000"
+                    android:background="@drawable/bg_ios_chip_normal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:gravity="center" />
+
             </LinearLayout>
 
         </HorizontalScrollView>

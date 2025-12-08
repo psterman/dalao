@@ -266,3 +266,4 @@ class VoskVoiceRecognizer(private val context: Context) {
         scope.cancel()
     }
 }
+

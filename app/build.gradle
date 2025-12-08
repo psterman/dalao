@@ -80,9 +80,25 @@ android {
             // 解决重复类冲突：优先使用第一个找到的文件
             pickFirsts += [
                 'META-INF/AL2.0',
-                'META-INF/LGPL2.1'
+                'META-INF/LGPL2.1',
+                // 确保原生库文件被正确包含（JNA 和 Vosk 都需要）
+                '**/libjnidispatch.so',
+                '**/libvosk.so',
+                // 对于 JNA 的重复类，优先使用 AAR 版本（包含原生库）
+                // 这可以解决 @aar 格式同时引入 AAR 和 JAR 导致的重复类问题
+                'com/sun/jna/**'
             ]
         }
+    }
+}
+
+// 解决 JNA 重复类问题
+// 问题：使用 @aar 格式时，Gradle 可能同时引入 AAR 和 JAR 版本
+// 解决方案：在所有配置中排除 JAR 格式的 JNA，只保留我们显式添加的 AAR 版本
+configurations.all {
+    resolutionStrategy {
+        // 强制使用统一版本的 JNA
+        force 'net.java.dev.jna:jna:5.16.0'
     }
 }
 
@@ -184,7 +200,17 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
     
     // Vosk 离线语音识别库
-    implementation 'com.alphacephei:vosk-android:0.3.45'
+    implementation('com.alphacephei:vosk-android:0.3.45') {
+        // 排除 Vosk 可能传递依赖的 JNA，避免与显式添加的 AAR 版本冲突
+        exclude group: 'net.java.dev.jna', module: 'jna'
+    }
+    
+    // JNA (Java Native Access) - Vosk 依赖的原生库支持
+    // 使用 @aar 格式确保包含 Android 原生库文件
+    // 版本 5.16.0 修复了 16KB 页大小设备的兼容性问题
+    // 注意：如果仍然出现重复类错误，可能需要手动排除 JAR 格式
+    // 可以通过运行 ./gradlew :app:dependencies 查看依赖树
+    implementation('net.java.dev.jna:jna:5.16.0@aar')
     
 }
 

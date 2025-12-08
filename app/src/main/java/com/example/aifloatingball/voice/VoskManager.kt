@@ -82,6 +82,17 @@ class VoskManager(private val context: Context) {
          * 模型加载状态
          */
         fun onModelStatus(isReady: Boolean, message: String)
+        
+        /**
+         * 下载进度更新（可选实现）
+         * @param progress 下载进度百分比 (0-100)
+         * @param downloadedBytes 已下载字节数
+         * @param totalBytes 总字节数
+         * @param downloadSpeed 下载速度（字节/秒）
+         */
+        fun onDownloadProgress(progress: Int, downloadedBytes: Long, totalBytes: Long, downloadSpeed: Long) {
+            // 默认实现，保持向后兼容
+        }
     }
     
     private var model: Model? = null
@@ -336,13 +347,19 @@ class VoskManager(private val context: Context) {
             val body = response.body ?: return@withContext false
             val contentLength = body.contentLength()
             
-            Log.d(TAG, "开始下载模型，大小: ${contentLength / 1024 / 1024}MB")
+            val totalBytes = if (contentLength > 0) contentLength else 0L
+            Log.d(TAG, "开始下载模型，大小: ${totalBytes / 1024 / 1024}MB")
+            
+            // 下载速度跟踪
+            var lastUpdateTime = System.currentTimeMillis()
+            var lastDownloadedBytes = 0L
+            var downloadedBytes = 0L
+            val speedUpdateInterval = 1000L // 每秒更新一次速度
             
             // 下载并解压
             body.byteStream().use { inputStream ->
                 ZipInputStream(inputStream).use { zipInputStream ->
                     var entry = zipInputStream.nextEntry
-                    var downloadedBytes = 0L
                     
                     while (entry != null) {
                         if (!entry.isDirectory) {
@@ -365,14 +382,35 @@ class VoskManager(private val context: Context) {
                                     outputStream.write(buffer, 0, len)
                                     downloadedBytes += len
                                     
-                                    // 更新进度（每10MB更新一次）
-                                    if (downloadedBytes % (10 * 1024 * 1024) == 0L && contentLength > 0) {
-                                        val progress = (downloadedBytes * 100 / contentLength).toInt()
-                                        Log.d(TAG, "下载进度: $progress%")
+                                    // 计算下载速度并更新进度
+                                    val currentTime = System.currentTimeMillis()
+                                    val timeDiff = currentTime - lastUpdateTime
+                                    
+                                    if (timeDiff >= speedUpdateInterval || downloadedBytes == totalBytes) {
+                                        val bytesDiff = downloadedBytes - lastDownloadedBytes
+                                        val downloadSpeed = if (timeDiff > 0) {
+                                            (bytesDiff * 1000) / timeDiff // 字节/秒
+                                        } else {
+                                            0L
+                                        }
+                                        
+                                        val progress = if (totalBytes > 0) {
+                                            ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                        } else {
+                                            0
+                                        }
+                                        
+                                        Log.d(TAG, "下载进度: $progress% (${downloadedBytes / 1024 / 1024}MB / ${totalBytes / 1024 / 1024}MB), 速度: ${downloadSpeed / 1024}KB/s")
+                                        
                                         // 通知回调更新进度
                                         handler.post {
+                                            callback?.onDownloadProgress(progress, downloadedBytes, totalBytes, downloadSpeed)
+                                            // 保持向后兼容
                                             callback?.onModelStatus(false, "正在下载模型: $progress%")
                                         }
+                                        
+                                        lastUpdateTime = currentTime
+                                        lastDownloadedBytes = downloadedBytes
                                     }
                                 }
                             }
@@ -599,5 +637,107 @@ class VoskManager(private val context: Context) {
         }
         
         return size / 1024 / 1024
+    }
+    
+    /**
+     * 检测已下载的模型类型
+     * @return 已下载的模型类型列表，如果没有下载任何模型则返回空列表
+     */
+    fun getDownloadedModelTypes(): List<ModelType> {
+        val downloadedTypes = mutableListOf<ModelType>()
+        val voskModelsDir = File(context.filesDir, "vosk_models")
+        
+        if (!voskModelsDir.exists()) {
+            return downloadedTypes
+        }
+        
+        // 检查小模型
+        val smallModelDir = File(voskModelsDir, SMALL_MODEL_NAME)
+        if (smallModelDir.exists() && isModelDownloadedForType(smallModelDir)) {
+            downloadedTypes.add(ModelType.SMALL)
+        }
+        
+        // 检查完整模型
+        val fullModelDir = File(voskModelsDir, FULL_MODEL_NAME)
+        if (fullModelDir.exists() && isModelDownloadedForType(fullModelDir)) {
+            downloadedTypes.add(ModelType.FULL)
+        }
+        
+        return downloadedTypes
+    }
+    
+    /**
+     * 检查指定模型目录是否包含有效的模型文件
+     */
+    private fun isModelDownloadedForType(modelDir: File): Boolean {
+        if (!modelDir.exists() || !modelDir.isDirectory) {
+            return false
+        }
+        
+        // 检查关键文件/目录是否存在
+        val amDir = File(modelDir, "am")
+        val confDir = File(modelDir, "conf")
+        val graphDir = File(modelDir, "graph")
+        
+        // Vosk模型必须包含conf目录，以及am或graph目录之一
+        val hasConf = confDir.exists() && confDir.isDirectory
+        val hasAm = amDir.exists() && amDir.isDirectory
+        val hasGraph = graphDir.exists() && graphDir.isDirectory
+        
+        return hasConf && (hasAm || hasGraph)
+    }
+    
+    /**
+     * 获取指定类型模型的实际大小（MB）
+     */
+    fun getDownloadedModelSize(modelType: ModelType): Long {
+        val modelName = when (modelType) {
+            ModelType.SMALL -> SMALL_MODEL_NAME
+            ModelType.FULL -> FULL_MODEL_NAME
+        }
+        
+        val modelDir = File(context.filesDir, "vosk_models/$modelName")
+        if (!modelDir.exists()) {
+            return 0
+        }
+        
+        var size = 0L
+        modelDir.walkTopDown().forEach { file ->
+            if (file.isFile) {
+                size += file.length()
+            }
+        }
+        
+        return size / 1024 / 1024
+    }
+    
+    /**
+     * 删除指定类型的模型
+     * @return 是否删除成功
+     */
+    fun deleteModel(modelType: ModelType): Boolean {
+        val modelName = when (modelType) {
+            ModelType.SMALL -> SMALL_MODEL_NAME
+            ModelType.FULL -> FULL_MODEL_NAME
+        }
+        
+        val modelDir = File(context.filesDir, "vosk_models/$modelName")
+        
+        // 如果正在使用该模型，先释放
+        if (currentModelName == modelName && model != null) {
+            model?.close()
+            model = null
+            recognizer?.close()
+            recognizer = null
+        }
+        
+        // 删除模型目录
+        if (modelDir.exists()) {
+            val deleted = modelDir.deleteRecursively()
+            Log.d(TAG, "删除模型 ${modelType.name}: $deleted")
+            return deleted
+        }
+        
+        return false
     }
 }

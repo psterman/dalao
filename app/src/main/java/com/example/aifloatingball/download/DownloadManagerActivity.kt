@@ -67,11 +67,15 @@ class DownloadManagerActivity : AppCompatActivity() {
     private lateinit var chipArchives: TextView
     private lateinit var chipApps: TextView
     private lateinit var chipOthers: TextView
+    private lateinit var chipVoskModels: TextView
     
     // 数据过滤
     private var currentFilter = FileTypeFilter.ALL
     private var searchQuery = ""
     private var sortOrder = SortOrder.TIME_DESC
+    
+    // Vosk模型管理器
+    private lateinit var voskManager: com.example.aifloatingball.voice.VoskManager
     
     private val handler = Handler(Looper.getMainLooper())
     private val refreshRunnable = object : Runnable {
@@ -90,7 +94,7 @@ class DownloadManagerActivity : AppCompatActivity() {
      * 文件类型过滤枚举
      */
     enum class FileTypeFilter {
-        ALL, IMAGES, VIDEOS, DOCUMENTS, ARCHIVES, APPS, OTHERS
+        ALL, IMAGES, VIDEOS, DOCUMENTS, ARCHIVES, APPS, OTHERS, VOSK_MODELS
     }
     
     /**
@@ -134,6 +138,7 @@ class DownloadManagerActivity : AppCompatActivity() {
         chipArchives = findViewById(R.id.chip_archives)
         chipApps = findViewById(R.id.chip_apps)
         chipOthers = findViewById(R.id.chip_others)
+        chipVoskModels = findViewById(R.id.chip_vosk_models)
         
         toolbar.setNavigationOnClickListener {
             finish()
@@ -156,6 +161,7 @@ class DownloadManagerActivity : AppCompatActivity() {
     private fun initManagers() {
         enhancedDownloadManager = EnhancedDownloadManager(this)
         apkInstallManager = ApkInstallManager(this)
+        voskManager = com.example.aifloatingball.voice.VoskManager(this)
     }
     
     /**
@@ -299,7 +305,18 @@ class DownloadManagerActivity : AppCompatActivity() {
     
     private fun refreshDownloads() {
         val allDownloads = enhancedDownloadManager.getAllDownloads()
-        val filteredDownloads = filterAndSortDownloads(allDownloads)
+        val voskModels = getVoskModelFiles()
+        val combinedItems = if (currentFilter == FileTypeFilter.VOSK_MODELS) {
+            // 只显示Vosk模型
+            voskModels.map { it.toDownloadInfo() }
+        } else if (currentFilter == FileTypeFilter.ALL) {
+            // 显示所有：普通下载 + Vosk模型
+            allDownloads + voskModels.map { it.toDownloadInfo() }
+        } else {
+            // 只显示普通下载
+            allDownloads
+        }
+        val filteredDownloads = filterAndSortDownloads(combinedItems)
         
         // 计算下载速度
         val currentTime = System.currentTimeMillis()
@@ -363,9 +380,10 @@ class DownloadManagerActivity : AppCompatActivity() {
      * 设置分类过滤
      */
     private fun setupCategoryFilters() {
-        val chips = listOf(chipAll, chipImages, chipVideos, chipDocuments, chipArchives, chipApps, chipOthers)
+        val chips = listOf(chipAll, chipImages, chipVideos, chipDocuments, chipArchives, chipApps, chipOthers, chipVoskModels)
         val filters = listOf(FileTypeFilter.ALL, FileTypeFilter.IMAGES, FileTypeFilter.VIDEOS, 
-                           FileTypeFilter.DOCUMENTS, FileTypeFilter.ARCHIVES, FileTypeFilter.APPS, FileTypeFilter.OTHERS)
+                           FileTypeFilter.DOCUMENTS, FileTypeFilter.ARCHIVES, FileTypeFilter.APPS, 
+                           FileTypeFilter.OTHERS, FileTypeFilter.VOSK_MODELS)
         
         chips.forEachIndexed { index, chip ->
             chip.setOnClickListener {
@@ -373,6 +391,12 @@ class DownloadManagerActivity : AppCompatActivity() {
                 updateChipSelection(chips, index)
                 refreshDownloads()
             }
+        }
+        
+        // Vosk模型chip长按打开管理页面
+        chipVoskModels.setOnLongClickListener {
+            openVoskModelManager()
+            true
         }
         
         // 默认选中"全部"
@@ -501,6 +525,7 @@ class DownloadManagerActivity : AppCompatActivity() {
                     FileTypeFilter.ARCHIVES -> isArchiveFile(fileName)
                     FileTypeFilter.APPS -> isAppFile(fileName)
                     FileTypeFilter.OTHERS -> !isKnownFileType(fileName)
+                    FileTypeFilter.VOSK_MODELS -> isVoskModelFile(download)
                     else -> true
                 }
             }
@@ -680,6 +705,25 @@ class DownloadManagerActivity : AppCompatActivity() {
      * 删除下载的文件
      */
     private fun deleteDownloadedFile(downloadInfo: EnhancedDownloadManager.DownloadInfo) {
+        // 检查是否为Vosk模型文件
+        if (isVoskModelFile(downloadInfo)) {
+            // 从downloadId反推模型类型
+            val modelType = when (downloadInfo.downloadId.toInt()) {
+                com.example.aifloatingball.voice.VoskManager.ModelType.SMALL.hashCode() -> 
+                    com.example.aifloatingball.voice.VoskManager.ModelType.SMALL
+                com.example.aifloatingball.voice.VoskManager.ModelType.FULL.hashCode() -> 
+                    com.example.aifloatingball.voice.VoskManager.ModelType.FULL
+                else -> null
+            }
+            
+            if (modelType != null) {
+                deleteVoskModel(modelType)
+            } else {
+                Toast.makeText(this, "无法识别模型类型", Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("删除文件")
             .setMessage("确定要删除文件 \"${downloadInfo.title}\" 吗？")
@@ -925,6 +969,12 @@ class DownloadManagerActivity : AppCompatActivity() {
     }
     
     private fun handleDownloadClick(downloadInfo: EnhancedDownloadManager.DownloadInfo) {
+        // 检查是否为Vosk模型文件
+        if (isVoskModelFile(downloadInfo)) {
+            handleVoskModelClick(downloadInfo)
+            return
+        }
+        
         when (downloadInfo.status) {
             DownloadManager.STATUS_SUCCESSFUL -> {
                 if (apkInstallManager.isApkFile(downloadInfo.localFilename ?: "")) {
@@ -1190,6 +1240,251 @@ class DownloadManagerActivity : AppCompatActivity() {
                 Toast.makeText(this, "安装权限被拒绝", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+    
+    /**
+     * Vosk模型文件信息数据类
+     */
+    private data class VoskModelFile(
+        val modelType: com.example.aifloatingball.voice.VoskManager.ModelType,
+        val modelName: String,
+        val sizeMB: Long,
+        val isDownloaded: Boolean,
+        val filePath: String,
+        val lastModified: Long
+    ) {
+        /**
+         * 转换为DownloadInfo格式以便在列表中显示
+         */
+        fun toDownloadInfo(): EnhancedDownloadManager.DownloadInfo {
+            val status = if (isDownloaded) {
+                DownloadManager.STATUS_SUCCESSFUL
+            } else {
+                DownloadManager.STATUS_FAILED
+            }
+            
+            val title = when (modelType) {
+                com.example.aifloatingball.voice.VoskManager.ModelType.SMALL -> "Vosk小模型 (${sizeMB}MB)"
+                com.example.aifloatingball.voice.VoskManager.ModelType.FULL -> "Vosk完整模型 (${sizeMB}MB)"
+            }
+            
+            return EnhancedDownloadManager.DownloadInfo(
+                downloadId = modelType.hashCode().toLong(), // 使用模型类型的hashCode作为ID
+                title = title,
+                description = "Vosk离线语音识别模型 - $modelName",
+                localUri = "file://$filePath",
+                localFilename = filePath,
+                status = status,
+                bytesDownloaded = if (isDownloaded) sizeMB * 1024 * 1024 else 0L,
+                bytesTotal = sizeMB * 1024 * 1024,
+                lastModified = lastModified
+            )
+        }
+    }
+    
+    /**
+     * 获取Vosk模型文件列表
+     */
+    private fun getVoskModelFiles(): List<VoskModelFile> {
+        val voskModelsDir = File(filesDir, "vosk_models")
+        val models = mutableListOf<VoskModelFile>()
+        
+        // 检查小模型
+        val smallModelType = com.example.aifloatingball.voice.VoskManager.ModelType.SMALL
+        val smallModelDir = File(voskModelsDir, "vosk-model-small-cn-0.22")
+        val smallModelSize = voskManager.getDownloadedModelSize(smallModelType)
+        val smallModelDownloaded = voskManager.getDownloadedModelTypes().contains(smallModelType)
+        val smallModelLastModified = if (smallModelDir.exists()) {
+            smallModelDir.lastModified()
+        } else {
+            System.currentTimeMillis()
+        }
+        
+        models.add(VoskModelFile(
+            modelType = smallModelType,
+            modelName = "vosk-model-small-cn-0.22",
+            sizeMB = if (smallModelSize > 0) smallModelSize else 42L,
+            isDownloaded = smallModelDownloaded,
+            filePath = smallModelDir.absolutePath,
+            lastModified = smallModelLastModified
+        ))
+        
+        // 检查完整模型
+        val fullModelType = com.example.aifloatingball.voice.VoskManager.ModelType.FULL
+        val fullModelDir = File(voskModelsDir, "vosk-model-cn-0.22")
+        val fullModelSize = voskManager.getDownloadedModelSize(fullModelType)
+        val fullModelDownloaded = voskManager.getDownloadedModelTypes().contains(fullModelType)
+        val fullModelLastModified = if (fullModelDir.exists()) {
+            fullModelDir.lastModified()
+        } else {
+            System.currentTimeMillis()
+        }
+        
+        models.add(VoskModelFile(
+            modelType = fullModelType,
+            modelName = "vosk-model-cn-0.22",
+            sizeMB = if (fullModelSize > 0) fullModelSize else 1300L,
+            isDownloaded = fullModelDownloaded,
+            filePath = fullModelDir.absolutePath,
+            lastModified = fullModelLastModified
+        ))
+        
+        return models
+    }
+    
+    /**
+     * 判断是否为Vosk模型文件
+     */
+    private fun isVoskModelFile(download: EnhancedDownloadManager.DownloadInfo): Boolean {
+        return download.description.contains("Vosk离线语音识别模型", ignoreCase = true) ||
+               download.title.contains("Vosk", ignoreCase = true)
+    }
+    
+    /**
+     * 处理Vosk模型文件的点击事件
+     */
+    private fun handleVoskModelClick(download: EnhancedDownloadManager.DownloadInfo) {
+        // 从downloadId反推模型类型
+        val modelType = when (download.downloadId.toInt()) {
+            com.example.aifloatingball.voice.VoskManager.ModelType.SMALL.hashCode() -> 
+                com.example.aifloatingball.voice.VoskManager.ModelType.SMALL
+            com.example.aifloatingball.voice.VoskManager.ModelType.FULL.hashCode() -> 
+                com.example.aifloatingball.voice.VoskManager.ModelType.FULL
+            else -> null
+        }
+        
+        if (modelType == null) {
+            Toast.makeText(this, "无法识别模型类型", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val isDownloaded = voskManager.getDownloadedModelTypes().contains(modelType)
+        val modelSize = voskManager.getDownloadedModelSize(modelType)
+        val modelName = when (modelType) {
+            com.example.aifloatingball.voice.VoskManager.ModelType.SMALL -> "Vosk小模型"
+            com.example.aifloatingball.voice.VoskManager.ModelType.FULL -> "Vosk完整模型"
+        }
+        
+        // 显示模型管理对话框
+        showVoskModelDetailsDialog(modelType, modelName, modelSize, isDownloaded)
+    }
+    
+    /**
+     * 显示Vosk模型详情对话框
+     */
+    private fun showVoskModelDetailsDialog(
+        modelType: com.example.aifloatingball.voice.VoskManager.ModelType,
+        modelName: String,
+        modelSize: Long,
+        isDownloaded: Boolean
+    ) {
+        val options = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+        
+        // 添加"管理模型"选项（始终显示）
+        options.add("管理模型")
+        actions.add { openVoskModelManager() }
+        
+        if (isDownloaded) {
+            options.add("查看详情")
+            options.add("删除模型")
+            options.add("使用此模型")
+            actions.add { showVoskModelInfo(modelType, modelName, modelSize) }
+            actions.add { deleteVoskModel(modelType) }
+            actions.add { useVoskModel(modelType) }
+        } else {
+            options.add("下载模型")
+            actions.add { downloadVoskModel(modelType) }
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(modelName)
+            .setMessage("模型大小: ${modelSize}MB\n状态: ${if (isDownloaded) "已下载" else "未下载"}")
+            .setItems(options.toTypedArray()) { _, which ->
+                if (which < actions.size) {
+                    actions[which]()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 打开Vosk模型管理页面
+     */
+    private fun openVoskModelManager() {
+        val intent = android.content.Intent(this, com.example.aifloatingball.voice.VoskModelManagerActivity::class.java)
+        startActivity(intent)
+    }
+    
+    /**
+     * 显示Vosk模型详细信息
+     */
+    private fun showVoskModelInfo(
+        modelType: com.example.aifloatingball.voice.VoskManager.ModelType,
+        modelName: String,
+        modelSize: Long
+    ) {
+        val modelDir = when (modelType) {
+            com.example.aifloatingball.voice.VoskManager.ModelType.SMALL -> 
+                File(filesDir, "vosk_models/vosk-model-small-cn-0.22")
+            com.example.aifloatingball.voice.VoskManager.ModelType.FULL -> 
+                File(filesDir, "vosk_models/vosk-model-cn-0.22")
+        }
+        
+        val info = """
+            模型名称: $modelName
+            模型大小: ${modelSize}MB
+            存储路径: ${modelDir.absolutePath}
+            状态: 已下载
+            用途: 离线中文语音识别
+        """.trimIndent()
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("模型详情")
+            .setMessage(info)
+            .setPositiveButton("确定", null)
+            .show()
+    }
+    
+    /**
+     * 删除Vosk模型
+     */
+    private fun deleteVoskModel(modelType: com.example.aifloatingball.voice.VoskManager.ModelType) {
+        val modelName = when (modelType) {
+            com.example.aifloatingball.voice.VoskManager.ModelType.SMALL -> "Vosk小模型"
+            com.example.aifloatingball.voice.VoskManager.ModelType.FULL -> "Vosk完整模型"
+        }
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("删除模型")
+            .setMessage("确定要删除${modelName}吗？删除后需要重新下载才能使用。")
+            .setPositiveButton("删除") { _, _ ->
+                if (voskManager.deleteModel(modelType)) {
+                    Toast.makeText(this, "$modelName 已删除", Toast.LENGTH_SHORT).show()
+                    refreshDownloads()
+                } else {
+                    Toast.makeText(this, "删除失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    /**
+     * 使用Vosk模型
+     */
+    private fun useVoskModel(modelType: com.example.aifloatingball.voice.VoskManager.ModelType) {
+        // 打开模型管理页面，用户可以在那里切换模型
+        openVoskModelManager()
+    }
+    
+    /**
+     * 下载Vosk模型
+     */
+    private fun downloadVoskModel(modelType: com.example.aifloatingball.voice.VoskManager.ModelType) {
+        // 打开模型管理页面，用户可以在那里下载模型
+        openVoskModelManager()
     }
     
     override fun onDestroy() {

@@ -696,6 +696,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 需要根据语音支持情况控制显示的UI元素
     private var voiceHintText: TextView? = null
     private var voiceSettingsCard: MaterialCardView? = null
+    private var voiceModelStatusText: TextView? = null
+    private var voiceModelStatusContainer: LinearLayout? = null
 
     // 应用搜索页面组件
     private lateinit var appCategorySidebar: LinearLayout
@@ -2048,6 +2050,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceTextTagManager = com.example.aifloatingball.voice.VoiceTextTagManager(this)
         voiceInteractionModeSwitch = findViewById(R.id.voice_interaction_mode_switch)
         
+        // 初始化模型状态相关UI
+        voiceModelStatusText = findViewById(R.id.voice_model_status_text)
+        voiceModelStatusContainer = findViewById(R.id.voice_model_status_container)
+        
+        // 设置模型状态容器点击事件
+        voiceModelStatusContainer?.setOnClickListener {
+            showVoiceModelManagementDialog()
+        }
+        
         // TTS朗读按钮 - 使用麦克风按钮代替
 
         // 查找需要根据语音支持情况控制的UI元素
@@ -2249,6 +2260,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化麦克风按钮外观
         updateMicButtonAppearance()
         
+        // 初始化语音模型状态显示
+        setupVoiceModelStatus()
         
         // 调试：检查麦克风按钮状态
         Log.d(TAG, "麦克风按钮初始化完成:")
@@ -2256,7 +2269,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         Log.d(TAG, "  按钮是否启用: ${voiceMicContainer.isEnabled}")
         Log.d(TAG, "  当前模式: ${if (isMicInTTSMode) "TTS朗读" else "语音输入"}")
     }
-
+    
+    /**
+     * 设置语音模型状态显示和管理
+     */
+    private fun setupVoiceModelStatus() {
+        val modelStatusContainer = findViewById<LinearLayout>(R.id.voice_model_status_container)
+        val modelStatusText = findViewById<TextView>(R.id.voice_model_status_text)
+        
+        // 更新模型状态显示
+        updateVoiceModelStatus()
+        
+        // 点击打开模型管理对话框
+        modelStatusContainer?.setOnClickListener {
+            showVoiceModelManagementDialog()
+        }
+    }
+    
     /**
      * 更新语音交互模式UI显示
      */
@@ -2490,11 +2519,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         voskOfflineVoiceSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.putBoolean("use_vosk_offline_voice", isChecked)
-            Log.d(TAG, "Vosk离线语音识别设置: $isChecked")
             if (isChecked) {
-                Toast.makeText(this, "已启用Vosk离线语音识别", Toast.LENGTH_SHORT).show()
+                // 打开开关时，显示模型选择对话框
+                showVoskModelSelectionDialog()
             } else {
+                // 关闭开关时，直接保存设置
+                settingsManager.putBoolean("use_vosk_offline_voice", false)
+                Log.d(TAG, "Vosk离线语音识别设置: 已关闭")
                 Toast.makeText(this, "已切换到系统语音识别", Toast.LENGTH_SHORT).show()
             }
         }
@@ -3092,6 +3123,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 显示AI应用图标（使用空查询，显示所有常用AI）
         showVoiceCapsuleAIApps("")
+        
+        // 更新模型状态显示
+        updateVoiceModelStatus()
 
         // 检查录音权限
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
@@ -5033,6 +5067,410 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         return AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
     }
     
+    /**
+     * 显示Vosk模型选择对话框
+     */
+    private fun showVoskModelSelectionDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_vosk_model_selection, null)
+        val smallModelRadio = dialogView.findViewById<RadioButton>(R.id.radio_small_model)
+        val fullModelRadio = dialogView.findViewById<RadioButton>(R.id.radio_full_model)
+        val modelDescription = dialogView.findViewById<TextView>(R.id.model_description)
+        
+        // 默认选择小模型
+        smallModelRadio.isChecked = true
+        updateModelDescription(modelDescription, VoskManager.ModelType.SMALL)
+        
+        // 监听单选按钮变化
+        smallModelRadio.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                updateModelDescription(modelDescription, VoskManager.ModelType.SMALL)
+            }
+        }
+        
+        fullModelRadio.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                updateModelDescription(modelDescription, VoskManager.ModelType.FULL)
+            }
+        }
+        
+        val dialog = createThemedDialogBuilder()
+            .setTitle("选择Vosk离线语音模型")
+            .setView(dialogView)
+            .setPositiveButton("下载并激活") { _, _ ->
+                val selectedModelType = if (smallModelRadio.isChecked) {
+                    VoskManager.ModelType.SMALL
+                } else {
+                    VoskManager.ModelType.FULL
+                }
+                // 保存选择的模型类型
+                settingsManager.putString("vosk_model_type", if (selectedModelType == VoskManager.ModelType.SMALL) "SMALL" else "FULL")
+                // 启用Vosk
+                settingsManager.putBoolean("use_vosk_offline_voice", true)
+                // 开始下载模型
+                startVoskModelDownload(selectedModelType)
+            }
+            .setNegativeButton("取消") { _, _ ->
+                // 取消时关闭开关
+                voskOfflineVoiceSwitch.isChecked = false
+            }
+            .setCancelable(false)
+            .create()
+        
+        dialog.show()
+    }
+    
+    /**
+     * 更新模型描述文本
+     */
+    private fun updateModelDescription(textView: TextView, modelType: VoskManager.ModelType) {
+        val voskManager = VoskManager(this)
+        val modelSize = voskManager.getModelSize(modelType)
+        val description = when (modelType) {
+            VoskManager.ModelType.SMALL -> {
+                "小模型（约${modelSize}MB）\n" +
+                "• 下载速度快\n" +
+                "• 占用存储空间小\n" +
+                "• 识别精度中等\n" +
+                "• 适合日常使用"
+            }
+            VoskManager.ModelType.FULL -> {
+                "完整模型（约${modelSize}MB）\n" +
+                "• 识别精度高\n" +
+                "• 支持更多词汇\n" +
+                "• 需要更多存储空间\n" +
+                "• 建议在WiFi环境下下载"
+            }
+        }
+        textView.text = description
+    }
+    
+    /**
+     * 更新语音模型状态显示
+     */
+    private fun updateVoiceModelStatus() {
+        try {
+            val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+            val voskManager = VoskManager(this)
+            
+            val statusText = if (useVosk) {
+                // 使用Vosk离线识别
+                val downloadedTypes = voskManager.getDownloadedModelTypes()
+                val currentModelType = voskManager.getCurrentModelType()
+                
+                if (downloadedTypes.isEmpty()) {
+                    "Vosk模型未下载"
+                } else {
+                    val modelSize = voskManager.getModelSize(currentModelType)
+                    val actualSize = voskManager.getDownloadedModelSize(currentModelType)
+                    when (currentModelType) {
+                        VoskManager.ModelType.SMALL -> {
+                            if (actualSize > 0) {
+                                "Vosk小模型 (${actualSize}MB)"
+                            } else {
+                                "Vosk小模型 (${modelSize}MB)"
+                            }
+                        }
+                        VoskManager.ModelType.FULL -> {
+                            if (actualSize > 0) {
+                                "Vosk完整模型 (${actualSize}MB)"
+                            } else {
+                                "Vosk完整模型 (${modelSize}MB)"
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 使用系统语音识别
+                "系统语音识别"
+            }
+            
+            voiceModelStatusText?.text = statusText
+            Log.d(TAG, "模型状态已更新: $statusText")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新模型状态失败", e)
+            voiceModelStatusText?.text = "系统语音识别"
+        }
+    }
+    
+    /**
+     * 显示语音模型管理对话框
+     */
+    private fun showVoiceModelManagementDialog() {
+        val voskManager = VoskManager(this)
+        val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+        val downloadedTypes = voskManager.getDownloadedModelTypes()
+        val currentModelType = voskManager.getCurrentModelType()
+        
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_voice_model_management, null)
+        val modelInfoText = dialogView.findViewById<TextView>(R.id.model_info_text)
+        val smallModelCard = dialogView.findViewById<MaterialCardView>(R.id.small_model_card)
+        val fullModelCard = dialogView.findViewById<MaterialCardView>(R.id.full_model_card)
+        val smallModelStatus = dialogView.findViewById<TextView>(R.id.small_model_status)
+        val fullModelStatus = dialogView.findViewById<TextView>(R.id.full_model_status)
+        val smallModelSize = dialogView.findViewById<TextView>(R.id.small_model_size)
+        val fullModelSize = dialogView.findViewById<TextView>(R.id.full_model_size)
+        val smallModelDeleteBtn = dialogView.findViewById<MaterialButton>(R.id.small_model_delete_btn)
+        val fullModelDeleteBtn = dialogView.findViewById<MaterialButton>(R.id.full_model_delete_btn)
+        val useSystemVoiceBtn = dialogView.findViewById<MaterialButton>(R.id.use_system_voice_btn)
+        
+        // 更新模型信息
+        val infoText = if (useVosk) {
+            val modelSize = voskManager.getModelSize(currentModelType)
+            val actualSize = voskManager.getDownloadedModelSize(currentModelType)
+            when (currentModelType) {
+                VoskManager.ModelType.SMALL -> "当前使用: Vosk小模型 (${if (actualSize > 0) "${actualSize}MB" else "${modelSize}MB"})"
+                VoskManager.ModelType.FULL -> "当前使用: Vosk完整模型 (${if (actualSize > 0) "${actualSize}MB" else "${modelSize}MB"})"
+            }
+        } else {
+            "当前使用: 系统语音识别"
+        }
+        modelInfoText.text = infoText
+        
+        // 更新小模型状态
+        val hasSmallModel = downloadedTypes.contains(VoskManager.ModelType.SMALL)
+        if (hasSmallModel) {
+            val size = voskManager.getDownloadedModelSize(VoskManager.ModelType.SMALL)
+            smallModelStatus.text = "已下载"
+            smallModelSize.text = "${size}MB"
+            smallModelDeleteBtn.isEnabled = true
+            smallModelDeleteBtn.visibility = View.VISIBLE
+        } else {
+            smallModelStatus.text = "未下载"
+            smallModelSize.text = "${voskManager.getModelSize(VoskManager.ModelType.SMALL)}MB"
+            smallModelDeleteBtn.isEnabled = false
+            smallModelDeleteBtn.visibility = View.GONE
+        }
+        
+        // 更新完整模型状态
+        val hasFullModel = downloadedTypes.contains(VoskManager.ModelType.FULL)
+        if (hasFullModel) {
+            val size = voskManager.getDownloadedModelSize(VoskManager.ModelType.FULL)
+            fullModelStatus.text = "已下载"
+            fullModelSize.text = "${size}MB"
+            fullModelDeleteBtn.isEnabled = true
+            fullModelDeleteBtn.visibility = View.VISIBLE
+        } else {
+            fullModelStatus.text = "未下载"
+            fullModelSize.text = "${voskManager.getModelSize(VoskManager.ModelType.FULL)}MB"
+            fullModelDeleteBtn.isEnabled = false
+            fullModelDeleteBtn.visibility = View.GONE
+        }
+        
+        // 小模型卡片点击 - 切换到小模型
+        smallModelCard.setOnClickListener {
+            if (!hasSmallModel) {
+                // 未下载，显示下载对话框
+                settingsManager.putString("vosk_model_type", "SMALL")
+                settingsManager.putBoolean("use_vosk_offline_voice", true)
+                startVoskModelDownload(VoskManager.ModelType.SMALL)
+            } else {
+                // 已下载，切换到小模型
+                settingsManager.putString("vosk_model_type", "SMALL")
+                settingsManager.putBoolean("use_vosk_offline_voice", true)
+                Toast.makeText(this, "已切换到Vosk小模型", Toast.LENGTH_SHORT).show()
+                updateVoiceModelStatus()
+            }
+        }
+        
+        // 完整模型卡片点击 - 切换到完整模型
+        fullModelCard.setOnClickListener {
+            if (!hasFullModel) {
+                // 未下载，显示下载对话框
+                settingsManager.putString("vosk_model_type", "FULL")
+                settingsManager.putBoolean("use_vosk_offline_voice", true)
+                startVoskModelDownload(VoskManager.ModelType.FULL)
+            } else {
+                // 已下载，切换到完整模型
+                settingsManager.putString("vosk_model_type", "FULL")
+                settingsManager.putBoolean("use_vosk_offline_voice", true)
+                Toast.makeText(this, "已切换到Vosk完整模型", Toast.LENGTH_SHORT).show()
+                updateVoiceModelStatus()
+            }
+        }
+        
+        // 删除小模型
+        smallModelDeleteBtn.setOnClickListener {
+            createThemedDialogBuilder()
+                .setTitle("删除小模型")
+                .setMessage("确定要删除Vosk小模型吗？删除后需要重新下载才能使用。")
+                .setPositiveButton("删除") { _, _ ->
+                    if (voskManager.deleteModel(VoskManager.ModelType.SMALL)) {
+                        Toast.makeText(this, "小模型已删除", Toast.LENGTH_SHORT).show()
+                        updateVoiceModelStatus()
+                        // 如果当前使用的是小模型，切换到系统语音
+                        if (useVosk && currentModelType == VoskManager.ModelType.SMALL) {
+                            settingsManager.putBoolean("use_vosk_offline_voice", false)
+                            updateVoiceModelStatus()
+                        }
+                    } else {
+                        Toast.makeText(this, "删除失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+        
+        // 删除完整模型
+        fullModelDeleteBtn.setOnClickListener {
+            createThemedDialogBuilder()
+                .setTitle("删除完整模型")
+                .setMessage("确定要删除Vosk完整模型吗？删除后需要重新下载才能使用。")
+                .setPositiveButton("删除") { _, _ ->
+                    if (voskManager.deleteModel(VoskManager.ModelType.FULL)) {
+                        Toast.makeText(this, "完整模型已删除", Toast.LENGTH_SHORT).show()
+                        updateVoiceModelStatus()
+                        // 如果当前使用的是完整模型，切换到系统语音
+                        if (useVosk && currentModelType == VoskManager.ModelType.FULL) {
+                            settingsManager.putBoolean("use_vosk_offline_voice", false)
+                            updateVoiceModelStatus()
+                        }
+                    } else {
+                        Toast.makeText(this, "删除失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+        
+        // 使用系统语音
+        useSystemVoiceBtn.setOnClickListener {
+            settingsManager.putBoolean("use_vosk_offline_voice", false)
+            Toast.makeText(this, "已切换到系统语音识别", Toast.LENGTH_SHORT).show()
+            updateVoiceModelStatus()
+        }
+        
+        val dialog = createThemedDialogBuilder()
+            .setTitle("语音模型管理")
+            .setView(dialogView)
+            .setPositiveButton("关闭", null)
+            .create()
+        
+        dialog.show()
+    }
+    
+    /**
+     * 开始下载Vosk模型并显示进度
+     */
+    private fun startVoskModelDownload(modelType: VoskManager.ModelType) {
+        // 如果已有实例，先释放
+        if (voskManager != null) {
+            releaseVoskManager()
+        }
+        
+        // 创建新的VoskManager实例并保存到成员变量
+        this.voskManager = VoskManager(this)
+        this.voskManager?.setModelType(modelType)
+        
+        // 创建下载进度对话框
+        val progressDialogView = LayoutInflater.from(this).inflate(R.layout.dialog_vosk_download_progress, null)
+        val progressBar = progressDialogView.findViewById<ProgressBar>(R.id.download_progress_bar)
+        val progressText = progressDialogView.findViewById<TextView>(R.id.download_progress_text)
+        val statusText = progressDialogView.findViewById<TextView>(R.id.download_status_text)
+        
+        progressBar.max = 100
+        progressBar.progress = 0
+        progressText.text = "0%"
+        statusText.text = "准备下载模型..."
+        
+        val progressDialog = createThemedDialogBuilder()
+            .setTitle("下载Vosk模型")
+            .setView(progressDialogView)
+            .setCancelable(false)
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+                voskOfflineVoiceSwitch.isChecked = false
+                settingsManager.putBoolean("use_vosk_offline_voice", false)
+            }
+            .create()
+        
+        progressDialog.show()
+        
+        // 设置Vosk回调以更新进度
+        this.voskManager?.setCallback(object : VoskManager.VoskCallback {
+            override fun onPartialResult(text: String) {
+                // 下载时不需要处理部分结果
+            }
+            
+            override fun onFinalResult(text: String) {
+                // 下载时不需要处理最终结果
+            }
+            
+            override fun onError(error: String) {
+                handler.post {
+                    progressDialog.dismiss()
+                    Toast.makeText(this@SimpleModeActivity, "模型下载失败: $error", Toast.LENGTH_LONG).show()
+                    voskOfflineVoiceSwitch.isChecked = false
+                    settingsManager.putBoolean("use_vosk_offline_voice", false)
+                }
+            }
+            
+            override fun onModelStatus(isReady: Boolean, message: String) {
+                handler.post {
+                    if (isReady) {
+                        // 模型已就绪
+                        progressDialog.dismiss()
+                        // 标记为已初始化（实例已在方法开始时保存）
+                        this@SimpleModeActivity.isVoskInitialized = true
+                        showVoskActivationDialog()
+                    } else {
+                        // 更新下载进度
+                        statusText.text = message
+                        
+                        // 尝试从消息中提取进度百分比
+                        val progressMatch = Regex("(\\d+)%").find(message)
+                        if (progressMatch != null) {
+                            val progress = progressMatch.groupValues[1].toIntOrNull() ?: 0
+                            progressBar.isIndeterminate = false
+                            progressBar.progress = progress
+                            progressText.text = "$progress%"
+                        } else if (message.contains("下载")) {
+                            // 正在下载，显示不确定进度
+                            progressBar.isIndeterminate = true
+                            progressText.text = "下载中..."
+                        } else if (message.contains("加载")) {
+                            // 正在加载模型
+                            progressBar.isIndeterminate = true
+                            progressText.text = "加载中..."
+                        }
+                    }
+                }
+            }
+        })
+        
+        // 在后台协程中初始化模型（会自动下载）
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            try {
+                this@SimpleModeActivity.voskManager?.initializeModel(true)
+            } catch (e: Exception) {
+                handler.post {
+                    progressDialog.dismiss()
+                    Toast.makeText(this@SimpleModeActivity, "模型初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    voskOfflineVoiceSwitch.isChecked = false
+                    settingsManager.putBoolean("use_vosk_offline_voice", false)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 显示Vosk激活提示对话框
+     */
+    private fun showVoskActivationDialog() {
+        createThemedDialogBuilder()
+            .setTitle("Vosk模型已就绪")
+            .setMessage("Vosk离线语音识别模型已下载完成！\n\n" +
+                    "现在您可以使用离线语音识别功能了：\n" +
+                    "• 无需网络连接\n" +
+                    "• 保护隐私\n" +
+                    "• 识别速度快\n\n" +
+                    "点击语音按钮即可开始使用。")
+            .setPositiveButton("知道了") { _, _ ->
+                Toast.makeText(this, "Vosk离线语音识别已激活", Toast.LENGTH_SHORT).show()
+            }
+            .setCancelable(false)
+            .show()
+    }
+    
     private fun showAppNotInstalledDialog(appConfig: AppSearchConfig) {
         val dialog = createThemedDialogBuilder()
             .setTitle("应用未安装")
@@ -6648,6 +7086,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化VoskManager（如果尚未初始化）
         if (voskManager == null) {
             voskManager = VoskManager(this)
+            
+            // 从设置中读取模型类型
+            val savedModelType = settingsManager.getString("vosk_model_type", "SMALL")
+            val modelType = if (savedModelType == "FULL") {
+                VoskManager.ModelType.FULL
+            } else {
+                VoskManager.ModelType.SMALL
+            }
+            voskManager?.setModelType(modelType)
+            Log.d(TAG, "使用Vosk模型类型: $modelType")
             voskManager?.setCallback(object : VoskManager.VoskCallback {
                 override fun onPartialResult(text: String) {
                     handler.post {

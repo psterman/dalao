@@ -74,9 +74,11 @@ class EnhancedDownloadAdapter(
         fun bind(download: EnhancedDownloadManager.DownloadInfo) {
             val filename = download.localFilename ?: download.title
             val isApkFile = filename.lowercase().endsWith(".apk")
+            val isVoskModel = download.description.contains("Vosk离线语音识别模型", ignoreCase = true) ||
+                             download.title.contains("Vosk", ignoreCase = true)
             
             // 设置图标
-            iconImageView.setImageResource(getFileIcon(filename, isApkFile))
+            iconImageView.setImageResource(getFileIcon(filename, isApkFile, isVoskModel))
             
             // 设置标题 - 使用实际文件名
             val displayName = if (filename.isNotEmpty()) {
@@ -278,7 +280,12 @@ class EnhancedDownloadAdapter(
             }
         }
         
-        private fun getFileIcon(filename: String, isApkFile: Boolean): Int {
+        private fun getFileIcon(filename: String, isApkFile: Boolean, isVoskModel: Boolean = false): Int {
+            if (isVoskModel) {
+                // Vosk模型使用语音图标
+                return R.drawable.ic_voice
+            }
+            
             if (isApkFile) {
                 return R.drawable.ic_android // APK文件使用Android图标
             }

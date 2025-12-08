@@ -186,6 +186,14 @@
         <activity android:name=".download.DownloadManagerActivity"
             android:theme="@style/Theme.AIFloatingBall"
             android:exported="false" />
+        <activity android:name=".voice.VoskModelManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false"
+            android:label="Vosk模型管理" />
+        <activity android:name=".voice.VoskModelManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false"
+            android:label="Vosk模型管理" />
             
                <!-- 内置图片查看器 -->
                <activity android:name=".viewer.ImageViewerActivity"
