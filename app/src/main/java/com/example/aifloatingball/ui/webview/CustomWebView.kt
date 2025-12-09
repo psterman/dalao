@@ -304,20 +304,33 @@ class CustomWebView @JvmOverloads constructor(
                         return@Runnable
                     }
                     
+                    // 检查 WebView 是否已经准备好
+                    if (currentUrl == null) {
+                        Log.d(TAG, "WebView 尚未加载页面，跳过长按处理")
+                        return@Runnable
+                    }
+                    
                     isLongPress = true
                     // 长按发生时，直接尝试处理长按逻辑，包括选择和显示菜单/选择柄
                     // 修复：在这里统一处理长按事件，首先检查是否为链接。
-                    val result = hitTestResult
-                    if (result.type == HitTestResult.SRC_ANCHOR_TYPE || result.type == HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
-                        result.extra?.let { url ->
-                            Log.d(TAG, "Link long pressed via onTouchEvent: $url at ($lastTouchX, $lastTouchY)")
-                            isLinkLongPressed = true // 新增：设置链接长按标志
-                            linkMenuListener?.onLinkLongPressed(url, lastTouchX.toInt(), lastTouchY.toInt())
+                    // 添加异常处理，防止 WebView 未完全初始化时访问 hitTestResult 导致空指针异常
+                    try {
+                        val result = hitTestResult
+                        if (result != null && (result.type == HitTestResult.SRC_ANCHOR_TYPE || result.type == HitTestResult.SRC_IMAGE_ANCHOR_TYPE)) {
+                            result.extra?.let { url ->
+                                Log.d(TAG, "Link long pressed via onTouchEvent: $url at ($lastTouchX, $lastTouchY)")
+                                isLinkLongPressed = true // 新增：设置链接长按标志
+                                linkMenuListener?.onLinkLongPressed(url, lastTouchX.toInt(), lastTouchY.toInt())
+                                return@Runnable
+                            }
                         }
-                    } else {
-                        // 如果不是链接，则执行文本选择逻辑
-                    handleLongPress(lastTouchX, lastTouchY)
+                    } catch (e: Exception) {
+                        // WebView 可能尚未完全初始化，记录日志并继续执行文本选择逻辑
+                        Log.w(TAG, "获取 hitTestResult 失败，可能是 WebView 未完全初始化: ${e.message}")
                     }
+                    
+                    // 如果不是链接或获取失败，则执行文本选择逻辑
+                    handleLongPress(lastTouchX, lastTouchY)
                 }.also {
                     longPressHandler.postDelayed(it, LONG_PRESS_TIMEOUT)
                 }

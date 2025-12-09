@@ -115,6 +115,27 @@
             android:gravity="center_vertical"/>
     </HorizontalScrollView>
 
+    <!-- 高度调整把手 -->
+    <LinearLayout
+        android:id="@+id/voice_capsule_resize_handle"
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:background="@drawable/voice_capsule_resize_handle_background"
+        android:clickable="true"
+        android:focusable="true"
+        android:contentDescription="拖拽调整高度">
+        
+        <!-- 拖拽指示器 -->
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:background="@android:color/darker_gray"
+            android:layout_marginTop="2dp"
+            android:layout_marginBottom="2dp" />
+    </LinearLayout>
+
     <!-- WebView内容容器 -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -136,7 +157,7 @@
 
                 <!-- 三WebView容器 -->
                 <LinearLayout
-                    android:id="@+id/dual_webview_container"
+                    android:id="@+id/voice_capsule_dual_webview_container"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">

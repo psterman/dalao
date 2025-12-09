@@ -46,6 +46,8 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.view.KeyEvent
+import android.text.InputType
 import kotlin.math.abs
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -158,6 +160,11 @@ import com.example.aifloatingball.adapter.GroupItemTouchHelperCallback
 import androidx.recyclerview.widget.ItemTouchHelper
 
 import com.example.aifloatingball.engine.SearchEngineHandler
+import com.example.aifloatingball.ui.cardview.CardViewModeManager
+import com.example.aifloatingball.ui.cardview.TabBarView
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngineCategory
 import com.google.android.material.switchmaterial.SwitchMaterial
 import android.widget.EditText
 import android.widget.Button
@@ -841,6 +848,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var voiceCapsuleWebView: WebView? = null
     private var isVoiceCapsuleMode = false
     private var shouldContinueRecording = true
+    
+    // 多标签搜索引擎信息流相关
+    private var voiceCapsuleCardViewManager: CardViewModeManager? = null
+    private var voiceCapsuleTabBarView: TabBarView? = null
+    private var voiceCapsuleTabBarContainer: FrameLayout? = null
+    private var voiceCapsuleCardViewContainer: FrameLayout? = null
+    private var voiceCapsuleSearchHandler: Handler? = null
+    private var voiceCapsuleLastSearchQuery: String = ""
     
     // 语音胶囊平台图标相关
     private var voiceCapsulePlatformIconsContainer: LinearLayout? = null
@@ -34127,12 +34142,98 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化胶囊布局中的组件
             voiceCapsuleTextInput = findViewById(R.id.voice_capsule_text_input)
             
+            // 设置输入框搜索键监听器
+            voiceCapsuleTextInput?.apply {
+                // 保存原始输入类型（多行）
+                val originalInputType = inputType
+                
+                // 设置焦点变化监听器，动态调整输入类型以显示搜索键
+                setOnFocusChangeListener { view, hasFocus ->
+                    val editText = view as? android.widget.EditText ?: return@setOnFocusChangeListener
+                    
+                    if (hasFocus) {
+                        // 获得焦点时：临时改为单行+搜索，使键盘显示搜索键
+                        // 使用 setRawInputType 和 setImeOptions 来确保搜索键显示
+                        editText.setRawInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+                        editText.imeOptions = EditorInfo.IME_ACTION_SEARCH
+                        
+                        // 延迟执行，确保输入法已经显示后再更新
+                        post {
+                            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                            imm?.restartInput(editText)
+                            // 再次确保设置生效
+                            editText.setRawInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+                            editText.imeOptions = EditorInfo.IME_ACTION_SEARCH
+                        }
+                        Log.d(TAG, "输入框获得焦点，设置搜索键模式")
+                    } else {
+                        // 失去焦点时：恢复多行输入类型
+                        editText.setRawInputType(originalInputType)
+                        editText.imeOptions = EditorInfo.IME_ACTION_NONE
+                        Log.d(TAG, "输入框失去焦点，恢复多行模式")
+                    }
+                }
+                
+                // 设置编辑器动作监听器（用于处理搜索键）
+                setOnEditorActionListener { _, actionId, event ->
+                    if (actionId == EditorInfo.IME_ACTION_SEARCH ||
+                        (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                        // 用户点击了搜索键，触发搜索
+                        val query = text?.toString()?.trim() ?: ""
+                        if (query.isNotEmpty()) {
+                            Log.d(TAG, "用户点击搜索键，触发语音胶囊搜索: $query")
+                            performVoiceCapsuleSearch(query)
+                            // 隐藏输入法键盘
+                            clearFocus()
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                            imm?.hideSoftInputFromWindow(windowToken, 0)
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+                
+                // 添加按键监听器作为备用方案（处理回车键）
+                setOnKeyListener { _, keyCode, event ->
+                    if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
+                        // 检查是否按下了Ctrl或Shift（用于多行输入）
+                        val isCtrlPressed = event.isCtrlPressed
+                        val isShiftPressed = event.isShiftPressed
+                        
+                        // 如果没有按下Ctrl或Shift，则触发搜索
+                        if (!isCtrlPressed && !isShiftPressed) {
+                            val query = text?.toString()?.trim() ?: ""
+                            if (query.isNotEmpty()) {
+                                Log.d(TAG, "用户按下回车键，触发语音胶囊搜索: $query")
+                                performVoiceCapsuleSearch(query)
+                                // 隐藏输入法键盘
+                                clearFocus()
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                                imm?.hideSoftInputFromWindow(windowToken, 0)
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            // 如果按下了Ctrl或Shift，允许换行（但需要临时恢复多行模式）
+                            setRawInputType(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+                            false // 允许默认行为（换行）
+                        }
+                    } else {
+                        false
+                    }
+                }
+            }
+            
             // 初始化AI应用图标相关组件
             voiceCapsuleAIAppsContainer = findViewById(R.id.voice_capsule_ai_apps_container)
             voiceCapsuleAIAppsView = findViewById(R.id.voice_capsule_ai_apps_view)
             
-            // 初始化三窗口WebView
-            initializeCapsuleWebViews()
+            // 初始化多标签搜索引擎信息流
+            initializeCapsuleMultiTabSearch()
             
             // 关闭按钮已移除，不需要设置点击事件
             
@@ -34409,6 +34510,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     findViewById<TextView>(R.id.voice_capsule_text_conversion_timer)?.apply {
                                         visibility = View.VISIBLE
                                     }
+                                    
+                                    // 触发自动搜索（使用防抖机制，延迟1秒后搜索）
+                                    triggerVoiceCapsuleAutoSearch(newText)
                                 }
 
                                 // 在胶囊模式下，保持录音状态，不重置isListening
@@ -35442,8 +35546,251 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 初始化语音胶囊双窗口WebView服务
+     * 初始化语音胶囊多标签搜索引擎信息流
      */
+    private fun initializeCapsuleMultiTabSearch() {
+        try {
+            // 获取标签栏容器和卡片视图容器
+            voiceCapsuleTabBarContainer = findViewById(R.id.voice_capsule_tab_bar_container)
+            voiceCapsuleCardViewContainer = findViewById(R.id.voice_capsule_card_view_container)
+            
+            if (voiceCapsuleCardViewContainer == null || voiceCapsuleTabBarContainer == null) {
+                Log.e(TAG, "多标签搜索引擎信息流容器未找到")
+                return
+            }
+            
+            // 创建卡片视图管理器
+            voiceCapsuleCardViewManager = CardViewModeManager(this, voiceCapsuleCardViewContainer!!) {
+                // 打开app时的回调（暂时不需要特殊处理）
+                Log.d(TAG, "卡片视图管理器：打开app回调")
+            }
+            
+            // 设置标签切换回调（用于左右滑动切换标签）
+            voiceCapsuleCardViewManager?.setOnTabSwitchCallback { direction ->
+                val currentTabIndex = voiceCapsuleTabBarView?.getSelectedTabIndex() ?: 0
+                val allTabs = voiceCapsuleTabBarView?.getAllTabs() ?: emptyList()
+                if (allTabs.isNotEmpty()) {
+                    val newIndex = (currentTabIndex + direction).coerceIn(0, allTabs.size - 1)
+                    if (newIndex != currentTabIndex) {
+                        voiceCapsuleTabBarView?.selectTab(newIndex)
+                        // 触发标签点击事件，加载新标签的搜索结果
+                        val newTab = allTabs[newIndex]
+                        val searchQuery = voiceCapsuleTextInput?.text?.toString()?.trim() ?: ""
+                        val query = if (searchQuery.isNotEmpty()) {
+                            searchQuery
+                        } else {
+                            newTab.name
+                        }
+                        loadSearchResultsForVoiceCapsuleTag(query, newTab)
+                    }
+                }
+            }
+            
+            // 设置全屏查看器的父容器
+            voiceCapsuleCardViewContainer?.let { container ->
+                val rootView = container.rootView as? ViewGroup ?: (container as? ViewGroup)
+                rootView?.let {
+                    voiceCapsuleCardViewManager?.setFullScreenParentContainer(it)
+                }
+            }
+            
+            // 创建标签栏
+            voiceCapsuleTabBarView = TabBarView(this, voiceCapsuleTabBarContainer!!)
+            setupVoiceCapsuleTabBarListeners()
+            
+            // 设置卡片点击监听器
+            voiceCapsuleCardViewManager?.setOnCardClickListener(
+                object : CardViewModeManager.OnCardClickListener {
+                    override fun onCardClick(cardData: CardViewModeManager.SearchResultCardData) {
+                        Log.d(TAG, "语音胶囊卡片点击: ${cardData.title}")
+                    }
+                    
+                    override fun onCardExpand(cardData: CardViewModeManager.SearchResultCardData) {
+                        Log.d(TAG, "语音胶囊卡片展开: ${cardData.title}")
+                    }
+                }
+            )
+            
+            Log.d(TAG, "语音胶囊多标签搜索引擎信息流初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化语音胶囊多标签搜索引擎信息流失败", e)
+        }
+    }
+    
+    /**
+     * 设置语音胶囊标签栏监听器
+     */
+    private fun setupVoiceCapsuleTabBarListeners() {
+        voiceCapsuleTabBarView?.setOnTabClickListener(
+            object : TabBarView.OnTabClickListener {
+                override fun onTabClick(tab: TabBarView.TabItem, position: Int) {
+                    Log.d(TAG, "语音胶囊标签点击: ${tab.name}")
+                    // 当标签切换时，清除旧卡片并加载新标签的搜索结果
+                    val searchQuery = voiceCapsuleTextInput?.text?.toString()?.trim() ?: ""
+                    // 如果有搜索内容，使用搜索内容；否则使用标签名称作为默认搜索词
+                    val query = if (searchQuery.isNotEmpty()) {
+                        searchQuery
+                    } else {
+                        tab.name // 使用标签名称作为默认搜索词
+                    }
+                    loadSearchResultsForVoiceCapsuleTag(query, tab)
+                }
+                
+                override fun onTabLongClick(tab: TabBarView.TabItem, position: Int) {
+                    Log.d(TAG, "语音胶囊标签长按: ${tab.name}")
+                    // 暂时不实现标签编辑功能
+                }
+            }
+        )
+    }
+    
+    /**
+     * 为语音胶囊标签加载搜索结果
+     */
+    private fun loadSearchResultsForVoiceCapsuleTag(query: String, tab: TabBarView.TabItem) {
+        Log.d(TAG, "开始为语音胶囊标签 '${tab.name}' 加载搜索结果，查询: $query")
+        
+        if (query.isBlank()) {
+            Log.d(TAG, "查询内容为空，跳过加载")
+            return
+        }
+        
+        // 清除所有旧卡片
+        voiceCapsuleCardViewManager?.clearAllCards()
+        
+        // 获取该标签对应的搜索引擎名称列表
+        val engineNames = tab.getDefaultEngines()
+        Log.d(TAG, "标签 '${tab.name}' 对应的搜索引擎: $engineNames")
+        
+        // 根据搜索引擎名称查找对应的搜索引擎对象（包括AI引擎）
+        val engines = engineNames.mapNotNull { engineName ->
+            // 首先查找普通搜索引擎
+            SearchEngine.DEFAULT_ENGINES.find { it.name == engineName }
+                ?: run {
+                    // 如果找不到，查找AI引擎
+                    val aiEngine = AISearchEngine.DEFAULT_AI_ENGINES.find { 
+                        it.name == engineName || 
+                        it.name.contains(engineName, ignoreCase = true) ||
+                        engineName.contains(it.name, ignoreCase = true)
+                    }
+                    // 如果找到AI引擎，创建一个SearchEngine对象以便统一处理
+                    if (aiEngine != null) {
+                        SearchEngine(
+                            name = aiEngine.name,
+                            displayName = aiEngine.displayName,
+                            url = aiEngine.url,
+                            iconResId = aiEngine.iconResId,
+                            description = aiEngine.description,
+                            searchUrl = aiEngine.searchUrl,
+                            isAI = aiEngine.isChatMode,
+                            category = SearchEngineCategory.GENERAL
+                        )
+                    } else {
+                        null
+                    }
+                }
+        }
+        
+        // 如果找不到对应的搜索引擎，使用默认的11个搜索引擎
+        val finalEngines = if (engines.isEmpty()) {
+            Log.w(TAG, "未找到标签 '${tab.name}' 对应的搜索引擎，使用默认搜索引擎")
+            SearchEngine.DEFAULT_ENGINES.take(11)
+        } else {
+            engines.take(11) // 确保最多使用11个搜索引擎
+        }
+        
+        Log.d(TAG, "将为语音胶囊标签 '${tab.name}' 创建 ${finalEngines.size} 个搜索结果卡片")
+        
+        // 为每个搜索引擎创建卡片
+        finalEngines.forEachIndexed { index, engine ->
+            Log.d(TAG, "创建语音胶囊卡片 ${index + 1}/${finalEngines.size}: ${engine.displayName}")
+            voiceCapsuleCardViewManager?.addSearchResultCard(
+                query = query,
+                engineKey = engine.name,
+                engineName = engine.displayName,
+                tag = tab.name
+            )
+        }
+        
+        Log.d(TAG, "为语音胶囊标签 '${tab.name}' 加载了 ${finalEngines.size} 个搜索结果卡片")
+    }
+    
+    /**
+     * 执行语音胶囊搜索（用户主动点击搜索键时调用）
+     */
+    private fun performVoiceCapsuleSearch(query: String) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty()) {
+            Log.d(TAG, "搜索内容为空，跳过搜索")
+            return
+        }
+        
+        Log.d(TAG, "执行语音胶囊搜索: $trimmedQuery")
+        
+        // 更新最后搜索的查询，避免自动搜索重复触发
+        voiceCapsuleLastSearchQuery = trimmedQuery
+        
+        // 获取当前选中的标签
+        val selectedTab = voiceCapsuleTabBarView?.getSelectedTab()
+        if (selectedTab != null) {
+            // 如果有选中的标签，直接在该标签中搜索
+            loadSearchResultsForVoiceCapsuleTag(trimmedQuery, selectedTab)
+        } else {
+            // 如果没有选中标签，使用第一个标签
+            val firstTab = voiceCapsuleTabBarView?.getAllTabs()?.firstOrNull()
+            if (firstTab != null) {
+                voiceCapsuleTabBarView?.selectTab(0)
+                loadSearchResultsForVoiceCapsuleTag(trimmedQuery, firstTab)
+            } else {
+                Log.w(TAG, "没有可用的标签进行搜索")
+                Toast.makeText(this, "请先选择搜索标签", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    /**
+     * 触发语音胶囊自动搜索（使用防抖机制）
+     */
+    private fun triggerVoiceCapsuleAutoSearch(query: String) {
+        if (query.isBlank() || query == voiceCapsuleLastSearchQuery) {
+            return // 避免重复搜索相同内容
+        }
+        
+        // 初始化Handler（如果未初始化）
+        if (voiceCapsuleSearchHandler == null) {
+            voiceCapsuleSearchHandler = Handler(Looper.getMainLooper())
+        }
+        
+        // 移除之前的搜索任务
+        voiceCapsuleSearchHandler?.removeCallbacksAndMessages(null)
+        
+        // 延迟1秒后执行搜索（防抖）
+        voiceCapsuleSearchHandler?.postDelayed({
+            val trimmedQuery = query.trim()
+            if (trimmedQuery.isNotEmpty() && trimmedQuery != voiceCapsuleLastSearchQuery) {
+                voiceCapsuleLastSearchQuery = trimmedQuery
+                Log.d(TAG, "触发语音胶囊自动搜索: $trimmedQuery")
+                
+                // 获取当前选中的标签
+                val selectedTab = voiceCapsuleTabBarView?.getSelectedTab()
+                if (selectedTab != null) {
+                    loadSearchResultsForVoiceCapsuleTag(trimmedQuery, selectedTab)
+                } else {
+                    // 如果没有选中标签，使用第一个标签
+                    val firstTab = voiceCapsuleTabBarView?.getAllTabs()?.firstOrNull()
+                    if (firstTab != null) {
+                        voiceCapsuleTabBarView?.selectTab(0)
+                        loadSearchResultsForVoiceCapsuleTag(trimmedQuery, firstTab)
+                    }
+                }
+            }
+        }, 1000) // 延迟1秒
+    }
+    
+    /**
+     * 初始化语音胶囊双窗口WebView服务（已废弃，保留用于兼容）
+     */
+    @Deprecated("已替换为多标签搜索引擎信息流")
     private fun initializeCapsuleWebViews() {
         try {
             // 获取双窗口浮动WebView容器（实际是LinearLayout）

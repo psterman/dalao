@@ -98,7 +98,8 @@
                         android:hint="语音识别结果将显示在这里..."
                         android:textColorHint="#757575"
                         android:background="@android:color/transparent"
-                        android:inputType="textMultiLine"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:imeOptions="actionSearch"
                         android:maxLines="15"
                         android:minLines="3"
                         android:scrollbars="vertical"
@@ -258,7 +259,7 @@
     </com.google.android.material.card.MaterialCardView>
 
 
-    <!-- 第三段：双窗口浮动WebView服务区域 -->
+    <!-- 第三段：多标签搜索引擎信息流区域 -->
     <LinearLayout
         android:id="@+id/voice_capsule_browser_container"
         android:layout_width="match_parent"
@@ -270,61 +271,21 @@
         android:orientation="vertical"
         android:background="@color/simple_mode_card_background_light">
 
-        <!-- 双窗口浮动WebView服务容器 -->
-            <LinearLayout
-            android:id="@+id/voice_capsule_dual_webview_container"
-                android:layout_width="match_parent"
+        <!-- 标签栏容器（多标签搜索引擎信息流使用） -->
+        <FrameLayout
+            android:id="@+id/voice_capsule_tab_bar_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/simple_mode_card_background_light" />
+
+        <!-- 卡片视图容器（搜索结果卡片显示区域） -->
+        <FrameLayout
+            android:id="@+id/voice_capsule_card_view_container"
+            android:layout_width="match_parent"
             android:layout_height="0dp"
-                android:layout_weight="1"
-            android:orientation="vertical"
-                android:background="@color/simple_mode_background_light">
+            android:layout_weight="1"
+            android:background="@color/simple_mode_background_light" />
 
-            <!-- 这里将动态加载DualFloatingWebViewService的布局 -->
-            <FrameLayout
-                android:id="@+id/voice_capsule_webview_content"
-                    android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:layout_marginBottom="16dp">
-                
-                <include layout="@layout/layout_voice_capsule_dual_webview" />
-
-            </FrameLayout>
-
-            <!-- 底部高度调整把手 -->
-    <LinearLayout
-                android:id="@+id/voice_capsule_resize_handle"
-        android:layout_width="match_parent"
-                android:layout_height="16dp"
-                android:background="@drawable/voice_capsule_resize_handle_background"
-                android:clickable="true"
-                android:focusable="true"
-            android:orientation="horizontal"
-            android:gravity="center"
-                android:paddingVertical="4dp">
-                
-                <!-- 拖拽指示器（三个小点） -->
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="4dp"
-                    android:layout_marginEnd="2dp"
-                    android:background="@drawable/voice_capsule_drag_dot" />
-                
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="4dp"
-                    android:layout_marginEnd="2dp"
-                    android:background="@drawable/voice_capsule_drag_dot" />
-                
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="4dp"
-                    android:background="@drawable/voice_capsule_drag_dot" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </LinearLayout>
+    </LinearLayout>
 
 </LinearLayout>
