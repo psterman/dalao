@@ -702,53 +702,40 @@
                         android:layout_marginBottom="8dp"
                         android:background="@color/simple_mode_divider_light" />
                     
-                    <!-- 语音模型状态 -->
+                    <!-- 语音模型状态和切换器 -->
                     <LinearLayout
                         android:id="@+id/voice_model_status_container"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:padding="8dp"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true">
+                        android:orientation="vertical"
+                        android:padding="8dp">
                         
-                        <ImageView
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
-                            android:src="@drawable/ic_mic"
-                            app:tint="@color/simple_mode_accent_light"
-                            android:layout_marginEnd="16dp" />
-                        
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <TextView
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="语音识别引擎"
-                                android:textSize="16sp"
-                                android:textColor="@color/simple_mode_text_primary_light" />
-                            
-                            <TextView
-                                android:id="@+id/voice_model_status_text"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="系统语音识别"
-                                android:textSize="14sp"
-                                android:textColor="@color/simple_mode_text_secondary_light"
-                                android:layout_marginTop="2dp" />
-                        </LinearLayout>
+                            android:text="语音识别引擎"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:layout_marginBottom="12dp" />
                         
-                        <ImageView
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
-                            android:src="@android:drawable/ic_menu_more"
-                            app:tint="@color/simple_mode_text_secondary_light" />
+                        <!-- iOS风格切换器 -->
+                        <com.example.aifloatingball.ui.IOSSegmentedControl
+                            android:id="@+id/voice_model_segmented_control"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:padding="4dp" />
+                        
+                        <!-- 当前模型状态文本 -->
+                        <TextView
+                            android:id="@+id/voice_model_status_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="系统语音识别"
+                            android:textSize="12sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginTop="8dp"
+                            android:layout_gravity="center_horizontal" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

@@ -62,6 +62,18 @@ class VoskManager(private val context: Context) {
         FULL    // 完整模型（1.3GB）
     }
     
+    /**
+     * 下载结果数据类
+     * @param success 是否成功
+     * @param errorType 错误类型（NETWORK_ERROR, HTTP_ERROR, VALIDATION_ERROR, IO_ERROR, UNKNOWN_ERROR）
+     * @param errorMessage 错误消息
+     */
+    private data class DownloadResult(
+        val success: Boolean, 
+        val errorType: String? = null, 
+        val errorMessage: String? = null
+    )
+    
     interface VoskCallback {
         /**
          * 部分识别结果（实时流式输出）
@@ -116,67 +128,168 @@ class VoskManager(private val context: Context) {
      * Vosk模型需要包含am目录和conf目录
      */
     fun isModelDownloaded(): Boolean {
-        val modelDir = getModelDirectory()
-        if (!modelDir.exists() || !modelDir.isDirectory) {
-            Log.d(TAG, "模型目录不存在: ${modelDir.absolutePath}")
-            return false
-        }
-        
-        // 检查关键文件/目录是否存在
-        val amDir = File(modelDir, "am")
-        val confDir = File(modelDir, "conf")
-        val graphDir = File(modelDir, "graph")
-        
-        // Vosk模型必须包含conf目录，以及am或graph目录之一
-        val hasConf = confDir.exists() && confDir.isDirectory
-        val hasAm = amDir.exists() && amDir.isDirectory
-        val hasGraph = graphDir.exists() && graphDir.isDirectory
-        
-        val isValid = hasConf && (hasAm || hasGraph)
-        
-        if (!isValid) {
-            Log.d(TAG, "模型文件不完整 - conf存在: $hasConf, am存在: $hasAm, graph存在: $hasGraph")
-            Log.d(TAG, "模型目录内容: ${modelDir.listFiles()?.joinToString { it.name }}")
-        }
-        
-        return isValid
+        return validateModelFilesSimple()
     }
+    
+    /**
+     * 验证结果数据类
+     */
+    private data class ValidationResult(
+        val isValid: Boolean,
+        val errorMessage: String? = null,
+        val missingFiles: List<String> = emptyList()
+    )
     
     /**
      * 验证模型文件完整性（更严格的检查）
      * 检查关键文件是否存在
+     * 
+     * 注意：Vosk模型有两种结构：
+     * 1. 小模型(vosk-model-small-cn-0.22)：使用am目录，包含final.mdl等文件
+     * 2. 完整模型(vosk-model-cn-0.22)：使用graph目录，包含words.txt、HCLG.fst等文件
+     * 
+     * @return ValidationResult 包含验证结果和详细错误信息
      */
-    private fun validateModelFiles(): Boolean {
+    private fun validateModelFiles(): ValidationResult {
         val modelDir = getModelDirectory()
+        val missingFiles = mutableListOf<String>()
+        
         if (!modelDir.exists() || !modelDir.isDirectory) {
-            return false
+            val errorMsg = "模型目录不存在: ${modelDir.absolutePath}"
+            Log.e(TAG, errorMsg)
+            return ValidationResult(false, errorMsg, listOf("模型目录"))
         }
+        
+        // 列出模型目录内容，用于调试
+        val modelDirContents = modelDir.listFiles()?.map { it.name } ?: emptyList()
+        Log.d(TAG, "模型目录内容: ${modelDirContents.joinToString(", ")}")
         
         // 检查conf目录及其关键文件
         val confDir = File(modelDir, "conf")
         if (!confDir.exists() || !confDir.isDirectory) {
-            Log.e(TAG, "conf目录不存在")
-            return false
+            missingFiles.add("conf目录")
+            val errorMsg = "conf目录不存在，模型目录内容: ${modelDirContents.joinToString(", ")}"
+            Log.e(TAG, errorMsg)
+            return ValidationResult(false, errorMsg, missingFiles)
         }
         
         // 检查conf/mfcc.conf文件（Vosk模型必需）
         val mfccConf = File(confDir, "mfcc.conf")
         if (!mfccConf.exists() || !mfccConf.isFile) {
-            Log.e(TAG, "mfcc.conf文件不存在")
-            return false
+            missingFiles.add("conf/mfcc.conf")
+            val errorMsg = "conf/mfcc.conf文件不存在"
+            Log.e(TAG, errorMsg)
+            return ValidationResult(false, errorMsg, missingFiles)
+        }
+        
+        // 检查文件大小是否合理（mfcc.conf应该不为空）
+        if (mfccConf.length() == 0L) {
+            val errorMsg = "conf/mfcc.conf文件为空（0字节）"
+            Log.e(TAG, errorMsg)
+            return ValidationResult(false, errorMsg, missingFiles)
         }
         
         // 检查am或graph目录
         val amDir = File(modelDir, "am")
         val graphDir = File(modelDir, "graph")
         
-        if (!amDir.exists() && !graphDir.exists()) {
-            Log.e(TAG, "am和graph目录都不存在")
-            return false
+        val hasAm = amDir.exists() && amDir.isDirectory
+        val hasGraph = graphDir.exists() && graphDir.isDirectory
+        
+        if (!hasAm && !hasGraph) {
+            missingFiles.add("am目录")
+            missingFiles.add("graph目录")
+            val errorMsg = "am和graph目录都不存在，模型目录内容: ${modelDirContents.joinToString(", ")}"
+            Log.e(TAG, errorMsg)
+            return ValidationResult(false, errorMsg, missingFiles)
+        }
+        
+        // 如果存在graph目录，检查关键文件
+        // 注意：小模型可能没有graph目录，或者graph目录结构不同
+        if (hasGraph) {
+            val graphFiles = graphDir.listFiles()?.map { it.name } ?: emptyList()
+            Log.d(TAG, "graph目录内容: ${graphFiles.joinToString(", ")}")
+            
+            // 检查graph/words.txt文件
+            // 注意：小模型(vosk-model-small-cn-0.22)可能不包含words.txt，这是正常的
+            val wordsTxt = File(graphDir, "words.txt")
+            if (wordsTxt.exists()) {
+                if (!wordsTxt.isFile) {
+                    val errorMsg = "graph/words.txt不是有效文件"
+                    Log.e(TAG, errorMsg)
+                    return ValidationResult(false, errorMsg, missingFiles)
+                }
+                
+                // 检查文件是否可读且大小合理
+                if (wordsTxt.length() == 0L) {
+                    val errorMsg = "graph/words.txt文件为空（0字节）"
+                    Log.e(TAG, errorMsg)
+                    return ValidationResult(false, errorMsg, missingFiles)
+                }
+                
+                // 尝试读取文件的前几个字节，确保文件可读
+                try {
+                    wordsTxt.inputStream().use { it.read() }
+                } catch (e: Exception) {
+                    val errorMsg = "无法读取graph/words.txt文件: ${e.message}"
+                    Log.e(TAG, errorMsg, e)
+                    return ValidationResult(false, errorMsg, missingFiles)
+                }
+                
+                Log.d(TAG, "graph/words.txt文件验证通过，大小: ${wordsTxt.length()} 字节")
+            } else {
+                // words.txt不存在，对于小模型这是允许的
+                Log.d(TAG, "graph/words.txt文件不存在，这对于小模型是正常的")
+            }
+            
+            // 检查graph/HCLG.fst文件（如果存在，应该是有效的）
+            val hclgFst = File(graphDir, "HCLG.fst")
+            if (hclgFst.exists() && hclgFst.length() == 0L) {
+                val errorMsg = "graph/HCLG.fst文件为空（0字节）"
+                Log.e(TAG, errorMsg)
+                return ValidationResult(false, errorMsg, missingFiles)
+            }
+            
+            // graph目录不为空即可
+            if (graphFiles.isEmpty()) {
+                val errorMsg = "graph目录为空"
+                Log.e(TAG, errorMsg)
+                return ValidationResult(false, errorMsg, missingFiles)
+            }
+        }
+        
+        // 如果存在am目录，检查关键文件
+        if (hasAm) {
+            // am目录通常包含final.mdl等文件
+            val amFiles = amDir.listFiles()
+            if (amFiles == null || amFiles.isEmpty()) {
+                val errorMsg = "am目录为空"
+                Log.e(TAG, errorMsg)
+                return ValidationResult(false, errorMsg, missingFiles)
+            }
+            
+            val amFileNames = amFiles.map { it.name }
+            Log.d(TAG, "am目录内容: ${amFileNames.joinToString(", ")}")
+            
+            // 检查am/final.mdl文件（如果存在，应该是有效的）
+            val finalMdl = File(amDir, "final.mdl")
+            if (finalMdl.exists() && finalMdl.length() == 0L) {
+                val errorMsg = "am/final.mdl文件为空（0字节）"
+                Log.e(TAG, errorMsg)
+                return ValidationResult(false, errorMsg, missingFiles)
+            }
         }
         
         Log.d(TAG, "模型文件验证通过")
-        return true
+        return ValidationResult(true)
+    }
+    
+    /**
+     * 验证模型文件完整性（兼容旧接口）
+     * @return Boolean 是否验证通过
+     */
+    private fun validateModelFilesSimple(): Boolean {
+        return validateModelFiles().isValid
     }
     
     /**
@@ -247,16 +360,29 @@ class VoskManager(private val context: Context) {
                 callback?.onModelStatus(false, "正在下载Vosk中文模型（${modelSize}MB），请稍候...")
                 
                 // 下载模型
-                if (!downloadModel()) {
-                    callback?.onModelStatus(false, "模型下载失败，请检查网络连接")
+                val downloadResult = downloadModel()
+                if (!downloadResult.success) {
+                    // downloadModel() 已经通过 callback 发送了具体的错误信息，这里不需要再发送
+                    // 但如果 downloadModel() 没有发送错误信息（理论上不应该发生），则发送默认错误信息
+                    if (downloadResult.errorMessage != null) {
+                        Log.d(TAG, "模型下载失败: ${downloadResult.errorType} - ${downloadResult.errorMessage}")
+                    } else {
+                        callback?.onModelStatus(false, "模型下载失败，请检查网络连接")
+                    }
                     return@withContext false
                 }
             }
             
             // 再次验证模型文件完整性
-            if (!validateModelFiles()) {
-                Log.e(TAG, "模型文件验证失败，可能下载不完整")
-                callback?.onModelStatus(false, "模型文件不完整，请重新下载")
+            val validationResult = validateModelFiles()
+            if (!validationResult.isValid) {
+                val errorMsg = if (validationResult.missingFiles.isNotEmpty()) {
+                    "模型文件验证失败：缺少文件 ${validationResult.missingFiles.joinToString(", ")}，请重新下载"
+                } else {
+                    "模型文件验证失败：${validationResult.errorMessage ?: "文件可能不完整"}，请重新下载"
+                }
+                Log.e(TAG, "模型文件验证失败: ${validationResult.errorMessage}")
+                callback?.onModelStatus(false, errorMsg)
                 // 删除不完整的模型目录，以便重新下载
                 try {
                     if (modelDir.exists()) {
@@ -279,8 +405,12 @@ class VoskManager(private val context: Context) {
             recognizer?.close()
             recognizer = null
             
+            // 创建Model对象
+            var modelCreated = false
             try {
+                Log.d(TAG, "开始创建Model对象，路径: ${modelDir.absolutePath}")
                 model = Model(modelDir.absolutePath)
+                modelCreated = true
                 Log.d(TAG, "Model对象创建成功")
             } catch (e: Exception) {
                 Log.e(TAG, "创建Model对象失败", e)
@@ -291,18 +421,105 @@ class VoskManager(private val context: Context) {
                 return@withContext false
             }
             
-            // 创建识别器（只有在Model成功创建后才执行）
+            // 验证Model对象是否有效（防止原生层崩溃）
+            if (!modelCreated || model == null) {
+                Log.e(TAG, "Model对象创建失败或为null")
+                callback?.onModelStatus(false, "模型对象无效")
+                model?.close()
+                model = null
+                return@withContext false
+            }
+            
+            // 再次验证模型文件完整性（防止在创建Model后文件被删除或损坏）
+            val postValidationResult = validateModelFiles()
+            if (!postValidationResult.isValid) {
+                val errorMsg = if (postValidationResult.missingFiles.isNotEmpty()) {
+                    "模型文件验证失败：缺少文件 ${postValidationResult.missingFiles.joinToString(", ")}，请重新下载"
+                } else {
+                    "模型文件验证失败：${postValidationResult.errorMessage ?: "文件可能已损坏"}，请重新下载"
+                }
+                Log.e(TAG, "Model创建后，模型文件验证失败: ${postValidationResult.errorMessage}")
+                callback?.onModelStatus(false, errorMsg)
+                model?.close()
+                model = null
+                // 删除可能损坏的模型目录
+                try {
+                    if (modelDir.exists()) {
+                        modelDir.deleteRecursively()
+                        Log.d(TAG, "已删除可能损坏的模型目录")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "删除模型目录失败", e)
+                }
+                return@withContext false
+            }
+            
+            // 创建识别器（只有在Model成功创建且验证通过后才执行）
+            // 注意：Recognizer的创建可能触发原生层崩溃，需要特别小心
             try {
-                recognizer = Recognizer(model, SAMPLE_RATE.toFloat())
+                Log.d(TAG, "开始创建Recognizer对象，采样率: $SAMPLE_RATE Hz")
+                // 确保Model对象不为null且有效
+                val validModel = model
+                if (validModel == null) {
+                    throw IllegalStateException("Model对象为null，无法创建Recognizer")
+                }
+                
+                recognizer = Recognizer(validModel, SAMPLE_RATE.toFloat())
                 Log.d(TAG, "Recognizer对象创建成功")
-            } catch (e: Exception) {
-                Log.e(TAG, "创建Recognizer对象失败", e)
-                callback?.onModelStatus(false, "识别器初始化失败: ${e.message}")
+            } catch (e: UnsatisfiedLinkError) {
+                // 原生库链接错误
+                Log.e(TAG, "创建Recognizer对象失败：原生库链接错误", e)
+                callback?.onModelStatus(false, "识别器初始化失败：原生库错误，可能是模型文件不兼容")
                 // 清理资源
                 model?.close()
                 model = null
                 recognizer?.close()
                 recognizer = null
+                return@withContext false
+            } catch (e: Exception) {
+                // 其他异常（包括可能的原生崩溃导致的异常）
+                Log.e(TAG, "创建Recognizer对象失败", e)
+                Log.e(TAG, "异常类型: ${e.javaClass.name}, 异常消息: ${e.message}")
+                callback?.onModelStatus(false, "识别器初始化失败: ${e.message ?: "未知错误"}，可能是模型文件不完整")
+                // 清理资源
+                model?.close()
+                model = null
+                recognizer?.close()
+                recognizer = null
+                
+                // 如果Recognizer创建失败，可能是模型文件损坏，建议删除并重新下载
+                Log.w(TAG, "Recognizer创建失败，建议删除模型并重新下载")
+                try {
+                    if (modelDir.exists()) {
+                        modelDir.deleteRecursively()
+                        Log.d(TAG, "已删除可能损坏的模型目录，请重新下载")
+                    }
+                } catch (deleteException: Exception) {
+                    Log.e(TAG, "删除模型目录失败", deleteException)
+                }
+                
+                return@withContext false
+            } catch (e: Throwable) {
+                // 捕获所有可能的错误，包括Error（虽然原生崩溃通常无法捕获）
+                Log.e(TAG, "创建Recognizer对象时发生严重错误", e)
+                Log.e(TAG, "错误类型: ${e.javaClass.name}, 错误消息: ${e.message}")
+                callback?.onModelStatus(false, "识别器初始化失败：严重错误，请重新下载模型")
+                // 清理资源
+                model?.close()
+                model = null
+                recognizer?.close()
+                recognizer = null
+                
+                // 删除可能损坏的模型
+                try {
+                    if (modelDir.exists()) {
+                        modelDir.deleteRecursively()
+                        Log.d(TAG, "已删除可能损坏的模型目录")
+                    }
+                } catch (deleteException: Exception) {
+                    Log.e(TAG, "删除模型目录失败", deleteException)
+                }
+                
                 return@withContext false
             }
             
@@ -319,8 +536,9 @@ class VoskManager(private val context: Context) {
     
     /**
      * 下载并解压模型
+     * @return DownloadResult 包含下载结果和失败原因
      */
-    private suspend fun downloadModel(): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun downloadModel(): DownloadResult = withContext(Dispatchers.IO) {
         try {
             val modelDir = getModelDirectory()
             if (!modelDir.exists()) {
@@ -337,97 +555,472 @@ class VoskManager(private val context: Context) {
                 .url(currentModelUrl)
                 .build()
             
-            val response = client.newCall(request).execute()
-            
-            if (!response.isSuccessful) {
-                Log.e(TAG, "下载模型失败: ${response.code}")
-                return@withContext false
+            val response = try {
+                client.newCall(request).execute()
+            } catch (e: java.net.UnknownHostException) {
+                Log.e(TAG, "下载模型失败: 无法解析主机地址", e)
+                handler.post {
+                    callback?.onModelStatus(false, "网络连接失败：无法访问服务器，请检查网络设置")
+                }
+                return@withContext DownloadResult(false, "NETWORK_ERROR", "无法解析主机地址")
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.e(TAG, "下载模型失败: 连接超时", e)
+                handler.post {
+                    callback?.onModelStatus(false, "网络连接超时，请检查网络连接后重试")
+                }
+                return@withContext DownloadResult(false, "NETWORK_ERROR", "连接超时")
+            } catch (e: java.io.IOException) {
+                Log.e(TAG, "下载模型失败: 网络IO错误", e)
+                handler.post {
+                    callback?.onModelStatus(false, "网络连接错误：${e.message ?: "请检查网络连接"}")
+                }
+                return@withContext DownloadResult(false, "NETWORK_ERROR", e.message ?: "网络IO错误")
             }
             
-            val body = response.body ?: return@withContext false
+            if (!response.isSuccessful) {
+                Log.e(TAG, "下载模型失败: HTTP ${response.code}")
+                handler.post {
+                    callback?.onModelStatus(false, "下载失败：服务器返回错误 ${response.code}，请稍后重试")
+                }
+                return@withContext DownloadResult(false, "HTTP_ERROR", "HTTP ${response.code}")
+            }
+            
+            val body = response.body ?: run {
+                Log.e(TAG, "下载模型失败: 响应体为空")
+                handler.post {
+                    callback?.onModelStatus(false, "下载失败：服务器响应异常，请稍后重试")
+                }
+                return@withContext DownloadResult(false, "HTTP_ERROR", "响应体为空")
+            }
             val contentLength = body.contentLength()
             
-            val totalBytes = if (contentLength > 0) contentLength else 0L
-            Log.d(TAG, "开始下载模型，大小: ${totalBytes / 1024 / 1024}MB")
+            val zipTotalBytes = if (contentLength > 0) contentLength else 0L
+            Log.d(TAG, "开始下载模型ZIP文件，大小: ${if (zipTotalBytes > 0) zipTotalBytes / 1024 / 1024 else "未知"}MB")
             
             // 下载速度跟踪
             var lastUpdateTime = System.currentTimeMillis()
             var lastDownloadedBytes = 0L
-            var downloadedBytes = 0L
-            val speedUpdateInterval = 1000L // 每秒更新一次速度
+            var zipDownloadedBytes = 0L // ZIP文件已下载字节数
+            var extractedBytes = 0L // 解压后的文件总大小
+            val speedUpdateInterval = 500L // 每500ms更新一次速度
+            val progressUpdateInterval = 200L // 每200ms更新一次进度条
             
-            // 下载并解压
+            // 先下载ZIP文件到临时文件
+            val tempZipFile = File(context.cacheDir, "${currentModelName}_temp.zip")
+            var isDownloadingZip = true
+            
+            // 下载ZIP文件
             body.byteStream().use { inputStream ->
-                ZipInputStream(inputStream).use { zipInputStream ->
-                    var entry = zipInputStream.nextEntry
+                tempZipFile.outputStream().use { outputStream ->
+                    val buffer = ByteArray(8192)
+                    var len: Int
                     
-                    while (entry != null) {
-                        if (!entry.isDirectory) {
-                            // 移除zip文件中的顶层目录名（如果有）
-                            val entryName = entry.name
-                            val relativePath = if (entryName.startsWith("$currentModelName/")) {
-                                entryName.substring(currentModelName.length + 1)
+                    while (inputStream.read(buffer).also { len = it } != -1) {
+                        outputStream.write(buffer, 0, len)
+                        zipDownloadedBytes += len
+                        
+                        // 更新ZIP下载进度
+                        val currentTime = System.currentTimeMillis()
+                        val timeDiff = currentTime - lastUpdateTime
+                        
+                        if (timeDiff >= progressUpdateInterval || zipDownloadedBytes == zipTotalBytes) {
+                            val bytesDiff = zipDownloadedBytes - lastDownloadedBytes
+                            val downloadSpeed = if (timeDiff > 0) {
+                                (bytesDiff * 1000) / timeDiff
                             } else {
-                                entryName
+                                0L
                             }
                             
-                            val file = File(modelDir, relativePath)
-                            file.parentFile?.mkdirs()
-                            
-                            file.outputStream().use { outputStream ->
-                                val buffer = ByteArray(8192)
-                                var len: Int
-                                
-                                while (zipInputStream.read(buffer).also { len = it } != -1) {
-                                    outputStream.write(buffer, 0, len)
-                                    downloadedBytes += len
-                                    
-                                    // 计算下载速度并更新进度
-                                    val currentTime = System.currentTimeMillis()
-                                    val timeDiff = currentTime - lastUpdateTime
-                                    
-                                    if (timeDiff >= speedUpdateInterval || downloadedBytes == totalBytes) {
-                                        val bytesDiff = downloadedBytes - lastDownloadedBytes
-                                        val downloadSpeed = if (timeDiff > 0) {
-                                            (bytesDiff * 1000) / timeDiff // 字节/秒
-                                        } else {
-                                            0L
-                                        }
-                                        
-                                        val progress = if (totalBytes > 0) {
-                                            ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 100)
-                                        } else {
-                                            0
-                                        }
-                                        
-                                        Log.d(TAG, "下载进度: $progress% (${downloadedBytes / 1024 / 1024}MB / ${totalBytes / 1024 / 1024}MB), 速度: ${downloadSpeed / 1024}KB/s")
-                                        
-                                        // 通知回调更新进度
-                                        handler.post {
-                                            callback?.onDownloadProgress(progress, downloadedBytes, totalBytes, downloadSpeed)
-                                            // 保持向后兼容
-                                            callback?.onModelStatus(false, "正在下载模型: $progress%")
-                                        }
-                                        
-                                        lastUpdateTime = currentTime
-                                        lastDownloadedBytes = downloadedBytes
-                                    }
+                            // ZIP下载进度（0-90%）
+                            val zipProgress = if (zipTotalBytes > 0) {
+                                ((zipDownloadedBytes * 90) / zipTotalBytes).toInt().coerceIn(0, 90)
+                            } else {
+                                // 没有总大小，根据预期大小估算
+                                val expectedZipSize = (getModelSize(getCurrentModelType()) * 0.7 * 1024 * 1024).toLong() // ZIP通常比解压后小30%
+                                if (expectedZipSize > 0) {
+                                    ((zipDownloadedBytes * 90) / expectedZipSize).toInt().coerceIn(0, 89)
+                                } else {
+                                    0
                                 }
                             }
+                            
+                            val downloadedMB = zipDownloadedBytes / 1024.0 / 1024.0
+                            val totalMB = if (zipTotalBytes > 0) {
+                                zipTotalBytes / 1024.0 / 1024.0
+                            } else {
+                                (getModelSize(getCurrentModelType()) * 0.7) // ZIP压缩后大约70%大小
+                            }
+                            
+                            Log.d(TAG, "ZIP下载进度: $zipProgress% (${String.format("%.2f", downloadedMB)}MB / ${String.format("%.2f", totalMB)}MB), 速度: ${downloadSpeed / 1024}KB/s")
+                            
+                            handler.post {
+                                callback?.onDownloadProgress(zipProgress, zipDownloadedBytes, zipTotalBytes, downloadSpeed)
+                                callback?.onModelStatus(false, "正在下载ZIP文件: $zipProgress% (${String.format("%.1f", downloadedMB)}MB / ${String.format("%.1f", totalMB)}MB)")
+                            }
+                            
+                            if (timeDiff >= speedUpdateInterval) {
+                                lastUpdateTime = currentTime
+                                lastDownloadedBytes = zipDownloadedBytes
+                            }
                         }
-                        
-                        zipInputStream.closeEntry()
-                        entry = zipInputStream.nextEntry
                     }
                 }
             }
             
-            Log.d(TAG, "模型下载完成")
-            return@withContext true
+            isDownloadingZip = false
+            Log.d(TAG, "ZIP文件下载完成，开始解压...")
+            handler.post {
+                callback?.onModelStatus(false, "ZIP文件下载完成，正在解压...")
+            }
             
+            // 验证ZIP文件完整性
+            if (!tempZipFile.exists() || tempZipFile.length() == 0L) {
+                val errorMsg = "ZIP文件下载失败或文件为空"
+                Log.e(TAG, errorMsg)
+                handler.post {
+                    callback?.onModelStatus(false, errorMsg)
+                }
+                return@withContext DownloadResult(false, "IO_ERROR", errorMsg)
+            }
+            
+            Log.d(TAG, "ZIP文件大小: ${tempZipFile.length() / 1024 / 1024}MB，开始解压...")
+            
+            // 解压ZIP文件
+            var extractedFileCount = 0
+            var failedFileCount = 0
+            val criticalFiles = mutableSetOf<String>() // 记录关键文件
+            val allZipEntries = mutableListOf<String>() // 记录所有ZIP条目，用于调试
+            val extractedCriticalFiles = mutableSetOf<String>() // 记录已解压的关键文件
+            
+            try {
+                // 首先使用ZipFile扫描所有条目，了解ZIP文件结构
+                java.util.zip.ZipFile(tempZipFile).use { zipFile ->
+                    val entries = zipFile.entries()
+                    while (entries.hasMoreElements()) {
+                        val entry = entries.nextElement()
+                        allZipEntries.add(entry.name)
+                    }
+                }
+                
+                // 分析ZIP文件结构，确定路径前缀
+                var pathPrefix = ""
+                if (allZipEntries.isNotEmpty()) {
+                    val firstEntry = allZipEntries[0]
+                    if (firstEntry.contains("/")) {
+                        val parts = firstEntry.split("/")
+                        if (parts.isNotEmpty() && parts[0] == currentModelName) {
+                            pathPrefix = "$currentModelName/"
+                            Log.d(TAG, "检测到ZIP文件使用模型名称前缀: $pathPrefix")
+                        } else if (parts.isNotEmpty() && (parts[0] == "conf" || parts[0] == "graph" || parts[0] == "am")) {
+                            pathPrefix = ""
+                            Log.d(TAG, "检测到ZIP文件直接包含模型文件，无前缀")
+                        }
+                    }
+                }
+                
+                Log.d(TAG, "ZIP文件包含 ${allZipEntries.size} 个条目")
+                Log.d(TAG, "前10个条目: ${allZipEntries.take(10).joinToString(", ")}")
+                
+                // 查找关键文件在ZIP中的实际路径
+                val wordsTxtInZip = allZipEntries.find { 
+                    it.endsWith("graph/words.txt") || (it.endsWith("/words.txt") && it.contains("graph"))
+                }
+                val mfccConfInZip = allZipEntries.find { 
+                    it.endsWith("conf/mfcc.conf") || (it.endsWith("/mfcc.conf") && it.contains("conf"))
+                }
+                
+                Log.d(TAG, "ZIP中的graph/words.txt路径: ${wordsTxtInZip ?: "未找到"}")
+                Log.d(TAG, "ZIP中的conf/mfcc.conf路径: ${mfccConfInZip ?: "未找到"}")
+                
+                // 现在解压文件
+                tempZipFile.inputStream().use { inputStream ->
+                    ZipInputStream(inputStream).use { zipInputStream ->
+                        var entry = zipInputStream.nextEntry
+                        var lastExtractedUpdateTime = System.currentTimeMillis()
+                        var lastExtractedBytes = 0L
+                        
+                        while (entry != null) {
+                            if (!entry.isDirectory) {
+                                val entryName = entry.name
+                                
+                                // 处理路径：移除模型名称前缀（如果存在）
+                                val relativePath = when {
+                                    entryName.startsWith("$currentModelName/") -> {
+                                        entryName.substring(currentModelName.length + 1)
+                                    }
+                                    entryName.startsWith(pathPrefix) && pathPrefix.isNotEmpty() -> {
+                                        entryName.substring(pathPrefix.length)
+                                    }
+                                    else -> {
+                                        entryName
+                                    }
+                                }
+                                
+                                // 记录关键文件
+                                val isCritical = relativePath == "conf/mfcc.conf" || 
+                                                 relativePath == "graph/words.txt" ||
+                                                 relativePath.startsWith("conf/") ||
+                                                 relativePath.startsWith("graph/") ||
+                                                 relativePath.startsWith("am/")
+                                
+                                if (isCritical) {
+                                    criticalFiles.add(relativePath)
+                                    Log.d(TAG, "发现关键文件: ZIP路径=$entryName, 相对路径=$relativePath")
+                                }
+                                
+                                val file = File(modelDir, relativePath)
+                                val parentDir = file.parentFile
+                                if (parentDir != null && !parentDir.exists()) {
+                                    val created = parentDir.mkdirs()
+                                    if (!created && !parentDir.exists()) {
+                                        Log.e(TAG, "无法创建目录: ${parentDir.absolutePath}")
+                                    }
+                                }
+                                
+                                try {
+                                    file.outputStream().use { outputStream ->
+                                        val buffer = ByteArray(8192)
+                                        var len: Int
+                                        var fileBytes = 0L
+                                        
+                                        while (zipInputStream.read(buffer).also { len = it } != -1) {
+                                            outputStream.write(buffer, 0, len)
+                                            extractedBytes += len
+                                            fileBytes += len
+                                        }
+                                        
+                                        // 验证文件大小（如果ZIP条目有大小信息）
+                                        if (entry.size > 0 && fileBytes != entry.size) {
+                                            Log.w(TAG, "文件大小不匹配: $relativePath, 期望: ${entry.size}, 实际: $fileBytes")
+                                            failedFileCount++
+                                        } else {
+                                            extractedFileCount++
+                                        }
+                                        
+                                        // 记录关键文件已解压
+                                        if (isCritical && fileBytes > 0) {
+                                            extractedCriticalFiles.add(relativePath)
+                                            Log.d(TAG, "关键文件已解压: $relativePath, 大小: $fileBytes 字节")
+                                        }
+                                        
+                                        // 验证关键文件不为空
+                                        if (fileBytes == 0L && (relativePath == "conf/mfcc.conf" || relativePath == "graph/words.txt")) {
+                                            Log.e(TAG, "关键文件为空: $relativePath")
+                                            failedFileCount++
+                                        }
+                                        
+                                        // 验证文件是否真的存在
+                                        if (isCritical && !file.exists()) {
+                                            Log.e(TAG, "关键文件解压后不存在: ${file.absolutePath}")
+                                            failedFileCount++
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "解压文件失败: $relativePath", e)
+                                    failedFileCount++
+                                }
+                                
+                                // 更新解压进度（90-100%）
+                                val currentTime = System.currentTimeMillis()
+                                val timeDiff = currentTime - lastExtractedUpdateTime
+                                
+                                if (timeDiff >= progressUpdateInterval) {
+                                    val extractedMB = extractedBytes / 1024.0 / 1024.0
+                                    val expectedSize = getModelSize(getCurrentModelType())
+                                    
+                                    // 解压进度从90%到100%
+                                    val extractProgress = if (expectedSize > 0) {
+                                        val progress = 90 + ((extractedMB / expectedSize) * 10).toInt().coerceIn(0, 10)
+                                        progress.coerceIn(90, 100)
+                                    } else {
+                                        95 // 默认显示95%
+                                    }
+                                    
+                                    Log.d(TAG, "解压进度: $extractProgress% (已解压: ${String.format("%.2f", extractedMB)}MB, 文件数: $extractedFileCount)")
+                                    
+                                    handler.post {
+                                        // 使用解压后的实际大小作为totalBytes
+                                        val totalExtractedBytes = (expectedSize * 1024 * 1024).toLong()
+                                        callback?.onDownloadProgress(extractProgress, extractedBytes, totalExtractedBytes, 0L)
+                                        callback?.onModelStatus(false, "正在解压模型: $extractProgress% (${String.format("%.1f", extractedMB)}MB / ${expectedSize}MB)")
+                                    }
+                                    
+                                    lastExtractedUpdateTime = currentTime
+                                }
+                            }
+                            
+                            zipInputStream.closeEntry()
+                            entry = zipInputStream.nextEntry
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解压ZIP文件失败", e)
+                handler.post {
+                    callback?.onModelStatus(false, "解压失败: ${e.message ?: "未知错误"}，请重新下载")
+                }
+                // 清理不完整的模型目录
+                try {
+                    if (modelDir.exists()) {
+                        modelDir.deleteRecursively()
+                    }
+                } catch (cleanupException: Exception) {
+                    Log.e(TAG, "清理模型目录失败", cleanupException)
+                }
+                return@withContext DownloadResult(false, "EXTRACTION_ERROR", e.message ?: "解压失败")
+            }
+            
+            Log.d(TAG, "解压完成: 成功 $extractedFileCount 个文件，失败 $failedFileCount 个文件")
+            Log.d(TAG, "关键文件统计: 期望 ${criticalFiles.size} 个，已解压 ${extractedCriticalFiles.size} 个")
+            Log.d(TAG, "期望的关键文件: ${criticalFiles.joinToString(", ")}")
+            Log.d(TAG, "已解压的关键文件: ${extractedCriticalFiles.joinToString(", ")}")
+            
+            // 检查关键文件是否都解压成功
+            val missingCriticalFiles = criticalFiles.filter { it !in extractedCriticalFiles }
+            if (missingCriticalFiles.isNotEmpty()) {
+                Log.e(TAG, "关键文件未解压: ${missingCriticalFiles.joinToString(", ")}")
+            }
+            
+            // 验证关键文件是否真的存在于文件系统中
+            val missingFiles = mutableListOf<String>()
+            for (criticalFile in criticalFiles) {
+                val file = File(modelDir, criticalFile)
+                if (!file.exists() || file.length() == 0L) {
+                    missingFiles.add(criticalFile)
+                    Log.e(TAG, "关键文件缺失或为空: $criticalFile, 路径: ${file.absolutePath}")
+                }
+            }
+            
+            if (missingFiles.isNotEmpty()) {
+                Log.e(TAG, "解压后关键文件缺失: ${missingFiles.joinToString(", ")}")
+                Log.e(TAG, "模型目录内容: ${modelDir.listFiles()?.joinToString { it.name }}")
+                if (File(modelDir, "graph").exists()) {
+                    Log.e(TAG, "graph目录内容: ${File(modelDir, "graph").listFiles()?.joinToString { it.name }}")
+                }
+            }
+            
+            if (failedFileCount > 0 || missingFiles.isNotEmpty()) {
+                Log.w(TAG, "解压过程中有 $failedFileCount 个文件失败，${missingFiles.size} 个关键文件缺失，可能影响模型完整性")
+            }
+            
+            // 删除临时ZIP文件
+            try {
+                if (tempZipFile.exists()) {
+                    tempZipFile.delete()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "删除临时ZIP文件失败", e)
+            }
+            
+            // 解压完成，显示100%进度
+            val expectedSize = getModelSize(getCurrentModelType())
+            val totalExtractedBytes = (expectedSize * 1024 * 1024).toLong()
+            val extractedMB = extractedBytes / 1024.0 / 1024.0
+            
+            Log.d(TAG, "模型解压完成，实际大小: ${String.format("%.2f", extractedMB)}MB，预期大小: ${expectedSize}MB")
+            
+            handler.post {
+                callback?.onDownloadProgress(100, extractedBytes, totalExtractedBytes, 0L)
+                callback?.onModelStatus(false, "解压完成，正在验证文件...")
+            }
+            
+            Log.d(TAG, "模型下载完成，开始验证文件完整性...")
+            
+            // 下载完成后立即验证模型文件完整性
+            val validationResult = validateModelFiles()
+            if (!validationResult.isValid) {
+                val errorMsg = if (validationResult.missingFiles.isNotEmpty()) {
+                    "模型文件验证失败：缺少文件 ${validationResult.missingFiles.joinToString(", ")}，可能下载不完整，请重新下载"
+                } else {
+                    "模型文件验证失败：${validationResult.errorMessage ?: "文件可能不完整"}，请重新下载"
+                }
+                Log.e(TAG, "下载的模型文件验证失败: ${validationResult.errorMessage}")
+                Log.e(TAG, "缺少的文件: ${validationResult.missingFiles.joinToString(", ")}")
+                handler.post {
+                    callback?.onModelStatus(false, errorMsg)
+                }
+                // 删除不完整的模型目录
+                try {
+                    if (modelDir.exists()) {
+                        modelDir.deleteRecursively()
+                        Log.d(TAG, "已删除不完整的模型目录")
+                    }
+                } catch (deleteException: Exception) {
+                    Log.e(TAG, "删除不完整模型目录失败", deleteException)
+                }
+                return@withContext DownloadResult(false, "VALIDATION_ERROR", validationResult.errorMessage ?: "模型文件验证失败")
+            }
+            
+            Log.d(TAG, "模型下载并验证完成")
+            handler.post {
+                callback?.onModelStatus(false, "验证完成，准备加载模型...")
+            }
+            return@withContext DownloadResult(true)
+            
+        } catch (e: java.net.UnknownHostException) {
+            Log.e(TAG, "下载模型失败: 无法解析主机地址", e)
+            handler.post {
+                callback?.onModelStatus(false, "网络连接失败：无法访问服务器，请检查网络设置")
+            }
+            // 清理可能的部分文件
+            try {
+                val modelDir = getModelDirectory()
+                if (modelDir.exists()) {
+                    modelDir.deleteRecursively()
+                    Log.d(TAG, "已清理下载失败的模型目录")
+                }
+            } catch (cleanupException: Exception) {
+                Log.e(TAG, "清理模型目录失败", cleanupException)
+            }
+            return@withContext DownloadResult(false, "NETWORK_ERROR", "无法解析主机地址")
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(TAG, "下载模型失败: 连接超时", e)
+            handler.post {
+                callback?.onModelStatus(false, "网络连接超时，请检查网络连接后重试")
+            }
+            // 清理可能的部分文件
+            try {
+                val modelDir = getModelDirectory()
+                if (modelDir.exists()) {
+                    modelDir.deleteRecursively()
+                    Log.d(TAG, "已清理下载失败的模型目录")
+                }
+            } catch (cleanupException: Exception) {
+                Log.e(TAG, "清理模型目录失败", cleanupException)
+            }
+            return@withContext DownloadResult(false, "NETWORK_ERROR", "连接超时")
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "下载模型失败: IO错误", e)
+            handler.post {
+                callback?.onModelStatus(false, "下载失败：${e.message ?: "IO错误"}，请检查网络连接后重试")
+            }
+            // 清理可能的部分文件
+            try {
+                val modelDir = getModelDirectory()
+                if (modelDir.exists()) {
+                    modelDir.deleteRecursively()
+                    Log.d(TAG, "已清理下载失败的模型目录")
+                }
+            } catch (cleanupException: Exception) {
+                Log.e(TAG, "清理模型目录失败", cleanupException)
+            }
+            return@withContext DownloadResult(false, "IO_ERROR", e.message ?: "IO错误")
         } catch (e: Exception) {
-            Log.e(TAG, "下载模型失败", e)
-            return@withContext false
+            Log.e(TAG, "下载模型失败: 未知错误", e)
+            handler.post {
+                callback?.onModelStatus(false, "下载失败：${e.message ?: "未知错误"}，请稍后重试")
+            }
+            // 如果下载失败，尝试清理可能的部分文件
+            try {
+                val modelDir = getModelDirectory()
+                if (modelDir.exists()) {
+                    modelDir.deleteRecursively()
+                    Log.d(TAG, "已清理下载失败的模型目录")
+                }
+            } catch (cleanupException: Exception) {
+                Log.e(TAG, "清理模型目录失败", cleanupException)
+            }
+            return@withContext DownloadResult(false, "UNKNOWN_ERROR", e.message ?: "未知错误")
         }
     }
     

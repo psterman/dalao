@@ -698,6 +698,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var voiceSettingsCard: MaterialCardView? = null
     private var voiceModelStatusText: TextView? = null
     private var voiceModelStatusContainer: LinearLayout? = null
+    private var voiceModelSegmentedControl: com.example.aifloatingball.ui.IOSSegmentedControl? = null
+    private var downloadProgressBottomSheet: com.google.android.material.bottomsheet.BottomSheetDialog? = null
 
     // 应用搜索页面组件
     private lateinit var appCategorySidebar: LinearLayout
@@ -2053,11 +2055,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化模型状态相关UI
         voiceModelStatusText = findViewById(R.id.voice_model_status_text)
         voiceModelStatusContainer = findViewById(R.id.voice_model_status_container)
-        
-        // 设置模型状态容器点击事件
-        voiceModelStatusContainer?.setOnClickListener {
-            showVoiceModelManagementDialog()
-        }
+        voiceModelSegmentedControl = findViewById(R.id.voice_model_segmented_control)
         
         // TTS朗读按钮 - 使用麦克风按钮代替
 
@@ -2274,15 +2272,373 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置语音模型状态显示和管理
      */
     private fun setupVoiceModelStatus() {
-        val modelStatusContainer = findViewById<LinearLayout>(R.id.voice_model_status_container)
-        val modelStatusText = findViewById<TextView>(R.id.voice_model_status_text)
+        val segmentedControl = voiceModelSegmentedControl ?: return
         
-        // 更新模型状态显示
+        // 创建选项列表
+        val segments = listOf(
+            com.example.aifloatingball.ui.IOSSegmentedControl.Segment("系统语音", "SYSTEM"),
+            com.example.aifloatingball.ui.IOSSegmentedControl.Segment("小模型", "SMALL"),
+            com.example.aifloatingball.ui.IOSSegmentedControl.Segment("完整模型", "FULL")
+        )
+        segmentedControl.setSegments(segments)
+        
+        // 更新切换器选中状态和模型状态显示
+        updateVoiceModelSegmentedControl()
         updateVoiceModelStatus()
         
-        // 点击打开模型管理对话框
-        modelStatusContainer?.setOnClickListener {
-            showVoiceModelManagementDialog()
+        // 设置选择监听器
+        segmentedControl.setOnSegmentSelectedListener(
+            object : com.example.aifloatingball.ui.IOSSegmentedControl.OnSegmentSelectedListener {
+                override fun onSegmentSelected(index: Int, segment: com.example.aifloatingball.ui.IOSSegmentedControl.Segment) {
+                    handleVoiceModelSwitch(index, segment.value as String)
+                }
+            }
+        )
+    }
+    
+    /**
+     * 更新语音模型切换器的选中状态
+     */
+    private fun updateVoiceModelSegmentedControl() {
+        val segmentedControl = voiceModelSegmentedControl ?: return
+        
+        // 根据当前设置设置选中项
+        val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+        val voskManager = VoskManager(this)
+        val currentModelType = if (useVosk) {
+            voskManager.getCurrentModelType()
+        } else {
+            null
+        }
+        
+        val selectedIndex = when {
+            !useVosk -> 0 // 系统语音
+            currentModelType == VoskManager.ModelType.SMALL -> 1 // 小模型
+            currentModelType == VoskManager.ModelType.FULL -> 2 // 完整模型
+            else -> 0
+        }
+        segmentedControl.setSelectedIndex(selectedIndex)
+    }
+    
+    /**
+     * 处理语音模型切换
+     */
+    private fun handleVoiceModelSwitch(index: Int, value: String) {
+        val voskManager = VoskManager(this)
+        val downloadedTypes = voskManager.getDownloadedModelTypes()
+        
+        when (value) {
+            "SYSTEM" -> {
+                // 切换到系统语音
+                settingsManager.putBoolean("use_vosk_offline_voice", false)
+                // 显示切换提示
+                android.widget.Toast.makeText(this, "✓ 已切换到系统语音识别", android.widget.Toast.LENGTH_SHORT).show()
+                updateVoiceModelStatus()
+            }
+            "SMALL" -> {
+                // 切换到小模型
+                if (downloadedTypes.contains(VoskManager.ModelType.SMALL)) {
+                    // 已下载，直接切换
+                    settingsManager.putString("vosk_model_type", "SMALL")
+                    settingsManager.putBoolean("use_vosk_offline_voice", true)
+                    voskManager.setModelType(VoskManager.ModelType.SMALL)
+                    // 显示切换提示
+                    android.widget.Toast.makeText(this, "✓ 已切换到Vosk小模型", android.widget.Toast.LENGTH_SHORT).show()
+                    updateVoiceModelStatus()
+                } else {
+                    // 未下载，提示下载
+                    showModelDownloadConfirmation(VoskManager.ModelType.SMALL)
+                }
+            }
+            "FULL" -> {
+                // 切换到完整模型
+                if (downloadedTypes.contains(VoskManager.ModelType.FULL)) {
+                    // 已下载，直接切换
+                    settingsManager.putString("vosk_model_type", "FULL")
+                    settingsManager.putBoolean("use_vosk_offline_voice", true)
+                    voskManager.setModelType(VoskManager.ModelType.FULL)
+                    // 显示切换提示
+                    android.widget.Toast.makeText(this, "✓ 已切换到Vosk完整模型", android.widget.Toast.LENGTH_SHORT).show()
+                    updateVoiceModelStatus()
+                } else {
+                    // 未下载，提示下载
+                    showModelDownloadConfirmation(VoskManager.ModelType.FULL)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 显示模型下载确认对话框
+     */
+    private fun showModelDownloadConfirmation(modelType: VoskManager.ModelType) {
+        val modelName = when (modelType) {
+            VoskManager.ModelType.SMALL -> "Vosk小模型"
+            VoskManager.ModelType.FULL -> "Vosk完整模型"
+        }
+        val modelSize = VoskManager(this).getModelSize(modelType)
+        
+        createThemedDialogBuilder()
+            .setTitle("下载语音模型")
+            .setMessage("$modelName 尚未下载（约${modelSize}MB）。\n\n是否现在下载并自动安装？")
+            .setPositiveButton("下载") { _, _ ->
+                startVoskModelDownloadWithBottomSheet(modelType)
+            }
+            .setNegativeButton("取消") { _, _ ->
+                // 恢复切换器状态
+                val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+                val voskManager = VoskManager(this)
+                val currentModelType = if (useVosk) {
+                    voskManager.getCurrentModelType()
+                } else {
+                    null
+                }
+                val selectedIndex = when {
+                    !useVosk -> 0
+                    currentModelType == VoskManager.ModelType.SMALL -> 1
+                    currentModelType == VoskManager.ModelType.FULL -> 2
+                    else -> 0
+                }
+                voiceModelSegmentedControl?.setSelectedIndex(selectedIndex)
+            }
+            .show()
+    }
+    
+    /**
+     * 使用BottomSheet显示下载进度并开始下载模型
+     */
+    private fun startVoskModelDownloadWithBottomSheet(modelType: VoskManager.ModelType) {
+        val modelName = when (modelType) {
+            VoskManager.ModelType.SMALL -> "Vosk小模型"
+            VoskManager.ModelType.FULL -> "Vosk完整模型"
+        }
+        val modelSize = VoskManager(this).getModelSize(modelType)
+        
+        // 关闭之前的BottomSheet（如果存在）
+        downloadProgressBottomSheet?.dismiss()
+        
+        // 创建BottomSheet
+        val bottomSheetView = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_download_progress, null)
+        val progressBar = bottomSheetView.findViewById<ProgressBar>(R.id.download_progress_bar)
+        val progressText = bottomSheetView.findViewById<TextView>(R.id.download_progress_text)
+        val speedText = bottomSheetView.findViewById<TextView>(R.id.download_speed_text)
+        val statusText = bottomSheetView.findViewById<TextView>(R.id.download_status_text)
+        
+        // 初始化UI
+        progressBar.max = 100
+        progressBar.progress = 0
+        progressText.text = "0%"
+        speedText.text = ""
+        statusText.text = "准备下载 $modelName (${modelSize}MB)..."
+        
+        // 创建BottomSheetDialog
+        downloadProgressBottomSheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        downloadProgressBottomSheet?.setContentView(bottomSheetView)
+        downloadProgressBottomSheet?.setCancelable(false)
+        downloadProgressBottomSheet?.setCanceledOnTouchOutside(false)
+        downloadProgressBottomSheet?.show()
+        
+        // 如果已有VoskManager实例，先释放
+        if (voskManager != null) {
+            releaseVoskManager()
+        }
+        
+        // 创建新的VoskManager实例用于下载
+        val downloadManager = VoskManager(this)
+        downloadManager.setModelType(modelType)
+        
+        // 设置下载进度回调
+        downloadManager.setCallback(object : VoskManager.VoskCallback {
+            override fun onPartialResult(text: String) {
+                // 下载时不需要处理
+            }
+            
+            override fun onFinalResult(text: String) {
+                // 下载时不需要处理
+            }
+            
+            override fun onError(error: String) {
+                handler.post {
+                    downloadProgressBottomSheet?.dismiss()
+                    downloadProgressBottomSheet = null
+                    downloadManager.release()
+                    
+                    // 恢复切换器状态
+                    val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+                    val voskManager = VoskManager(this@SimpleModeActivity)
+                    val currentModelType = if (useVosk) {
+                        voskManager.getCurrentModelType()
+                    } else {
+                        null
+                    }
+                    val selectedIndex = when {
+                        !useVosk -> 0
+                        currentModelType == VoskManager.ModelType.SMALL -> 1
+                        currentModelType == VoskManager.ModelType.FULL -> 2
+                        else -> 0
+                    }
+                    voiceModelSegmentedControl?.setSelectedIndex(selectedIndex)
+                    
+                    android.widget.Toast.makeText(this@SimpleModeActivity, "下载失败: $error", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+            
+            override fun onModelStatus(isReady: Boolean, message: String) {
+                handler.post {
+                    if (isReady) {
+                        // 模型下载并加载完成
+                        downloadProgressBottomSheet?.dismiss()
+                        downloadProgressBottomSheet = null
+                        downloadManager.release()
+                        
+                        // 切换到下载的模型
+                        val modelNameValue = when (modelType) {
+                            VoskManager.ModelType.SMALL -> "SMALL"
+                            VoskManager.ModelType.FULL -> "FULL"
+                        }
+                        settingsManager.putString("vosk_model_type", modelNameValue)
+                        settingsManager.putBoolean("use_vosk_offline_voice", true)
+                        
+                        // 自动初始化并加载模型
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob()).launch {
+                            try {
+                                // 确保voskManager存在
+                                if (voskManager == null) {
+                                    voskManager = VoskManager(this@SimpleModeActivity)
+                                }
+                                
+                                // 设置模型类型
+                                voskManager?.setModelType(modelType)
+                                
+                                // 初始化模型（此时模型已下载，只需要加载）
+                                val initialized = voskManager?.initializeModel(autoDownload = false) ?: false
+                                
+                                handler.post {
+                                    if (initialized) {
+                                        // 更新UI
+                                        updateVoiceModelStatus()
+                                        val selectedIndex = when (modelType) {
+                                            VoskManager.ModelType.SMALL -> 1
+                                            VoskManager.ModelType.FULL -> 2
+                                        }
+                                        voiceModelSegmentedControl?.setSelectedIndex(selectedIndex)
+                                        
+                                        android.widget.Toast.makeText(this@SimpleModeActivity, "✓ $modelName 下载完成并已自动加载", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        // 加载失败，但下载成功
+                                        updateVoiceModelStatus()
+                                        android.widget.Toast.makeText(this@SimpleModeActivity, "✓ $modelName 下载完成，但加载失败，请重试", android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "自动加载模型失败", e)
+                                handler.post {
+                                    updateVoiceModelStatus()
+                                    android.widget.Toast.makeText(this@SimpleModeActivity, "✓ $modelName 下载完成，但加载失败: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    } else {
+                        // 更新状态文本（下载中或加载中）
+                        statusText.text = message
+                    }
+                }
+            }
+            
+            override fun onDownloadProgress(progress: Int, downloaded: Long, total: Long, speed: Long) {
+                handler.post {
+                    // 更新进度条
+                    progressBar.progress = progress
+                    
+                    // 更新进度百分比文本
+                    if (total > 0) {
+                        // 有总大小，显示精确百分比
+                        progressText.text = "$progress%"
+                    } else {
+                        // 没有总大小，显示估算百分比或已下载大小
+                        if (progress > 0) {
+                            progressText.text = "$progress%"
+                        } else {
+                            val downloadedMB = downloaded / 1024.0 / 1024.0
+                            progressText.text = "${String.format("%.1f", downloadedMB)}MB"
+                        }
+                    }
+                    
+                    // 更新下载大小信息
+                    val downloadedMB = downloaded / 1024.0 / 1024.0
+                    
+                    // 如果已下载大于总大小，说明是解压后的实际大小，使用预期大小作为总大小
+                    val totalMB = when {
+                        total > 0 && downloaded <= total -> total / 1024.0 / 1024.0 // 正常情况
+                        total > 0 && downloaded > total -> modelSize.toDouble() // 解压后大于ZIP大小，使用预期大小
+                        else -> modelSize.toDouble() // 没有总大小，使用预期大小
+                    }
+                    
+                    // 构建状态文本，确保显示具体的进度数值
+                    val statusMessage = when {
+                        progress >= 100 -> {
+                            // 下载完成
+                            "下载完成: ${String.format("%.1f", downloadedMB)}MB / ${String.format("%.1f", totalMB)}MB"
+                        }
+                        total > 0 && downloaded <= total -> {
+                            // 有总大小且正常，显示精确进度
+                            "正在下载 $modelName: $progress% (${String.format("%.1f", downloadedMB)}MB / ${String.format("%.1f", totalMB)}MB)"
+                        }
+                        else -> {
+                            // 解压阶段或没有总大小，显示已下载大小和预期大小
+                            "正在下载 $modelName: $progress% (${String.format("%.1f", downloadedMB)}MB / ${String.format("%.1f", totalMB)}MB)"
+                        }
+                    }
+                    statusText.text = statusMessage
+                    
+                    // 更新下载速度
+                    if (speed > 0) {
+                        val speedMB = speed / 1024.0 / 1024.0
+                        if (speedMB >= 1.0) {
+                            speedText.text = "${String.format("%.2f", speedMB)} MB/s"
+                        } else {
+                            val speedKB = speed / 1024.0
+                            speedText.text = "${String.format("%.1f", speedKB)} KB/s"
+                        }
+                    } else {
+                        speedText.text = ""
+                    }
+                    
+                    // 确保UI更新
+                    progressBar.invalidate()
+                    progressText.invalidate()
+                    statusText.invalidate()
+                    speedText.invalidate()
+                }
+            }
+        })
+        
+        // 在后台协程中开始下载
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main + kotlinx.coroutines.SupervisorJob()).launch {
+            val success = downloadManager.initializeModel(autoDownload = true)
+            if (!success) {
+                handler.post {
+                    downloadProgressBottomSheet?.dismiss()
+                    downloadProgressBottomSheet = null
+                    downloadManager.release()
+                    
+                    // 恢复切换器状态
+                    val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+                    val voskManager = VoskManager(this@SimpleModeActivity)
+                    val currentModelType = if (useVosk) {
+                        voskManager.getCurrentModelType()
+                    } else {
+                        null
+                    }
+                    val selectedIndex = when {
+                        !useVosk -> 0
+                        currentModelType == VoskManager.ModelType.SMALL -> 1
+                        currentModelType == VoskManager.ModelType.FULL -> 2
+                        else -> 0
+                    }
+                    voiceModelSegmentedControl?.setSelectedIndex(selectedIndex)
+                }
+            }
         }
     }
     
@@ -5158,37 +5514,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val currentModelType = voskManager.getCurrentModelType()
                 
                 if (downloadedTypes.isEmpty()) {
-                    "Vosk模型未下载"
+                    "当前加载：Vosk模型未下载"
                 } else {
                     val modelSize = voskManager.getModelSize(currentModelType)
                     val actualSize = voskManager.getDownloadedModelSize(currentModelType)
                     when (currentModelType) {
                         VoskManager.ModelType.SMALL -> {
                             if (actualSize > 0) {
-                                "Vosk小模型 (${actualSize}MB)"
+                                "当前加载：Vosk小模型 (${actualSize}MB)"
                             } else {
-                                "Vosk小模型 (${modelSize}MB)"
+                                "当前加载：Vosk小模型 (${modelSize}MB)"
                             }
                         }
                         VoskManager.ModelType.FULL -> {
                             if (actualSize > 0) {
-                                "Vosk完整模型 (${actualSize}MB)"
+                                "当前加载：Vosk完整模型 (${actualSize}MB)"
                             } else {
-                                "Vosk完整模型 (${modelSize}MB)"
+                                "当前加载：Vosk完整模型 (${modelSize}MB)"
                             }
                         }
                     }
                 }
             } else {
                 // 使用系统语音识别
-                "系统语音识别"
+                "当前加载：系统语音识别"
             }
             
             voiceModelStatusText?.text = statusText
+            
+            // 同步更新切换器状态
+            updateVoiceModelSegmentedControl()
+            
             Log.d(TAG, "模型状态已更新: $statusText")
         } catch (e: Exception) {
             Log.e(TAG, "更新模型状态失败", e)
-            voiceModelStatusText?.text = "系统语音识别"
+            voiceModelStatusText?.text = "当前加载：系统语音识别"
+            // 同步更新切换器状态
+            updateVoiceModelSegmentedControl()
         }
     }
     
