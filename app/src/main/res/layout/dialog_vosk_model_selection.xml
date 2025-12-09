@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@drawable/dialog_background">
+
+    <!-- 说明文本 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="请选择要下载的Vosk离线语音识别模型："
+        android:textSize="16sp"
+        android:textColor="@color/text_primary"
+        android:layout_marginBottom="20dp" />
+
+    <!-- 单选按钮组 -->
+    <RadioGroup
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="20dp">
+
+        <!-- 小模型选项 -->
+        <RadioButton
+            android:id="@+id/radio_small_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="小模型（约40MB）"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:padding="12dp"
+            android:checked="true" />
+
+        <!-- 完整模型选项 -->
+        <RadioButton
+            android:id="@+id/radio_full_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="完整模型（约1GB）"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:padding="12dp" />
+
+    </RadioGroup>
+
+    <!-- 模型描述 -->
+    <TextView
+        android:id="@+id/model_description"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="小模型（约40MB）\n• 下载速度快\n• 占用存储空间小\n• 识别精度中等\n• 适合日常使用"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:padding="16dp"
+        android:background="@drawable/dialog_background"
+        android:lineSpacingExtra="4dp" />
+
+</LinearLayout>
+
+
+

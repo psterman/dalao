@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxHeight="600dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 当前模型信息 -->
+        <TextView
+            android:id="@+id/model_info_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="当前使用: 系统语音识别"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:padding="12dp"
+            android:background="@color/simple_mode_card_background_light"
+            android:layout_marginBottom="16dp" />
+
+        <!-- 小模型卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/small_model_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/simple_mode_card_background_light"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Vosk小模型"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/simple_mode_text_primary_light" />
+
+                        <TextView
+                            android:id="@+id/small_model_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="未下载"
+                            android:textSize="14sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginTop="4dp" />
+
+                        <TextView
+                            android:id="@+id/small_model_size"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="42MB"
+                            android:textSize="12sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/small_model_delete_btn"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="删除"
+                        android:textSize="12sp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:visibility="gone"
+                        app:strokeColor="@color/error_color"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• 下载速度快\n• 占用存储空间小\n• 识别精度中等\n• 适合日常使用"
+                    android:textSize="12sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 完整模型卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/full_model_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/simple_mode_card_background_light"
+            android:clickable="true"
+            android:focusable="true">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Vosk完整模型"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/simple_mode_text_primary_light" />
+
+                        <TextView
+                            android:id="@+id/full_model_status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="未下载"
+                            android:textSize="14sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginTop="4dp" />
+
+                        <TextView
+                            android:id="@+id/full_model_size"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1300MB"
+                            android:textSize="12sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/full_model_delete_btn"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="删除"
+                        android:textSize="12sp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:visibility="gone"
+                        app:strokeColor="@color/error_color"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="• 识别精度高\n• 支持更多词汇\n• 需要更多存储空间\n• 建议在WiFi环境下下载"
+                    android:textSize="12sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 使用系统语音按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/use_system_voice_btn"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="使用系统语音识别"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            app:strokeColor="@color/simple_mode_primary_light"
+            app:strokeWidth="1dp" />
+    </LinearLayout>
+</ScrollView>
+
+
+
