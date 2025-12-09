@@ -151,12 +151,23 @@ class CustomWebView @JvmOverloads constructor(
         val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
 
         try {
-            // 使用 ContextThemeWrapper 包装 context，设置合适的主题
-            // 优先使用 Material 主题，如果不可用则使用 AppCompat 主题
-            val dialogTheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                android.R.style.Theme_Material_Dialog_Alert
-            } else {
-                androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+            // 使用支持暗色/亮色模式的Material主题
+            val dialogTheme = try {
+                // 尝试使用应用的自定义Material对话框主题
+                val themeResId = context.resources.getIdentifier("Theme_MaterialDialog", "style", context.packageName)
+                if (themeResId != 0) {
+                    themeResId
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    android.R.style.Theme_Material_Dialog_Alert
+                } else {
+                    androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+                }
+            } catch (e: Exception) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    android.R.style.Theme_Material_Dialog_Alert
+                } else {
+                    androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert
+                }
             }
             
             val themedContext = ContextThemeWrapper(context, dialogTheme)
@@ -173,6 +184,72 @@ class CustomWebView @JvmOverloads constructor(
                 .setNegativeButton("不允许", null)
                 .setPositiveButton("允许") { _, _ -> onAllow() }
                 .create()
+            
+            // 确保对话框文字在暗色/亮色模式下清晰可见
+            dialog.setOnShowListener {
+                try {
+                    // 获取当前主题的文字颜色
+                    val textColorPrimary = try {
+                        val colorResId = context.resources.getIdentifier("material_dialog_text_primary", "color", context.packageName)
+                        if (colorResId != 0) {
+                            androidx.core.content.ContextCompat.getColor(context, colorResId)
+                        } else {
+                            // 降级：根据系统主题判断
+                            val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                            if (isDarkMode) 0xFFE8E8E8.toInt() else 0xFF1C1B1F.toInt()
+                        }
+                    } catch (e: Exception) {
+                        val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        if (isDarkMode) 0xFFE8E8E8.toInt() else 0xFF1C1B1F.toInt()
+                    }
+                    
+                    val textColorSecondary = try {
+                        val colorResId = context.resources.getIdentifier("material_dialog_text_secondary", "color", context.packageName)
+                        if (colorResId != 0) {
+                            androidx.core.content.ContextCompat.getColor(context, colorResId)
+                        } else {
+                            val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                            if (isDarkMode) 0xFFBDBDBD.toInt() else 0xFF49454F.toInt()
+                        }
+                    } catch (e: Exception) {
+                        val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        if (isDarkMode) 0xFFBDBDBD.toInt() else 0xFF49454F.toInt()
+                    }
+                    
+                    // 设置标题文字颜色
+                    val titleView = dialog.findViewById<android.widget.TextView>(androidx.appcompat.R.id.alertTitle)
+                    titleView?.setTextColor(textColorPrimary)
+                    
+                    // 设置消息文字颜色
+                    val messageView = dialog.findViewById<android.widget.TextView>(android.R.id.message)
+                    messageView?.setTextColor(textColorSecondary)
+                    
+                    // 设置按钮文字颜色
+                    val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    val negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+                    val neutralButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                    
+                    // 使用主题颜色设置按钮文字，确保在暗色/亮色模式下都清晰可见
+                    val buttonTextColor = try {
+                        val colorResId = context.resources.getIdentifier("material_dialog_button_text_outlined", "color", context.packageName)
+                        if (colorResId != 0) {
+                            androidx.core.content.ContextCompat.getColor(context, colorResId)
+                        } else {
+                            val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                            if (isDarkMode) 0xFF10D876.toInt() else 0xFF6750A4.toInt()
+                        }
+                    } catch (e: Exception) {
+                        val isDarkMode = (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+                        if (isDarkMode) 0xFF10D876.toInt() else 0xFF6750A4.toInt()
+                    }
+                    
+                    positiveButton?.setTextColor(buttonTextColor)
+                    negativeButton?.setTextColor(buttonTextColor)
+                    neutralButton?.setTextColor(buttonTextColor)
+                } catch (e: Exception) {
+                    Log.e(TAG, "设置对话框文字颜色失败", e)
+                }
+            }
             
             // 如果是在 Service 或悬浮窗中，需要设置窗口类型
             // 尝试设置窗口类型，如果失败则忽略（可能是 Activity 上下文）

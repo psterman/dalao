@@ -307,7 +307,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val displayUrl = if (targetUrl.length > 512) targetUrl.substring(0, 512) + "…" else targetUrl
         val title = if (!originHost.isNullOrBlank()) "$originHost 想启动第三方应用:" else "网页想启动第三方应用:"
 
-        createThemedDialogBuilder()
+        val dialog = createThemedDialogBuilder()
             .setTitle(title)
             .setMessage(displayUrl)
             .setNeutralButton("拷贝") { _, _ ->
@@ -321,7 +321,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             .setPositiveButton("允许") { _, _ ->
                 launchExternalFromUrl(view, targetUrl)
             }
-            .show()
+            .create()
+        
+        // 确保对话框文字在暗色/亮色模式下清晰可见
+        dialog.setOnShowListener {
+            try {
+                // 获取当前主题的文字颜色
+                val textColorPrimary = ContextCompat.getColor(this, R.color.material_dialog_text_primary)
+                val textColorSecondary = ContextCompat.getColor(this, R.color.material_dialog_text_secondary)
+                
+                // 设置标题文字颜色
+                val titleView = dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
+                titleView?.setTextColor(textColorPrimary)
+                
+                // 设置消息文字颜色
+                val messageView = dialog.findViewById<TextView>(android.R.id.message)
+                messageView?.setTextColor(textColorSecondary)
+                
+                // 设置按钮文字颜色
+                val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                val negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+                val neutralButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                
+                // 使用主题颜色设置按钮文字，确保在暗色/亮色模式下都清晰可见
+                val buttonTextColor = ContextCompat.getColor(this, R.color.material_dialog_button_text_outlined)
+                positiveButton?.setTextColor(buttonTextColor)
+                negativeButton?.setTextColor(buttonTextColor)
+                neutralButton?.setTextColor(buttonTextColor)
+            } catch (e: Exception) {
+                Log.e(TAG, "设置对话框文字颜色失败", e)
+            }
+        }
+        
+        dialog.show()
     }
 
     private fun launchExternalFromUrl(view: WebView?, url: String) {
