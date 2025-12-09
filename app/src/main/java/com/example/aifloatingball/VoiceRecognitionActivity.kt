@@ -79,6 +79,10 @@ class VoiceRecognitionActivity : Activity() {
     private val CONNECTION_TIMEOUT_MS = 5000L // 连接超时时间（5秒，某些设备需要更长时间）
     private var isStartingRecognition = false // 是否正在启动识别（防止重复启动）
     private var shouldDestroyRecognizerOnRelease = false // 是否应该在释放时销毁识别器（错误情况下需要完全销毁）
+    private var isPausedByUser = false // 用户是否手动暂停识别
+    private var lastRecognizedText = "" // 上一次识别的文本，用于去重
+    private var waveformView: com.example.aifloatingball.ui.WaveformView? = null // 波形视图
+    private var currentRmsValue = 0.1f // 当前音量值（用于波形动画）
     
     
     // 界面元素
@@ -127,6 +131,9 @@ class VoiceRecognitionActivity : Activity() {
         saveButton = findViewById(R.id.saveButton)
         zoomInButton = findViewById(R.id.zoomInButton)
         zoomOutButton = findViewById(R.id.zoomOutButton)
+        
+        // 尝试查找波形视图（如果布局中有）
+        waveformView = findViewById(R.id.voice_waveform)
 
         // Load the saved font size, or use the default
         val savedSize = settingsManager.getVoiceInputTextSize()
@@ -410,6 +417,10 @@ class VoiceRecognitionActivity : Activity() {
             isListening = true
             updateListeningState(true)
             
+            // 启动波形动画
+            waveformView?.setAnimationRunning(true)
+            waveformView?.setAmplitude(0.2f) // 初始振幅
+            
             // 启动识别
             speechRecognizer?.startListening(recognizerIntent)
             // 重置启动标志（识别已成功启动）
@@ -475,8 +486,9 @@ class VoiceRecognitionActivity : Activity() {
             stopListening()
         } else {
             // 如果没有监听，开始监听
+            isPausedByUser = false // 重置暂停标志
             if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            startVoiceRecognition()
+                startVoiceRecognition()
             } else {
                 // 如果SpeechRecognizer不可用，尝试系统语音输入
                 trySystemVoiceInput()
@@ -486,9 +498,30 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun stopListening() {
         isListening = false
+        isPausedByUser = true // 标记为用户手动暂停
         isStartingRecognition = false // 重置启动标志
         updateListeningState(false)
-        speechRecognizer?.stopListening()
+        
+        // 完全停止识别：先取消，再停止监听
+        speechRecognizer?.apply {
+            try {
+                cancel() // 取消当前识别任务
+                VoiceLog.d("已取消识别任务")
+            } catch (e: Exception) {
+                VoiceLog.w("取消识别任务时出错: ${e.message}")
+            }
+            try {
+                stopListening() // 停止监听
+                VoiceLog.d("已停止监听")
+            } catch (e: Exception) {
+                VoiceLog.w("停止监听时出错: ${e.message}")
+            }
+        }
+        
+        // 停止波形动画
+        waveformView?.setAnimationRunning(false)
+        waveformView?.setAmplitude(0.1f)
+        
         // 重置状态为空闲
         recognizerState = RecognizerState.IDLE
         VoiceLog.d("识别器状态: -> IDLE（用户停止监听）")
@@ -575,7 +608,26 @@ class VoiceRecognitionActivity : Activity() {
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            // 移除动画逻辑，不再需要麦克风动画
+            // 更新波形动画：将音量值转换为振幅（0.0-1.0）
+            activityRef.get()?.let { activity ->
+                if (activity.isDestroyed || activity.isFinishing) return
+                val runnable = object : Runnable {
+                    override fun run() {
+                        activityRef.get()?.let { act ->
+                            if (act.isDestroyed || act.isFinishing) return
+                            // RMS值通常在-10到10之间，转换为0.0-1.0的振幅
+                            // 使用平滑算法避免动画抖动
+                            val normalizedRms = ((rmsdB + 10f) / 20f).coerceIn(0.0f, 1.0f)
+                            // 平滑处理：使用加权平均，避免突变
+                            act.currentRmsValue = act.currentRmsValue * 0.7f + normalizedRms * 0.3f
+                            // 确保最小振幅，避免完全静止
+                            val amplitude = act.currentRmsValue.coerceIn(0.15f, 1.0f)
+                            act.waveformView?.setAmplitude(amplitude)
+                        }
+                    }
+                }
+                activity.safePost(runnable)
+            }
         }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -726,11 +778,62 @@ class VoiceRecognitionActivity : Activity() {
             
             if (!newFinalText.isNullOrEmpty()) {
                 
-                // 清除当前的部分识别结果
-                currentPartialText = ""
+                // 检查最终结果是否与当前部分结果相同或相似（避免部分结果和最终结果重复）
+                if (currentPartialText.isNotEmpty()) {
+                    val partialSimilarity = calculateSimilarity(currentPartialText.trim(), newFinalText.trim())
+                    VoiceLog.d("检查部分结果与最终结果相似度: partial='$currentPartialText', final='$newFinalText', similarity=$partialSimilarity")
+                    
+                    if (partialSimilarity > 0.9f) {
+                        // 部分结果与最终结果高度相似（>90%），说明是同一段话的识别
+                        // 只使用最终结果，清除部分结果，避免重复
+                        VoiceLog.d("⚠️ 最终结果与部分结果高度相似（${(partialSimilarity * 100).toInt()}%），使用最终结果，清除部分结果")
+                        currentPartialText = ""
+                        // 继续处理最终结果
+                    } else if (newFinalText.trim().contains(currentPartialText.trim()) || 
+                               currentPartialText.trim().contains(newFinalText.trim())) {
+                        // 包含关系，使用更完整的文本
+                        VoiceLog.d("最终结果与部分结果有包含关系，使用更完整的文本")
+                        currentPartialText = ""
+                    } else {
+                        // 不同内容，清除部分结果，使用最终结果
+                        VoiceLog.d("最终结果与部分结果不同，清除部分结果")
+                        currentPartialText = ""
+                    }
+                } else {
+                    // 没有部分结果，直接清除
+                    currentPartialText = ""
+                }
+                
+                // 检查是否是完全重复的内容（与上一次识别结果完全相同）
+                if (newFinalText.trim() == lastRecognizedText.trim()) {
+                    VoiceLog.d("⚠️ 检测到完全重复的识别结果，忽略: '$newFinalText'")
+                    // 完全重复，不更新文本，直接返回
+                    return
+                }
+                
+                // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
+                val currentDisplayText = recognizedTextView.text.toString().trim()
+                if (currentDisplayText.isNotEmpty()) {
+                    // 检查最终结果是否与当前显示文本相同或高度相似
+                    val displaySimilarity = calculateSimilarity(currentDisplayText, newFinalText.trim())
+                    if (displaySimilarity > 0.95f) {
+                        VoiceLog.d("⚠️ 最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$newFinalText'")
+                        // 高度相似，可能是重复，不更新
+                        return
+                    }
+                    // 检查最终结果是否已经包含在当前显示文本中
+                    if (currentDisplayText.contains(newFinalText.trim()) && 
+                        newFinalText.trim().length < currentDisplayText.length * 0.8) {
+                        VoiceLog.d("⚠️ 最终结果已包含在当前显示文本中，忽略: '$newFinalText'")
+                        // 已包含且不是更完整的版本，不更新
+                        return
+                    }
+                }
                 
                 // 智能合并最终结果，使用编辑距离算法避免重复累积
-                recognizedText = if (recognizedText.isEmpty()) {
+                // 注意：如果最终结果与部分结果相同，应该直接使用最终结果，而不是追加
+                val mergedText = if (recognizedText.isEmpty()) {
+                    // 没有已确认文本，直接使用最终结果
                     newFinalText
                 } else {
                     // 先检查包含关系（快速判断）
@@ -752,17 +855,36 @@ class VoiceRecognitionActivity : Activity() {
                         val similarity = calculateSimilarity(recognizedText, newFinalText)
                         VoiceLog.d("文本相似度计算: recognizedText='$recognizedText', newFinalText='$newFinalText', similarity=$similarity")
                         
-                        if (similarity > 0.8f) {
-                            // 相似度 >80%，认为是修正而非追加（避免"你好" + "你好你好" = "你好 你好你好"的问题）
-                            VoiceLog.d("相似度 >80%，使用新文本作为修正: '$newFinalText'")
+                        if (similarity > 0.85f) {
+                            // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
+                            VoiceLog.d("相似度 >85%，使用新文本作为修正: '$newFinalText'")
                             newFinalText
+                        } else if (similarity > 0.5f) {
+                            // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
+                            val newWords = newFinalText.split(" ").filter { it.isNotEmpty() }
+                            val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
+                            val newUniqueWords = newWords.filter { !oldWords.contains(it) }
+                            
+                            if (newUniqueWords.isEmpty()) {
+                                // 没有新增内容，认为是重复，使用新文本
+                                VoiceLog.d("相似度 50%-85% 且无新增内容，使用新文本: '$newFinalText'")
+                                newFinalText
+                            } else {
+                                // 有新增内容，追加新词
+                                VoiceLog.d("相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
+                                "$recognizedText ${newUniqueWords.joinToString(" ")}"
+                            }
                         } else {
-                            // 相似度较低，认为是新内容，追加
-                            VoiceLog.d("相似度 <=80%，追加新文本: '$recognizedText' + '$newFinalText'")
+                            // 相似度 <50%，认为是新内容，追加
+                            VoiceLog.d("相似度 <50%，追加新文本: '$recognizedText' + '$newFinalText'")
                             "$recognizedText $newFinalText"
                         }
                     }
                 }
+                
+                // 更新识别的文本
+                recognizedText = mergedText
+                lastRecognizedText = newFinalText // 保存本次识别结果，用于下次去重
             
                 // 使用累积的文本更新显示（只显示已确认的文本）
                 recognizedTextView.setText(recognizedText)
@@ -773,6 +895,12 @@ class VoiceRecognitionActivity : Activity() {
                 // 确保"说完了"按钮可用
                 doneButton.isEnabled = true
                 VoiceLog.d("✓ 识别成功，当前累积文本: '$recognizedText'")
+                
+                // 如果用户手动暂停了识别，不自动重启
+                if (isPausedByUser) {
+                    VoiceLog.d("用户已暂停识别，不自动重启")
+                    return
+                }
                 
                 // 设置冷却状态，防止连续识别导致 ERROR_RECOGNIZER_BUSY
                 recognizerState = RecognizerState.COOLING_DOWN
@@ -817,6 +945,7 @@ class VoiceRecognitionActivity : Activity() {
                     currentPartialText = partialText
                     
                     // 智能合并：已确认的文本 + 当前部分识别结果
+                    // 注意：部分结果只是临时显示，不会真正追加到 recognizedText 中
                     val displayText = if (recognizedText.isEmpty()) {
                         // 没有已确认文本，直接显示部分结果
                         partialText
@@ -824,13 +953,25 @@ class VoiceRecognitionActivity : Activity() {
                         // 有已确认文本，需要智能合并
                         if (partialText.startsWith(recognizedText)) {
                             // 部分结果以已确认文本开头，直接使用部分结果（更完整）
+                            // 例如：recognizedText="你好"，partialText="你好世界"，显示"你好世界"
                             partialText
                         } else if (recognizedText.contains(partialText)) {
                             // 部分结果已包含在已确认文本中，只显示已确认文本
+                            // 例如：recognizedText="你好世界"，partialText="你好"，只显示"你好世界"
                             recognizedText
                         } else {
-                            // 部分结果是新增内容，追加显示
-                            "$recognizedText $partialText"
+                            // 部分结果与已确认文本不同，检查是否是新增内容
+                            // 使用相似度判断，避免重复
+                            val similarity = calculateSimilarity(recognizedText, partialText)
+                            if (similarity > 0.8f) {
+                                // 高度相似，可能是同一段话的不同识别，只显示部分结果（更完整）
+                                VoiceLog.d("部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），使用部分结果: '$partialText'")
+                                partialText
+                            } else {
+                                // 不同内容，追加显示（但不会真正追加到 recognizedText）
+                                // 例如：recognizedText="你好"，partialText="世界"，显示"你好 世界"（临时）
+                                "$recognizedText $partialText"
+                            }
                         }
                     }
                     
@@ -1497,8 +1638,12 @@ class VoiceRecognitionActivity : Activity() {
         // 完全销毁语音识别器（Activity 销毁时）
         destroySpeechRecognizer()
         
+        // 停止波形动画
+        waveformView?.setAnimationRunning(false)
+        
         // 重置状态机
         recognizerState = RecognizerState.IDLE
+        isPausedByUser = false
         VoiceLog.d("识别器状态: -> IDLE（Activity 销毁）")
         
         // 移除所有待执行的 Runnable，防止内存泄漏
@@ -1935,12 +2080,19 @@ class VoiceRecognitionActivity : Activity() {
             activityRef.get()?.let { activity ->
                 if (activity.isDestroyed || activity.isFinishing) return
                 
+                // 如果用户手动暂停了识别，不自动重启
+                if (activity.isPausedByUser) {
+                    VoiceLog.d("用户已暂停识别，冷却完成但不重启")
+                    activity.recognizerState = RecognizerState.IDLE
+                    return
+                }
+                
                 // 冷却完成，重置状态为空闲
                 activity.recognizerState = RecognizerState.IDLE
                 VoiceLog.d("识别器状态: COOLING_DOWN -> IDLE（冷却完成）")
                 
-                // 如果仍在监听状态，重启识别
-                if (activity.isListening) {
+                // 如果仍在监听状态且未暂停，重启识别
+                if (activity.isListening && !activity.isPausedByUser) {
                     VoiceLog.d("冷却完成，重启语音识别")
                     activity.startVoiceRecognition()
                 }
@@ -2052,11 +2204,18 @@ class VoiceRecognitionActivity : Activity() {
                     activity.setupConnectionTimeout()
                     
                     // 设置监听状态，等待 onReadyForSpeech 回调
-                    activity.isListening = true
-                    activity.updateListeningState(true)
-                    activity.recognizerState = RecognizerState.LISTENING
-                    // 注意：保持 isStartingRecognition = true，直到识别真正启动
-                    VoiceLog.d("识别器已创建，等待服务连接（onReadyForSpeech）...")
+                    // 如果用户已暂停，不启动识别
+                    if (!activity.isPausedByUser) {
+                        activity.isListening = true
+                        activity.updateListeningState(true)
+                        activity.recognizerState = RecognizerState.LISTENING
+                        // 注意：保持 isStartingRecognition = true，直到识别真正启动
+                        VoiceLog.d("识别器已创建，等待服务连接（onReadyForSpeech）...")
+                    } else {
+                        VoiceLog.d("用户已暂停识别，不启动识别")
+                        activity.isStartingRecognition = false
+                        activity.recognizerState = RecognizerState.IDLE
+                    }
                     
                     // 注意：不再使用固定延迟，而是等待 onReadyForSpeech 回调
                     // 如果超时未收到回调，ConnectionTimeoutRunnable 会处理

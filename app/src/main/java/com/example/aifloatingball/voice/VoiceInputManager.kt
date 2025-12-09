@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import android.Manifest
+import com.example.aifloatingball.SettingsManager
 
 /**
  * 多层级语音输入管理器
@@ -214,6 +215,7 @@ class VoiceInputManager(private val activity: Activity) {
     
     /**
      * 启动语音输入 - 多层级策略
+     * 注意：已移除输入法弹窗，优先使用Vosk离线模型
      */
     fun startVoiceInput() {
         Log.d(TAG, "开始语音输入，设备: ${getDeviceInfo()}")
@@ -228,7 +230,6 @@ class VoiceInputManager(private val activity: Activity) {
             return
         }
 
-        // 优先检查 Vosk 离线模型是否启用
         // 第1层：尝试SpeechRecognizer
         val isRecognitionAvailable = SpeechRecognizer.isRecognitionAvailable(activity)
         Log.d(TAG, "SpeechRecognizer可用性: $isRecognitionAvailable")
@@ -239,28 +240,77 @@ class VoiceInputManager(private val activity: Activity) {
             return
         }
         
+        // 第2层：检查Vosk模型是否已下载（无论是否启用设置，只要已下载就提示使用Vosk）
+        if (isVoskModelDownloaded()) {
+            Log.d(TAG, "检测到Vosk模型已下载，不显示弹窗，由调用方处理")
+            // 不显示弹窗，直接返回错误，让调用方知道应该使用Vosk
+            callback?.onVoiceInputError("请使用Vosk离线模型进行语音识别")
+            return
+        }
+        
         // 注意：已禁用系统语音输入Intent和品牌特定方案，避免显示系统弹窗
-        // 第2层：尝试品牌特定方案（已禁用，避免系统弹窗）
+        // 第3层：尝试品牌特定方案（已禁用，避免系统弹窗）
         // if (tryBrandSpecificVoiceInput()) {
         //     Log.d(TAG, "使用品牌特定语音输入")
         //     return
         // }
         
-        // 第3层：尝试系统语音输入Intent（已禁用，避免系统弹窗）
+        // 第4层：尝试系统语音输入Intent（已禁用，避免系统弹窗）
         // if (trySystemVoiceInput()) {
         //     Log.d(TAG, "使用系统语音输入Intent")
         //     return
         // }
         
-        // 第4层：尝试输入法语音输入
-        if (tryIMEVoiceInput()) {
-            Log.d(TAG, "使用输入法语音输入")
-            return
-        }
+        // 注意：已移除输入法语音输入弹窗，不再显示任何弹窗
+        // 第5层：输入法语音输入（已禁用，避免显示输入法弹窗）
+        // if (tryIMEVoiceInput()) {
+        //     Log.d(TAG, "使用输入法语音输入")
+        //     return
+        // }
         
-        // 第5层：显示选择对话框（已移除系统语音输入选项）
-        Log.d(TAG, "所有语音输入方案都不可用，显示选择对话框")
-        showVoiceInputOptions()
+        // 第6层：所有方案都不可用，静默返回错误（不显示弹窗）
+        Log.d(TAG, "系统语音识别不可用且Vosk模型未下载，静默返回错误")
+        callback?.onVoiceInputError("语音识别不可用，请下载Vosk离线模型或使用手动输入")
+    }
+    
+    /**
+     * 检查Vosk模型是否已下载（不检查是否启用设置）
+     */
+    private fun isVoskModelDownloaded(): Boolean {
+        return try {
+            // 检查Vosk模型是否已下载（无论是否启用设置）
+            val voskManager = VoskManager(activity)
+            val downloadedTypes = voskManager.getDownloadedModelTypes()
+            
+            val isDownloaded = downloadedTypes.isNotEmpty()
+            Log.d(TAG, "Vosk模型下载状态: $isDownloaded (已下载类型数: ${downloadedTypes.size})")
+            isDownloaded
+        } catch (e: Exception) {
+            Log.w(TAG, "检查Vosk模型下载状态失败", e)
+            false
+        }
+    }
+    
+    /**
+     * 检查Vosk模型是否已下载并启用（保留此方法用于其他场景）
+     */
+    private fun isVoskModelAvailable(): Boolean {
+        return try {
+            // 检查Vosk是否启用
+            val settingsManager = SettingsManager.getInstance(activity)
+            val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+            
+            if (!useVosk) {
+                Log.d(TAG, "Vosk未启用")
+                return false
+            }
+            
+            // 检查Vosk模型是否已下载
+            return isVoskModelDownloaded()
+        } catch (e: Exception) {
+            Log.w(TAG, "检查Vosk模型状态失败", e)
+            false
+        }
     }
     
     /**
@@ -629,83 +679,41 @@ class VoiceInputManager(private val activity: Activity) {
     }
     
     /**
-     * 尝试输入法语音输入
+     * 尝试输入法语音输入（已禁用，避免显示输入法弹窗）
+     * 改为提示使用Vosk离线模型
      */
     private fun tryIMEVoiceInput(): Boolean {
-        val commonIMEs = mapOf(
-            "com.sohu.inputmethod.sogou" to "搜狗输入法",
-            "com.baidu.input" to "百度输入法", 
-            "com.iflytek.inputmethod" to "讯飞输入法",
-            "com.tencent.qqpinyin" to "QQ输入法",
-            "com.google.android.inputmethod.latin" to "Google输入法"
-        )
-        
-        for ((packageName, imeName) in commonIMEs) {
-            if (isPackageInstalled(packageName)) {
-                Log.d(TAG, "发现已安装的输入法: $imeName")
-                showIMEVoiceInputGuide(imeName)
-                return true
-            }
-        }
-        
+        // 已禁用输入法语音输入，不再显示输入法弹窗
+        // 改为提示使用Vosk离线模型
         return false
     }
     
     /**
-     * 显示输入法语音输入指导
+     * 显示输入法语音输入指导（已移除，不再使用）
+     * 改为提示使用Vosk离线模型
      */
+    @Deprecated("已移除输入法弹窗，改为提示使用Vosk离线模型")
     private fun showIMEVoiceInputGuide(imeName: String) {
-        AlertDialog.Builder(activity)
-            .setTitle("使用输入法语音输入")
-            .setMessage("检测到您安装了${imeName}，请按以下步骤操作：\n\n1. 点击下方的文本输入框\n2. 在弹出的输入法中找到语音按钮（通常是麦克风图标）\n3. 点击语音按钮开始录音")
-            .setPositiveButton("知道了") { dialog, _ ->
-                dialog.dismiss()
-                // 可以在这里引导用户到输入框
-                callback?.onVoiceInputError("请使用输入法的语音功能")
-            }
-            .show()
+        // 已移除，不再显示输入法弹窗
     }
     
     /**
-     * 显示语音输入选项对话框
+     * 显示Vosk离线模型提示（已移除，不再显示弹窗）
+     * 当系统语音识别不可用且Vosk模型未下载时，静默返回错误
      */
+    @Deprecated("已移除弹窗，不再使用")
+    private fun showVoskModelPrompt() {
+        // 已移除弹窗，静默返回错误
+        callback?.onVoiceInputError("语音识别不可用，请下载Vosk离线模型或使用手动输入")
+    }
+    
+    /**
+     * 显示语音输入选项对话框（已移除，不再使用）
+     */
+    @Deprecated("已移除弹窗，不再使用")
     private fun showVoiceInputOptions() {
-        val options = mutableListOf<String>()
-        val actions = mutableListOf<() -> Unit>()
-        
-        // 注意：已移除系统语音输入选项，避免显示系统弹窗
-        // 系统语音输入（已禁用，避免系统弹窗）
-        // if (hasSystemVoiceInput()) {
-        //     options.add("系统语音输入")
-        //     actions.add { trySystemVoiceInput() }
-        // }
-        
-        // 输入法语音输入
-        options.add("输入法语音输入")
-        actions.add { 
-            showIMEVoiceInputGuide("输入法")
-        }
-        
-        // 语音设置
-        options.add("打开语音设置")
-        actions.add { openVoiceSettings() }
-        
-        // 手动输入
-        options.add("手动输入")
-        actions.add { 
-            callback?.onVoiceInputError("请使用手动输入")
-        }
-        
-        AlertDialog.Builder(activity)
-            .setTitle("选择语音输入方式")
-            .setMessage("未找到可用的语音识别服务，请选择其他方式：")
-            .setItems(options.toTypedArray()) { _, which ->
-                actions[which].invoke()
-            }
-            .setNegativeButton("取消") { _, _ ->
-                callback?.onVoiceInputCancelled()
-            }
-            .show()
+        // 已移除弹窗，静默返回错误
+        callback?.onVoiceInputError("语音识别不可用，请下载Vosk离线模型或使用手动输入")
     }
     
     /**

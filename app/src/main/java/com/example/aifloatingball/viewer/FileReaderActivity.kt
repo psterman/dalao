@@ -3560,8 +3560,17 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
     /**
      * 检测文件编码（改进版，支持更多编码和更准确的检测）
      */
+    /**
+     * 检测文件编码
+     * 使用多种方法综合判断，提高准确性
+     */
     private fun detectCharset(bytes: ByteArray): Charset {
-        // 尝试检测BOM（字节顺序标记）
+        if (bytes.isEmpty()) {
+            Log.w(TAG, "文件为空，使用UTF-8")
+            return StandardCharsets.UTF_8
+        }
+        
+        // 1. 尝试检测BOM（字节顺序标记）
         if (bytes.size >= 3) {
             // UTF-8 BOM: EF BB BF
             if (bytes[0].toInt() == 0xEF && bytes[1].toInt() == 0xBB && bytes[2].toInt() == 0xBF) {
@@ -3582,13 +3591,30 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             }
         }
         
-        // 尝试常见编码（按优先级，中文编码优先）
+        // 2. 先检查是否符合UTF-8编码规则（更严格的检测）
+        if (isValidUTF8(bytes)) {
+            Log.d(TAG, "字节序列符合UTF-8编码规则")
+            // 进一步验证：尝试解码并检查是否有替换字符
+            try {
+                val decoded = String(bytes, StandardCharsets.UTF_8)
+                val replacementCount = decoded.count { it == '\uFFFD' }
+                val replacementRatio = if (decoded.isNotEmpty()) replacementCount.toFloat() / decoded.length else 1f
+                if (replacementRatio < 0.01f) { // UTF-8替换字符少于1%
+                    Log.d(TAG, "确认使用UTF-8编码 (替换字符比例: ${(replacementRatio * 100).toInt()}%)")
+                    return StandardCharsets.UTF_8
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "UTF-8解码验证失败", e)
+            }
+        }
+        
+        // 3. 尝试常见编码（按优先级，中文编码优先）
         val charsets = listOf(
             Charset.forName("GBK"),           // 中文Windows常用
             Charset.forName("GB2312"),        // 简体中文
+            Charset.forName("GB18030"),       // 中文国家标准（最完整）
             StandardCharsets.UTF_8,            // UTF-8
             Charset.forName("Big5"),           // 繁体中文
-            Charset.forName("GB18030"),       // 中文国家标准
             Charset.forName("ISO-8859-1"),    // 西欧
             Charset.forName("Windows-1252"),   // Windows西欧
             StandardCharsets.US_ASCII         // ASCII
@@ -3614,14 +3640,35 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
                 val replacementCharCount = decoded.count { it == '\uFFFD' }
                 val totalChars = decoded.length
                 
-                // 计算得分：替换字符越少，得分越高
-                // 如果替换字符超过5%，认为编码不匹配
-                val replacementRatio = if (totalChars > 0) replacementCharCount.toFloat() / totalChars else 1f
+                if (totalChars == 0) continue
                 
-                if (replacementRatio < 0.05f) { // 替换字符少于5%
-                    val score = (1000 * (1 - replacementRatio)).toInt()
-                    charsetScores[charset] = score
-                    Log.d(TAG, "编码 ${charset.name()} 得分: $score (替换字符比例: ${(replacementRatio * 100).toInt()}%)")
+                // 计算得分：替换字符越少，得分越高
+                val replacementRatio = replacementCharCount.toFloat() / totalChars
+                
+                // 额外检查：对于中文编码，检查是否包含中文字符
+                var chineseCharBonus = 0
+                if (charset.name().contains("GB", ignoreCase = true) || charset.name() == "Big5") {
+                    val chineseCharCount = decoded.count { char ->
+                        val codePoint = char.code
+                        // 基本中文字符范围：\u4e00-\u9fff (CJK统一汉字)
+                        // 扩展A区：\u3400-\u4dbf (CJK扩展A)
+                        // 扩展B区：\u20000-\u2a6df (CJK扩展B，需要检查码点值)
+                        (codePoint in 0x4E00..0x9FFF) || 
+                        (codePoint in 0x3400..0x4DBF) || 
+                        (codePoint in 0x20000..0x2A6DF)
+                    }
+                    if (chineseCharCount > 0) {
+                        // 如果包含中文字符，给予加分
+                        chineseCharBonus = (chineseCharCount * 10 / totalChars).coerceAtMost(200)
+                    }
+                }
+                
+                // 如果替换字符超过5%，认为编码不匹配
+                if (replacementRatio < 0.05f) {
+                    val baseScore = (1000 * (1 - replacementRatio)).toInt()
+                    val finalScore = baseScore + chineseCharBonus
+                    charsetScores[charset] = finalScore
+                    Log.d(TAG, "编码 ${charset.name()} 得分: $finalScore (替换字符比例: ${(replacementRatio * 100).toInt()}%, 中文加分: $chineseCharBonus)")
                 } else {
                     Log.d(TAG, "编码 ${charset.name()} 替换字符过多: ${(replacementRatio * 100).toInt()}%，跳过")
                 }
@@ -3641,11 +3688,15 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             }
         }
         
-        // 如果所有编码都失败，尝试UTF-8（最通用）
+        // 4. 如果所有编码都失败，尝试UTF-8（最通用）
         Log.w(TAG, "无法检测编码，尝试UTF-8")
         try {
             val decoded = String(sample, StandardCharsets.UTF_8)
-            val replacementRatio = decoded.count { it == '\uFFFD' }.toFloat() / decoded.length
+            val replacementRatio = if (decoded.isNotEmpty()) {
+                decoded.count { it == '\uFFFD' }.toFloat() / decoded.length
+            } else {
+                1f
+            }
             if (replacementRatio < 0.1f) { // UTF-8允许10%的替换字符（可能是特殊字符）
                 Log.d(TAG, "使用UTF-8编码")
                 return StandardCharsets.UTF_8
@@ -3654,7 +3705,7 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             Log.w(TAG, "UTF-8解码失败", e)
         }
         
-        // 最后尝试GBK（中文文件最常用）
+        // 5. 最后尝试GBK（中文文件最常用）
         Log.w(TAG, "所有编码检测失败，默认使用GBK")
         return try {
             Charset.forName("GBK")
@@ -3662,6 +3713,84 @@ private fun addHighlight(text: String, startOffset: Int, endOffset: Int, color: 
             Log.e(TAG, "GBK编码不可用，使用UTF-8", e)
             StandardCharsets.UTF_8
         }
+    }
+    
+    /**
+     * 检查字节序列是否符合UTF-8编码规则
+     * UTF-8编码规则：
+     * - 单字节字符：0xxxxxxx (0x00-0x7F)
+     * - 两字节字符：110xxxxx 10xxxxxx
+     * - 三字节字符：1110xxxx 10xxxxxx 10xxxxxx
+     * - 四字节字符：11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+     */
+    private fun isValidUTF8(bytes: ByteArray): Boolean {
+        var i = 0
+        while (i < bytes.size) {
+            val byte = bytes[i].toInt() and 0xFF
+            when {
+                // ASCII字符 (0x00-0x7F)
+                byte <= 0x7F -> {
+                    i++
+                }
+                // 两字节字符 (110xxxxx 10xxxxxx)
+                byte in 0xC2..0xDF -> {
+                    if (i + 1 >= bytes.size) return false
+                    val nextByte = bytes[i + 1].toInt() and 0xFF
+                    if (nextByte !in 0x80..0xBF) return false
+                    i += 2
+                }
+                // 三字节字符 (1110xxxx 10xxxxxx 10xxxxxx)
+                byte == 0xE0 -> {
+                    if (i + 2 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    if (nextByte1 !in 0xA0..0xBF || nextByte2 !in 0x80..0xBF) return false
+                    i += 3
+                }
+                (byte in 0xE1..0xEC || byte in 0xEE..0xEF) -> {
+                    if (i + 2 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    if (nextByte1 !in 0x80..0xBF || nextByte2 !in 0x80..0xBF) return false
+                    i += 3
+                }
+                byte == 0xED -> {
+                    if (i + 2 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    if (nextByte1 !in 0x80..0x9F || nextByte2 !in 0x80..0xBF) return false
+                    i += 3
+                }
+                // 四字节字符 (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
+                byte == 0xF0 -> {
+                    if (i + 3 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    val nextByte3 = bytes[i + 3].toInt() and 0xFF
+                    if (nextByte1 !in 0x90..0xBF || nextByte2 !in 0x80..0xBF || nextByte3 !in 0x80..0xBF) return false
+                    i += 4
+                }
+                byte in 0xF1..0xF3 -> {
+                    if (i + 3 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    val nextByte3 = bytes[i + 3].toInt() and 0xFF
+                    if (nextByte1 !in 0x80..0xBF || nextByte2 !in 0x80..0xBF || nextByte3 !in 0x80..0xBF) return false
+                    i += 4
+                }
+                byte == 0xF4 -> {
+                    if (i + 3 >= bytes.size) return false
+                    val nextByte1 = bytes[i + 1].toInt() and 0xFF
+                    val nextByte2 = bytes[i + 2].toInt() and 0xFF
+                    val nextByte3 = bytes[i + 3].toInt() and 0xFF
+                    if (nextByte1 !in 0x80..0x8F || nextByte2 !in 0x80..0xBF || nextByte3 !in 0x80..0xBF) return false
+                    i += 4
+                }
+                // 无效的UTF-8字节
+                else -> return false
+            }
+        }
+        return true
     }
     
     /**

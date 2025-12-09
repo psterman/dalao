@@ -948,7 +948,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var isVoiceRecognitionPaused = false  // 语音识别暂停状态
-    private var recognizedText = ""
+    private var recognizedText = ""  // 已确认的最终文本
+    private var currentPartialText = ""  // 当前部分识别结果（临时显示）
+    private var lastRecognizedText = ""  // 上一次识别的文本，用于去重
     private lateinit var voiceInputManager: VoiceInputManager
     private var voiceSupportInfo: VoiceInputManager.VoiceSupportInfo? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -3474,6 +3476,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "重新初始化VoiceInputManager")
         }
 
+        // 优先检查Vosk模型是否已下载（无论是否启用设置，只要已下载就允许使用）
+        val voskManager = VoskManager(this)
+        val downloadedTypes = voskManager.getDownloadedModelTypes()
+        
+        if (downloadedTypes.isNotEmpty()) {
+            // Vosk模型已下载，直接使用Vosk，不显示弹窗
+            Log.d(TAG, "检测到Vosk模型已下载，使用Vosk离线语音识别")
+            // 后续会在startAutoRecording()中自动启动Vosk识别
+        } else {
+            // Vosk模型未下载，检查系统语音识别支持情况
+            val hasSystemSpeechRecognizer = android.speech.SpeechRecognizer.isRecognitionAvailable(this)
+            
+            if (!hasSystemSpeechRecognizer) {
+                // 如果设备不支持系统语音识别且Vosk模型未下载，显示下载提示
+                Log.d(TAG, "设备不支持系统语音识别且Vosk模型未下载，显示下载提示")
+                showVoskModelDownloadPrompt()
+                // 不继续执行后续逻辑，等待用户下载模型
+                updateTabColors()
+                return
+            } else {
+                Log.d(TAG, "系统语音识别可用，使用系统语音识别")
+            }
+        }
+
         // 默认显示三段式胶囊布局
         showVoiceCapsuleLayout()
         
@@ -3496,6 +3522,50 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         updateTabColors()
+    }
+
+    /**
+     * 显示Vosk模型下载提示对话框
+     * 当设备不支持系统语音识别且Vosk模型未下载时调用
+     */
+    private fun showVoskModelDownloadPrompt() {
+        val voskManager = VoskManager(this)
+        val smallModelSize = voskManager.getModelSize(VoskManager.ModelType.SMALL)
+        val fullModelSize = voskManager.getModelSize(VoskManager.ModelType.FULL)
+        
+        createThemedDialogBuilder()
+            .setTitle("下载语音识别模型")
+            .setMessage("您的设备不支持系统语音转文本功能。\n\n" +
+                    "您可以下载Vosk离线语音识别模型来实现语音功能：\n\n" +
+                    "• Vosk小模型：约${smallModelSize}MB，识别精度中等\n" +
+                    "• Vosk完整模型：约${fullModelSize}MB，识别精度更高\n\n" +
+                    "建议先下载小模型体验。")
+            .setPositiveButton("下载小模型") { _, _ ->
+                Log.d(TAG, "用户选择下载Vosk小模型")
+                startVoskModelDownloadWithBottomSheet(VoskManager.ModelType.SMALL)
+            }
+            .setNeutralButton("下载完整模型") { _, _ ->
+                Log.d(TAG, "用户选择下载Vosk完整模型")
+                startVoskModelDownloadWithBottomSheet(VoskManager.ModelType.FULL)
+            }
+            .setNegativeButton("稍后再说") { _, _ ->
+                Log.d(TAG, "用户选择稍后下载模型，继续使用文本输入")
+                // 允许用户继续使用文本输入功能
+                voiceStatusText?.text = "请在下方输入文本，然后点击搜索"
+                voiceTextInput?.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+            }
+            .setCancelable(true)
+            .setOnCancelListener {
+                Log.d(TAG, "用户取消下载提示对话框")
+                // 允许用户继续使用文本输入功能
+                voiceStatusText?.text = "请在下方输入文本，然后点击搜索"
+                voiceTextInput?.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+            }
+            .show()
     }
 
     private fun showAppSearch() {
@@ -6498,35 +6568,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 更新语音tab的可见性
+     * 注意：现在始终显示语音tab，即使设备不支持系统语音识别
+     * 如果设备不支持系统语音识别，会在进入语音页面时提示用户下载Vosk模型
      */
     private fun updateVoiceTabVisibility() {
         try {
-            // 检测语音支持情况
-            val supportInfo = voiceInputManager.detectVoiceSupport()
+            // 始终显示语音tab，不再根据系统语音支持情况隐藏
             val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
-
-            if (supportInfo.isSupported) {
-                // 支持语音输入，显示语音tab
-                voiceTab?.visibility = View.VISIBLE
-                Log.d(TAG, "设备支持语音输入，显示语音tab")
-            } else {
-                // 不支持语音输入，隐藏语音tab
-                voiceTab?.visibility = View.GONE
-                Log.d(TAG, "设备不支持语音输入，隐藏语音tab")
-
-                // 如果当前正在语音页面，切换到AI助手中心页面
-                if (currentState == UIState.VOICE) {
-                    showAIAssistantCenter()
-                }
-            }
+            voiceTab?.visibility = View.VISIBLE
+            Log.d(TAG, "语音tab始终显示，允许用户通过Vosk模型使用语音功能")
 
             // 更新tab的权重分配
             updateTabWeights()
 
         } catch (e: Exception) {
             Log.e(TAG, "更新语音tab可见性失败", e)
-            // 出错时默认隐藏语音tab
-            findViewById<LinearLayout>(R.id.tab_voice)?.visibility = View.GONE
+            // 出错时也显示语音tab
+            findViewById<LinearLayout>(R.id.tab_voice)?.visibility = View.VISIBLE
         }
     }
 
@@ -7327,6 +7385,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun resetVoiceUI() {
         voiceTextInput.setText("")
         recognizedText = ""
+        currentPartialText = ""
+        lastRecognizedText = ""
         isListening = false
         voiceSearchButton.isEnabled = false
 
@@ -7467,12 +7527,62 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 val jsonObject = org.json.JSONObject(text)
                                 val partialText = jsonObject.optString("partial", "").trim()
                                 if (partialText.isNotEmpty()) {
-                                    // 部分结果直接显示，不累加到recognizedText
-                                    val displayText = if (recognizedText.isEmpty()) partialText else "$recognizedText $partialText"
-                                    voiceTextInput.setText(displayText)
-                                    voiceTextInput.setSelection(displayText.length)
+                                    // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
+                                    if (isSuspiciousCode(partialText)) {
+                                        Log.w(TAG, "⚠️ Vosk检测到可疑代码片段，忽略部分结果: '$partialText'")
+                                        return@post
+                                    }
+                                    
+                                    // 检查部分结果是否与当前显示文本相同（避免重复更新）
+                                    val currentDisplayText = if (isVoiceCapsuleMode) {
+                                        voiceCapsuleTextInput?.text?.toString()?.trim() ?: ""
+                                    } else {
+                                        voiceTextInput.text.toString().trim()
+                                    }
+                                    
+                                    // 如果部分结果与当前显示文本相同或已包含，跳过更新
+                                    if (currentDisplayText.contains(partialText) && partialText.length < currentDisplayText.length * 0.9) {
+                                        Log.d(TAG, "Vosk部分结果已包含在当前文本中，跳过: '$partialText'")
+                                        return@post
+                                    }
+                                    
+                                    // 部分结果只是临时显示，不累加到recognizedText
+                                    // 智能合并：已确认文本 + 当前部分结果
+                                    val displayText = if (recognizedText.isEmpty()) {
+                                        // 没有已确认文本，直接显示部分结果
+                                        partialText
+                                    } else {
+                                        // 有已确认文本，检查部分结果是否以已确认文本开头
+                                        if (partialText.startsWith(recognizedText)) {
+                                            // 部分结果包含已确认文本，使用部分结果（更完整）
+                                            partialText
+                                        } else if (recognizedText.contains(partialText)) {
+                                            // 部分结果已包含在已确认文本中，只显示已确认文本
+                                            recognizedText
+                                        } else {
+                                            // 不同内容，临时显示合并文本（但不会真正追加到recognizedText）
+                                            "$recognizedText $partialText"
+                                        }
+                                    }
+                                    
+                                    // 根据当前模式选择输入框
+                                    if (isVoiceCapsuleMode) {
+                                        // 胶囊模式：使用胶囊输入框
+                                        voiceCapsuleTextInput?.let { input ->
+                                            input.setText(displayText)
+                                            input.setSelection(displayText.length)
+                                            input.post { input.requestLayout() }
+                                        }
+                                        // 同步到原始输入框
+                                        voiceTextInput.setText(displayText)
+                                        voiceTextInput.setSelection(displayText.length)
+                                    } else {
+                                        // 原始模式：使用原始输入框
+                                        voiceTextInput.setText(displayText)
+                                        voiceTextInput.setSelection(displayText.length)
+                                    }
                                     updateSaveButtonVisibility()
-                                    Log.d(TAG, "Vosk部分结果: $partialText")
+                                    Log.d(TAG, "Vosk部分结果: '$partialText' → 显示: '$displayText'")
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "解析Vosk部分结果失败: $text", e)
@@ -7489,17 +7599,139 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 val jsonObject = org.json.JSONObject(text)
                                 val finalText = jsonObject.optString("text", "").trim()
                                 if (finalText.isNotEmpty()) {
-                                    // 最终结果累加到recognizedText
-                                    recognizedText = if (recognizedText.isEmpty()) finalText else "$recognizedText $finalText"
-                                    voiceTextInput.setText(recognizedText)
-                                    voiceTextInput.setSelection(recognizedText.length)
+                                    // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
+                                    if (isSuspiciousCode(finalText)) {
+                                        Log.w(TAG, "⚠️ Vosk检测到可疑代码片段，忽略最终结果: '$finalText'")
+                                        return@post
+                                    }
+                                    
+                                    // 检查是否是完全重复的内容（与上一次识别结果完全相同）
+                                    if (finalText == lastRecognizedText) {
+                                        Log.d(TAG, "⚠️ Vosk检测到完全重复的识别结果，忽略: '$finalText'")
+                                        return@post
+                                    }
+                                    
+                                    // 检查最终结果是否与当前部分结果相同或相似（避免部分结果和最终结果重复）
+                                    if (currentPartialText.isNotEmpty()) {
+                                        val partialSimilarity = calculateTextSimilarity(currentPartialText.trim(), finalText)
+                                        Log.d(TAG, "检查Vosk部分结果与最终结果相似度: partial='$currentPartialText', final='$finalText', similarity=$partialSimilarity")
+                                        
+                                        if (partialSimilarity > 0.9f) {
+                                            // 部分结果与最终结果高度相似（>90%），说明是同一段话的识别
+                                            // 只使用最终结果，清除部分结果，避免重复
+                                            Log.d(TAG, "⚠️ Vosk最终结果与部分结果高度相似（${(partialSimilarity * 100).toInt()}%），使用最终结果，清除部分结果")
+                                            currentPartialText = ""
+                                        } else if (finalText.contains(currentPartialText.trim()) || 
+                                                   currentPartialText.trim().contains(finalText)) {
+                                            // 包含关系，使用更完整的文本
+                                            Log.d(TAG, "Vosk最终结果与部分结果有包含关系，使用更完整的文本")
+                                            currentPartialText = ""
+                                        } else {
+                                            // 不同内容，清除部分结果，使用最终结果
+                                            Log.d(TAG, "Vosk最终结果与部分结果不同，清除部分结果")
+                                            currentPartialText = ""
+                                        }
+                                    }
+                                    
+                                    // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
+                                    val currentDisplayText = if (isVoiceCapsuleMode) {
+                                        voiceCapsuleTextInput?.text?.toString()?.trim() ?: ""
+                                    } else {
+                                        voiceTextInput.text.toString().trim()
+                                    }
+                                    
+                                    if (currentDisplayText.isNotEmpty()) {
+                                        // 检查最终结果是否与当前显示文本相同或高度相似
+                                        val displaySimilarity = calculateTextSimilarity(currentDisplayText, finalText)
+                                        if (displaySimilarity > 0.95f) {
+                                            Log.d(TAG, "⚠️ Vosk最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$finalText'")
+                                            // 高度相似，可能是重复，不更新
+                                            return@post
+                                        }
+                                        // 检查最终结果是否已经包含在当前显示文本中
+                                        if (currentDisplayText.contains(finalText) && finalText.length < currentDisplayText.length * 0.8) {
+                                            Log.d(TAG, "⚠️ Vosk最终结果已包含在当前显示文本中，忽略: '$finalText'")
+                                            // 已包含且不是更完整的版本，不更新
+                                            return@post
+                                        }
+                                    }
+                                    
+                                    // 智能合并最终结果，避免重复累积
+                                    val mergedText = if (recognizedText.isEmpty()) {
+                                        // 没有已确认文本，直接使用最终结果
+                                        finalText
+                                    } else {
+                                        // 先检查包含关系（快速判断）
+                                        val isNewContainsOld = finalText.contains(recognizedText)
+                                        val isOldContainsNew = recognizedText.contains(finalText)
+                                        
+                                        if (isNewContainsOld && !isOldContainsNew) {
+                                            // 新文本包含旧文本，使用新文本（更完整，避免重复）
+                                            Log.d(TAG, "Vosk新文本包含旧文本，使用新文本: '$finalText'")
+                                            finalText
+                                        } else if (isOldContainsNew && !isNewContainsOld) {
+                                            // 旧文本包含新文本，保持旧文本（更完整）
+                                            Log.d(TAG, "Vosk旧文本包含新文本，保持旧文本: '$recognizedText'")
+                                            recognizedText
+                                        } else {
+                                            // 使用相似度算法判断
+                                            val similarity = calculateTextSimilarity(recognizedText, finalText)
+                                            Log.d(TAG, "Vosk文本相似度计算: recognizedText='$recognizedText', finalText='$finalText', similarity=$similarity")
+                                            
+                                            if (similarity > 0.85f) {
+                                                // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
+                                                Log.d(TAG, "Vosk相似度 >85%，使用新文本作为修正: '$finalText'")
+                                                finalText
+                                            } else if (similarity > 0.5f) {
+                                                // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
+                                                val newWords = finalText.split(" ").filter { it.isNotEmpty() }
+                                                val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
+                                                val newUniqueWords = newWords.filter { !oldWords.contains(it) }
+                                                
+                                                if (newUniqueWords.isEmpty()) {
+                                                    // 没有新增内容，认为是重复，使用新文本
+                                                    Log.d(TAG, "Vosk相似度 50%-85% 且无新增内容，使用新文本: '$finalText'")
+                                                    finalText
+                                                } else {
+                                                    // 有新增内容，追加新词
+                                                    Log.d(TAG, "Vosk相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
+                                                    "$recognizedText ${newUniqueWords.joinToString(" ")}"
+                                                }
+                                            } else {
+                                                // 相似度 <50%，认为是新内容，追加
+                                                Log.d(TAG, "Vosk相似度 <50%，追加新文本: '$recognizedText' + '$finalText'")
+                                                "$recognizedText $finalText"
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 更新识别的文本
+                                    recognizedText = mergedText
+                                    lastRecognizedText = finalText  // 保存本次识别结果，用于下次去重
+                                    
+                                    // 根据当前模式选择输入框
+                                    if (isVoiceCapsuleMode) {
+                                        // 胶囊模式：使用胶囊输入框
+                                        voiceCapsuleTextInput?.let { input ->
+                                            input.setText(recognizedText)
+                                            input.setSelection(recognizedText.length)
+                                            input.post { input.requestLayout() }
+                                        }
+                                        // 同步到原始输入框
+                                        voiceTextInput.setText(recognizedText)
+                                        voiceTextInput.setSelection(recognizedText.length)
+                                    } else {
+                                        // 原始模式：使用原始输入框
+                                        voiceTextInput.setText(recognizedText)
+                                        voiceTextInput.setSelection(recognizedText.length)
+                                    }
                                     voiceSearchButton.isEnabled = true
                                     updateSaveButtonVisibility()
-                                    Log.d(TAG, "Vosk最终结果: $finalText")
+                                    Log.d(TAG, "Vosk最终结果: '$finalText' → 合并后: '$recognizedText'")
                                     
                                     // 自动重启识别以支持连续语音输入
                                     handler.postDelayed({
-                                        if (isListening) {
+                                        if (isListening && !isVoiceRecognitionPaused) {
                                             startVoskRecognition()
                                         }
                                     }, 250)
@@ -7549,6 +7781,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化模型（异步）
             isListening = true
             updateVoiceListeningState(true)
+            updateCapsuleRecordingState(true) // 显示动画
             voiceStatusText.text = "正在初始化Vosk模型..."
             
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
@@ -7559,6 +7792,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 } else {
                     isListening = false
                     updateVoiceListeningState(false)
+                    updateCapsuleRecordingState(false) // 隐藏动画
                     voiceStatusText.text = "Vosk模型初始化失败"
                 }
             }
@@ -7566,6 +7800,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 模型已初始化，直接开始识别
             isListening = true
             updateVoiceListeningState(true)
+            updateCapsuleRecordingState(true) // 显示动画
             voskManager?.startRecognition()
         }
     }
@@ -7578,6 +7813,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 停止Vosk识别
         voskManager?.stopRecognition()
+        
+        // 清除部分结果（停止识别时清除临时显示）
+        currentPartialText = ""
         
         updateVoiceListeningState(false)
     }
@@ -7764,8 +8002,117 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun processVoiceRecognitionResults(results: Bundle?) {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
-            val newText = matches[0]
-            recognizedText = if (recognizedText.isEmpty()) newText else "$recognizedText $newText"
+            val newText = matches[0].trim()
+            
+            // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
+            if (isSuspiciousCode(newText)) {
+                Log.w(TAG, "⚠️ 检测到可疑代码片段，忽略识别结果: '$newText'")
+                return
+            }
+            
+            // 检查是否是完全重复的内容（与上一次识别结果完全相同）
+            if (newText == lastRecognizedText) {
+                Log.d(TAG, "⚠️ 检测到完全重复的识别结果，忽略: '$newText'")
+                // 完全重复，不更新文本，直接返回
+                return
+            }
+            
+            // 检查最终结果是否与当前部分结果相同或相似（避免部分结果和最终结果重复）
+            if (currentPartialText.isNotEmpty()) {
+                val partialSimilarity = calculateTextSimilarity(currentPartialText.trim(), newText)
+                Log.d(TAG, "检查部分结果与最终结果相似度: partial='$currentPartialText', final='$newText', similarity=$partialSimilarity")
+                
+                if (partialSimilarity > 0.9f) {
+                    // 部分结果与最终结果高度相似（>90%），说明是同一段话的识别
+                    // 只使用最终结果，清除部分结果，避免重复
+                    Log.d(TAG, "⚠️ 最终结果与部分结果高度相似（${(partialSimilarity * 100).toInt()}%），使用最终结果，清除部分结果")
+                    currentPartialText = ""
+                    // 继续处理最终结果
+                } else if (newText.contains(currentPartialText.trim()) || 
+                           currentPartialText.trim().contains(newText)) {
+                    // 包含关系，使用更完整的文本
+                    Log.d(TAG, "最终结果与部分结果有包含关系，使用更完整的文本")
+                    currentPartialText = ""
+                } else {
+                    // 不同内容，清除部分结果，使用最终结果
+                    Log.d(TAG, "最终结果与部分结果不同，清除部分结果")
+                    currentPartialText = ""
+                }
+            } else {
+                // 没有部分结果，直接清除
+                currentPartialText = ""
+            }
+            
+            // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
+            val currentDisplayText = voiceTextInput.text.toString().trim()
+            if (currentDisplayText.isNotEmpty()) {
+                // 检查最终结果是否与当前显示文本相同或高度相似
+                val displaySimilarity = calculateTextSimilarity(currentDisplayText, newText)
+                if (displaySimilarity > 0.95f) {
+                    Log.d(TAG, "⚠️ 最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$newText'")
+                    // 高度相似，可能是重复，不更新
+                    return
+                }
+                // 检查最终结果是否已经包含在当前显示文本中
+                if (currentDisplayText.contains(newText) && newText.length < currentDisplayText.length * 0.8) {
+                    Log.d(TAG, "⚠️ 最终结果已包含在当前显示文本中，忽略: '$newText'")
+                    // 已包含且不是更完整的版本，不更新
+                    return
+                }
+            }
+            
+            // 智能合并最终结果，避免重复累积
+            val mergedText = if (recognizedText.isEmpty()) {
+                // 没有已确认文本，直接使用最终结果
+                newText
+            } else {
+                // 先检查包含关系（快速判断）
+                val isNewContainsOld = newText.contains(recognizedText)
+                val isOldContainsNew = recognizedText.contains(newText)
+                
+                if (isNewContainsOld && !isOldContainsNew) {
+                    // 新文本包含旧文本，使用新文本（更完整，避免重复）
+                    Log.d(TAG, "新文本包含旧文本，使用新文本: '$newText'")
+                    newText
+                } else if (isOldContainsNew && !isNewContainsOld) {
+                    // 旧文本包含新文本，保持旧文本（更完整）
+                    Log.d(TAG, "旧文本包含新文本，保持旧文本: '$recognizedText'")
+                    recognizedText
+                } else {
+                    // 使用相似度算法判断
+                    val similarity = calculateTextSimilarity(recognizedText, newText)
+                    Log.d(TAG, "文本相似度计算: recognizedText='$recognizedText', newText='$newText', similarity=$similarity")
+                    
+                    if (similarity > 0.85f) {
+                        // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
+                        Log.d(TAG, "相似度 >85%，使用新文本作为修正: '$newText'")
+                        newText
+                    } else if (similarity > 0.5f) {
+                        // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
+                        val newWords = newText.split(" ").filter { it.isNotEmpty() }
+                        val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
+                        val newUniqueWords = newWords.filter { !oldWords.contains(it) }
+                        
+                        if (newUniqueWords.isEmpty()) {
+                            // 没有新增内容，认为是重复，使用新文本
+                            Log.d(TAG, "相似度 50%-85% 且无新增内容，使用新文本: '$newText'")
+                            newText
+                        } else {
+                            // 有新增内容，追加新词
+                            Log.d(TAG, "相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
+                            "$recognizedText ${newUniqueWords.joinToString(" ")}"
+                        }
+                    } else {
+                        // 相似度 <50%，认为是新内容，追加
+                        Log.d(TAG, "相似度 <50%，追加新文本: '$recognizedText' + '$newText'")
+                        "$recognizedText $newText"
+                    }
+                }
+            }
+            
+            // 更新识别的文本
+            recognizedText = mergedText
+            lastRecognizedText = newText  // 保存本次识别结果，用于下次去重
 
             voiceTextInput.setText(recognizedText)
             voiceTextInput.setSelection(recognizedText.length)
@@ -7776,7 +8123,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 自动重启识别以支持连续语音输入
             handler.postDelayed({
-                if (isListening) {
+                if (isListening && !isVoiceRecognitionPaused) {
                     startVoiceRecognition()
                 }
             }, 250)
@@ -7786,13 +8133,184 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun processVoicePartialResults(partialResults: Bundle?) {
         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
-            val partialText = matches[0]
-            val displayText = if (recognizedText.isEmpty()) partialText else "$recognizedText $partialText"
+            val partialText = matches[0].trim()
+            
+            // 检查部分结果是否有更新（避免重复更新相同内容）
+            if (partialText == currentPartialText) {
+                // 部分结果未变化，不更新
+                return
+            }
+            
+            // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
+            if (isSuspiciousCode(partialText)) {
+                Log.w(TAG, "⚠️ 检测到可疑代码片段，忽略部分结果: '$partialText'")
+                return
+            }
+            
+            // 更新当前部分识别结果
+            currentPartialText = partialText
+            
+            // 智能合并：已确认的文本 + 当前部分识别结果
+            // 注意：部分结果只是临时显示，不会真正追加到 recognizedText 中
+            val displayText = if (recognizedText.isEmpty()) {
+                // 没有已确认文本，直接显示部分结果
+                partialText
+            } else {
+                // 有已确认文本，需要智能合并
+                if (partialText.startsWith(recognizedText)) {
+                    // 部分结果以已确认文本开头，直接使用部分结果（更完整）
+                    // 例如：recognizedText="你好"，partialText="你好世界"，显示"你好世界"
+                    partialText
+                } else if (recognizedText.contains(partialText)) {
+                    // 部分结果已包含在已确认文本中，只显示已确认文本
+                    // 例如：recognizedText="你好世界"，partialText="你好"，只显示"你好世界"
+                    recognizedText
+                } else {
+                    // 部分结果与已确认文本不同，检查是否是新增内容
+                    // 使用相似度判断，避免重复
+                    val similarity = calculateTextSimilarity(recognizedText, partialText)
+                    if (similarity > 0.8f) {
+                        // 高度相似，可能是同一段话的不同识别，只显示部分结果（更完整）
+                        Log.d(TAG, "部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），使用部分结果: '$partialText'")
+                        partialText
+                    } else {
+                        // 不同内容，追加显示（但不会真正追加到 recognizedText）
+                        // 例如：recognizedText="你好"，partialText="世界"，显示"你好 世界"（临时）
+                        "$recognizedText $partialText"
+                    }
+                }
+            }
+            
             voiceTextInput.setText(displayText)
             voiceTextInput.setSelection(displayText.length)
             // 更新保存按钮可见性
             updateSaveButtonVisibility()
+            
+            Log.d(TAG, "↻ 部分结果更新: '$partialText' → 显示: '$displayText'")
         }
+    }
+    
+    /**
+     * 计算两个字符串的相似度（0.0-1.0）
+     * 使用编辑距离算法，相似度越高表示两个文本越相似
+     * 
+     * @param s1 第一个字符串
+     * @param s2 第二个字符串
+     * @return 相似度（0.0-1.0），1.0表示完全相同
+     */
+    private fun calculateTextSimilarity(s1: String, s2: String): Float {
+        // 简单实现：计算最长公共子序列
+        val longer = if (s1.length > s2.length) s1 else s2
+        val shorter = if (s1.length > s2.length) s2 else s1
+        
+        if (longer.isEmpty()) {
+            return 1.0f
+        }
+        
+        val editDistance = levenshteinDistance(longer, shorter)
+        val similarity = (longer.length - editDistance).toFloat() / longer.length
+        
+        Log.d(TAG, "相似度计算: s1='$s1' (${s1.length}), s2='$s2' (${s2.length}), editDistance=$editDistance, similarity=$similarity")
+        
+        return similarity.coerceIn(0.0f, 1.0f)
+    }
+    
+    /**
+     * 计算两个字符串的编辑距离（Levenshtein Distance）
+     * 编辑距离是指将一个字符串转换为另一个字符串所需的最少单字符编辑（插入、删除或替换）次数
+     * 
+     * @param s1 第一个字符串
+     * @param s2 第二个字符串
+     * @return 编辑距离
+     */
+    private fun levenshteinDistance(s1: String, s2: String): Int {
+        if (s1 == s2) return 0
+        if (s1.isEmpty()) return s2.length
+        if (s2.isEmpty()) return s1.length
+        
+        val m = s1.length
+        val n = s2.length
+        val dp = Array(m + 1) { IntArray(n + 1) }
+        
+        // 初始化第一行和第一列
+        for (i in 0..m) {
+            dp[i][0] = i
+        }
+        for (j in 0..n) {
+            dp[0][j] = j
+        }
+        
+        // 填充动态规划表
+        for (i in 1..m) {
+            for (j in 1..n) {
+                val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
+                dp[i][j] = minOf(
+                    dp[i - 1][j] + 1,      // 删除
+                    dp[i][j - 1] + 1,      // 插入
+                    dp[i - 1][j - 1] + cost // 替换
+                )
+            }
+        }
+        
+        return dp[m][n]
+    }
+    
+    /**
+     * 检查文本是否包含可疑的代码片段或无关内容
+     * 用于防止无声音时输入无关代码
+     * 
+     * @param text 要检查的文本
+     * @return 如果包含可疑内容返回true，否则返回false
+     */
+    private fun isSuspiciousCode(text: String): Boolean {
+        if (text.isEmpty()) return false
+        
+        // 检查是否包含常见的代码关键字或符号（可能是误识别）
+        val suspiciousPatterns = listOf(
+            // 代码关键字
+            "function", "class", "import", "export", "const", "let", "var",
+            "if", "else", "for", "while", "return", "void", "public", "private",
+            "static", "final", "extends", "implements", "interface", "abstract",
+            // 代码符号（连续出现）
+            "\\{\\s*\\}", "\\[\\s*\\]", "\\(\\s*\\)", "=>", "::", "->",
+            // 可疑的代码片段模式
+            "\\w+\\.\\w+\\s*\\(",  // 方法调用 pattern
+            "\\w+\\s*=\\s*\\w+",   // 赋值语句 pattern
+            // 文件路径模式
+            "/[\\w/]+", "\\\\[\\w\\\\]+", "C:\\\\", "D:\\\\",
+            // JSON/XML标签
+            "<\\w+>", "</\\w+>", "\\{[\\s\\S]*\\}",
+            // 可疑的URL或命令
+            "http://", "https://", "ftp://", "ssh://",
+            "sudo", "rm -rf", "chmod", "chown"
+        )
+        
+        val lowerText = text.lowercase()
+        
+        // 检查是否匹配可疑模式
+        for (pattern in suspiciousPatterns) {
+            if (Regex(pattern, RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+                Log.d(TAG, "检测到可疑模式: '$pattern' 在文本: '$text'")
+                return true
+            }
+        }
+        
+        // 检查是否包含过多的特殊字符（可能是代码）
+        val specialCharCount = text.count { it in "{}[]()<>;:=+-*/%&|!~`@#$^\\\"'.,?/" }
+        val specialCharRatio = if (text.isNotEmpty()) specialCharCount.toFloat() / text.length else 0f
+        if (specialCharRatio > 0.3f && text.length > 10) {
+            // 特殊字符比例超过30%且文本长度大于10，可能是代码
+            Log.d(TAG, "检测到特殊字符比例过高: ${(specialCharRatio * 100).toInt()}% 在文本: '$text'")
+            return true
+        }
+        
+        // 检查是否包含连续的大写字母（可能是常量或类名）
+        if (Regex("[A-Z]{4,}").containsMatchIn(text) && text.length > 15) {
+            Log.d(TAG, "检测到连续大写字母（可能是代码）: '$text'")
+            return true
+        }
+        
+        return false
     }
 
     private fun handleVoiceRecognitionError(error: Int) {
@@ -7836,6 +8354,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun clearVoiceText() {
         voiceTextInput.setText("")
         recognizedText = ""
+        currentPartialText = ""
+        lastRecognizedText = ""
         voiceSearchButton.isEnabled = false
     }
 
@@ -33804,6 +34324,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
                 return
             }
+            
+            // 优先检查Vosk模型是否已下载（无论是否启用设置，只要已下载就使用）
+            val voskManager = VoskManager(this)
+            val downloadedTypes = voskManager.getDownloadedModelTypes()
+            
+            if (downloadedTypes.isNotEmpty()) {
+                // Vosk模型已下载，直接使用Vosk进行录音（不检查是否启用设置）
+                Log.d(TAG, "检测到Vosk模型已下载，使用Vosk进行录音")
+                startVoskRecognition()
+                return
+            } else {
+                Log.d(TAG, "Vosk模型未下载，尝试其他语音识别方案")
+            }
+            
+            // 检查系统SpeechRecognizer是否可用
+            val hasSystemSpeechRecognizer = android.speech.SpeechRecognizer.isRecognitionAvailable(this)
+            if (hasSystemSpeechRecognizer) {
+                // 系统SpeechRecognizer可用，使用系统语音识别
+                Log.d(TAG, "检测到系统SpeechRecognizer可用，使用系统语音识别")
+                startSystemVoiceRecognition()
+                return
+            }
+            
+            // 如果Vosk和系统SpeechRecognizer都不可用，再使用VoiceInputManager（可能会显示输入法提示）
+            Log.d(TAG, "Vosk和系统SpeechRecognizer都不可用，尝试其他方案")
             
             // 检查语音输入管理器是否已初始化
             if (!::voiceInputManager.isInitialized) {
