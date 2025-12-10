@@ -7653,12 +7653,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             voskManager?.setCallback(object : VoskManager.VoskCallback {
                 override fun onPartialResult(text: String) {
                     handler.post {
+                        // 如果已暂停，立即停止处理
+                        if (isVoiceRecognitionPaused) {
+                            Log.d(TAG, "语音识别已暂停，忽略Vosk部分结果")
+                            return@post
+                        }
+                        
                         // 处理部分识别结果
                         if (text.isNotEmpty() && text != "{\"partial\" : \"\"}") {
                             try {
                                 val jsonObject = org.json.JSONObject(text)
                                 val partialText = jsonObject.optString("partial", "").trim()
                                 if (partialText.isNotEmpty()) {
+                                    // 再次检查暂停状态
+                                    if (isVoiceRecognitionPaused) {
+                                        Log.d(TAG, "在Vosk部分结果处理过程中检测到暂停，停止处理")
+                                        return@post
+                                    }
+                                    
                                     // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
                                     if (isSuspiciousCode(partialText)) {
                                         Log.w(TAG, "⚠️ Vosk检测到可疑代码片段，忽略部分结果: '$partialText'")
@@ -7737,12 +7749,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 override fun onFinalResult(text: String) {
                     handler.post {
+                        // 如果已暂停，立即停止处理
+                        if (isVoiceRecognitionPaused) {
+                            Log.d(TAG, "语音识别已暂停，忽略Vosk最终结果")
+                            return@post
+                        }
+                        
                         // 处理最终识别结果
                         if (text.isNotEmpty() && text != "{\"text\" : \"\"}") {
                             try {
                                 val jsonObject = org.json.JSONObject(text)
                                 val finalText = jsonObject.optString("text", "").trim()
                                 if (finalText.isNotEmpty()) {
+                                    // 再次检查暂停状态
+                                    if (isVoiceRecognitionPaused) {
+                                        Log.d(TAG, "在Vosk最终结果处理过程中检测到暂停，停止处理")
+                                        return@post
+                                    }
+                                    
                                     // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
                                     if (isSuspiciousCode(finalText)) {
                                         Log.w(TAG, "⚠️ Vosk检测到可疑代码片段，忽略最终结果: '$finalText'")
@@ -7789,6 +7813,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                         }
                                     }
                                     
+                                    // 再次检查暂停状态，确保在更新过程中没有被暂停
+                                    if (isVoiceRecognitionPaused) {
+                                        Log.d(TAG, "在Vosk文本更新过程中检测到暂停，停止文本转换处理")
+                                        return@post
+                                    }
+                                    
                                     // 更新识别的文本
                                     recognizedText = mergedText
                                     lastRecognizedText = finalText  // 保存本次识别结果，用于下次去重
@@ -7815,12 +7845,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     updateSaveButtonVisibility()
                                     Log.d(TAG, "Vosk最终结果: '$finalText' → 合并后: '$recognizedText'")
                                     
-                                    // 自动重启识别以支持连续语音输入
-                                    handler.postDelayed({
-                                        if (isListening && !isVoiceRecognitionPaused) {
-                                            startVoskRecognition()
+                                    // 只有在未暂停时才触发自动搜索和继续识别
+                                    if (!isVoiceRecognitionPaused) {
+                                        // 触发自动搜索（如果有文本）
+                                        if (mergedText.isNotBlank()) {
+                                            triggerVoiceCapsuleAutoSearch(mergedText)
                                         }
-                                    }, 250)
+                                        
+                                        // 自动重启识别以支持连续语音输入
+                                        handler.postDelayed({
+                                            if (isListening && !isVoiceRecognitionPaused) {
+                                                startVoskRecognition()
+                                            }
+                                        }, 250)
+                                    }
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "解析Vosk最终结果失败: $text", e)
@@ -8050,6 +8088,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             pauseButton?.text = "继续"
             pauseButton?.setIconResource(R.drawable.ic_play)
             
+            Log.d(TAG, "暂停语音识别，立即停止录制和文本转换")
+            
+            // 立即取消所有待执行的自动搜索任务
+            voiceCapsuleSearchHandler?.removeCallbacksAndMessages(null)
+            Log.d(TAG, "已取消所有待执行的自动搜索任务")
+            
             // 暂停计时器
             if (hasTextConverted) {
                 totalPausedTime += System.currentTimeMillis() - textConversionStartTime
@@ -8119,9 +8163,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun processVoiceRecognitionResults(results: Bundle?) {
+        // 如果已暂停，立即停止处理
+        if (isVoiceRecognitionPaused) {
+            Log.d(TAG, "语音识别已暂停，忽略识别结果")
+            return
+        }
+        
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
             val newText = matches[0].trim()
+            
+            // 再次检查暂停状态
+            if (isVoiceRecognitionPaused) {
+                Log.d(TAG, "在结果处理过程中检测到暂停，停止处理")
+                return
+            }
             
             // 检查是否包含可疑的代码片段或无关内容（防止无声音时输入无关代码）
             if (isSuspiciousCode(newText)) {
@@ -8170,6 +8226,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
             
+            // 再次检查暂停状态，确保在更新过程中没有被暂停
+            if (isVoiceRecognitionPaused) {
+                Log.d(TAG, "在文本更新过程中检测到暂停，停止文本转换处理")
+                return
+            }
+            
             // 更新识别的文本
             recognizedText = mergedText
             lastRecognizedText = newText  // 保存本次识别结果，用于下次去重
@@ -8181,19 +8243,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新保存按钮可见性
             updateSaveButtonVisibility()
 
-            // 自动重启识别以支持连续语音输入
-            handler.postDelayed({
-                if (isListening && !isVoiceRecognitionPaused) {
-                    startVoiceRecognition()
+            // 只有在未暂停时才触发自动搜索和继续识别
+            if (!isVoiceRecognitionPaused) {
+                // 触发自动搜索（如果有文本）
+                if (mergedText.isNotBlank()) {
+                    triggerVoiceCapsuleAutoSearch(mergedText)
                 }
-            }, 250)
+                
+                // 自动重启识别以支持连续语音输入
+                handler.postDelayed({
+                    if (isListening && !isVoiceRecognitionPaused) {
+                        startVoiceRecognition()
+                    }
+                }, 250)
+            }
         }
     }
 
     private fun processVoicePartialResults(partialResults: Bundle?) {
+        // 如果已暂停，立即停止处理
+        if (isVoiceRecognitionPaused) {
+            Log.d(TAG, "语音识别已暂停，忽略部分结果")
+            return
+        }
+        
         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
             val partialText = matches[0].trim()
+            
+            // 再次检查暂停状态
+            if (isVoiceRecognitionPaused) {
+                Log.d(TAG, "在部分结果处理过程中检测到暂停，停止处理")
+                return
+            }
             
             // 检查部分结果是否有更新（避免重复更新相同内容）
             if (partialText == currentPartialText) {
@@ -34525,6 +34607,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     override fun onVoiceInputResult(text: String) {
                         runOnUiThread {
                             try {
+                                // 如果已暂停，立即停止处理，不进行文本转换和自动搜索
+                                if (isVoiceRecognitionPaused) {
+                                    Log.d(TAG, "语音识别已暂停，忽略识别结果: $text")
+                                    return@runOnUiThread
+                                }
+                                
                                 // 流式显示：将识别结果添加到现有文本中
                                 val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
                                 val newText = if (currentText.isEmpty()) text else "$currentText $text"
@@ -34546,6 +34634,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 移除状态文本提示，专注于显示识别结果
                                 voiceSearchButton.isEnabled = true
                                 
+                                // 再次检查暂停状态，确保在更新过程中没有被暂停
+                                if (isVoiceRecognitionPaused) {
+                                    Log.d(TAG, "在文本更新过程中检测到暂停，停止文本转换处理")
+                                    return@runOnUiThread
+                                }
+                                
                                 // 如果有文本转化，切换到文本转化计时器
                                 if (text.isNotBlank()) {
                                     // 如果是第一次有文本转化，标记并启动计时器
@@ -34557,7 +34651,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                         startTextConversionTimer()
                                     } else {
                                         // 继续使用文本转化计时器
-                                        if (!isTextConversionPaused) {
+                                        if (!isTextConversionPaused && !isVoiceRecognitionPaused) {
                                             startTextConversionTimer()
                                         }
                                     }
@@ -34567,8 +34661,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                         visibility = View.VISIBLE
                                     }
                                     
-                                    // 触发自动搜索（使用防抖机制，延迟1秒后搜索）
-                                    triggerVoiceCapsuleAutoSearch(newText)
+                                    // 只有在未暂停时才触发自动搜索
+                                    if (!isVoiceRecognitionPaused) {
+                                        // 触发自动搜索（使用防抖机制，延迟1秒后搜索）
+                                        triggerVoiceCapsuleAutoSearch(newText)
+                                    }
                                 }
 
                                 // 在胶囊模式下，保持录音状态，不重置isListening
@@ -34844,6 +34941,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 暂停语音识别
             isVoiceRecognitionPaused = true
             isConversionPaused = true
+            Log.d(TAG, "暂停语音识别，立即停止录制和文本转换")
+            
+            // 立即取消所有待执行的自动搜索任务
+            voiceCapsuleSearchHandler?.removeCallbacksAndMessages(null)
+            Log.d(TAG, "已取消所有待执行的自动搜索任务")
+            
             // 暂停计时器 - 根据当前使用的计时器来暂停
             if (hasTextConverted) {
                 // 有文本转化，暂停文本转化计时器
@@ -34854,7 +34957,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 pauseConversionTimer()
                 stopTextConversionTimer() // 确保文本转化计时器停止
             }
-            Log.d(TAG, "暂停语音识别")
             
             // 停止当前语音识别
             try {
@@ -34865,6 +34967,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         speechRecognizerField.isAccessible = true
                         val speechRecognizer = speechRecognizerField.get(manager) as? android.speech.SpeechRecognizer
                         speechRecognizer?.stopListening()
+                        Log.d(TAG, "已停止语音识别")
                     } catch (e: Exception) {
                         Log.d(TAG, "无法直接停止语音识别: ${e.message}")
                     }
@@ -35808,6 +35911,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 触发语音胶囊自动搜索（使用防抖机制）
      */
     private fun triggerVoiceCapsuleAutoSearch(query: String) {
+        // 如果已暂停，不触发自动搜索
+        if (isVoiceRecognitionPaused) {
+            Log.d(TAG, "语音识别已暂停，取消自动搜索: $query")
+            return
+        }
+        
         if (query.isBlank() || query == voiceCapsuleLastSearchQuery) {
             return // 避免重复搜索相同内容
         }
@@ -35822,6 +35931,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 延迟1秒后执行搜索（防抖）
         voiceCapsuleSearchHandler?.postDelayed({
+            // 执行前再次检查暂停状态
+            if (isVoiceRecognitionPaused) {
+                Log.d(TAG, "执行自动搜索前检测到暂停，取消搜索")
+                return@postDelayed
+            }
+            
             val trimmedQuery = query.trim()
             if (trimmedQuery.isNotEmpty() && trimmedQuery != voiceCapsuleLastSearchQuery) {
                 voiceCapsuleLastSearchQuery = trimmedQuery
