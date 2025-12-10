@@ -7682,22 +7682,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     currentPartialText = partialText
                                     
                                     // 部分结果只是临时显示，不累加到recognizedText
-                                    // 智能合并：已确认文本 + 当前部分结果
+                                    // 显示已确认文本 + 当前部分结果，确保用户能看到所有内容
                                     val displayText = if (recognizedText.isEmpty()) {
                                         // 没有已确认文本，直接显示部分结果
                                         partialText
                                     } else {
-                                        // 有已确认文本，检查部分结果是否以已确认文本开头
-                                        if (partialText.startsWith(recognizedText)) {
-                                            // 部分结果包含已确认文本，使用部分结果（更完整）
-                                            partialText
-                                        } else if (recognizedText.contains(partialText)) {
-                                            // 部分结果已包含在已确认文本中，只显示已确认文本
-                                            recognizedText
+                                        // 有已确认文本，直接追加显示部分结果
+                                        val trimmedRecognized = recognizedText.trim()
+                                        val separator = if (trimmedRecognized.endsWith("。") || 
+                                                            trimmedRecognized.endsWith("，") || 
+                                                            trimmedRecognized.endsWith("？") ||
+                                                            trimmedRecognized.endsWith("！") ||
+                                                            trimmedRecognized.endsWith(".") ||
+                                                            trimmedRecognized.endsWith(",") ||
+                                                            trimmedRecognized.endsWith("?") ||
+                                                            trimmedRecognized.endsWith("!")) {
+                                            "\n"
                                         } else {
-                                            // 不同内容，临时显示合并文本（但不会真正追加到recognizedText）
-                                            "$recognizedText $partialText"
+                                            " "
                                         }
+                                        "$trimmedRecognized$separator$partialText"
                                     }
                                     
                                     // 根据当前模式选择输入框
@@ -7751,97 +7755,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                         return@post
                                     }
                                     
-                                    // 检查最终结果是否与当前部分结果相同或相似（避免部分结果和最终结果重复）
+                                    // 清除部分结果，准备使用最终结果
                                     if (currentPartialText.isNotEmpty()) {
-                                        val partialSimilarity = calculateTextSimilarity(currentPartialText.trim(), finalText)
-                                        Log.d(TAG, "检查Vosk部分结果与最终结果相似度: partial='$currentPartialText', final='$finalText', similarity=$partialSimilarity")
-                                        
-                                        if (partialSimilarity > 0.9f) {
-                                            // 部分结果与最终结果高度相似（>90%），说明是同一段话的识别
-                                            // 只使用最终结果，清除部分结果，避免重复
-                                            Log.d(TAG, "⚠️ Vosk最终结果与部分结果高度相似（${(partialSimilarity * 100).toInt()}%），使用最终结果，清除部分结果")
-                                            currentPartialText = ""
-                                        } else if (finalText.contains(currentPartialText.trim()) || 
-                                                   currentPartialText.trim().contains(finalText)) {
-                                            // 包含关系，使用更完整的文本
-                                            Log.d(TAG, "Vosk最终结果与部分结果有包含关系，使用更完整的文本")
-                                            currentPartialText = ""
-                                        } else {
-                                            // 不同内容，清除部分结果，使用最终结果
-                                            Log.d(TAG, "Vosk最终结果与部分结果不同，清除部分结果")
-                                            currentPartialText = ""
-                                        }
+                                        Log.d(TAG, "Vosk收到最终结果，清除部分结果: '$currentPartialText'")
+                                        currentPartialText = ""
                                     }
                                     
-                                    // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
-                                    val currentDisplayText = if (isVoiceCapsuleMode) {
-                                        voiceCapsuleTextInput?.text?.toString()?.trim() ?: ""
-                                    } else {
-                                        voiceTextInput.text.toString().trim()
-                                    }
-                                    
-                                    if (currentDisplayText.isNotEmpty()) {
-                                        // 检查最终结果是否与当前显示文本相同或高度相似
-                                        val displaySimilarity = calculateTextSimilarity(currentDisplayText, finalText)
-                                        if (displaySimilarity > 0.95f) {
-                                            Log.d(TAG, "⚠️ Vosk最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$finalText'")
-                                            // 高度相似，可能是重复，不更新
-                                            return@post
-                                        }
-                                        // 检查最终结果是否已经包含在当前显示文本中
-                                        if (currentDisplayText.contains(finalText) && finalText.length < currentDisplayText.length * 0.8) {
-                                            Log.d(TAG, "⚠️ Vosk最终结果已包含在当前显示文本中，忽略: '$finalText'")
-                                            // 已包含且不是更完整的版本，不更新
-                                            return@post
-                                        }
-                                    }
-                                    
-                                    // 智能合并最终结果，避免重复累积
+                                    // 完整保留所有语音内容，按顺序追加
                                     val mergedText = if (recognizedText.isEmpty()) {
                                         // 没有已确认文本，直接使用最终结果
                                         finalText
                                     } else {
-                                        // 先检查包含关系（快速判断）
-                                        val isNewContainsOld = finalText.contains(recognizedText)
-                                        val isOldContainsNew = recognizedText.contains(finalText)
-                                        
-                                        if (isNewContainsOld && !isOldContainsNew) {
-                                            // 新文本包含旧文本，使用新文本（更完整，避免重复）
-                                            Log.d(TAG, "Vosk新文本包含旧文本，使用新文本: '$finalText'")
-                                            finalText
-                                        } else if (isOldContainsNew && !isNewContainsOld) {
-                                            // 旧文本包含新文本，保持旧文本（更完整）
-                                            Log.d(TAG, "Vosk旧文本包含新文本，保持旧文本: '$recognizedText'")
+                                        // 检查是否与上次识别结果完全相同（避免重复）
+                                        if (finalText == lastRecognizedText) {
+                                            Log.d(TAG, "Vosk最终结果与上次相同，忽略重复: '$finalText'")
                                             recognizedText
                                         } else {
-                                            // 使用相似度算法判断
-                                            val similarity = calculateTextSimilarity(recognizedText, finalText)
-                                            Log.d(TAG, "Vosk文本相似度计算: recognizedText='$recognizedText', finalText='$finalText', similarity=$similarity")
+                                            // 不同内容，追加到已有文本后面
+                                            // 根据已有文本末尾是否有标点决定分隔符
+                                            val trimmedRecognized = recognizedText.trim()
+                                            val endsWithPunctuation = trimmedRecognized.endsWith("。") || 
+                                                                      trimmedRecognized.endsWith("，") || 
+                                                                      trimmedRecognized.endsWith("？") ||
+                                                                      trimmedRecognized.endsWith("！") ||
+                                                                      trimmedRecognized.endsWith(".") ||
+                                                                      trimmedRecognized.endsWith(",") ||
+                                                                      trimmedRecognized.endsWith("?") ||
+                                                                      trimmedRecognized.endsWith("!")
                                             
-                                            if (similarity > 0.85f) {
-                                                // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
-                                                Log.d(TAG, "Vosk相似度 >85%，使用新文本作为修正: '$finalText'")
-                                                finalText
-                                            } else if (similarity > 0.5f) {
-                                                // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
-                                                val newWords = finalText.split(" ").filter { it.isNotEmpty() }
-                                                val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
-                                                val newUniqueWords = newWords.filter { !oldWords.contains(it) }
-                                                
-                                                if (newUniqueWords.isEmpty()) {
-                                                    // 没有新增内容，认为是重复，使用新文本
-                                                    Log.d(TAG, "Vosk相似度 50%-85% 且无新增内容，使用新文本: '$finalText'")
-                                                    finalText
-                                                } else {
-                                                    // 有新增内容，追加新词
-                                                    Log.d(TAG, "Vosk相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
-                                                    "$recognizedText ${newUniqueWords.joinToString(" ")}"
-                                                }
-                                            } else {
-                                                // 相似度 <50%，认为是新内容，追加
-                                                Log.d(TAG, "Vosk相似度 <50%，追加新文本: '$recognizedText' + '$finalText'")
-                                                "$recognizedText $finalText"
-                                            }
+                                            val separator = if (endsWithPunctuation) "\n" else " "
+                                            Log.d(TAG, "Vosk追加新文本: '$recognizedText' + '$finalText'")
+                                            "$trimmedRecognized$separator$finalText"
                                         }
                                     }
                                     
@@ -8192,96 +8136,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 检查最终结果是否与当前部分结果相同或相似（避免部分结果和最终结果重复）
+            // 清除部分结果，准备使用最终结果
             if (currentPartialText.isNotEmpty()) {
-                val partialSimilarity = calculateTextSimilarity(currentPartialText.trim(), newText)
-                Log.d(TAG, "检查部分结果与最终结果相似度: partial='$currentPartialText', final='$newText', similarity=$partialSimilarity")
-                
-                if (partialSimilarity > 0.9f) {
-                    // 部分结果与最终结果高度相似（>90%），说明是同一段话的识别
-                    // 只使用最终结果，清除部分结果，避免重复
-                    Log.d(TAG, "⚠️ 最终结果与部分结果高度相似（${(partialSimilarity * 100).toInt()}%），使用最终结果，清除部分结果")
-                    currentPartialText = ""
-                    // 继续处理最终结果
-                } else if (newText.contains(currentPartialText.trim()) || 
-                           currentPartialText.trim().contains(newText)) {
-                    // 包含关系，使用更完整的文本
-                    Log.d(TAG, "最终结果与部分结果有包含关系，使用更完整的文本")
-                    currentPartialText = ""
-                } else {
-                    // 不同内容，清除部分结果，使用最终结果
-                    Log.d(TAG, "最终结果与部分结果不同，清除部分结果")
-                    currentPartialText = ""
-                }
-            } else {
-                // 没有部分结果，直接清除
+                Log.d(TAG, "收到最终结果，清除部分结果: '$currentPartialText'")
                 currentPartialText = ""
             }
             
-            // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
-            val currentDisplayText = voiceTextInput.text.toString().trim()
-            if (currentDisplayText.isNotEmpty()) {
-                // 检查最终结果是否与当前显示文本相同或高度相似
-                val displaySimilarity = calculateTextSimilarity(currentDisplayText, newText)
-                if (displaySimilarity > 0.95f) {
-                    Log.d(TAG, "⚠️ 最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$newText'")
-                    // 高度相似，可能是重复，不更新
-                    return
-                }
-                // 检查最终结果是否已经包含在当前显示文本中
-                if (currentDisplayText.contains(newText) && newText.length < currentDisplayText.length * 0.8) {
-                    Log.d(TAG, "⚠️ 最终结果已包含在当前显示文本中，忽略: '$newText'")
-                    // 已包含且不是更完整的版本，不更新
-                    return
-                }
-            }
-            
-            // 智能合并最终结果，避免重复累积
+            // 完整保留所有语音内容，按顺序追加
             val mergedText = if (recognizedText.isEmpty()) {
                 // 没有已确认文本，直接使用最终结果
                 newText
             } else {
-                // 先检查包含关系（快速判断）
-                val isNewContainsOld = newText.contains(recognizedText)
-                val isOldContainsNew = recognizedText.contains(newText)
-                
-                if (isNewContainsOld && !isOldContainsNew) {
-                    // 新文本包含旧文本，使用新文本（更完整，避免重复）
-                    Log.d(TAG, "新文本包含旧文本，使用新文本: '$newText'")
-                    newText
-                } else if (isOldContainsNew && !isNewContainsOld) {
-                    // 旧文本包含新文本，保持旧文本（更完整）
-                    Log.d(TAG, "旧文本包含新文本，保持旧文本: '$recognizedText'")
+                // 检查是否与上次识别结果完全相同（避免重复）
+                if (newText == lastRecognizedText) {
+                    Log.d(TAG, "最终结果与上次相同，忽略重复: '$newText'")
                     recognizedText
                 } else {
-                    // 使用相似度算法判断
-                    val similarity = calculateTextSimilarity(recognizedText, newText)
-                    Log.d(TAG, "文本相似度计算: recognizedText='$recognizedText', newText='$newText', similarity=$similarity")
+                    // 不同内容，追加到已有文本后面
+                    // 根据已有文本末尾是否有标点决定分隔符
+                    val trimmedRecognized = recognizedText.trim()
+                    val endsWithPunctuation = trimmedRecognized.endsWith("。") || 
+                                              trimmedRecognized.endsWith("，") || 
+                                              trimmedRecognized.endsWith("？") ||
+                                              trimmedRecognized.endsWith("！") ||
+                                              trimmedRecognized.endsWith(".") ||
+                                              trimmedRecognized.endsWith(",") ||
+                                              trimmedRecognized.endsWith("?") ||
+                                              trimmedRecognized.endsWith("!")
                     
-                    if (similarity > 0.85f) {
-                        // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
-                        Log.d(TAG, "相似度 >85%，使用新文本作为修正: '$newText'")
-                        newText
-                    } else if (similarity > 0.5f) {
-                        // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
-                        val newWords = newText.split(" ").filter { it.isNotEmpty() }
-                        val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
-                        val newUniqueWords = newWords.filter { !oldWords.contains(it) }
-                        
-                        if (newUniqueWords.isEmpty()) {
-                            // 没有新增内容，认为是重复，使用新文本
-                            Log.d(TAG, "相似度 50%-85% 且无新增内容，使用新文本: '$newText'")
-                            newText
-                        } else {
-                            // 有新增内容，追加新词
-                            Log.d(TAG, "相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
-                            "$recognizedText ${newUniqueWords.joinToString(" ")}"
-                        }
-                    } else {
-                        // 相似度 <50%，认为是新内容，追加
-                        Log.d(TAG, "相似度 <50%，追加新文本: '$recognizedText' + '$newText'")
-                        "$recognizedText $newText"
-                    }
+                    val separator = if (endsWithPunctuation) "\n" else " "
+                    Log.d(TAG, "追加新文本: '$recognizedText' + '$newText'")
+                    "$trimmedRecognized$separator$newText"
                 }
             }
             
@@ -8325,35 +8210,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新当前部分识别结果
             currentPartialText = partialText
             
-            // 智能合并：已确认的文本 + 当前部分识别结果
+            // 显示已确认文本 + 当前部分识别结果
             // 注意：部分结果只是临时显示，不会真正追加到 recognizedText 中
             val displayText = if (recognizedText.isEmpty()) {
                 // 没有已确认文本，直接显示部分结果
                 partialText
             } else {
-                // 有已确认文本，需要智能合并
-                if (partialText.startsWith(recognizedText)) {
-                    // 部分结果以已确认文本开头，直接使用部分结果（更完整）
-                    // 例如：recognizedText="你好"，partialText="你好世界"，显示"你好世界"
-                    partialText
-                } else if (recognizedText.contains(partialText)) {
-                    // 部分结果已包含在已确认文本中，只显示已确认文本
-                    // 例如：recognizedText="你好世界"，partialText="你好"，只显示"你好世界"
-                    recognizedText
+                // 有已确认文本，直接追加显示部分结果
+                // 确保用户能看到所有内容
+                val trimmedRecognized = recognizedText.trim()
+                val separator = if (trimmedRecognized.endsWith("。") || 
+                                    trimmedRecognized.endsWith("，") || 
+                                    trimmedRecognized.endsWith("？") ||
+                                    trimmedRecognized.endsWith("！") ||
+                                    trimmedRecognized.endsWith(".") ||
+                                    trimmedRecognized.endsWith(",") ||
+                                    trimmedRecognized.endsWith("?") ||
+                                    trimmedRecognized.endsWith("!")) {
+                    "\n"
                 } else {
-                    // 部分结果与已确认文本不同，检查是否是新增内容
-                    // 使用相似度判断，避免重复
-                    val similarity = calculateTextSimilarity(recognizedText, partialText)
-                    if (similarity > 0.8f) {
-                        // 高度相似，可能是同一段话的不同识别，只显示部分结果（更完整）
-                        Log.d(TAG, "部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），使用部分结果: '$partialText'")
-                        partialText
-                    } else {
-                        // 不同内容，追加显示（但不会真正追加到 recognizedText）
-                        // 例如：recognizedText="你好"，partialText="世界"，显示"你好 世界"（临时）
-                        "$recognizedText $partialText"
-                    }
+                    " "
                 }
+                "$trimmedRecognized$separator$partialText"
             }
             
             voiceTextInput.setText(displayText)

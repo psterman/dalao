@@ -912,20 +912,23 @@ class VoiceRecognitionActivity : Activity() {
                     return
                 }
                 
-                // 检查最终结果是否已经包含在当前显示的文本中（避免重复追加）
-                val currentDisplayText = recognizedTextView.text.toString().trim()
-                if (currentDisplayText.isNotEmpty()) {
-                    // 检查最终结果是否与当前显示文本相同或高度相似
-                    val displaySimilarity = calculateSimilarity(currentDisplayText, newFinalText.trim())
-                    if (displaySimilarity > 0.95f) {
-                        VoiceLog.d("⚠️ 最终结果与当前显示文本高度相似（${(displaySimilarity * 100).toInt()}%），可能是重复，忽略: '$newFinalText'")
+                // 检查最终结果是否已经包含在已确认的文本中（避免重复追加）
+                // 注意：应该与 recognizedText 比较，而不是与显示文本比较（显示文本可能包含部分结果）
+                if (recognizedText.isNotEmpty()) {
+                    val cleanedRecognizedForCompare = recognizedText.replace(" ", "").replace("\n", "")
+                    val cleanedNewForCompare = cleanTextForDisplay(newFinalText)
+                    
+                    // 检查最终结果是否与已确认文本相同或高度相似
+                    val recognizedSimilarity = calculateSimilarity(cleanedRecognizedForCompare, cleanedNewForCompare)
+                    if (recognizedSimilarity > 0.95f) {
+                        VoiceLog.d("⚠️ 最终结果与已确认文本高度相似（${(recognizedSimilarity * 100).toInt()}%），可能是重复，忽略: '$newFinalText'")
                         // 高度相似，可能是重复，不更新
                         return
                     }
-                    // 检查最终结果是否已经包含在当前显示文本中
-                    if (currentDisplayText.contains(newFinalText.trim()) && 
-                        newFinalText.trim().length < currentDisplayText.length * 0.8) {
-                        VoiceLog.d("⚠️ 最终结果已包含在当前显示文本中，忽略: '$newFinalText'")
+                    // 检查最终结果是否已经包含在已确认文本中
+                    if (cleanedRecognizedForCompare.contains(cleanedNewForCompare) && 
+                        cleanedNewForCompare.length < cleanedRecognizedForCompare.length * 0.8) {
+                        VoiceLog.d("⚠️ 最终结果已包含在已确认文本中，忽略: '$newFinalText'")
                         // 已包含且不是更完整的版本，不更新
                         return
                     }
@@ -933,52 +936,42 @@ class VoiceRecognitionActivity : Activity() {
                 
                 // 智能合并最终结果，使用编辑距离算法避免重复累积
                 // 注意：如果最终结果与部分结果相同，应该直接使用最终结果，而不是追加
+                // 清理新文本：移除空格和字词之间的换行，只保留句子结束时的换行
+                val cleanedNewText = cleanTextForDisplay(newFinalText)
+                
                 val mergedText = if (recognizedText.isEmpty()) {
-                    // 没有已确认文本，直接使用最终结果
-                    newFinalText
+                    // 没有已确认文本，直接使用清理后的最终结果
+                    cleanedNewText
                 } else {
-                    // 先检查包含关系（快速判断）
-                    val isNewContainsOld = newFinalText.contains(recognizedText)
-                    val isOldContainsNew = recognizedText.contains(newFinalText)
+                    // 总是追加新文本，确保文本持续累积不被覆盖（直到用户手动清理）
+                    // 检查是否是完全重复的内容（去除空格和换行后比较）
+                    val cleanedRecognizedText = recognizedText.replace(" ", "").replace("\n", "")
+                    val cleanedNewTextNoNewline = cleanedNewText.replace("\n", "")
                     
-                    if (isNewContainsOld && !isOldContainsNew) {
-                        // 新文本包含旧文本，使用新文本（更完整，避免重复）
-                        // 例如："你好" -> "你好你好"，使用"你好你好"
-                        VoiceLog.d("新文本包含旧文本，使用新文本: '$newFinalText'")
-                        newFinalText
-                    } else if (isOldContainsNew && !isNewContainsOld) {
-                        // 旧文本包含新文本，保持旧文本（更完整）
-                        // 例如："你好你好" -> "你好"，保持"你好你好"
-                        VoiceLog.d("旧文本包含新文本，保持旧文本: '$recognizedText'")
+                    if (cleanedNewTextNoNewline == cleanedRecognizedText) {
+                        // 完全重复，保持原文本（不覆盖，不追加）
+                        VoiceLog.d("检测到完全重复的文本，保持原文本: '$recognizedText'")
                         recognizedText
                     } else {
-                        // 使用编辑距离算法判断相似度
-                        val similarity = calculateSimilarity(recognizedText, newFinalText)
-                        VoiceLog.d("文本相似度计算: recognizedText='$recognizedText', newFinalText='$newFinalText', similarity=$similarity")
+                        // 检查旧文本末尾是否有标点符号（句号、逗号、问号、感叹号）
+                        val trimmedOld = recognizedText.trim()
+                        val endsWithPunctuation = trimmedOld.endsWith("。") || 
+                                                  trimmedOld.endsWith("，") || 
+                                                  trimmedOld.endsWith("？") ||
+                                                  trimmedOld.endsWith("！") ||
+                                                  trimmedOld.endsWith(".") ||
+                                                  trimmedOld.endsWith(",") ||
+                                                  trimmedOld.endsWith("?") ||
+                                                  trimmedOld.endsWith("!")
                         
-                        if (similarity > 0.85f) {
-                            // 相似度 >85%，认为是修正或重复，使用新文本（避免重复累积）
-                            VoiceLog.d("相似度 >85%，使用新文本作为修正: '$newFinalText'")
-                            newFinalText
-                        } else if (similarity > 0.5f) {
-                            // 相似度 50%-85%，可能是部分重复，检查是否有新增内容
-                            val newWords = newFinalText.split(" ").filter { it.isNotEmpty() }
-                            val oldWords = recognizedText.split(" ").filter { it.isNotEmpty() }
-                            val newUniqueWords = newWords.filter { !oldWords.contains(it) }
-                            
-                            if (newUniqueWords.isEmpty()) {
-                                // 没有新增内容，认为是重复，使用新文本
-                                VoiceLog.d("相似度 50%-85% 且无新增内容，使用新文本: '$newFinalText'")
-                                newFinalText
-                            } else {
-                                // 有新增内容，追加新词
-                                VoiceLog.d("相似度 50%-85% 但有新增内容，追加: '$recognizedText' + '${newUniqueWords.joinToString(" ")}'")
-                                "$recognizedText ${newUniqueWords.joinToString(" ")}"
-                            }
+                        if (endsWithPunctuation) {
+                            // 旧文本以标点结尾，追加新文本并换行（一句话说完了才换行）
+                            VoiceLog.d("旧文本以标点结尾，追加新文本并换行: '$recognizedText' + '\\n' + '$cleanedNewText'")
+                            recognizedText + "\n" + cleanedNewText
                         } else {
-                            // 相似度 <50%，认为是新内容，追加
-                            VoiceLog.d("相似度 <50%，追加新文本: '$recognizedText' + '$newFinalText'")
-                            "$recognizedText $newFinalText"
+                            // 旧文本不以标点结尾，直接追加（一句话内，不添加空格，不换行）
+                            VoiceLog.d("追加新文本（一句话内）: '$recognizedText' + '$cleanedNewText'")
+                            recognizedText + cleanedNewText
                         }
                     }
                 }
@@ -1047,31 +1040,69 @@ class VoiceRecognitionActivity : Activity() {
                     
                     // 智能合并：已确认的文本 + 当前部分识别结果
                     // 注意：部分结果只是临时显示，不会真正追加到 recognizedText 中
+                    // 清理部分结果：移除空格和字词之间的换行，只保留句子结束时的换行
+                    val cleanedPartialText = cleanTextForDisplay(partialText)
+                    
                     val displayText = if (recognizedText.isEmpty()) {
-                        // 没有已确认文本，直接显示部分结果
-                        partialText
+                        // 没有已确认文本，直接显示清理后的部分结果
+                        cleanedPartialText
                     } else {
                         // 有已确认文本，需要智能合并
-                        if (partialText.startsWith(recognizedText)) {
-                            // 部分结果以已确认文本开头，直接使用部分结果（更完整）
+                        // 清理已确认文本用于比较（移除空格和换行）
+                        val cleanedRecognizedText = recognizedText.replace(" ", "").replace("\n", "")
+                        val cleanedPartialTextForCompare = cleanedPartialText.replace("\n", "")
+                        
+                        // 部分结果只是临时显示，必须保留已确认的文本，不能覆盖
+                        if (cleanedPartialTextForCompare.startsWith(cleanedRecognizedText)) {
+                            // 部分结果以已确认文本开头，说明是扩展，使用部分结果（更完整）
                             // 例如：recognizedText="你好"，partialText="你好世界"，显示"你好世界"
-                            partialText
-                        } else if (recognizedText.contains(partialText)) {
-                            // 部分结果已包含在已确认文本中，只显示已确认文本
+                            // 但需要确保部分结果确实更长，避免覆盖
+                            if (cleanedPartialTextForCompare.length >= cleanedRecognizedText.length) {
+                                cleanedPartialText
+                            } else {
+                                // 部分结果比已确认文本短，可能是识别回退，保留已确认文本
+                                recognizedText
+                            }
+                        } else if (cleanedRecognizedText.contains(cleanedPartialTextForCompare)) {
+                            // 部分结果已包含在已确认文本中，只显示已确认文本（避免回退）
                             // 例如：recognizedText="你好世界"，partialText="你好"，只显示"你好世界"
                             recognizedText
                         } else {
                             // 部分结果与已确认文本不同，检查是否是新增内容
                             // 使用相似度判断，避免重复
-                            val similarity = calculateSimilarity(recognizedText, partialText)
+                            val similarity = calculateSimilarity(recognizedText, cleanedPartialText)
                             if (similarity > 0.8f) {
-                                // 高度相似，可能是同一段话的不同识别，只显示部分结果（更完整）
-                                VoiceLog.d("部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），使用部分结果: '$partialText'")
-                                partialText
+                                // 高度相似，可能是同一段话的不同识别
+                                // 但必须保留已确认文本，不能覆盖
+                                // 如果部分结果更长，可能是更完整的识别，使用部分结果
+                                if (cleanedPartialTextForCompare.length > cleanedRecognizedText.length) {
+                                    VoiceLog.d("部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），且更完整，使用部分结果: '$cleanedPartialText'")
+                                    cleanedPartialText
+                                } else {
+                                    // 部分结果不比已确认文本长，保留已确认文本，避免覆盖
+                                    VoiceLog.d("部分结果与已确认文本高度相似（${(similarity * 100).toInt()}%），但已确认文本更完整，保留已确认文本")
+                                    recognizedText
+                                }
                             } else {
-                                // 不同内容，追加显示（但不会真正追加到 recognizedText）
-                                // 例如：recognizedText="你好"，partialText="世界"，显示"你好 世界"（临时）
-                                "$recognizedText $partialText"
+                                // 不同内容，智能追加显示（但不会真正追加到 recognizedText）
+                                // 检查已确认文本末尾是否有标点，决定是否换行
+                                val trimmedRecognized = recognizedText.trim()
+                                val endsWithPunctuation = trimmedRecognized.endsWith("。") || 
+                                                          trimmedRecognized.endsWith("，") || 
+                                                          trimmedRecognized.endsWith("？") ||
+                                                          trimmedRecognized.endsWith("！") ||
+                                                          trimmedRecognized.endsWith(".") ||
+                                                          trimmedRecognized.endsWith(",") ||
+                                                          trimmedRecognized.endsWith("?") ||
+                                                          trimmedRecognized.endsWith("!")
+                                
+                                if (endsWithPunctuation) {
+                                    // 已确认文本以标点结尾，追加部分结果并换行
+                                    recognizedText + "\n" + cleanedPartialText
+                                } else {
+                                    // 已确认文本不以标点结尾，直接追加（一句话内）
+                                    recognizedText + cleanedPartialText
+                                }
                             }
                         }
                     }
@@ -1344,11 +1375,29 @@ class VoiceRecognitionActivity : Activity() {
                     val recognizedSystemText = results[0]
                     VoiceLog.d("系统语音输入结果: $recognizedSystemText")
                     
-                    // 将系统语音识别结果添加到现有文本
+                    // 清理系统语音识别结果：移除空格和字词之间的换行，只保留句子结束时的换行
+                    val cleanedSystemText = cleanTextForDisplay(recognizedSystemText)
+                    
+                    // 将系统语音识别结果添加到现有文本（不添加空格）
                     recognizedText = if (recognizedText.isEmpty()) {
-                        recognizedSystemText
+                        cleanedSystemText
                     } else {
-                        "$recognizedText $recognizedSystemText"
+                        // 检查是否需要换行（根据旧文本末尾是否有标点）
+                        val trimmedOld = recognizedText.trim()
+                        val endsWithPunctuation = trimmedOld.endsWith("。") || 
+                                                  trimmedOld.endsWith("，") || 
+                                                  trimmedOld.endsWith("？") ||
+                                                  trimmedOld.endsWith("！") ||
+                                                  trimmedOld.endsWith(".") ||
+                                                  trimmedOld.endsWith(",") ||
+                                                  trimmedOld.endsWith("?") ||
+                                                  trimmedOld.endsWith("!")
+                        
+                        if (endsWithPunctuation) {
+                            recognizedText + "\n" + cleanedSystemText
+                        } else {
+                            recognizedText + cleanedSystemText
+                        }
                     }
                     
                     recognizedTextView.setText(recognizedText)
@@ -2382,6 +2431,72 @@ class VoiceRecognitionActivity : Activity() {
         // 更新UI提示（使用静态内部类避免内存泄漏）
         val showManualRunnable = ShowManualInputModeRunnable(this)
         safePost(showManualRunnable)
+    }
+    
+    /**
+     * 判断是否应该追加新文本
+     * 根据标点符号（句号、逗号、问号）来判断是否应该追加而不是替换
+     * 
+     * @param oldText 旧文本
+     * @param newText 新文本
+     * @return true表示应该追加，false表示应该替换（修正）
+     */
+    private fun shouldAppendNewText(oldText: String, newText: String): Boolean {
+        val trimmedOld = oldText.trim()
+        val trimmedNew = newText.trim()
+        
+        // 如果旧文本以标点符号结尾（句号、逗号、问号），应该追加
+        val oldEndsWithPunctuation = trimmedOld.endsWith("。") || 
+                                    trimmedOld.endsWith("，") || 
+                                    trimmedOld.endsWith("？") ||
+                                    trimmedOld.endsWith(".") ||
+                                    trimmedOld.endsWith(",") ||
+                                    trimmedOld.endsWith("?")
+        
+        if (oldEndsWithPunctuation) {
+            return true
+        }
+        
+        // 如果新文本与旧文本完全不同（相似度很低），应该追加
+        val similarity = calculateSimilarity(trimmedOld, trimmedNew)
+        if (similarity < 0.3f) {
+            return true
+        }
+        
+        // 如果新文本包含旧文本且明显更长，可能是修正，不应该追加
+        if (trimmedNew.contains(trimmedOld) && trimmedNew.length > trimmedOld.length * 1.5) {
+            return false
+        }
+        
+        // 如果旧文本包含新文本，不应该追加（可能是部分识别结果）
+        if (trimmedOld.contains(trimmedNew)) {
+            return false
+        }
+        
+        // 默认情况下，如果相似度较低，应该追加
+        return similarity < 0.7f
+    }
+    
+    /**
+     * 清理文本用于显示：移除空格和字词之间的换行
+     * 
+     * 规则：
+     * 1. 移除所有空格（中文文本字之间不应有空格）
+     * 2. 移除所有换行符（字词之间的换行，换行应该在合并时根据标点符号智能添加）
+     * 
+     * 注意：换行符的添加应该在文本合并时处理，根据标点符号判断是否换行
+     * 
+     * @param text 原始文本
+     * @return 清理后的文本（无空格、无换行）
+     */
+    private fun cleanTextForDisplay(text: String): String {
+        if (text.isEmpty()) {
+            return text
+        }
+        
+        // 1. 移除所有空格（中文文本字之间不应有空格）
+        // 2. 移除所有换行符（字词之间的换行，换行应该在合并时根据标点符号智能添加）
+        return text.replace(" ", "").replace("\n", "").replace("\r", "")
     }
     
     /**
