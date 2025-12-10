@@ -1,12 +1,14 @@
 package com.example.aifloatingball.voice
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.vosk.Model
@@ -1039,6 +1041,18 @@ class VoskManager(private val context: Context) {
             return
         }
         
+        // 检查录音权限
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context, 
+            android.Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        
+        if (!hasPermission) {
+            Log.e(TAG, "缺少录音权限，无法启动Vosk识别")
+            callback?.onError("缺少录音权限，请授予录音权限后重试")
+            return
+        }
+        
         try {
             // 计算缓冲区大小
             val bufferSize = AudioRecord.getMinBufferSize(
@@ -1046,6 +1060,14 @@ class VoskManager(private val context: Context) {
                 CHANNEL_CONFIG,
                 AUDIO_FORMAT
             ) * BUFFER_SIZE_MULTIPLIER
+            
+            if (bufferSize <= 0) {
+                Log.e(TAG, "无法获取有效的缓冲区大小: $bufferSize")
+                callback?.onError("无法初始化音频录制：无效的缓冲区大小")
+                return
+            }
+            
+            Log.d(TAG, "创建AudioRecord，缓冲区大小: $bufferSize")
             
             // 创建AudioRecord
             audioRecord = AudioRecord(
@@ -1056,26 +1078,93 @@ class VoskManager(private val context: Context) {
                 bufferSize
             )
             
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord初始化失败")
-                callback?.onError("无法初始化音频录制")
+            if (audioRecord == null) {
+                Log.e(TAG, "AudioRecord创建失败：返回null")
+                callback?.onError("无法创建音频录制对象")
                 return
             }
             
-            isRecognizing = true
-            audioRecord?.startRecording()
+            val state = audioRecord?.state
+            if (state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord初始化失败，状态: $state (期望: ${AudioRecord.STATE_INITIALIZED})")
+                val errorMsg = when (state) {
+                    AudioRecord.STATE_UNINITIALIZED -> "音频录制未初始化，可能是权限问题或设备不支持"
+                    else -> "无法初始化音频录制，状态码: $state"
+                }
+                callback?.onError(errorMsg)
+                // 释放失败的AudioRecord
+                try {
+                    audioRecord?.release()
+                } catch (e: Exception) {
+                    Log.e(TAG, "释放失败的AudioRecord时出错", e)
+                }
+                audioRecord = null
+                return
+            }
             
-            Log.d(TAG, "开始Vosk语音识别")
+            Log.d(TAG, "AudioRecord初始化成功")
+            
+            isRecognizing = true
+            
+            try {
+                audioRecord?.startRecording()
+                Log.d(TAG, "AudioRecord开始录制")
+            } catch (e: Exception) {
+                Log.e(TAG, "启动AudioRecord录制失败", e)
+                isRecognizing = false
+                callback?.onError("启动录音失败: ${e.message ?: "未知错误"}")
+                try {
+                    audioRecord?.release()
+                } catch (releaseException: Exception) {
+                    Log.e(TAG, "释放AudioRecord时出错", releaseException)
+                }
+                audioRecord = null
+                return
+            }
+            
+            // 检查录制状态
+            val recordingState = audioRecord?.recordingState
+            if (recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                Log.e(TAG, "AudioRecord未处于录制状态，状态: $recordingState (期望: ${AudioRecord.RECORDSTATE_RECORDING})")
+                isRecognizing = false
+                callback?.onError("音频录制未正常启动，请检查权限和设备支持")
+                try {
+                    audioRecord?.stop()
+                    audioRecord?.release()
+                } catch (e: Exception) {
+                    Log.e(TAG, "停止和释放AudioRecord时出错", e)
+                }
+                audioRecord = null
+                return
+            }
+            
+            Log.d(TAG, "开始Vosk语音识别，录制状态正常")
             
             // 在协程中处理音频数据
             recognitionJob = scope.launch {
                 processAudioData(bufferSize)
             }
             
+        } catch (e: SecurityException) {
+            Log.e(TAG, "启动识别失败：权限问题", e)
+            isRecognizing = false
+            callback?.onError("缺少录音权限，请授予录音权限后重试")
+            try {
+                audioRecord?.release()
+            } catch (releaseException: Exception) {
+                Log.e(TAG, "释放AudioRecord时出错", releaseException)
+            }
+            audioRecord = null
         } catch (e: Exception) {
             Log.e(TAG, "启动识别失败", e)
             isRecognizing = false
-            callback?.onError("启动识别失败: ${e.message}")
+            callback?.onError("启动识别失败: ${e.message ?: "未知错误"}")
+            try {
+                audioRecord?.release()
+            } catch (releaseException: Exception) {
+                Log.e(TAG, "释放AudioRecord时出错", releaseException)
+            }
+            audioRecord = null
         }
     }
     
@@ -1091,8 +1180,22 @@ class VoskManager(private val context: Context) {
                 val readResult = audioRecord?.read(buffer, 0, buffer.size) ?: -1
                 
                 if (readResult < 0) {
-                    Log.e(TAG, "读取音频数据失败: $readResult")
+                    val errorMsg = when (readResult) {
+                        AudioRecord.ERROR_INVALID_OPERATION -> "音频录制操作无效"
+                        AudioRecord.ERROR_BAD_VALUE -> "音频录制参数错误"
+                        else -> "读取音频数据失败，错误码: $readResult"
+                    }
+                    Log.e(TAG, errorMsg)
+                    handler.post {
+                        callback?.onError(errorMsg)
+                    }
                     break
+                }
+                
+                if (readResult == 0) {
+                    // 读取到0字节，可能是缓冲区问题，继续尝试
+                    delay(50)
+                    continue
                 }
                 
                 // 将音频数据传递给识别器

@@ -3572,7 +3572,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         if (downloadedTypes.isNotEmpty()) {
             // Vosk模型已下载，直接使用Vosk，不显示弹窗
-            Log.d(TAG, "检测到Vosk模型已下载，使用Vosk离线语音识别")
+            Log.d(TAG, "检测到Vosk模型已下载（已下载类型: ${downloadedTypes.joinToString()}），使用Vosk离线语音识别，不显示下载提示")
             // 后续会在startAutoRecording()中自动启动Vosk识别
         } else {
             // Vosk模型未下载，检查系统语音识别支持情况
@@ -7592,22 +7592,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun startVoskRecognition() {
         Log.d(TAG, "启动Vosk离线语音识别")
         
+        // 检查录音权限
+        val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (!hasPermission) {
+            Log.e(TAG, "Vosk识别需要录音权限，但权限未授予")
+            voiceStatusText.text = "需要录音权限才能使用Vosk语音识别"
+            isListening = false
+            updateVoiceListeningState(false)
+            updateCapsuleRecordingState(false)
+            // 请求权限
+            ActivityCompat.requestPermissions(this,
+                arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+            return
+        }
+        
         // 释放系统语音识别器
         releaseSpeechRecognizer()
+        
+        // 从设置中读取模型类型
+        val savedModelType = settingsManager.getString("vosk_model_type", "SMALL")
+        val modelType = if (savedModelType == "FULL") {
+            VoskManager.ModelType.FULL
+        } else {
+            VoskManager.ModelType.SMALL
+        }
         
         // 初始化VoskManager（如果尚未初始化）
         if (voskManager == null) {
             voskManager = VoskManager(this)
-            
-            // 从设置中读取模型类型
-            val savedModelType = settingsManager.getString("vosk_model_type", "SMALL")
-            val modelType = if (savedModelType == "FULL") {
-                VoskManager.ModelType.FULL
-            } else {
-                VoskManager.ModelType.SMALL
-            }
-            voskManager?.setModelType(modelType)
-            Log.d(TAG, "使用Vosk模型类型: $modelType")
+        }
+        
+        // 确保使用正确的模型类型（即使voskManager已存在，也要更新模型类型）
+        voskManager?.setModelType(modelType)
+        Log.d(TAG, "使用Vosk模型类型: $modelType")
+        
+        // 检查该模型类型是否已下载
+        val downloadedTypes = voskManager?.getDownloadedModelTypes() ?: emptyList()
+        if (!downloadedTypes.contains(modelType)) {
+            Log.e(TAG, "Vosk模型类型 $modelType 未下载，已下载的类型: $downloadedTypes")
+            voiceStatusText.text = "Vosk模型未下载，请先下载模型"
+            isListening = false
+            updateVoiceListeningState(false)
+            updateCapsuleRecordingState(false)
+            return
+        }
+        
+        // 检查use_vosk_offline_voice设置
+        val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
+        if (!useVosk) {
+            Log.e(TAG, "Vosk离线语音识别开关未打开")
+            voiceStatusText.text = "请先打开Vosk离线语音识别开关"
+            isListening = false
+            updateVoiceListeningState(false)
+            updateCapsuleRecordingState(false)
+            return
+        }
+        
+        // 设置回调（每次启动识别时都重新设置，确保使用最新的回调）
+        if (voskManager != null) {
             voskManager?.setCallback(object : VoskManager.VoskCallback {
                 override fun onPartialResult(text: String) {
                     handler.post {
@@ -7636,6 +7678,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                         return@post
                                     }
                                     
+                                    // 更新当前部分结果（用于后续与最终结果比较）
+                                    currentPartialText = partialText
+                                    
                                     // 部分结果只是临时显示，不累加到recognizedText
                                     // 智能合并：已确认文本 + 当前部分结果
                                     val displayText = if (recognizedText.isEmpty()) {
@@ -7656,21 +7701,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     }
                                     
                                     // 根据当前模式选择输入框
-                                    if (isVoiceCapsuleMode) {
+                                    if (isVoiceCapsuleMode && voiceCapsuleTextInput != null) {
                                         // 胶囊模式：使用胶囊输入框
                                         voiceCapsuleTextInput?.let { input ->
                                             input.setText(displayText)
                                             input.setSelection(displayText.length)
                                             input.post { input.requestLayout() }
+                                            Log.d(TAG, "Vosk部分结果已更新到胶囊输入框: '$displayText'")
                                         }
                                         // 同步到原始输入框
                                         voiceTextInput.setText(displayText)
                                         voiceTextInput.setSelection(displayText.length)
                                     } else {
-                                        // 原始模式：使用原始输入框
+                                        // 原始模式或胶囊输入框未初始化：使用原始输入框
                                         voiceTextInput.setText(displayText)
                                         voiceTextInput.setSelection(displayText.length)
+                                        Log.d(TAG, "Vosk部分结果已更新到原始输入框: '$displayText' (isVoiceCapsuleMode=$isVoiceCapsuleMode, voiceCapsuleTextInput=${voiceCapsuleTextInput != null})")
                                     }
+                                    
+                                    // 启用搜索按钮和保存按钮
+                                    voiceSearchButton.isEnabled = true
                                     updateSaveButtonVisibility()
                                     Log.d(TAG, "Vosk部分结果: '$partialText' → 显示: '$displayText'")
                                 }
@@ -7800,20 +7850,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                     lastRecognizedText = finalText  // 保存本次识别结果，用于下次去重
                                     
                                     // 根据当前模式选择输入框
-                                    if (isVoiceCapsuleMode) {
+                                    if (isVoiceCapsuleMode && voiceCapsuleTextInput != null) {
                                         // 胶囊模式：使用胶囊输入框
                                         voiceCapsuleTextInput?.let { input ->
                                             input.setText(recognizedText)
                                             input.setSelection(recognizedText.length)
                                             input.post { input.requestLayout() }
+                                            Log.d(TAG, "Vosk最终结果已更新到胶囊输入框: '$recognizedText'")
                                         }
                                         // 同步到原始输入框
                                         voiceTextInput.setText(recognizedText)
                                         voiceTextInput.setSelection(recognizedText.length)
                                     } else {
-                                        // 原始模式：使用原始输入框
+                                        // 原始模式或胶囊输入框未初始化：使用原始输入框
                                         voiceTextInput.setText(recognizedText)
                                         voiceTextInput.setSelection(recognizedText.length)
+                                        Log.d(TAG, "Vosk最终结果已更新到原始输入框: '$recognizedText' (isVoiceCapsuleMode=$isVoiceCapsuleMode, voiceCapsuleTextInput=${voiceCapsuleTextInput != null})")
                                     }
                                     voiceSearchButton.isEnabled = true
                                     updateSaveButtonVisibility()
@@ -7846,19 +7898,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     handler.post {
                         if (isReady) {
                             Log.d(TAG, "Vosk模型已就绪: $message")
-                            // 模型已就绪，开始识别
-                            if (isListening) {
-                                voskManager?.startRecognition()
+                            // 模型已就绪，更新状态并开始识别
+                            voiceStatusText.text = "Vosk模型已就绪，开始识别..."
+                            isVoskInitialized = true
+                            // 确保识别状态正确
+                            if (!isListening) {
+                                isListening = true
+                                updateVoiceListeningState(true)
+                                updateCapsuleRecordingState(true) // 显示动画
                             }
+                            // 开始识别
+                            voskManager?.startRecognition()
+                            Log.d(TAG, "Vosk识别已启动，等待识别结果...")
                         } else {
                             Log.d(TAG, "Vosk模型状态: $message")
                             voiceStatusText.text = message
                             if (message.contains("下载") || message.contains("加载")) {
                                 // 正在下载或加载模型，保持等待状态
+                                isVoskInitialized = false
                             } else {
                                 // 其他错误，停止识别
                                 isListening = false
+                                isVoskInitialized = false
                                 updateVoiceListeningState(false)
+                                updateCapsuleRecordingState(false) // 隐藏动画
                             }
                         }
                     }
@@ -7866,31 +7929,53 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             })
         }
         
-        // 检查模型是否已初始化
-        if (!isVoskInitialized) {
+        // 检查模型是否已初始化，以及模型类型是否匹配
+        val currentModelType = voskManager?.getCurrentModelType()
+        val needReinitialize = !isVoskInitialized || currentModelType != modelType
+        
+        if (needReinitialize) {
+            // 如果模型未初始化或模型类型不匹配，需要重新初始化
+            if (currentModelType != modelType && isVoskInitialized) {
+                Log.d(TAG, "模型类型已改变（从 $currentModelType 到 $modelType），需要重新初始化")
+                // 释放旧的模型
+                voskManager?.release()
+                voskManager = VoskManager(this)
+                voskManager?.setModelType(modelType)
+                isVoskInitialized = false
+            }
+            
             // 初始化模型（异步）
             isListening = true
             updateVoiceListeningState(true)
             updateCapsuleRecordingState(true) // 显示动画
             voiceStatusText.text = "正在初始化Vosk模型..."
             
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                val success = voskManager?.initializeModel(true) ?: false
-                if (success) {
-                    isVoskInitialized = true
-                    voskManager?.startRecognition()
-                } else {
-                    isListening = false
-                    updateVoiceListeningState(false)
-                    updateCapsuleRecordingState(false) // 隐藏动画
-                    voiceStatusText.text = "Vosk模型初始化失败"
+            Log.d(TAG, "开始初始化Vosk模型（类型: $modelType）...")
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                val success = voskManager?.initializeModel(false) ?: false // 不自动下载，因为模型应该已经下载
+                handler.post {
+                    if (success) {
+                        isVoskInitialized = true
+                        voiceStatusText.text = "Vosk模型已就绪，开始识别..."
+                        Log.d(TAG, "Vosk模型初始化成功（类型: $modelType），开始识别")
+                        voskManager?.startRecognition()
+                    } else {
+                        isListening = false
+                        isVoskInitialized = false
+                        updateVoiceListeningState(false)
+                        updateCapsuleRecordingState(false) // 隐藏动画
+                        voiceStatusText.text = "Vosk模型初始化失败，请检查模型文件"
+                        Log.e(TAG, "Vosk模型初始化失败（类型: $modelType）")
+                    }
                 }
             }
         } else {
-            // 模型已初始化，直接开始识别
+            // 模型已初始化且模型类型匹配，直接开始识别
             isListening = true
             updateVoiceListeningState(true)
             updateCapsuleRecordingState(true) // 显示动画
+            voiceStatusText.text = "开始识别..."
+            Log.d(TAG, "Vosk模型已初始化（类型: $modelType），直接开始识别")
             voskManager?.startRecognition()
         }
     }
@@ -34502,17 +34587,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 优先检查Vosk模型是否已下载（无论是否启用设置，只要已下载就使用）
-            val voskManager = VoskManager(this)
-            val downloadedTypes = voskManager.getDownloadedModelTypes()
+            // 检查use_vosk_offline_voice设置
+            val useVosk = settingsManager.getBoolean("use_vosk_offline_voice", false)
             
-            if (downloadedTypes.isNotEmpty()) {
-                // Vosk模型已下载，直接使用Vosk进行录音（不检查是否启用设置）
-                Log.d(TAG, "检测到Vosk模型已下载，使用Vosk进行录音")
-                startVoskRecognition()
-                return
+            if (useVosk) {
+                // 用户已启用Vosk离线语音识别，检查模型是否已下载
+                val voskManager = VoskManager(this)
+                val savedModelType = settingsManager.getString("vosk_model_type", "SMALL")
+                val modelType = if (savedModelType == "FULL") {
+                    VoskManager.ModelType.FULL
+                } else {
+                    VoskManager.ModelType.SMALL
+                }
+                voskManager.setModelType(modelType)
+                val downloadedTypes = voskManager.getDownloadedModelTypes()
+                
+                if (downloadedTypes.contains(modelType)) {
+                    // Vosk模型已下载且开关已打开，使用Vosk进行录音
+                    Log.d(TAG, "检测到Vosk模型已下载且开关已打开，使用Vosk进行录音（模型类型: $modelType）")
+                    startVoskRecognition()
+                    return
+                } else {
+                    Log.w(TAG, "Vosk开关已打开，但模型类型 $modelType 未下载，已下载的类型: $downloadedTypes")
+                    voiceStatusText.text = "Vosk模型未下载，请先下载模型"
+                    // 不继续，等待用户下载模型
+                    return
+                }
             } else {
-                Log.d(TAG, "Vosk模型未下载，尝试其他语音识别方案")
+                Log.d(TAG, "Vosk离线语音识别开关未打开，尝试其他语音识别方案")
             }
             
             // 检查系统SpeechRecognizer是否可用
