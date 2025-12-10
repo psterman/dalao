@@ -60,7 +60,9 @@ class AndroidChatInterface(
             AIServiceType.GEMINI -> "Gemini"
             AIServiceType.KIMI -> "Kimi"
             AIServiceType.XINGHUO -> "讯飞星火"
-            else -> serviceType.name
+            AIServiceType.DOUBAO -> "豆包Pro"
+            AIServiceType.ZHIPU_AI -> "智谱AI"
+            AIServiceType.TEMP_SERVICE -> "临时专线"
         }
     }
     
@@ -80,7 +82,12 @@ class AndroidChatInterface(
             AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
-            else -> ""
+            AIServiceType.DOUBAO -> {
+                // 参考DeepSeek和智谱AI的实现，直接获取API密钥
+                settingsManager.getDoubaoApiKey()
+            }
+            AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
         }
 
         // 临时专线不需要API密钥，其他AI需要

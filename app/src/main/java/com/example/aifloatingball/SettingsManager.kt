@@ -44,6 +44,15 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_CHATGPT_API_KEY = "chatgpt_api_key"
         private const val KEY_CHATGPT_API_URL = "chatgpt_api_url"
         
+        // 豆包 API 常量
+        // 豆包 API 常量
+        private const val KEY_DOUBAO_API_KEY = "doubao_api_key"
+        private const val KEY_DOUBAO_MODEL_ID = "doubao_model_id"
+        // 豆包 Pro 32k 默认 API Key (用户提供)
+        private const val DEFAULT_DOUBAO_API_KEY = "44325922-caf9-4e1a-a02d-243885f4df55"
+        // 豆包 Pro 32k 的默认 Model ID (需用户替换为自己的接入点)
+        private const val DEFAULT_DOUBAO_MODEL_ID = "ep-Needs-Your-Endpoint-ID"
+        
         // 主题模式常量 - 修复错乱问题
         const val THEME_MODE_SYSTEM = -1   // 跟随系统 (AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         const val THEME_MODE_LIGHT = 0     // 浅色主题 (AppCompatDelegate.MODE_NIGHT_NO) - 修复：改为0
@@ -1449,6 +1458,40 @@ class SettingsManager private constructor(context: Context) {
     fun setKimiModel(model: String) {
         prefs.edit().putString("kimi_model", model).apply()
         notifyListeners("kimi_model", model)
+    }
+
+    // 豆包 API配置
+    fun getDoubaoApiKey(): String {
+        // 不再返回默认值，如果没有保存过则返回空字符串
+        val savedKey = prefs.getString(KEY_DOUBAO_API_KEY, "") ?: ""
+        android.util.Log.d("SettingsManager", "读取豆包Pro API密钥: ${if (savedKey.isNotEmpty()) savedKey.take(10) + "..." else "空"}")
+        return savedKey
+    }
+    
+    /**
+     * 检查豆包API密钥是否已配置（非空且非默认值）
+     */
+    fun isDoubaoApiKeyConfigured(): Boolean {
+        val key = getDoubaoApiKey()
+        val isConfigured = key.isNotBlank() && key != DEFAULT_DOUBAO_API_KEY
+        android.util.Log.d("SettingsManager", "豆包Pro API密钥是否已配置: $isConfigured")
+        return isConfigured
+    }
+
+    fun setDoubaoApiKey(apiKey: String) {
+        val success = prefs.edit().putString(KEY_DOUBAO_API_KEY, apiKey).commit()
+        android.util.Log.d("SettingsManager", "保存豆包Pro API密钥: ${apiKey.take(10)}..., 成功: $success")
+        notifyListeners(KEY_DOUBAO_API_KEY, apiKey)
+    }
+
+    fun getDoubaoModelId(): String {
+        return prefs.getString(KEY_DOUBAO_MODEL_ID, DEFAULT_DOUBAO_MODEL_ID) ?: DEFAULT_DOUBAO_MODEL_ID
+    }
+
+    fun setDoubaoModelId(modelId: String) {
+        val success = prefs.edit().putString(KEY_DOUBAO_MODEL_ID, modelId).commit()
+        android.util.Log.d("SettingsManager", "保存豆包Pro 模型ID: $modelId, 成功: $success")
+        notifyListeners(KEY_DOUBAO_MODEL_ID, modelId)
     }
 
     // 自定义AI配置

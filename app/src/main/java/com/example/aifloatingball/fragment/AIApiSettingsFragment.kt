@@ -46,8 +46,24 @@ class AIApiSettingsFragment : PreferenceFragmentCompat() {
         setPreferencesFromResource(R.xml.ai_api_preferences, rootKey)
         settingsManager = SettingsManager.getInstance(requireContext())
         
+        // 初始化已保存的值
+        initSavedValues()
+        
         // 设置API密钥的监听器
         setupApiKeyListeners()
+    }
+    
+    /**
+     * 初始化已保存的API配置值
+     */
+    private fun initSavedValues() {
+        // 豆包Pro API配置
+        findPreference<EditTextPreference>("doubao_api_key")?.text = settingsManager.getDoubaoApiKey()
+        findPreference<EditTextPreference>("doubao_api_url")?.text = settingsManager.getString("doubao_api_url", "") ?: ""
+        findPreference<EditTextPreference>("doubao_model_id")?.text = settingsManager.getDoubaoModelId().let { modelId ->
+            // 如果是默认值，显示为空
+            if (modelId == "ep-Needs-Your-Endpoint-ID") "" else modelId
+        }
     }
     
     /**
@@ -270,6 +286,25 @@ class AIApiSettingsFragment : PreferenceFragmentCompat() {
         findPreference<EditTextPreference>("zhipu_ai_api_url")?.setOnPreferenceChangeListener { _, newValue ->
             settingsManager.setZhipuAiApiUrl(newValue as String)
             showToast("智谱AI API地址已保存")
+            true
+        }
+        
+        // 豆包Pro API设置
+        findPreference<EditTextPreference>("doubao_api_key")?.setOnPreferenceChangeListener { _, newValue ->
+            settingsManager.setDoubaoApiKey(newValue as String)
+            showToast("豆包Pro API密钥已保存")
+            true
+        }
+        
+        findPreference<EditTextPreference>("doubao_api_url")?.setOnPreferenceChangeListener { _, newValue ->
+            settingsManager.putString("doubao_api_url", newValue as String)
+            showToast("豆包Pro API地址已保存")
+            true
+        }
+        
+        findPreference<EditTextPreference>("doubao_model_id")?.setOnPreferenceChangeListener { _, newValue ->
+            settingsManager.setDoubaoModelId(newValue as String)
+            showToast("豆包Pro 模型ID已保存")
             true
         }
     }

@@ -175,6 +175,23 @@ class AIApiConfigActivity : AppCompatActivity() {
                 apiUrlKey = "kimi_api_url",
                 defaultApiUrl = "https://api.moonshot.cn/v1/chat/completions",
                 isConfigured = settingsManager.getString("kimi_api_key", "")?.isNotEmpty() == true
+            ),
+            AIConfigItem(
+                name = "豆包Pro",
+                displayName = "豆包Pro",
+                description = "字节跳动豆包Pro AI",
+                apiKeyKey = "doubao_api_key",
+                apiUrlKey = "doubao_api_url",
+                defaultApiUrl = "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                isConfigured = {
+                    // 检查SharedPreferences中是否明确保存过这个key
+                    val hasSavedKey = settingsManager.getSharedPreferences().contains("doubao_api_key")
+                    val apiKey = settingsManager.getDoubaoApiKey()
+                    // 如果明确保存过，且值不为空，则认为已配置（包括默认值）
+                    val isConfigured = hasSavedKey && apiKey.isNotEmpty()
+                    Log.d(TAG, "检查豆包Pro配置状态: hasSavedKey=$hasSavedKey, apiKey=${apiKey.take(10)}..., isConfigured=$isConfigured")
+                    isConfigured
+                }()
             )
         )
         
@@ -182,6 +199,14 @@ class AIApiConfigActivity : AppCompatActivity() {
         
         // 加载自定义AI配置
         loadCustomAIConfigs()
+        
+        // 调试日志：确认豆包Pro是否在列表中
+        Log.d(TAG, "加载的AI配置项数量: ${aiConfigItems.size}")
+        aiConfigItems.forEach { item ->
+            if (item.name.contains("豆包") || item.name.contains("doubao", ignoreCase = true)) {
+                Log.d(TAG, "找到豆包配置项: ${item.name}, 显示名称: ${item.displayName}, 已配置: ${item.isConfigured}")
+            }
+        }
         
         adapter.notifyDataSetChanged()
     }
@@ -236,30 +261,81 @@ class AIApiConfigActivity : AppCompatActivity() {
         val dialogLayout = LayoutInflater.from(wrappedContext).inflate(R.layout.dialog_api_key_config, null)
         val apiKeyInput = dialogLayout.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_key_input)
         val apiUrlInput = dialogLayout.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_url_input)
+        val modelInput = dialogLayout.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.model_input)
         
         // 设置默认值
-        val currentApiKey = settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
+        val currentApiKey = if (aiName == "豆包Pro") {
+            // 检查是否已经保存过（通过检查SharedPreferences中是否有这个key）
+            val savedKey = settingsManager.getDoubaoApiKey()
+            // 检查SharedPreferences中是否明确保存过这个key
+            val hasSavedKey = settingsManager.getSharedPreferences().contains("doubao_api_key")
+            if (hasSavedKey) {
+                savedKey  // 如果已经保存过，显示保存的值（包括默认值）
+            } else {
+                ""  // 如果从未保存过，显示为空
+            }
+        } else {
+            settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
+        }
         val currentApiUrl = settingsManager.getString(aiConfig.apiUrlKey, "") ?: ""
+        val currentModel = if (aiName == "豆包Pro") {
+            settingsManager.getDoubaoModelId()
+        } else {
+            getDefaultModel(aiName)
+        }
         
         apiKeyInput.setText(currentApiKey)
         apiUrlInput.setText(if (currentApiUrl.isNotEmpty()) currentApiUrl else aiConfig.defaultApiUrl)
+        modelInput.setText(currentModel)
         
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         apiUrlInput.hint = "请输入${aiName}的API URL"
+        if (aiName == "豆包Pro") {
+            modelInput.hint = "请输入模型ID（Endpoint ID）"
+        } else {
+            modelInput.hint = "请输入模型名称（可选）"
+        }
         
         AlertDialog.Builder(wrappedContext)
             .setTitle("配置${aiName}")
-            .setMessage("请填写${aiName}的API密钥和URL（可选）")
+            .setMessage(if (aiName == "豆包Pro") "请填写豆包Pro的API密钥、API URL和模型ID（Endpoint ID）" else "请填写${aiName}的API密钥和URL（可选）")
             .setView(dialogLayout)
             .setPositiveButton("确定") { _, _ ->
                 val apiKey = apiKeyInput.text?.toString()?.trim() ?: ""
                 val apiUrl = apiUrlInput.text?.toString()?.trim() ?: ""
+                val model = modelInput.text?.toString()?.trim() ?: ""
                 
                 if (apiKey.isNotEmpty()) {
-                    // 保存API密钥
-                    settingsManager.putString(aiConfig.apiKeyKey, apiKey)
-                    settingsManager.putString(aiConfig.apiUrlKey, if (apiUrl.isNotEmpty()) apiUrl else aiConfig.defaultApiUrl)
+                    if (aiName == "豆包Pro") {
+                        // 豆包Pro特殊处理：使用SettingsManager的专门方法
+                        settingsManager.setDoubaoApiKey(apiKey)
+                        if (apiUrl.isNotEmpty()) {
+                            settingsManager.putString("doubao_api_url", apiUrl)
+                        }
+                        if (model.isNotEmpty()) {
+                            settingsManager.setDoubaoModelId(model)
+                        }
+                        
+                        // 验证保存是否成功
+                        val savedKey = settingsManager.getDoubaoApiKey()
+                        Log.d(TAG, "保存豆包Pro API密钥后验证: 输入=${apiKey.take(10)}..., 保存后读取=${savedKey.take(10)}..., 匹配=${savedKey == apiKey}")
+                        
+                        if (savedKey != apiKey) {
+                            Log.e(TAG, "豆包Pro API密钥保存失败！输入值与保存值不匹配")
+                            Toast.makeText(this, "保存失败，请重试", Toast.LENGTH_SHORT).show()
+                            return@setPositiveButton
+                        }
+                    } else {
+                        // 其他AI使用通用方法
+                        settingsManager.putString(aiConfig.apiKeyKey, apiKey)
+                        settingsManager.putString(aiConfig.apiUrlKey, if (apiUrl.isNotEmpty()) apiUrl else aiConfig.defaultApiUrl)
+                        if (model.isNotEmpty() && model != getDefaultModel(aiName)) {
+                            // 保存自定义模型（如果有）
+                            val modelKey = aiConfig.apiKeyKey.replace("_api_key", "_model")
+                            settingsManager.putString(modelKey, model)
+                        }
+                    }
                     
                     Toast.makeText(this, "${aiName}配置成功", Toast.LENGTH_SHORT).show()
                     

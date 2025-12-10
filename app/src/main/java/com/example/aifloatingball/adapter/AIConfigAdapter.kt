@@ -76,6 +76,7 @@ class AIConfigAdapter(
                 "文心一言" -> R.drawable.ic_wenxin
                 "gemini" -> R.drawable.ic_gemini
                 "kimi" -> R.drawable.ic_kimi
+                "豆包pro", "doubao" -> R.drawable.ic_web_default
                 else -> R.drawable.ic_web_default
             }
 

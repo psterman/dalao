@@ -29,6 +29,7 @@ enum class AIServiceType {
     XINGHUO,
     KIMI,
     ZHIPU_AI,
+    DOUBAO,
     TEMP_SERVICE
 }
 
@@ -210,6 +211,25 @@ class AIApiManager(private val context: Context) {
                     )
                 } else null
             }
+            AIServiceType.DOUBAO -> {
+                // 参考DeepSeek和智谱AI的实现，直接获取API密钥并检查是否非空
+                val apiKey = settingsManager.getDoubaoApiKey()
+                val apiUrl = getStringSetting("doubao_api_url", "https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+                val modelId = settingsManager.getDoubaoModelId()
+                // 检查API密钥和模型ID是否已配置（与DeepSeek和智谱AI保持一致）
+                if (apiKey.isNotBlank() && modelId.isNotEmpty() && modelId != "ep-Needs-Your-Endpoint-ID") {
+                    AIServiceConfig(
+                        type = type,
+                        name = "豆包Pro",
+                        apiUrl = apiUrl,
+                        apiKey = apiKey,
+                        model = modelId
+                    )
+                } else {
+                    Log.w(TAG, "豆包Pro配置不完整: apiKey=${if (apiKey.isNotBlank()) "已配置" else "未配置"}, modelId=${if (modelId.isNotEmpty() && modelId != "ep-Needs-Your-Endpoint-ID") "已配置" else "未配置"}")
+                    null
+                }
+            }
             AIServiceType.TEMP_SERVICE -> {
                 // 临时专线不需要API密钥，直接返回配置
                 AIServiceConfig(
@@ -225,19 +245,21 @@ class AIApiManager(private val context: Context) {
     
     /**
      * 发送消息到AI服务
+     * @param customConfig 可选的自定义配置，如果提供则优先使用，否则从全局设置读取
      */
     fun sendMessage(
         serviceType: AIServiceType,
         message: String,
         conversationHistory: List<Map<String, String>> = emptyList(),
-        callback: StreamingCallback
+        callback: StreamingCallback,
+        customConfig: AIServiceConfig? = null
     ) {
         Log.d(TAG, "AIApiManager.sendMessage 被调用")
         Log.d(TAG, "服务类型: ${serviceType.name}")
         Log.d(TAG, "消息长度: ${message.length}")
         Log.d(TAG, "对话历史长度: ${conversationHistory.size}")
         
-        val config = getServiceConfig(serviceType)
+        val config = customConfig ?: getServiceConfig(serviceType)
         if (config == null) {
             Log.e(TAG, "API配置获取失败，服务类型: ${serviceType.name}")
             callback.onError("API密钥未配置")
@@ -260,6 +282,10 @@ class AIApiManager(private val context: Context) {
                     AIServiceType.ZHIPU_AI -> {
                         Log.d(TAG, "调用智谱AI API")
                         sendToZhupu(config, message, conversationHistory, callback)
+                    }
+                    AIServiceType.DOUBAO -> {
+                        Log.d(TAG, "调用豆包Pro API")
+                        sendToDoubao(config, message, conversationHistory, callback)
                     }
                     AIServiceType.TEMP_SERVICE -> {
                         Log.d(TAG, "调用临时专线API")
@@ -835,6 +861,8 @@ class AIApiManager(private val context: Context) {
         conversationHistory: List<Map<String, String>>,
         callback: StreamingCallback
     ) {
+        // 参数保留用于未来实现
+        @Suppress("UNUSED_PARAMETER")
         // 讯飞星火需要特殊的认证和格式，这里简化处理
         callback.onError("讯飞星火API暂未实现")
     }
@@ -1007,6 +1035,8 @@ class AIApiManager(private val context: Context) {
         conversationHistory: List<Map<String, String>>,
         callback: StreamingCallback
     ) {
+        // conversationHistory参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         try {
             // 临时专线使用GET请求，将问题直接拼接到URL路径中
             // 按照服务介绍：https://818233.xyz/问题内容
@@ -1459,9 +1489,329 @@ class AIApiManager(private val context: Context) {
     }
     
     /**
+     * 发送到豆包Pro
+     */
+    private suspend fun sendToDoubao(
+        config: AIServiceConfig,
+        message: String,
+        conversationHistory: List<Map<String, String>>,
+        callback: StreamingCallback
+    ) {
+        try {
+            Log.d(TAG, "开始发送豆包Pro请求")
+            Log.d(TAG, "API URL: ${config.apiUrl}")
+            Log.d(TAG, "模型: ${config.model}")
+            Log.d(TAG, "API密钥长度: ${config.apiKey.length}")
+            Log.d(TAG, "API密钥前10位: ${config.apiKey.take(10)}...")
+            
+            val url = URL(config.apiUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            
+            // 如果是HTTPS连接，配置SSL信任
+            if (connection is HttpsURLConnection) {
+                val sslContext = createTrustAllSSLContext()
+                connection.sslSocketFactory = sslContext.socketFactory
+                connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
+            }
+            
+            connection.apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+                setRequestProperty("User-Agent", "AI-FloatingBall/1.0")
+                doOutput = true
+                doInput = true
+                connectTimeout = 30000
+                readTimeout = 60000
+            }
+            
+            val requestBody = JSONObject().apply {
+                put("model", config.model)
+                put("messages", JSONArray().apply {
+                    // 添加历史对话
+                    conversationHistory.forEach { msg ->
+                        put(JSONObject().apply {
+                            put("role", msg["role"])
+                            put("content", msg["content"])
+                        })
+                    }
+                    // 添加当前消息
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", message)
+                    })
+                })
+                put("stream", true)
+                put("max_tokens", config.maxTokens)
+                put("temperature", config.temperature)
+            }
+            
+            val requestJson = requestBody.toString()
+            Log.d(TAG, "请求体: $requestJson")
+            
+            connection.outputStream.use { os ->
+                val input = requestJson.toByteArray(StandardCharsets.UTF_8)
+                os.write(input, 0, input.size)
+            }
+            
+            val responseCode = connection.responseCode
+            Log.d(TAG, "豆包Pro响应码: $responseCode")
+            
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                var fullResponse = ""
+                var line: String?
+                var lineCount = 0
+                var hasReceivedContent = false
+                
+                // 尝试读取完整响应（用于非流式响应）
+                val responseBuilder = StringBuilder()
+                while (reader.readLine().also { line = it } != null) {
+                    responseBuilder.append(line).append("\n")
+                }
+                reader.close()
+                
+                val fullResponseText = responseBuilder.toString().trim()
+                Log.d(TAG, "豆包Pro完整响应文本（前500字符）: ${fullResponseText.take(500)}")
+                
+                // 尝试解析为流式响应（SSE格式）
+                if (fullResponseText.contains("data: ")) {
+                    Log.d(TAG, "检测到流式响应格式（SSE）")
+                    fullResponseText.lines().forEach { responseLine ->
+                        lineCount++
+                        if (responseLine.startsWith("data: ")) {
+                            val jsonString = responseLine.substring(6).trim()
+                            Log.d(TAG, "解析JSON: $jsonString")
+                            
+                            if (jsonString == "[DONE]") {
+                                Log.d(TAG, "收到结束标记")
+                                return@forEach
+                            }
+                            
+                            if (jsonString.isNotEmpty()) {
+                                try {
+                                    val jsonObject = JSONObject(jsonString)
+                                    Log.d(TAG, "JSON对象: $jsonObject")
+                                    
+                                    // 检查是否有错误
+                                    if (jsonObject.has("error")) {
+                                        val error = jsonObject.getJSONObject("error")
+                                        val errorMessage = error.optString("message", "未知错误")
+                                        Log.e(TAG, "豆包Pro API返回错误: $errorMessage")
+                                        callback.onError("豆包Pro API错误: $errorMessage")
+                                        return@forEach
+                                    }
+                                    
+                                    if (jsonObject.has("choices")) {
+                                        val choices = jsonObject.getJSONArray("choices")
+                                        if (choices.length() > 0) {
+                                            val choice = choices.getJSONObject(0)
+                                            Log.d(TAG, "Choice对象: $choice")
+                                            
+                                            // 检查是否有delta字段（流式响应）
+                                            if (choice.has("delta")) {
+                                                val delta = choice.getJSONObject("delta")
+                                                Log.d(TAG, "Delta对象: $delta")
+                                                
+                                                if (delta.has("content")) {
+                                                    val contentChunk = delta.getString("content")
+                                                    Log.d(TAG, "内容块: '$contentChunk'")
+                                                    fullResponse += contentChunk
+                                                    hasReceivedContent = true
+                                                    callback.onChunkReceived(contentChunk)
+                                                }
+                                            } 
+                                            // 检查是否有message字段（非流式响应）
+                                            else if (choice.has("message")) {
+                                                val message = choice.getJSONObject("message")
+                                                if (message.has("content")) {
+                                                    val content = message.getString("content")
+                                                    Log.d(TAG, "消息内容: '$content'")
+                                                    fullResponse += content
+                                                    hasReceivedContent = true
+                                                    callback.onChunkReceived(content)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "解析豆包Pro流式响应时出错: ${e.message}", e)
+                                    Log.w(TAG, "原始JSON: $jsonString")
+                                }
+                            }
+                        }
+                    }
+                } 
+                // 尝试解析为非流式JSON响应
+                else if (fullResponseText.startsWith("{") || fullResponseText.startsWith("[")) {
+                    Log.d(TAG, "检测到非流式JSON响应")
+                    try {
+                        val jsonObject = JSONObject(fullResponseText)
+                        Log.d(TAG, "JSON对象: $jsonObject")
+                        
+                        // 检查是否有错误
+                        if (jsonObject.has("error")) {
+                            val error = jsonObject.getJSONObject("error")
+                            val rawMessage = error.optString("message", "未知错误")
+                            
+                            // 检查是否是模型ID相关的错误
+                            val errorMessage = if (rawMessage.contains("model", ignoreCase = true) || 
+                                rawMessage.contains("endpoint", ignoreCase = true) ||
+                                rawMessage.contains("does not exist", ignoreCase = true) ||
+                                rawMessage.contains("do not have access", ignoreCase = true)) {
+                                "模型ID（Endpoint ID）配置错误：$rawMessage\n\n请检查：\n1. 模型ID格式是否正确（应为 ep-xxx 格式）\n2. 是否在豆包控制台创建了接入点\n3. 当前使用的模型ID: ${config.model}\n\n请在设置中重新配置正确的Endpoint ID"
+                            } else {
+                                "豆包Pro API错误: $rawMessage"
+                            }
+                            
+                            Log.e(TAG, "豆包Pro API返回错误: $rawMessage")
+                            callback.onError(errorMessage)
+                            return
+                        }
+                        
+                        if (jsonObject.has("choices")) {
+                            val choices = jsonObject.getJSONArray("choices")
+                            if (choices.length() > 0) {
+                                val choice = choices.getJSONObject(0)
+                                if (choice.has("message")) {
+                                    val message = choice.getJSONObject("message")
+                                    if (message.has("content")) {
+                                        val content = message.getString("content")
+                                        Log.d(TAG, "消息内容: '$content'")
+                                        fullResponse = content
+                                        hasReceivedContent = true
+                                        callback.onChunkReceived(content)
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "解析豆包Pro JSON响应时出错: ${e.message}", e)
+                        callback.onError("解析豆包Pro响应失败: ${e.message}")
+                        return
+                    }
+                } else {
+                    Log.w(TAG, "无法识别的响应格式")
+                    if (fullResponseText.isNotEmpty()) {
+                        Log.d(TAG, "响应内容: $fullResponseText")
+                    }
+                }
+                
+                Log.d(TAG, "豆包Pro完整响应: '$fullResponse', 是否收到内容: $hasReceivedContent")
+                
+                if (hasReceivedContent && fullResponse.isNotEmpty()) {
+                    callback.onComplete(fullResponse)
+                } else if (fullResponse.isEmpty()) {
+                    Log.w(TAG, "豆包Pro响应为空，可能没有收到有效内容")
+                    callback.onError("豆包Pro响应为空，请检查API配置和网络连接")
+                } else {
+                    callback.onComplete(fullResponse)
+                }
+            } else {
+                // 读取错误响应
+                val errorStream = connection.errorStream
+                val errorBody = if (errorStream != null) {
+                    try {
+                        BufferedReader(InputStreamReader(errorStream, StandardCharsets.UTF_8)).use { reader ->
+                            reader.readText()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "读取错误响应失败", e)
+                        "无法读取错误信息"
+                    }
+                } else {
+                    // 尝试从正常输入流读取错误信息
+                    try {
+                        BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8)).use { reader ->
+                            reader.readText()
+                        }
+                    } catch (e: Exception) {
+                        "未知错误 (HTTP $responseCode)"
+                    }
+                }
+                
+                Log.e(TAG, "豆包Pro API错误: $responseCode")
+                Log.e(TAG, "错误响应体: $errorBody")
+                
+                // 尝试解析错误JSON
+                val errorMessage = try {
+                    if (errorBody.startsWith("{") || errorBody.startsWith("[")) {
+                        val errorJson = JSONObject(if (errorBody.startsWith("[")) {
+                            JSONArray(errorBody).getJSONObject(0).toString()
+                        } else {
+                            errorBody
+                        })
+                        if (errorJson.has("error")) {
+                            val error = errorJson.getJSONObject("error")
+                            val rawMessage = error.optString("message", error.optString("code", "未知错误"))
+                            
+                            // 检查是否是模型ID相关的错误
+                            if (rawMessage.contains("model", ignoreCase = true) || 
+                                rawMessage.contains("endpoint", ignoreCase = true) ||
+                                rawMessage.contains("does not exist", ignoreCase = true) ||
+                                rawMessage.contains("do not have access", ignoreCase = true)) {
+                                "模型ID（Endpoint ID）配置错误：$rawMessage\n\n请检查：\n1. 模型ID格式是否正确（应为 ep-xxx 格式）\n2. 是否在豆包控制台创建了接入点\n3. 当前使用的模型ID: ${config.model}\n\n请在设置中重新配置正确的Endpoint ID"
+                            } else {
+                                rawMessage
+                            }
+                        } else {
+                            errorJson.optString("message", "未知错误")
+                        }
+                    } else {
+                        errorBody
+                    }
+                } catch (e: Exception) {
+                    when (responseCode) {
+                        401 -> "API密钥无效，请检查配置"
+                        403 -> "API密钥无权限访问此资源"
+                        404 -> "API地址不存在，请检查URL配置"
+                        429 -> "请求过于频繁，请稍后重试"
+                        500 -> "服务器内部错误，请稍后重试"
+                        502, 503, 504 -> "服务暂时不可用，请稍后重试"
+                        else -> {
+                            // 检查错误信息中是否包含模型相关的内容
+                            if (errorBody.contains("model", ignoreCase = true) || 
+                                errorBody.contains("endpoint", ignoreCase = true)) {
+                                "模型ID（Endpoint ID）配置错误\n\n请检查：\n1. 模型ID格式是否正确（应为 ep-xxx 格式）\n2. 是否在豆包控制台创建了接入点\n3. 当前使用的模型ID: ${config.model}\n\n请在设置中重新配置正确的Endpoint ID"
+                            } else {
+                                "豆包Pro API错误 (HTTP $responseCode): $errorBody"
+                            }
+                        }
+                    }
+                }
+                
+                callback.onError(errorMessage)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "豆包Pro请求异常", e)
+            val errorMessage = when {
+                e is java.net.SocketTimeoutException -> {
+                    "豆包Pro请求超时，请检查网络连接"
+                }
+                e is java.net.ConnectException -> {
+                    "无法连接到豆包Pro服务器，请检查网络连接"
+                }
+                e is javax.net.ssl.SSLException -> {
+                    "SSL连接失败，请检查网络安全设置"
+                }
+                e.message?.contains("JSON") == true -> {
+                    "服务器响应格式错误，请稍后重试"
+                }
+                else -> {
+                    "豆包Pro请求失败：${e.message ?: "未知错误"}"
+                }
+            }
+            
+            callback.onError(errorMessage)
+        }
+    }
+    
+    /**
      * 获取文心一言访问令牌
      */
     private fun getWenxinAccessToken(apiKey: String, secretKey: String): String {
+        // 参数保留用于未来实现
+        @Suppress("UNUSED_PARAMETER")
         // 这里需要实现获取访问令牌的逻辑
         // 由于需要网络请求，这里简化处理
         return ""

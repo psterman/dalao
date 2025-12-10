@@ -333,7 +333,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
 
     private fun loadContactData() {
-        currentContact = intent.getParcelableExtra(EXTRA_CONTACT)
+        currentContact = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_CONTACT, ChatContact::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_CONTACT)
+        }
         currentContact?.let { contact ->
             contactNameText.text = contact.name
             
@@ -455,7 +460,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         contactStatusText.setTextColor(getColor(R.color.ai_icon_color))
                     }
                     else -> {
-                        contactStatusText.setTextColor(getColor(android.R.color.secondary_text_light))
+                        contactStatusText.setTextColor(getColor(android.R.color.darker_gray))
                     }
             }
         }
@@ -727,6 +732,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
             "kimi" -> AIServiceType.KIMI
             "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
+            "豆包pro", "doubao", "豆包" -> AIServiceType.DOUBAO
             else -> null
         }
         
@@ -886,8 +892,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         sendButton.isEnabled = true // 重新启用发送按钮
                         
                         // 隐藏输入法
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
+                        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        inputMethodManager.hideSoftInputFromWindow(messageInput.windowToken, 0)
 
                                 // 滚动到底部
                                 messagesRecyclerView.post {
@@ -944,6 +950,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         "QIANWEN" -> AIServiceType.QIANWEN
                         "XINGHUO" -> AIServiceType.XINGHUO
                         "KIMI" -> AIServiceType.KIMI
+                        "DOUBAO" -> AIServiceType.DOUBAO
                         "TEMP_SERVICE" -> AIServiceType.TEMP_SERVICE
                         else -> null
                     }
@@ -966,8 +973,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             
             // 更新contact的groupId（如果customData是可变的）
             try {
-                if (contact.customData is MutableMap) {
-                    (contact.customData as MutableMap<String, String>)["group_chat_id"] = groupChat.id
+                if (contact.customData is MutableMap<*, *>) {
+                    (contact.customData as? MutableMap<String, String>)?.let {
+                        it["group_chat_id"] = groupChat.id
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "无法更新contact的customData", e)
@@ -1272,6 +1281,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             AIServiceType.QIANWEN -> "通义千问"
             AIServiceType.WENXIN -> "文心一言"
             AIServiceType.XINGHUO -> "讯飞星火"
+            AIServiceType.DOUBAO -> "豆包Pro"
             AIServiceType.TEMP_SERVICE -> "临时专线"
         }
     }
@@ -1321,6 +1331,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 加载更多群聊历史记录
      */
     private fun loadMoreGroupChatHistory(contact: ChatContact) {
+        // contact参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         currentGroupChat?.let { groupChat ->
             // 获取当前已加载的消息数量
             val currentCount = groupMessageAdapter.itemCount
@@ -1460,7 +1472,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     Log.d(TAG, "智谱AI测试响应块: '$chunk'")
                 }
                 
-                override fun onComplete(response: String) {
+                override fun onComplete(fullResponse: String) {
+                    val response = fullResponse
                     Log.d(TAG, "✅ 智谱AI测试成功，响应: '$response'")
                     if (response.contains("测试成功")) {
                         Log.d(TAG, "✅ 智谱AI API工作正常！")
@@ -1660,10 +1673,38 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
     /**
      * 获取指定服务的API密钥
+     * 优先从联系人的customData中读取，如果没有则从全局设置读取
      */
     private fun getApiKeyForService(serviceType: AIServiceType): String {
         val settingsManager = SettingsManager.getInstance(this)
-        return when (serviceType) {
+        
+        // 优先从联系人的customData中读取API密钥
+        val contactApiKey = currentContact?.customData?.get("api_key") as? String
+        Log.d(TAG, "检查API密钥 - 服务类型: ${serviceType.name}, 联系人: ${currentContact?.name}, customData中的密钥: ${if (contactApiKey != null) "存在(长度: ${contactApiKey.length})" else "不存在"}")
+        
+        if (contactApiKey != null && contactApiKey.isNotBlank()) {
+            // 对于豆包Pro，需要排除默认值，并且需要验证是否真正配置了
+            if (serviceType == AIServiceType.DOUBAO) {
+                val isDefaultValue = contactApiKey == "44325922-caf9-4e1a-a02d-243885f4df55"
+                if (isDefaultValue) {
+                    Log.d(TAG, "联系人中的豆包Pro API密钥是默认值，继续从全局设置读取")
+                    // 如果是默认值，继续从全局设置读取
+                } else {
+                    // 不是默认值，使用联系人中的密钥
+                    Log.d(TAG, "✅ 使用联系人中的豆包Pro API密钥: 长度: ${contactApiKey.length}, 前10个字符: ${contactApiKey.take(10)}")
+                    return contactApiKey
+                }
+            } else {
+                // 其他AI直接使用联系人中的密钥
+                Log.d(TAG, "✅ 使用联系人中的API密钥: ${serviceType.name}, 长度: ${contactApiKey.length}, 前10个字符: ${contactApiKey.take(10)}")
+                return contactApiKey
+            }
+        } else {
+            Log.d(TAG, "联系人customData中没有API密钥或为空，从全局设置读取")
+        }
+        
+        // 从全局设置读取
+        val globalApiKey = when (serviceType) {
             AIServiceType.CHATGPT -> settingsManager.getString("chatgpt_api_key", "") ?: ""
             AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
             AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
@@ -1673,8 +1714,15 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.DOUBAO -> {
+                // 参考DeepSeek和智谱AI的实现，直接获取API密钥
+                settingsManager.getDoubaoApiKey()
+            }
             AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
         }
+        
+        Log.d(TAG, "从全局设置读取的API密钥: ${serviceType.name}, ${if (globalApiKey.isBlank()) "未配置" else "已配置(长度: ${globalApiKey.length})"}")
+        return globalApiKey
     }
 
     /**
@@ -1792,10 +1840,50 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         conversationHistory: List<Map<String, String>>,
         aiMessage: ChatMessage
     ) {
+        // 尝试从联系人的customData中构建自定义配置
+        val customConfig = currentContact?.customData?.let { customData ->
+            val contactApiKey = customData["api_key"] as? String
+            val contactApiUrl = customData["api_url"] as? String
+            val contactModel = customData["model"] as? String
+            
+            if (contactApiKey != null && contactApiKey.isNotBlank()) {
+                // 对于豆包Pro，需要排除默认值
+                if (serviceType == AIServiceType.DOUBAO && contactApiKey == "44325922-caf9-4e1a-a02d-243885f4df55") {
+                    null
+                } else {
+                    val settingsManager = SettingsManager.getInstance(this)
+                    val apiUrl = contactApiUrl ?: when (serviceType) {
+                        AIServiceType.DOUBAO -> "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+                        else -> ""
+                    }
+                    val model = contactModel ?: when (serviceType) {
+                        AIServiceType.DOUBAO -> settingsManager.getDoubaoModelId()
+                        else -> ""
+                    }
+                    
+                    // 对于豆包Pro，还需要检查模型ID
+                    if (serviceType == AIServiceType.DOUBAO && (model.isEmpty() || model == "ep-Needs-Your-Endpoint-ID")) {
+                        null
+                    } else {
+                        AIApiManager.AIServiceConfig(
+                            type = serviceType,
+                            name = currentContact?.name ?: serviceType.name,
+                            apiUrl = apiUrl,
+                            apiKey = contactApiKey,
+                            model = model
+                        )
+                    }
+                }
+            } else {
+                null
+            }
+        }
+        
         aiApiManager.sendMessage(
             serviceType = serviceType,
             message = message,
             conversationHistory = conversationHistory,
+            customConfig = customConfig,
             callback = object : AIApiManager.StreamingCallback {
                 override fun onChunkReceived(chunk: String) {
                     // 更新AI回复内容
@@ -1918,6 +2006,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 显示消息操作对话框
      */
     private fun showMessageOptionsDialog(message: ChatActivity.ChatMessage, position: Int) {
+        // position参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         if (!message.isFromUser) {
             // AI消息还可以重新生成和收藏
             val aiOptions = arrayOf("复制", "分享", "收藏", "重新生成", "删除")
@@ -2621,7 +2711,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 显示搜索结果
      */
     private fun showSearchResults(query: String, results: List<Pair<Int, ChatMessage>>) {
-        val resultTexts = results.map { (index, message) ->
+        // query参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
+        val resultTexts = results.map { (_: Int, message: ChatMessage) ->
             val prefix = if (message.isFromUser) "用户" else "AI"
             val content = message.content.let {
                 if (it.length > 50) it.substring(0, 50) + "..." else it
@@ -2733,6 +2825,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 重新生成消息
      */
     private fun regenerateMessage(message: ChatActivity.ChatMessage, position: Int) {
+        // message参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         // 找到对应的用户消息
         val userMessageIndex = findUserMessageIndex(position)
         if (userMessageIndex != -1) {
@@ -3725,13 +3819,19 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         
         if (requestCode == REQUEST_GROUP_SETTINGS && resultCode == RESULT_OK) {
             // 群聊设置返回，更新联系人信息
-            data?.getParcelableExtra<ChatContact>(GroupChatSettingsActivity.EXTRA_GROUP_CONTACT)?.let { updatedContact ->
+            val updatedContact = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                data?.getParcelableExtra(GroupChatSettingsActivity.EXTRA_GROUP_CONTACT, ChatContact::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                data?.getParcelableExtra<ChatContact>(GroupChatSettingsActivity.EXTRA_GROUP_CONTACT)
+            }
+            updatedContact?.let {
                 currentContact = updatedContact
                 contactNameText.text = updatedContact.name
                 contactStatusText.text = updatedContact.description ?: "群聊"
                 
                 // 如果群聊被删除，关闭当前页面
-                if (data.getBooleanExtra("group_deleted", false)) {
+                if (data?.getBooleanExtra("group_deleted", false) == true) {
                     Toast.makeText(this, "群聊已删除", Toast.LENGTH_SHORT).show()
                     finish()
                 }
@@ -3905,6 +4005,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 处理同步文件
      */
     private fun processSyncFile(syncFile: File, serviceName: String) {
+        // serviceName参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         try {
             val jsonContent = syncFile.readText()
             val jsonObject = JSONObject(jsonContent)
@@ -4003,6 +4105,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 调试方法：使用与SimpleModeActivity相同的逻辑获取消息
      */
     private fun getLastChatMessageFromSimpleMode(aiName: String): String {
+        // aiName参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         try {
             // 使用与灵动岛相同的ID生成逻辑
             val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
@@ -4297,6 +4401,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     private fun copyAIReply(aiName: String, replyContent: String) {
+        // aiName参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val clip = android.content.ClipData.newPlainText("AI回复", replyContent)
         clipboard.setPrimaryClip(clip)
@@ -4304,6 +4410,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     private fun regenerateAIReply(message: GroupChatMessage, aiName: String) {
+        // aiName参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         currentGroupChat?.let { groupChat ->
             lifecycleScope.launch {
                 try {
@@ -4319,18 +4427,22 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     private fun likeAIReply(message: GroupChatMessage, aiName: String) {
+        // message参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         // 实现点赞功能
         Toast.makeText(this, "已点赞${aiName}的回复", Toast.LENGTH_SHORT).show()
         // TODO: 可以在这里添加点赞数据的持久化逻辑
     }
     
     private fun deleteAIReply(message: GroupChatMessage, aiName: String) {
+        // message参数保留用于未来扩展
+        @Suppress("UNUSED_PARAMETER")
         // 显示确认删除对话框
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("删除AI回复")
             .setMessage("确定要删除${aiName}的回复吗？")
             .setPositiveButton("删除") { _, _ ->
-                currentGroupChat?.let { groupChat ->
+                currentGroupChat?.let { _ ->
                     try {
                         // 暂不支持删除单个AI回复
                         Toast.makeText(this@ChatActivity, "删除功能暂未实现", Toast.LENGTH_SHORT).show()

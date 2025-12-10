@@ -199,6 +199,34 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        app:key="doubao_settings"
+        app:title="豆包Pro API设置">
+
+        <EditTextPreference
+            app:key="doubao_api_key"
+            app:title="API密钥"
+            app:summary="设置豆包Pro API密钥"
+            app:dialogTitle="输入豆包Pro API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="doubao_api_url"
+            app:title="API地址"
+            app:summary="设置豆包Pro API地址"
+            app:dialogTitle="输入豆包Pro API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://ark.cn-beijing.volces.com/api/v3/chat/completions"/>
+
+        <EditTextPreference
+            app:key="doubao_model_id"
+            app:title="模型ID (Endpoint ID)"
+            app:summary="设置豆包Pro模型ID（Endpoint ID）"
+            app:dialogTitle="输入豆包Pro模型ID"
+            android:inputType="text"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         app:key="temp_service_settings"
         app:title="临时专线设置">
 

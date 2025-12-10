@@ -674,6 +674,7 @@
                         android:src="@drawable/ic_arrow_forward"
                         app:tint="@color/simple_mode_text_secondary_light" />
                 </LinearLayout>
+                
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

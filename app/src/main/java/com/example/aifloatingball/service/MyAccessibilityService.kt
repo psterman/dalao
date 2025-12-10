@@ -22,6 +22,26 @@ class MyAccessibilityService : AccessibilityService() {
         const val ACTION_CLIPBOARD_CHANGED = "com.example.aifloatingball.ACTION_CLIPBOARD_CHANGED"
         const val EXTRA_CLIPBOARD_CONTENT = "clipboard_content"
         const val ACTION_AUTO_PASTE = "com.example.aifloatingball.AUTO_PASTE"
+        const val ACTION_REQUEST_SCREEN_ANALYSIS = "com.example.aifloatingball.ACTION_REQUEST_SCREEN_ANALYSIS"
+        const val ACTION_PERFORM_COMMAND = "com.example.aifloatingball.ACTION_PERFORM_COMMAND"
+        const val ACTION_COMMAND = ACTION_PERFORM_COMMAND // Alias for Agent compatibility
+        const val EXTRA_SCREEN_CONTENT = "screen_content"
+        const val EXTRA_COMMAND_TYPE = "command_type"
+        const val EXTRA_TARGET_TEXT = "target_text"
+        const val EXTRA_INPUT_TEXT = "input_text"
+        const val EXTRA_X = "x"
+        const val EXTRA_Y = "y"
+        const val EXTRA_END_X = "end_x"
+        const val EXTRA_END_Y = "end_y"
+
+        const val COMMAND_CLICK = "click"
+        const val COMMAND_TAP = "tap"
+        const val COMMAND_SWIPE = "swipe"
+        const val COMMAND_SCROLL_UP = "scroll_up"
+        const val COMMAND_SCROLL_DOWN = "scroll_down"
+        const val COMMAND_INPUT = "input"
+        const val COMMAND_BACK = "back"
+        const val COMMAND_HOME = "home"
 
         // 调试模式：设置为true时放宽过滤条件
         private const val DEBUG_MODE = true
@@ -127,6 +147,9 @@ class MyAccessibilityService : AccessibilityService() {
 
             // 注册自动粘贴广播接收器
             registerAutoPasteReceiver()
+            
+            // 注册指令接收器
+            registerCommandReceiver()
 
             // 启动服务状态监控
             startServiceStatusCheck()
@@ -636,6 +659,7 @@ class MyAccessibilityService : AccessibilityService() {
 
             // 取消注册自动粘贴广播接收器
             unregisterAutoPasteReceiver()
+            unregisterCommandReceiver()
 
             Log.d(TAG, "✅ 无障碍服务已销毁，所有监听器和检查机制已清理")
         } catch (e: Exception) {
@@ -701,11 +725,213 @@ class MyAccessibilityService : AccessibilityService() {
             )
             
             Log.d(TAG, "✅ 自动粘贴广播接收器注册成功（普通+本地）")
+
+            // 注册指令接收器
+            registerCommandReceiver()
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 注册自动粘贴广播接收器失败", e)
         }
     }
+
+    // 指令接收器
+    private var commandReceiver: BroadcastReceiver? = null
+
+    private fun registerCommandReceiver() {
+        commandReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    ACTION_REQUEST_SCREEN_ANALYSIS -> {
+                        performScreenAnalysis()
+                    }
+                    ACTION_PERFORM_COMMAND -> {
+                        val type = intent.getStringExtra(EXTRA_COMMAND_TYPE)
+                        val target = intent.getStringExtra(EXTRA_TARGET_TEXT)
+                        val input = intent.getStringExtra(EXTRA_INPUT_TEXT)
+                        val x = intent.getIntExtra(EXTRA_X, 0)
+                        val y = intent.getIntExtra(EXTRA_Y, 0)
+                        val endX = intent.getIntExtra(EXTRA_END_X, 0)
+                        val endY = intent.getIntExtra(EXTRA_END_Y, 0)
+                        handleCommand(type, target, input, x, y, endX, endY)
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(ACTION_REQUEST_SCREEN_ANALYSIS)
+            addAction(ACTION_PERFORM_COMMAND)
+        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(commandReceiver!!, filter)
+    }
+
+    private fun unregisterCommandReceiver() {
+        commandReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            commandReceiver = null
+        }
+    }
+
+    /**
+     * 执行屏幕分析
+     */
+    private fun performScreenAnalysis() {
+        val root = rootInActiveWindow ?: return
+        val nodes = StringBuilder()
+        traverseNode(root, nodes, 0)
+        
+        val intent = Intent(ACTION_REQUEST_SCREEN_ANALYSIS)
+        intent.putExtra(EXTRA_SCREEN_CONTENT, nodes.toString())
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
+    private fun traverseNode(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
+        if (node == null) return
+        
+        val indent = "  ".repeat(depth)
+        val text = node.text?.toString()
+        val desc = node.contentDescription?.toString()
+        val id = node.viewIdResourceName
+        
+        if (!text.isNullOrEmpty() || !desc.isNullOrEmpty() || node.isClickable || node.isEditable) {
+            sb.append(indent)
+            // 添加坐标信息
+            val rect = android.graphics.Rect()
+            node.getBoundsInScreen(rect)
+            sb.append("[Bounds: ${rect.left},${rect.top},${rect.right},${rect.bottom}] ")
+            
+            if (!text.isNullOrEmpty()) sb.append("Text: $text ")
+            if (!desc.isNullOrEmpty()) sb.append("Desc: $desc ")
+            if (node.isClickable) sb.append("[Clickable] ")
+            if (node.isEditable) sb.append("[Editable] ")
+            if (!id.isNullOrEmpty()) sb.append("ID: $id")
+            sb.append("\n")
+        }
+
+        for (i in 0 until node.childCount) {
+            traverseNode(node.getChild(i), sb, depth + 1)
+        }
+    }
+
+    /**
+     * 处理自动化指令
+     */
+    private fun handleCommand(type: String?, target: String?, input: String?, x: Int, y: Int, endX: Int, endY: Int) {
+        Log.d(TAG, "执行指令: $type, Target: $target, Input: $input, Pos: ($x,$y)")
+        when (type) {
+            COMMAND_CLICK -> {
+                if (!target.isNullOrEmpty()) {
+                    performClickByText(target)
+                }
+            }
+            COMMAND_TAP -> {
+                performTap(x.toFloat(), y.toFloat())
+            }
+            COMMAND_SWIPE -> {
+                performSwipe(x.toFloat(), y.toFloat(), endX.toFloat(), endY.toFloat())
+            }
+            COMMAND_SCROLL_UP -> {
+                performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) 
+            }
+            COMMAND_SCROLL_DOWN -> {
+                performScroll()
+            }
+            COMMAND_INPUT -> {
+                if (!target.isNullOrEmpty() && input != null) {
+                    performInputByText(target, input)
+                }
+            }
+            COMMAND_BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
+            COMMAND_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
+        }
+    }
+
+    private fun performTap(x: Float, y: Float) {
+        val path = android.graphics.Path()
+        path.moveTo(x, y)
+        val builder = android.accessibilityservice.GestureDescription.Builder()
+        builder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 100))
+        val gesture = builder.build()
+        dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                Log.d(TAG, "点击手势执行成功: ($x, $y)")
+            }
+            override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                Log.w(TAG, "点击手势执行取消")
+            }
+        }, null)
+    }
+
+    private fun performSwipe(startX: Float, startY: Float, endX: Float, endY: Float) {
+        val path = android.graphics.Path()
+        path.moveTo(startX, startY)
+        path.lineTo(endX, endY)
+        val builder = android.accessibilityservice.GestureDescription.Builder()
+        builder.addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+        val gesture = builder.build()
+        dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                Log.d(TAG, "滑动手势执行成功")
+            }
+            override fun onCancelled(gestureDescription: android.accessibilityservice.GestureDescription?) {
+                Log.w(TAG, "滑动手势执行取消")
+            }
+        }, null)
+    }
+
+    private fun performClickByText(text: String) {
+        val root = rootInActiveWindow ?: return
+        val list = root.findAccessibilityNodeInfosByText(text)
+        for (node in list) {
+            if (node.isClickable) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                return
+            }
+            // 尝试点击父节点
+            var parent = node.parent
+            while (parent != null) {
+                if (parent.isClickable) {
+                    parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return
+                }
+                parent = parent.parent
+            }
+        }
+    }
+
+    private fun performScroll() {
+        // 简单查找第一个可滚动节点进行向下滚动
+        val root = rootInActiveWindow ?: return
+        findScrollableNode(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+    }
+    
+    private fun findScrollableNode(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val result = findScrollableNode(node.getChild(i))
+            if (result != null) return result
+        }
+        return null
+    }
+
+    private fun performInputByText(targetDesc: String, inputText: String) {
+        val root = rootInActiveWindow ?: return
+        // 1. 先尝试找文字
+        var list = root.findAccessibilityNodeInfosByText(targetDesc)
+        if (list.isEmpty()) {
+             // 2. 找不到可能由于是Hint，尝试遍历查找Editable且Hint包含该文字的节点（简化实现）
+        }
+
+        for (node in list) {
+             if (node.isEditable) {
+                 val arguments = android.os.Bundle()
+                 arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, inputText)
+                 node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                 return
+             }
+        }
+    }
+
 
     /**
      * 取消注册自动粘贴广播接收器
@@ -947,4 +1173,6 @@ class MyAccessibilityService : AccessibilityService() {
             null
         }
     }
+
+
 }

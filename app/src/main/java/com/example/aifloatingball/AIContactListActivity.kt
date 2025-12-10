@@ -47,7 +47,7 @@ class AIContactListActivity : AppCompatActivity() {
     private lateinit var groupChatManager: GroupChatManager
     private lateinit var unifiedGroupChatManager: UnifiedGroupChatManager
     private var allAIContacts = mutableListOf<ChatContact>()
-    private var showOnlyConfiguredAIs = true // 默认只显示配置了API的AI
+    private var showOnlyConfiguredAIs = false // 默认显示所有AI，包括未配置的
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +62,13 @@ class AIContactListActivity : AppCompatActivity() {
         initializeViews()
         setupAIContacts()
         setupListeners()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // 页面恢复时刷新联系人列表，确保显示最新的配置状态
+        Log.d(TAG, "onResume: 刷新联系人列表")
+        updateContactList()
     }
 
     private fun initializeViews() {
@@ -165,6 +172,9 @@ class AIContactListActivity : AppCompatActivity() {
      * 更新联系人列表
      */
     private fun updateContactList() {
+        // 重新生成联系人列表，确保从SettingsManager读取最新值
+        allAIContacts = generateAIContactsList()
+        
         val filteredContacts = if (showOnlyConfiguredAIs) {
             allAIContacts.filter { contact ->
                 contact.customData["is_configured"] == "true"
@@ -172,6 +182,9 @@ class AIContactListActivity : AppCompatActivity() {
         } else {
             allAIContacts
         }
+        
+        Log.d(TAG, "更新联系人列表: 总数=${allAIContacts.size}, 过滤后=${filteredContacts.size}, 显示模式=${if (showOnlyConfiguredAIs) "只显示已配置" else "显示所有"}")
+        Log.d(TAG, "豆包Pro联系人: ${allAIContacts.find { it.name == "豆包Pro" }?.let { "存在, isConfigured=${it.customData["is_configured"]}, apiKey长度=${(it.customData["api_key"] as? String)?.length ?: 0}" } ?: "不存在"}")
 
         aiContactAdapter.updateContacts(filteredContacts)
     }
@@ -193,13 +206,80 @@ class AIContactListActivity : AppCompatActivity() {
             "文心一言",
             "通义千问",
             "讯飞星火",
-            "Kimi"
+            "Kimi",
+            "豆包Pro"
         )
 
         availableAIs.forEach { aiName ->
             val isTempService = aiName == "临时专线"
+            // 获取原始API密钥（不排除默认值），用于保存到customData
+            val rawApiKey = if (isTempService) "" else getRawApiKeyForAI(aiName)
+            // 获取处理后的API密钥（排除默认值），用于判断是否已配置
             val apiKey = if (isTempService) "" else getApiKeyForAI(aiName)
-            val isConfigured = isTempService || apiKey.isNotEmpty()
+            
+            // 对于豆包Pro，额外检查SharedPreferences中是否明确保存过
+            val isConfigured = if (aiName == "豆包Pro" && !isTempService) {
+                val settingsManager = SettingsManager.getInstance(this)
+                val hasSavedKey = settingsManager.getSharedPreferences().contains("doubao_api_key")
+                val apiKeyNotEmpty = apiKey.isNotEmpty()
+                val result = hasSavedKey && apiKeyNotEmpty
+                Log.d(TAG, "🔍 豆包Pro配置检查: hasSavedKey=$hasSavedKey, apiKeyNotEmpty=$apiKeyNotEmpty, isConfigured=$result")
+                result
+            } else {
+                isTempService || apiKey.isNotEmpty()
+            }
+            
+            Log.d(TAG, "生成联系人: $aiName, rawApiKey长度: ${rawApiKey.length}, apiKey长度: ${apiKey.length}, isConfigured: $isConfigured")
+            
+            // 特别检查豆包Pro
+            if (aiName == "豆包Pro") {
+                Log.d(TAG, "🔍 豆包Pro详细信息: rawApiKey='${rawApiKey.take(20)}...', apiKey='${apiKey.take(20)}...', isConfigured=$isConfigured")
+            }
+
+            // 获取已保存的API URL和模型，如果没有则使用默认值
+            val settingsManager = SettingsManager.getInstance(this)
+            val apiUrl = when (aiName.lowercase()) {
+                "豆包pro", "doubao" -> {
+                    settingsManager.getString("doubao_api_url", "") ?: getDefaultApiUrl(aiName)
+                }
+                else -> {
+                    val urlKey = when (aiName.lowercase()) {
+                        "deepseek" -> "deepseek_api_url"
+                        "chatgpt" -> "chatgpt_api_url"
+                        "claude" -> "claude_api_url"
+                        "gemini" -> "gemini_api_url"
+                        "智谱ai", "智谱AI" -> "zhipu_ai_api_url"
+                        "文心一言" -> "wenxin_api_url"
+                        "通义千问" -> "qianwen_api_url"
+                        "讯飞星火" -> "xinghuo_api_url"
+                        "kimi" -> "kimi_api_url"
+                        else -> "${aiName.lowercase()}_api_url"
+                    }
+                    settingsManager.getString(urlKey, "") ?: getDefaultApiUrl(aiName)
+                }
+            }
+            
+            val model = when (aiName.lowercase()) {
+                "豆包pro", "doubao" -> {
+                    val modelId = settingsManager.getDoubaoModelId()
+                    if (modelId == "ep-Needs-Your-Endpoint-ID") getDefaultModel(aiName) else modelId
+                }
+                else -> {
+                    val modelKey = when (aiName.lowercase()) {
+                        "deepseek" -> "deepseek_model"
+                        "chatgpt" -> "chatgpt_model"
+                        "claude" -> "claude_model"
+                        "gemini" -> "gemini_model"
+                        "智谱ai", "智谱AI" -> "zhipu_ai_model"
+                        "文心一言" -> "wenxin_model"
+                        "通义千问" -> "qianwen_model"
+                        "讯飞星火" -> "xinghuo_model"
+                        "kimi" -> "kimi_model"
+                        else -> "${aiName.lowercase()}_model"
+                    }
+                    settingsManager.getString(modelKey, "") ?: getDefaultModel(aiName)
+                }
+            }
 
             // 获取真实的最后对话内容
             val lastChatMessage = getLastChatMessage(aiName)
@@ -221,9 +301,9 @@ class AIContactListActivity : AppCompatActivity() {
                 unreadCount = 0,
                 isPinned = isConfigured,
                 customData = mapOf(
-                    "api_url" to getDefaultApiUrl(aiName),
-                    "api_key" to apiKey,
-                    "model" to getDefaultModel(aiName),
+                    "api_url" to apiUrl,
+                    "api_key" to rawApiKey, // 保存原始API密钥（包括默认值）
+                    "model" to model,
                     "is_configured" to isConfigured.toString(),
                     "is_temp_service" to isTempService.toString()
                 )
@@ -277,14 +357,22 @@ class AIContactListActivity : AppCompatActivity() {
         
         // 设置默认值
         apiUrlInput.setText(getDefaultApiUrl(aiName))
-        modelInput.setText(getDefaultModel(aiName))
+        val defaultModel = getDefaultModel(aiName)
+        modelInput.setText(defaultModel)
         
         // 设置提示文本
         apiKeyInput.hint = "请输入${aiName}的API密钥"
         
+        // 对于豆包Pro，需要特殊提示
+        val dialogMessage = if (aiName == "豆包Pro") {
+            "请填写豆包Pro的API密钥、API URL和模型ID（Endpoint ID）"
+        } else {
+            "请填写${aiName}的API密钥以激活对话功能"
+        }
+        
         MaterialAlertDialogBuilder(wrappedContext)
             .setTitle("配置${aiName}")
-            .setMessage("请填写${aiName}的API密钥以激活对话功能")
+            .setMessage(dialogMessage)
             .setView(dialogLayout)
             .setPositiveButton("确定") { _, _ ->
                 val apiKey = apiKeyInput.text?.toString()?.trim() ?: ""
@@ -295,8 +383,9 @@ class AIContactListActivity : AppCompatActivity() {
                     // 保存API密钥
                     saveApiKeyForAI(aiName, apiKey, apiUrl, model)
                     
-                    // 更新联系人状态
-                    updateContactApiKey(contact, apiKey, apiUrl, model)
+                    // 重新生成联系人列表，确保从SettingsManager读取最新值
+                    allAIContacts = generateAIContactsList()
+                    updateContactList()
                     
                     Toast.makeText(this, "${aiName}配置成功", Toast.LENGTH_SHORT).show()
                 } else {
@@ -344,8 +433,9 @@ class AIContactListActivity : AppCompatActivity() {
                     // 保存API密钥
                     saveApiKeyForAI(aiName, apiKey, apiUrl, model)
                     
-                    // 更新联系人状态
-                    updateContactApiKey(contact, apiKey, apiUrl, model)
+                    // 重新生成联系人列表，确保从SettingsManager读取最新值
+                    allAIContacts = generateAIContactsList()
+                    updateContactList()
                     
                     Toast.makeText(this, "${aiName}配置已更新", Toast.LENGTH_SHORT).show()
                 } else {
@@ -356,7 +446,11 @@ class AIContactListActivity : AppCompatActivity() {
             .setNeutralButton("删除配置") { _, _ ->
                 // 删除API配置
                 deleteApiKeyForAI(aiName)
-                updateContactApiKey(contact, "", "", "")
+                
+                // 重新生成联系人列表，确保从SettingsManager读取最新值
+                allAIContacts = generateAIContactsList()
+                updateContactList()
+                
                 Toast.makeText(this, "${aiName}配置已删除", Toast.LENGTH_SHORT).show()
             }
             .show()
@@ -482,10 +576,30 @@ class AIContactListActivity : AppCompatActivity() {
      * 打开与联系人的对话
      */
     private fun openChatWithContact(contact: ChatContact) {
-        val isConfigured = contact.customData["is_configured"] == "true"
-        if (!isConfigured) {
-            Toast.makeText(this, "请先配置API密钥", Toast.LENGTH_SHORT).show()
-            return
+        // 实时检查配置状态，而不是只依赖缓存值
+        val aiName = contact.name
+        val isTempService = contact.customData["is_temp_service"] == "true"
+        
+        if (!isTempService) {
+            // 对于豆包Pro，使用专门的方法检查
+            val isConfigured = if (aiName == "豆包Pro") {
+                val settingsManager = SettingsManager.getInstance(this)
+                val apiKey = settingsManager.getDoubaoApiKey()
+                val hasSavedKey = settingsManager.getSharedPreferences().contains("doubao_api_key")
+                val result = settingsManager.isDoubaoApiKeyConfigured() || (hasSavedKey && apiKey.isNotEmpty())
+                Log.d(TAG, "打开对话前检查豆包Pro配置: apiKey长度=${apiKey.length}, hasSavedKey=$hasSavedKey, isConfigured=$result")
+                result
+            } else {
+                val apiKey = getApiKeyForAI(aiName)
+                apiKey.isNotEmpty()
+            }
+            
+            if (!isConfigured) {
+                Toast.makeText(this, "请先配置API密钥", Toast.LENGTH_SHORT).show()
+                // 刷新联系人列表，确保显示最新状态
+                updateContactList()
+                return
+            }
         }
         
         // 返回结果给调用方
@@ -554,7 +668,11 @@ class AIContactListActivity : AppCompatActivity() {
     }
 
     // 以下方法从SimpleModeActivity复制，用于API密钥管理
-    private fun getApiKeyForAI(aiName: String): String {
+    
+    /**
+     * 获取原始API密钥，用于保存到customData
+     */
+    private fun getRawApiKeyForAI(aiName: String): String {
         val settingsManager = SettingsManager.getInstance(this)
         return when (aiName.lowercase()) {
             "deepseek" -> settingsManager.getDeepSeekApiKey()
@@ -566,8 +684,33 @@ class AIContactListActivity : AppCompatActivity() {
             "通义千问" -> settingsManager.getString("qianwen_api_key", "") ?: ""
             "讯飞星火" -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             "kimi" -> settingsManager.getString("kimi_api_key", "") ?: ""
+            "豆包pro", "doubao" -> settingsManager.getDoubaoApiKey()
             else -> settingsManager.getString("${aiName.lowercase()}_api_key", "") ?: ""
         }
+    }
+    
+    /**
+     * 获取处理后的API密钥，用于判断是否已配置
+     */
+    private fun getApiKeyForAI(aiName: String): String {
+        val settingsManager = SettingsManager.getInstance(this)
+        val isDoubao = aiName.lowercase() in listOf("豆包pro", "doubao")
+        
+        // 对于豆包Pro，使用专门的方法判断
+        if (isDoubao) {
+            val apiKey = settingsManager.getDoubaoApiKey()
+            val isConfigured = settingsManager.isDoubaoApiKeyConfigured()
+            // 额外检查：如果SharedPreferences中明确保存过这个key，且值不为空，则认为已配置
+            val hasSavedKey = settingsManager.getSharedPreferences().contains("doubao_api_key")
+            val finalIsConfigured = isConfigured || (hasSavedKey && apiKey.isNotEmpty())
+            Log.d(TAG, "getApiKeyForAI: 豆包Pro, apiKey长度=${apiKey.length}, isConfigured=$isConfigured, hasSavedKey=$hasSavedKey, finalIsConfigured=$finalIsConfigured")
+            return if (finalIsConfigured) apiKey else ""
+        }
+        
+        // 其他AI直接返回原始密钥
+        val rawKey = getRawApiKeyForAI(aiName)
+        Log.d(TAG, "getApiKeyForAI: $aiName, rawKey长度: ${rawKey.length}")
+        return rawKey
     }
 
     private fun saveApiKeyForAI(aiName: String, apiKey: String, apiUrl: String, model: String) {
@@ -580,6 +723,17 @@ class AIContactListActivity : AppCompatActivity() {
                 settingsManager.putString("deepseek_api_url", apiUrl)
                 settingsManager.putString("deepseek_model", model)
                 Log.d(TAG, "保存DeepSeek API配置")
+            }
+            "豆包pro", "doubao" -> {
+                // 使用专门的豆包Pro方法
+                settingsManager.setDoubaoApiKey(apiKey)
+                if (apiUrl.isNotEmpty()) {
+                    settingsManager.putString("doubao_api_url", apiUrl)
+                }
+                if (model.isNotEmpty()) {
+                    settingsManager.setDoubaoModelId(model)
+                }
+                Log.d(TAG, "保存豆包Pro API配置: apiKey=${apiKey.take(10)}..., apiUrl=$apiUrl, model=$model")
             }
             else -> {
                 // 其他AI使用通用方法
@@ -613,31 +767,43 @@ class AIContactListActivity : AppCompatActivity() {
 
     private fun deleteApiKeyForAI(aiName: String) {
         val settingsManager = SettingsManager.getInstance(this)
-        val keyName = when (aiName.lowercase()) {
-            "deepseek" -> "deepseek_api_key"
-            "chatgpt" -> "chatgpt_api_key"
-            "claude" -> "claude_api_key"
-            "gemini" -> "gemini_api_key"
-            "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
-            "文心一言" -> "wenxin_api_key"
-            "通义千问" -> "qianwen_api_key"
-            "讯飞星火" -> "xinghuo_api_key"
-            "kimi" -> "kimi_api_key"
-            else -> "${aiName.lowercase()}_api_key"
+        
+        when (aiName.lowercase()) {
+            "豆包pro", "doubao" -> {
+                // 使用专门的豆包Pro方法删除
+                settingsManager.setDoubaoApiKey("")
+                settingsManager.putString("doubao_api_url", "")
+                settingsManager.setDoubaoModelId("ep-Needs-Your-Endpoint-ID")
+                Log.d(TAG, "删除豆包Pro API配置")
+            }
+            else -> {
+                val keyName = when (aiName.lowercase()) {
+                    "deepseek" -> "deepseek_api_key"
+                    "chatgpt" -> "chatgpt_api_key"
+                    "claude" -> "claude_api_key"
+                    "gemini" -> "gemini_api_key"
+                    "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
+                    "文心一言" -> "wenxin_api_key"
+                    "通义千问" -> "qianwen_api_key"
+                    "讯飞星火" -> "xinghuo_api_key"
+                    "kimi" -> "kimi_api_key"
+                    else -> "${aiName.lowercase()}_api_key"
+                }
+                
+                // 删除API密钥
+                settingsManager.putString(keyName, "")
+                
+                // 删除API URL
+                val urlKeyName = keyName.replace("_api_key", "_api_url")
+                settingsManager.putString(urlKeyName, "")
+                
+                // 删除模型名称
+                val modelKeyName = keyName.replace("_api_key", "_model")
+                settingsManager.putString(modelKeyName, "")
+                
+                Log.d(TAG, "删除API配置: $keyName, $urlKeyName, $modelKeyName")
+            }
         }
-        
-        // 删除API密钥
-        settingsManager.putString(keyName, "")
-        
-        // 删除API URL
-        val urlKeyName = keyName.replace("_api_key", "_api_url")
-        settingsManager.putString(urlKeyName, "")
-        
-        // 删除模型名称
-        val modelKeyName = keyName.replace("_api_key", "_model")
-        settingsManager.putString(modelKeyName, "")
-        
-        Log.d(TAG, "删除API配置: $keyName, $urlKeyName, $modelKeyName")
     }
 
     private fun getDefaultApiUrl(aiName: String): String {
@@ -652,6 +818,7 @@ class AIContactListActivity : AppCompatActivity() {
             "讯飞星火" -> "https://spark-api.xf-yun.com/v3.1/chat"
             "kimi" -> "https://api.moonshot.cn/v1/chat/completions"
             "智谱ai", "zhipu", "glm" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+            "豆包pro", "doubao" -> "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
             else -> "https://api.openai.com/v1/chat/completions"
         }
     }
@@ -668,6 +835,12 @@ class AIContactListActivity : AppCompatActivity() {
             "讯飞星火" -> "spark-v3.1"
             "kimi" -> "moonshot-v1-8k"
             "智谱ai", "zhipu", "glm" -> "glm-4"
+            "豆包pro", "doubao" -> {
+                // 尝试获取已保存的模型ID，如果没有则返回空字符串让用户输入
+                val settingsManager = SettingsManager.getInstance(this)
+                val modelId = settingsManager.getDoubaoModelId()
+                if (modelId == "ep-Needs-Your-Endpoint-ID") "" else modelId
+            }
             else -> "gpt-3.5-turbo"
         }
     }

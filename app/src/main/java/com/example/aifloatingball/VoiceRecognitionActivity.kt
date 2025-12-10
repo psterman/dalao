@@ -1,6 +1,5 @@
 package com.example.aifloatingball
 
-import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -42,6 +41,15 @@ import com.example.aifloatingball.utils.VoiceLog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import android.media.AudioManager
+import com.example.aifloatingball.agent.AgentActionRouter
+import com.example.aifloatingball.agent.DoubaoApiService
+import com.example.aifloatingball.service.MyAccessibilityService
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.Manifest
 
 class VoiceRecognitionActivity : Activity() {
     companion object {
@@ -83,7 +91,23 @@ class VoiceRecognitionActivity : Activity() {
     private var lastRecognizedText = "" // 上一次识别的文本，用于去重
     private var waveformView: com.example.aifloatingball.ui.WaveformView? = null // 波形视图
     private var currentRmsValue = 0.1f // 当前音量值（用于波形动画）
-    
+
+    // --- Agent Integration Properties ---
+    private val mainScope = MainScope()
+    private var currentPendingAgentCommand: String? = null
+
+    // Receiver for Screen Analysis Response
+    private val agentResponseReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == MyAccessibilityService.ACTION_REQUEST_SCREEN_ANALYSIS) {
+                val screenContent = intent.getStringExtra(MyAccessibilityService.EXTRA_SCREEN_CONTENT)
+                if (!screenContent.isNullOrEmpty() && currentPendingAgentCommand != null) {
+                    handleAgentAnalysis(currentPendingAgentCommand!!, screenContent)
+                    currentPendingAgentCommand = null // Reset
+                }
+            }
+        }
+    }
     
     // 界面元素
     private lateinit var micContainer: MaterialCardView
@@ -120,8 +144,85 @@ class VoiceRecognitionActivity : Activity() {
         } else {
             requestAudioPermission()
         }
+        
+        // Register Agent Receiver
+        val filter = IntentFilter(MyAccessibilityService.ACTION_REQUEST_SCREEN_ANALYSIS)
+        androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this).registerReceiver(agentResponseReceiver, filter)
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        
+        // Cancel Coroutine Scope
+        mainScope.cancel()
+        
+        // Unregister Agent Receiver
+        try {
+            androidx.localbroadcastmanager.content.LocalBroadcastManager.getInstance(this).unregisterReceiver(agentResponseReceiver)
+        } catch (e: Exception) {
+            // Receiver might not be registered
+        }
+        
+        // 停止 AnimatedVectorDrawable，防止渲染线程泄漏
+        if (::micIcon.isInitialized) {
+            try {
+                val drawable = micIcon.drawable
+                if (drawable is AnimatedVectorDrawable) {
+                    drawable.stop()
+                    VoiceLog.d("已停止 AnimatedVectorDrawable 动画")
+                }
+            } catch (e: Exception) {
+                VoiceLog.e("停止 AnimatedVectorDrawable 时出错: ${e.message}", e)
+            }
+        }
+        
+        // 完全销毁语音识别器（Activity 销毁时）
+        destroySpeechRecognizer()
+        
+        // 停止波形动画
+        waveformView?.setAnimationRunning(false)
+        
+        // 重置状态机
+        recognizerState = RecognizerState.IDLE
+        isPausedByUser = false
+        VoiceLog.d("识别器状态: -> IDLE（Activity 销毁）")
+        
+        // 移除所有待执行的 Runnable，防止内存泄漏
+        pendingRunnables.forEach { runnable ->
+            handler.removeCallbacks(runnable)
+        }
+        pendingRunnables.clear()
+        
+        // 移除所有延迟任务
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    /**
+     * 处理 Agent 分析结果
+     */
+    private fun handleAgentAnalysis(command: String, screenContext: String) {
+        VoiceLog.d("🤔 处理 Agent 分析: command=$command")
+        
+        mainScope.launch {
+            try {
+                val result = DoubaoApiService.getInstance(this@VoiceRecognitionActivity)
+                    .callAgent(command, screenContext)
+                
+                result.onSuccess { macro ->
+                    VoiceLog.d("✅ Agent 计划生成成功")
+                    AgentActionRouter.executeMacro(this@VoiceRecognitionActivity, macro)
+                    handler.postDelayed({ finish() }, 1500)
+                }.onFailure { e ->
+                    VoiceLog.e("❌ Agent 执行失败: ${e.message}", e)
+                    Toast.makeText(this@VoiceRecognitionActivity, "AI 执行失败: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                VoiceLog.e("处理 Agent 分析异常", e)
+                Toast.makeText(this@VoiceRecognitionActivity, "处理失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
     private fun initializeViews() {
         micContainer = findViewById(R.id.micContainer)
         micIcon = findViewById(R.id.micIcon)
@@ -1619,42 +1720,6 @@ class VoiceRecognitionActivity : Activity() {
         VoiceLog.d("语音识别器已完全销毁")
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        
-        // 停止 AnimatedVectorDrawable，防止渲染线程泄漏
-        if (::micIcon.isInitialized) {
-            try {
-                val drawable = micIcon.drawable
-                if (drawable is AnimatedVectorDrawable) {
-                    drawable.stop()
-                    VoiceLog.d("已停止 AnimatedVectorDrawable 动画")
-                }
-            } catch (e: Exception) {
-                VoiceLog.e("停止 AnimatedVectorDrawable 时出错: ${e.message}", e)
-            }
-        }
-        
-        // 完全销毁语音识别器（Activity 销毁时）
-        destroySpeechRecognizer()
-        
-        // 停止波形动画
-        waveformView?.setAnimationRunning(false)
-        
-        // 重置状态机
-        recognizerState = RecognizerState.IDLE
-        isPausedByUser = false
-        VoiceLog.d("识别器状态: -> IDLE（Activity 销毁）")
-        
-        // 移除所有待执行的 Runnable，防止内存泄漏
-        pendingRunnables.forEach { runnable ->
-            handler.removeCallbacks(runnable)
-        }
-        pendingRunnables.clear()
-        
-        // 移除所有延迟任务
-        handler.removeCallbacksAndMessages(null)
-    }
     
     override fun finish() {
         super.finish()

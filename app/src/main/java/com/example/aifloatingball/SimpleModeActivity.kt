@@ -1015,6 +1015,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 语音提示分支管理器
     private lateinit var promptBranchManager: VoicePromptBranchManager
+    
+    // 语音命令管理器
+    private lateinit var voiceCommandManager: com.example.aifloatingball.voicecommand.VoiceCommandManager
 
     // 长按处理相关
     private val longPressHandler = Handler(Looper.getMainLooper())
@@ -1110,6 +1113,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化语音提示分支管理器
         promptBranchManager = VoicePromptBranchManager(this, this)
+        
+        // 初始化语音命令管理器
+        voiceCommandManager = com.example.aifloatingball.voicecommand.VoiceCommandManager(this)
         // 关键：从设置中读取并应用保存的交互模式
         val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
         promptBranchManager.interactionMode = if (savedMode == "DRAG") {
@@ -2310,6 +2316,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化语音模型状态显示
         setupVoiceModelStatus()
         
+        // 集成语音命令执行功能
+        setupVoiceCommandExecution()
+        
         // 调试：检查麦克风按钮状态
         Log.d(TAG, "麦克风按钮初始化完成:")
         Log.d(TAG, "  按钮可见性: ${voiceMicContainer.visibility}")
@@ -2343,6 +2352,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
         )
+    }
+    
+    /**
+     * 设置语音命令执行功能
+     */
+    private fun setupVoiceCommandExecution() {
+        // 监听语音输入框的完成操作（回车键或搜索按钮）
+        voiceTextInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE || actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val command = voiceTextInput.text?.toString()?.trim()
+                if (!command.isNullOrBlank()) {
+                    Log.d(TAG, "执行语音命令: $command")
+                    voiceCommandManager.executeCommand(command)
+                    voiceTextInput.text?.clear()
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.hideSoftInputFromWindow(voiceTextInput.windowToken, 0)
+                }
+                true
+            } else {
+                false
+            }
+        }
+        
+        // 监听搜索按钮点击
+        voiceSearchButton.setOnClickListener {
+            val command = voiceTextInput.text?.toString()?.trim()
+            if (!command.isNullOrBlank()) {
+                Log.d(TAG, "执行语音命令（搜索按钮）: $command")
+                voiceCommandManager.executeCommand(command)
+                voiceTextInput.text?.clear()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(voiceTextInput.windowToken, 0)
+            }
+        }
     }
     
     /**
@@ -24250,6 +24293,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getKimiApiKey()
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.DOUBAO -> settingsManager.getDoubaoApiKey()
             AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
         }
     }
