@@ -1269,8 +1269,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     switchToSearchTab()
                 }, 300) // 延迟300ms，确保UI完全初始化
             } else {
-                Log.d(TAG, "No saved state or cards, showing chat")
-                showChat()
+                // 没有保存的状态，让applyBottomNavigationConfig自动选中最左边的可见tab
+                // 这样当用户重新排列tab后，会优先显示最左边的tab
+                Log.d(TAG, "No saved state or cards, will select leftmost visible tab")
+                // applyBottomNavigationConfig会在setupBottomNavigation中调用，会自动选中最左边的tab
             }
         }
 
@@ -3163,10 +3165,32 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 加载配置
         val configs = settingsManager.getBottomNavTabConfigs().toMutableList()
         
+        // 确保设置图标始终可见，避免用户找不到设置界面
+        val updatedConfigs = configs.map { config ->
+            if (config.tabId == "tab_settings") {
+                config.copy(isVisible = true)
+            } else {
+                config
+            }
+        }.toMutableList()
+        
+        // 如果配置被修改，保存更新后的配置
+        if (updatedConfigs != configs) {
+            settingsManager.saveBottomNavTabConfigs(updatedConfigs)
+        }
+        
         // 创建适配器
-        bottomNavTabSettingsAdapter = com.example.aifloatingball.adapter.BottomNavTabSettingsAdapter(configs) { newConfigs ->
+        bottomNavTabSettingsAdapter = com.example.aifloatingball.adapter.BottomNavTabSettingsAdapter(updatedConfigs) { newConfigs ->
+            // 确保设置图标始终可见
+            val finalConfigs = newConfigs.map { config ->
+                if (config.tabId == "tab_settings") {
+                    config.copy(isVisible = true)
+                } else {
+                    config
+                }
+            }
             // 实时保存配置
-            settingsManager.saveBottomNavTabConfigs(newConfigs)
+            settingsManager.saveBottomNavTabConfigs(finalConfigs)
             // 刷新底部导航栏
             refreshBottomNavigation()
         }
@@ -3275,6 +3299,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 更新tab颜色
         updateTabColors()
+        
+        // 自动选中最左边的可见tab
+        selectLeftmostVisibleTab(sortedConfigs)
+    }
+    
+    /**
+     * 选中最左边的可见tab（order最小的可见tab）
+     */
+    private fun selectLeftmostVisibleTab(sortedConfigs: List<SettingsManager.BottomTabConfig>) {
+        // 找到第一个可见的tab
+        val firstVisibleTab = sortedConfigs.firstOrNull { it.isVisible }
+        if (firstVisibleTab != null) {
+            // 切换到对应的页面
+            switchToTabById(firstVisibleTab.tabId)
+        }
+    }
+    
+    /**
+     * 根据tabId切换到对应的页面
+     */
+    private fun switchToTabById(tabId: String) {
+        when (tabId) {
+            "tab_chat" -> showChat()
+            "tab_search" -> switchToSearchTab()
+            "tab_home" -> showAIAssistantCenter()
+            "tab_voice" -> showVoice()
+            "tab_browser" -> switchToSearchTab()
+            "tab_app_search" -> showAppSearch()
+            "tab_settings" -> showSettings()
+        }
     }
     
     private fun detectAndUpdateVoiceSupport() {
@@ -6836,6 +6890,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 更新tab权重
             updateTabWeights()
+            
+            // 自动选中最左边的可见tab（order最小的可见tab）
+            selectLeftmostVisibleTab(sortedConfigs)
             
             Log.d(TAG, "底部导航栏配置已应用，显示${sortedConfigs.size}个tab")
         } catch (e: Exception) {

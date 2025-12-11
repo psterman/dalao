@@ -1230,21 +1230,20 @@
                             android:textColor="@color/simple_mode_text_secondary_light"
                             android:layout_marginBottom="12dp" />
 
-                        <!-- 导航栏按钮容器 - 一比一还原导航栏样式 -->
-                        <HorizontalScrollView
+                        <!-- 导航栏按钮容器 - 一比一还原导航栏样式，六个图标自适应宽度一行显示 -->
+                        <FrameLayout
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:scrollbars="none"
+                            android:layout_height="56dp"
                             android:background="@color/simple_mode_tab_background_light"
                             android:elevation="2dp">
 
                             <androidx.recyclerview.widget.RecyclerView
                                 android:id="@+id/bottom_nav_tabs_recycler_view"
                                 android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:overScrollMode="never" />
-                        </HorizontalScrollView>
+                                android:layout_height="match_parent"
+                                android:layout_gravity="center"
+                                android:orientation="horizontal" />
+                        </FrameLayout>
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
