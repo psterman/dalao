@@ -999,19 +999,17 @@
                         <!-- 导航栏按钮容器 - 一比一还原导航栏样式 -->
                         <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:minHeight="72dp"
+                            android:layout_height="64dp"
                             android:orientation="horizontal"
                             android:background="@color/simple_mode_tab_background_light"
                             android:gravity="center"
                             android:elevation="2dp"
-                            android:paddingVertical="6dp">
+                            android:paddingVertical="8dp">
 
                             <androidx.recyclerview.widget.RecyclerView
                                 android:id="@+id/bottom_nav_tabs_recycler_view"
                                 android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:clipToPadding="false"
+                                android:layout_height="match_parent"
                                 android:orientation="horizontal" />
                         </LinearLayout>
                     </LinearLayout>

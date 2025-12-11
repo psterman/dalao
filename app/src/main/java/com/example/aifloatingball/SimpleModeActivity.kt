@@ -3161,56 +3161,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val settingsManager = SettingsManager.getInstance(this)
         
         // 加载配置
-        var configs = settingsManager.getBottomNavTabConfigs().toMutableList()
-        
-        // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
-        configs = configs.filter { it.tabId != "tab_browser" }.toMutableList()
-        
-        // 确保设置按钮始终可见
-        configs.forEachIndexed { index, config ->
-            if (config.tabId == "tab_settings") {
-                configs[index] = config.copy(isVisible = true)
-            }
-        }
-        
-        // 如果配置为空或缺少某些tab，使用默认配置
-        val defaultConfigs = SettingsManager.DEFAULT_TAB_CONFIGS.toMutableList()
-        val existingTabIds = configs.map { it.tabId }.toSet()
-        val missingConfigs = defaultConfigs.filter { it.tabId !in existingTabIds }
-        if (missingConfigs.isNotEmpty()) {
-            configs.addAll(missingConfigs)
-            // 重新排序
-            configs.sortBy { it.order }
-        }
+        val configs = settingsManager.getBottomNavTabConfigs().toMutableList()
         
         // 创建适配器
         bottomNavTabSettingsAdapter = com.example.aifloatingball.adapter.BottomNavTabSettingsAdapter(configs) { newConfigs ->
-            // 确保设置按钮始终可见
-            val updatedConfigs = newConfigs.map { config ->
-                if (config.tabId == "tab_settings") {
-                    config.copy(isVisible = true)
-                } else {
-                    config
-                }
-            }
-            
             // 实时保存配置
-            settingsManager.saveBottomNavTabConfigs(updatedConfigs)
-            // 使用传入的配置直接刷新底部导航栏（不从SharedPreferences读取，避免异步问题）
-            refreshBottomNavigationWithConfigs(updatedConfigs)
+            settingsManager.saveBottomNavTabConfigs(newConfigs)
+            // 刷新底部导航栏
+            refreshBottomNavigation()
         }
         
         // 设置RecyclerView - 使用LinearLayoutManager横向布局
         bottomNavTabsRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         bottomNavTabsRecyclerView.adapter = bottomNavTabSettingsAdapter
-        
-        // 等待RecyclerView布局完成后设置宽度，确保item能正确均分宽度
-        bottomNavTabsRecyclerView.post {
-            val width = bottomNavTabsRecyclerView.measuredWidth
-            if (width > 0) {
-                bottomNavTabSettingsAdapter.setRecyclerViewWidth(width)
-            }
-        }
         
         // 设置拖拽排序
         val callback = object : ItemTouchHelper.SimpleCallback(
@@ -3284,142 +3247,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun refreshBottomNavigation() {
         val settingsManager = SettingsManager.getInstance(this)
-        var configs = settingsManager.getBottomNavTabConfigs()
+        val configs = settingsManager.getBottomNavTabConfigs()
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
         
-        // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
-        configs = configs.filter { it.tabId != "tab_browser" }
+        // 创建tabId到View的映射
+        val tabViewMap = mapOf(
+            "tab_chat" to findViewById<LinearLayout>(R.id.tab_chat),
+            "tab_search" to findViewById<LinearLayout>(R.id.tab_search),
+            "tab_home" to findViewById<LinearLayout>(R.id.tab_home),
+            "tab_voice" to findViewById<LinearLayout>(R.id.tab_voice),
+            "tab_browser" to findViewById<LinearLayout>(R.id.tab_browser),
+            "tab_app_search" to findViewById<LinearLayout>(R.id.tab_app_search),
+            "tab_settings" to findViewById<LinearLayout>(R.id.tab_settings)
+        )
         
-        // 确保设置按钮始终可见
-        configs = configs.map { config ->
-            if (config.tabId == "tab_settings") {
-                config.copy(isVisible = true)
-            } else {
-                config
-            }
+        // 先隐藏所有tab
+        tabViewMap.values.forEach { view ->
+            view?.visibility = View.GONE
         }
         
-        refreshBottomNavigationWithConfigs(configs)
-    }
-    
-    /**
-     * 使用指定的配置刷新底部导航栏显示
-     * 直接使用传入的配置，不从SharedPreferences读取，避免异步问题
-     * 修复：现在也会重新排列tab的顺序，确保与适配器设置的顺序一致
-     */
-    private fun refreshBottomNavigationWithConfigs(configs: List<SettingsManager.BottomTabConfig>) {
-        try {
-            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
-            
-            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
-            val filteredConfigs = configs.filter { it.tabId != "tab_browser" }
-            
-            // 确保设置按钮始终可见
-            val processedConfigs = filteredConfigs.map { config ->
-                if (config.tabId == "tab_settings") {
-                    config.copy(isVisible = true)
-                } else {
-                    config
-                }
-            }
-            
-            // 创建tabId到View的映射（不包含tab_browser）
-            val tabViewMap = mapOf(
-                "tab_chat" to findViewById<LinearLayout>(R.id.tab_chat),
-                "tab_search" to findViewById<LinearLayout>(R.id.tab_search),
-                "tab_home" to findViewById<LinearLayout>(R.id.tab_home),
-                "tab_voice" to findViewById<LinearLayout>(R.id.tab_voice),
-                "tab_app_search" to findViewById<LinearLayout>(R.id.tab_app_search),
-                "tab_settings" to findViewById<LinearLayout>(R.id.tab_settings)
-            )
-            
-            // 先隐藏所有tab
-            tabViewMap.values.forEach { view ->
-                view?.visibility = View.GONE
-            }
-            
-            // 按配置的顺序排序并显示可见的tab
-            val sortedConfigs = processedConfigs.filter { it.isVisible }.sortedBy { it.order }
-            
-            // 保存所有tab的引用（避免丢失点击事件监听器）
-            val allTabs = mutableListOf<View>()
-            for (i in 0 until bottomNav.childCount) {
-                allTabs.add(bottomNav.getChildAt(i))
-            }
-            
-            // 移除所有tab（但保留引用）
-            allTabs.forEach { bottomNav.removeView(it) }
-            
-            // 按顺序添加可见的tab
-            sortedConfigs.forEach { config ->
-                val tabView = tabViewMap[config.tabId]
-                tabView?.let { view ->
-                    view.visibility = View.VISIBLE
-                    bottomNav.addView(view)
-                }
-            }
-            
-            // 强制请求布局刷新，确保tab正确显示
-            bottomNav.requestLayout()
-            bottomNav.invalidate()
-            
-            // 使用post确保布局完成后再更新权重和颜色
-            bottomNav.post {
-                // 更新tab权重，确保tab均匀分布
-                updateTabWeights()
-                
-                // 更新tab颜色
-                updateTabColors()
-                
-                // 再次强制刷新布局，确保权重变化生效
-                bottomNav.requestLayout()
-                bottomNav.invalidate()
-                
-                Log.d(TAG, "底部导航栏已即时刷新（含排序），可见tab数量: ${sortedConfigs.size}")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "刷新底部导航栏失败", e)
+        // 按配置顺序显示可见的tab
+        val sortedConfigs = configs.sortedBy { it.order }
+        sortedConfigs.forEach { config ->
+            val view = tabViewMap[config.tabId]
+            view?.visibility = if (config.isVisible) View.VISIBLE else View.GONE
         }
-    }
-    
-    /**
-     * 刷新底部导航栏设置适配器
-     * 当进入设置页面时调用，确保适配器显示最新状态
-     */
-    private fun refreshBottomNavTabsSettingsAdapter() {
-        try {
-            val settingsManager = SettingsManager.getInstance(this)
-            
-            // 重新加载配置
-            var configs = settingsManager.getBottomNavTabConfigs().toMutableList()
-            
-            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
-            configs = configs.filter { it.tabId != "tab_browser" }.toMutableList()
-            
-            // 确保设置按钮始终可见
-            configs.forEachIndexed { index, config ->
-                if (config.tabId == "tab_settings") {
-                    configs[index] = config.copy(isVisible = true)
-                }
-            }
-            
-            // 如果配置为空或缺少某些tab，使用默认配置
-            val defaultConfigs = SettingsManager.DEFAULT_TAB_CONFIGS.toMutableList()
-            val existingTabIds = configs.map { it.tabId }.toSet()
-            val missingConfigs = defaultConfigs.filter { it.tabId !in existingTabIds }
-            if (missingConfigs.isNotEmpty()) {
-                configs.addAll(missingConfigs)
-                // 重新排序
-                configs.sortBy { it.order }
-            }
-            
-            // 更新适配器数据
-            if (::bottomNavTabSettingsAdapter.isInitialized) {
-                bottomNavTabSettingsAdapter.updateConfigs(configs)
-                Log.d(TAG, "底部导航栏设置适配器已刷新，共 ${configs.size} 个按钮")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "刷新底部导航栏设置适配器失败", e)
-        }
+        
+        // 更新tab颜色
+        updateTabColors()
     }
     
     private fun detectAndUpdateVoiceSupport() {
@@ -3819,9 +3674,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
             updateLayoutForHandedness(isLeftHanded)
             applyLayoutDirection(isLeftHanded)
-            
-            // 刷新底部导航栏设置适配器，确保显示最新状态
-            refreshBottomNavTabsSettingsAdapter()
         } catch (e: Exception) {
             Log.e(TAG, "Error loading settings", e)
             Toast.makeText(this, "加载设置时出错", Toast.LENGTH_SHORT).show()
@@ -6945,26 +6797,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun applyBottomNavigationConfig() {
         try {
             val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
-            var configs = settingsManager.getBottomNavTabConfigs()
+            val configs = settingsManager.getBottomNavTabConfigs()
             
-            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
-            configs = configs.filter { it.tabId != "tab_browser" }
-            
-            // 确保设置按钮始终可见
-            configs = configs.map { config ->
-                if (config.tabId == "tab_settings") {
-                    config.copy(isVisible = true)
-                } else {
-                    config
-                }
-            }
-            
-            // 创建tab ID到View的映射（不包含tab_browser）
+            // 创建tab ID到View的映射
             val tabMap = mapOf(
                 "tab_chat" to findViewById<LinearLayout>(R.id.tab_chat),
                 "tab_search" to findViewById<LinearLayout>(R.id.tab_search),
                 "tab_home" to findViewById<LinearLayout>(R.id.tab_home),
                 "tab_voice" to findViewById<LinearLayout>(R.id.tab_voice),
+                "tab_browser" to findViewById<LinearLayout>(R.id.tab_browser),
                 "tab_app_search" to findViewById<LinearLayout>(R.id.tab_app_search),
                 "tab_settings" to findViewById<LinearLayout>(R.id.tab_settings)
             )
