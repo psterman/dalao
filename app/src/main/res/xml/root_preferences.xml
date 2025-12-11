@@ -239,6 +239,12 @@
             app:defaultValue="true"
             app:icon="@drawable/ic_settings"/>
 
+        <Preference
+            app:key="bottom_navigation_settings"
+            app:title="底部导航栏设置"
+            app:summary="管理底部导航栏的tab顺序和显示"
+            app:icon="@drawable/ic_settings"/>
+
     </PreferenceCategory>
 
     <!-- ===================================================================== -->

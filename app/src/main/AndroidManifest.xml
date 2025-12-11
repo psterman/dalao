@@ -175,6 +175,13 @@
             android:theme="@style/Theme.AIFloatingBall.Settings">
         </activity>
 
+        <activity
+            android:name=".BottomNavigationSettingsActivity"
+            android:exported="false"
+            android:label="底部导航栏设置"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+
         <activity android:name=".SearchActivity" />
         <activity
             android:name=".settings.AppSearchSettingsActivity"

@@ -411,6 +411,10 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                     startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
                     return true
                 }
+                "bottom_navigation_settings" -> {
+                    startActivity(Intent(requireContext(), BottomNavigationSettingsActivity::class.java))
+                    return true
+                }
             }
             return super.onPreferenceTreeClick(preference)
         }

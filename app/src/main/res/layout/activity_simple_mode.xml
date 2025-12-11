@@ -965,6 +965,56 @@
                             android:padding="12dp"
                             style="@style/SimpleModeSpinner" />
                     </LinearLayout>
+
+                    <!-- 分隔线 -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/simple_mode_divider_light"
+                        android:layout_marginVertical="8dp" />
+
+                    <!-- 底部导航栏设置 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="底部导航栏"
+                            android:textSize="16sp"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:layout_marginBottom="8dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="点击按钮切换显示/隐藏，长按拖动调整顺序"
+                            android:textSize="14sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- 导航栏按钮容器 - 一比一还原导航栏样式 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="72dp"
+                            android:orientation="horizontal"
+                            android:background="@color/simple_mode_tab_background_light"
+                            android:gravity="center"
+                            android:elevation="2dp"
+                            android:paddingVertical="6dp">
+
+                            <androidx.recyclerview.widget.RecyclerView
+                                android:id="@+id/bottom_nav_tabs_recycler_view"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:clipToPadding="false"
+                                android:orientation="horizontal" />
+                        </LinearLayout>
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

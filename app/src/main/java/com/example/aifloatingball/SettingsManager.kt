@@ -23,6 +23,16 @@ class SettingsManager private constructor(context: Context) {
     private val gson = Gson()
     private val listeners = mutableMapOf<String, MutableList<(String, Any?) -> Unit>>()
     
+    /**
+     * Tab配置数据类
+     */
+    data class BottomTabConfig(
+        val tabId: String,      // tab的ID，如 "tab_chat", "tab_search" 等
+        val tabName: String,    // tab的显示名称
+        val isVisible: Boolean, // 是否显示
+        val order: Int          // 显示顺序（从0开始）
+    )
+    
     companion object {
         private const val TAG = "SettingsManager"
         private const val PREFS_NAME = "settings"
@@ -67,6 +77,22 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_ISLAND_WIDTH = 280 // dp
         private const val DEFAULT_ISLAND_ALPHA = 255 // 0-255
         
+        // 底部导航栏配置相关常量
+        private const val KEY_BOTTOM_NAV_TABS = "bottom_nav_tabs_config"
+        
+        /**
+         * 默认的tab配置（供外部访问）
+         * 注意：tab_browser不在底部导航栏中，已移除
+         */
+        val DEFAULT_TAB_CONFIGS = listOf(
+            BottomTabConfig("tab_chat", "对话", true, 0),
+            BottomTabConfig("tab_search", "搜索", true, 1),
+            BottomTabConfig("tab_home", "AI助手", true, 2),
+            BottomTabConfig("tab_voice", "语音", true, 3),
+            BottomTabConfig("tab_app_search", "软件", true, 4),
+            BottomTabConfig("tab_settings", "设置", true, 5)
+        )
+        
         @Volatile
         private var instance: SettingsManager? = null
         
@@ -76,6 +102,8 @@ class SettingsManager private constructor(context: Context) {
             }
         }
     }
+    
+    // ==================== 底部导航栏配置管理 ====================
     
     // --- Prompt Profile Management ---
 
@@ -1538,5 +1566,39 @@ class SettingsManager private constructor(context: Context) {
     fun setCustomAIModel(index: Int, model: String) {
         prefs.edit().putString("custom_ai_${index}_model", model).apply()
         notifyListeners("custom_ai_${index}_model", model)
+    }
+
+    /**
+     * 获取底部导航栏tab配置
+     */
+    fun getBottomNavTabConfigs(): List<BottomTabConfig> {
+        val json = prefs.getString(KEY_BOTTOM_NAV_TABS, null)
+        return if (json != null) {
+            try {
+                val type = object : TypeToken<List<BottomTabConfig>>() {}.type
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                Log.e(TAG, "解析底部导航栏配置失败，使用默认配置", e)
+                DEFAULT_TAB_CONFIGS.toList()
+            }
+        } else {
+            DEFAULT_TAB_CONFIGS.toList()
+        }
+    }
+    
+    /**
+     * 保存底部导航栏tab配置
+     */
+    fun saveBottomNavTabConfigs(configs: List<BottomTabConfig>) {
+        val json = gson.toJson(configs)
+        prefs.edit().putString(KEY_BOTTOM_NAV_TABS, json).apply()
+        notifyListeners(KEY_BOTTOM_NAV_TABS, configs)
+    }
+    
+    /**
+     * 恢复默认的底部导航栏配置
+     */
+    fun resetBottomNavTabConfigs() {
+        saveBottomNavTabConfigs(DEFAULT_TAB_CONFIGS.toList())
     }
 }

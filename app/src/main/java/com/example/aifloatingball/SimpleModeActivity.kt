@@ -63,6 +63,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.gesture.TouchConflictResolver
 import androidx.core.view.GravityCompat
 import androidx.core.view.GestureDetectorCompat
+import androidx.core.view.ViewCompat
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.recyclerview.widget.GridLayoutManager
@@ -1052,6 +1053,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var permissionManagementItem: LinearLayout
     private lateinit var viewSearchHistoryItem: LinearLayout
     private lateinit var onboardingGuideItem: LinearLayout
+    private lateinit var bottomNavTabsRecyclerView: RecyclerView
+    private lateinit var bottomNavTabSettingsAdapter: com.example.aifloatingball.adapter.BottomNavTabSettingsAdapter
     private lateinit var appVersionText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -2252,6 +2255,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         permissionManagementItem = findViewById(R.id.permission_management_item)
         viewSearchHistoryItem = findViewById(R.id.view_search_history_item)
         onboardingGuideItem = findViewById(R.id.onboarding_guide_item)
+        bottomNavTabsRecyclerView = findViewById(R.id.bottom_nav_tabs_recycler_view)
         appVersionText = findViewById(R.id.app_version_text)
         floatingBallSettingsContainer = findViewById(R.id.floating_ball_settings_container)
 
@@ -2266,6 +2270,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置设置页面
         setupSettingsPage()
+        
+        // 设置底部导航栏按钮配置
+        setupBottomNavTabsSettings()
 
         // 标题栏按钮已移除，不再需要设置按钮监听器
         Log.d(TAG, "标题栏已移除，跳过按钮设置")
@@ -3048,6 +3055,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
+        // 底部导航栏设置已集成到基础设置中，不再需要单独的Activity
+
         // 设置App版本号
         try {
             val pInfo = packageManager.getPackageInfo(packageName, 0)
@@ -3139,12 +3148,280 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 在设置完所有适配器和监听器后，延迟加载当前设置以确保UI完全初始化
         Handler(Looper.getMainLooper()).post {
             loadSettings()
+            // 初始化底部导航栏显示
+            refreshBottomNavigation()
         }
     }
 
     /**
-     * 检测语音支持情况并更新UI
+     * 设置底部导航栏按钮配置
+     * 在基础设置中显示导航栏按钮，支持点击切换显示/隐藏，长按拖动调整顺序
      */
+    private fun setupBottomNavTabsSettings() {
+        val settingsManager = SettingsManager.getInstance(this)
+        
+        // 加载配置
+        var configs = settingsManager.getBottomNavTabConfigs().toMutableList()
+        
+        // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
+        configs = configs.filter { it.tabId != "tab_browser" }.toMutableList()
+        
+        // 确保设置按钮始终可见
+        configs.forEachIndexed { index, config ->
+            if (config.tabId == "tab_settings") {
+                configs[index] = config.copy(isVisible = true)
+            }
+        }
+        
+        // 如果配置为空或缺少某些tab，使用默认配置
+        val defaultConfigs = SettingsManager.DEFAULT_TAB_CONFIGS.toMutableList()
+        val existingTabIds = configs.map { it.tabId }.toSet()
+        val missingConfigs = defaultConfigs.filter { it.tabId !in existingTabIds }
+        if (missingConfigs.isNotEmpty()) {
+            configs.addAll(missingConfigs)
+            // 重新排序
+            configs.sortBy { it.order }
+        }
+        
+        // 创建适配器
+        bottomNavTabSettingsAdapter = com.example.aifloatingball.adapter.BottomNavTabSettingsAdapter(configs) { newConfigs ->
+            // 确保设置按钮始终可见
+            val updatedConfigs = newConfigs.map { config ->
+                if (config.tabId == "tab_settings") {
+                    config.copy(isVisible = true)
+                } else {
+                    config
+                }
+            }
+            
+            // 实时保存配置
+            settingsManager.saveBottomNavTabConfigs(updatedConfigs)
+            // 使用传入的配置直接刷新底部导航栏（不从SharedPreferences读取，避免异步问题）
+            refreshBottomNavigationWithConfigs(updatedConfigs)
+        }
+        
+        // 设置RecyclerView - 使用LinearLayoutManager横向布局
+        bottomNavTabsRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        bottomNavTabsRecyclerView.adapter = bottomNavTabSettingsAdapter
+        
+        // 等待RecyclerView布局完成后设置宽度，确保item能正确均分宽度
+        bottomNavTabsRecyclerView.post {
+            val width = bottomNavTabsRecyclerView.measuredWidth
+            if (width > 0) {
+                bottomNavTabSettingsAdapter.setRecyclerViewWidth(width)
+            }
+        }
+        
+        // 设置拖拽排序
+        val callback = object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+            0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromPosition = viewHolder.adapterPosition
+                val toPosition = target.adapterPosition
+                
+                if (fromPosition == RecyclerView.NO_POSITION || 
+                    toPosition == RecyclerView.NO_POSITION) {
+                    return false
+                }
+                
+                // 移动item
+                bottomNavTabSettingsAdapter.moveItem(fromPosition, toPosition)
+                return true
+            }
+            
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                // 不支持滑动删除
+            }
+            
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+                    // 拖动开始时的动画效果
+                    val itemView = viewHolder.itemView
+                    ViewCompat.setElevation(itemView, 16f)
+                    itemView.animate()
+                        .scaleX(1.1f)
+                        .scaleY(1.1f)
+                        .setDuration(200)
+                        .setInterpolator(androidx.interpolator.view.animation.FastOutSlowInInterpolator())
+                        .start()
+                }
+            }
+            
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                
+                // 拖动结束时的动画效果
+                val itemView = viewHolder.itemView
+                ViewCompat.setElevation(itemView, 0f)
+                itemView.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(200)
+                    .setInterpolator(androidx.interpolator.view.animation.FastOutSlowInInterpolator())
+                    .start()
+            }
+            
+            override fun isLongPressDragEnabled(): Boolean {
+                return true
+            }
+        }
+        
+        val itemTouchHelper = ItemTouchHelper(callback)
+        itemTouchHelper.attachToRecyclerView(bottomNavTabsRecyclerView)
+    }
+    
+    /**
+     * 刷新底部导航栏显示
+     * 根据配置更新按钮的显示/隐藏状态和顺序
+     */
+    private fun refreshBottomNavigation() {
+        val settingsManager = SettingsManager.getInstance(this)
+        var configs = settingsManager.getBottomNavTabConfigs()
+        
+        // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
+        configs = configs.filter { it.tabId != "tab_browser" }
+        
+        // 确保设置按钮始终可见
+        configs = configs.map { config ->
+            if (config.tabId == "tab_settings") {
+                config.copy(isVisible = true)
+            } else {
+                config
+            }
+        }
+        
+        refreshBottomNavigationWithConfigs(configs)
+    }
+    
+    /**
+     * 使用指定的配置刷新底部导航栏显示
+     * 直接使用传入的配置，不从SharedPreferences读取，避免异步问题
+     * 修复：现在也会重新排列tab的顺序，确保与适配器设置的顺序一致
+     */
+    private fun refreshBottomNavigationWithConfigs(configs: List<SettingsManager.BottomTabConfig>) {
+        try {
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+            
+            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
+            val filteredConfigs = configs.filter { it.tabId != "tab_browser" }
+            
+            // 确保设置按钮始终可见
+            val processedConfigs = filteredConfigs.map { config ->
+                if (config.tabId == "tab_settings") {
+                    config.copy(isVisible = true)
+                } else {
+                    config
+                }
+            }
+            
+            // 创建tabId到View的映射（不包含tab_browser）
+            val tabViewMap = mapOf(
+                "tab_chat" to findViewById<LinearLayout>(R.id.tab_chat),
+                "tab_search" to findViewById<LinearLayout>(R.id.tab_search),
+                "tab_home" to findViewById<LinearLayout>(R.id.tab_home),
+                "tab_voice" to findViewById<LinearLayout>(R.id.tab_voice),
+                "tab_app_search" to findViewById<LinearLayout>(R.id.tab_app_search),
+                "tab_settings" to findViewById<LinearLayout>(R.id.tab_settings)
+            )
+            
+            // 先隐藏所有tab
+            tabViewMap.values.forEach { view ->
+                view?.visibility = View.GONE
+            }
+            
+            // 按配置的顺序排序并显示可见的tab
+            val sortedConfigs = processedConfigs.filter { it.isVisible }.sortedBy { it.order }
+            
+            // 保存所有tab的引用（避免丢失点击事件监听器）
+            val allTabs = mutableListOf<View>()
+            for (i in 0 until bottomNav.childCount) {
+                allTabs.add(bottomNav.getChildAt(i))
+            }
+            
+            // 移除所有tab（但保留引用）
+            allTabs.forEach { bottomNav.removeView(it) }
+            
+            // 按顺序添加可见的tab
+            sortedConfigs.forEach { config ->
+                val tabView = tabViewMap[config.tabId]
+                tabView?.let { view ->
+                    view.visibility = View.VISIBLE
+                    bottomNav.addView(view)
+                }
+            }
+            
+            // 强制请求布局刷新，确保tab正确显示
+            bottomNav.requestLayout()
+            bottomNav.invalidate()
+            
+            // 使用post确保布局完成后再更新权重和颜色
+            bottomNav.post {
+                // 更新tab权重，确保tab均匀分布
+                updateTabWeights()
+                
+                // 更新tab颜色
+                updateTabColors()
+                
+                // 再次强制刷新布局，确保权重变化生效
+                bottomNav.requestLayout()
+                bottomNav.invalidate()
+                
+                Log.d(TAG, "底部导航栏已即时刷新（含排序），可见tab数量: ${sortedConfigs.size}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新底部导航栏失败", e)
+        }
+    }
+    
+    /**
+     * 刷新底部导航栏设置适配器
+     * 当进入设置页面时调用，确保适配器显示最新状态
+     */
+    private fun refreshBottomNavTabsSettingsAdapter() {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            
+            // 重新加载配置
+            var configs = settingsManager.getBottomNavTabConfigs().toMutableList()
+            
+            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
+            configs = configs.filter { it.tabId != "tab_browser" }.toMutableList()
+            
+            // 确保设置按钮始终可见
+            configs.forEachIndexed { index, config ->
+                if (config.tabId == "tab_settings") {
+                    configs[index] = config.copy(isVisible = true)
+                }
+            }
+            
+            // 如果配置为空或缺少某些tab，使用默认配置
+            val defaultConfigs = SettingsManager.DEFAULT_TAB_CONFIGS.toMutableList()
+            val existingTabIds = configs.map { it.tabId }.toSet()
+            val missingConfigs = defaultConfigs.filter { it.tabId !in existingTabIds }
+            if (missingConfigs.isNotEmpty()) {
+                configs.addAll(missingConfigs)
+                // 重新排序
+                configs.sortBy { it.order }
+            }
+            
+            // 更新适配器数据
+            if (::bottomNavTabSettingsAdapter.isInitialized) {
+                bottomNavTabSettingsAdapter.updateConfigs(configs)
+                Log.d(TAG, "底部导航栏设置适配器已刷新，共 ${configs.size} 个按钮")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新底部导航栏设置适配器失败", e)
+        }
+    }
+    
     private fun detectAndUpdateVoiceSupport() {
         try {
             voiceSupportInfo = voiceInputManager.detectVoiceSupport()
@@ -3542,6 +3819,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
             updateLayoutForHandedness(isLeftHanded)
             applyLayoutDirection(isLeftHanded)
+            
+            // 刷新底部导航栏设置适配器，确保显示最新状态
+            refreshBottomNavTabsSettingsAdapter()
         } catch (e: Exception) {
             Log.e(TAG, "Error loading settings", e)
             Toast.makeText(this, "加载设置时出错", Toast.LENGTH_SHORT).show()
@@ -6633,6 +6913,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化搜索tab图标和徽标
         updateSearchTabIcon()
         updateSearchTabBadge()
+        
+        // 应用底部导航栏配置（显示/隐藏和排序）
+        applyBottomNavigationConfig()
 
         // 检测语音支持情况并隐藏语音tab（如果不支持）
         updateVoiceTabVisibility()
@@ -6656,6 +6939,69 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // createSearchTabSwipeHotArea() // 已移除，避免冲突
     }
 
+    /**
+     * 应用底部导航栏配置（显示/隐藏和排序）
+     */
+    private fun applyBottomNavigationConfig() {
+        try {
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+            var configs = settingsManager.getBottomNavTabConfigs()
+            
+            // 过滤掉tab_browser（浏览器tab不在底部导航栏中）
+            configs = configs.filter { it.tabId != "tab_browser" }
+            
+            // 确保设置按钮始终可见
+            configs = configs.map { config ->
+                if (config.tabId == "tab_settings") {
+                    config.copy(isVisible = true)
+                } else {
+                    config
+                }
+            }
+            
+            // 创建tab ID到View的映射（不包含tab_browser）
+            val tabMap = mapOf(
+                "tab_chat" to findViewById<LinearLayout>(R.id.tab_chat),
+                "tab_search" to findViewById<LinearLayout>(R.id.tab_search),
+                "tab_home" to findViewById<LinearLayout>(R.id.tab_home),
+                "tab_voice" to findViewById<LinearLayout>(R.id.tab_voice),
+                "tab_app_search" to findViewById<LinearLayout>(R.id.tab_app_search),
+                "tab_settings" to findViewById<LinearLayout>(R.id.tab_settings)
+            )
+            
+            // 先隐藏所有tab
+            tabMap.values.forEach { it?.visibility = View.GONE }
+            
+            // 按配置的顺序排序并显示可见的tab
+            val sortedConfigs = configs.filter { it.isVisible }.sortedBy { it.order }
+            
+            // 保存所有tab的引用（避免丢失点击事件监听器）
+            val allTabs = mutableListOf<View>()
+            for (i in 0 until bottomNav.childCount) {
+                allTabs.add(bottomNav.getChildAt(i))
+            }
+            
+            // 移除所有tab（但保留引用）
+            allTabs.forEach { bottomNav.removeView(it) }
+            
+            // 按顺序添加可见的tab
+            sortedConfigs.forEach { config ->
+                val tabView = tabMap[config.tabId]
+                tabView?.let { view ->
+                    view.visibility = View.VISIBLE
+                    bottomNav.addView(view)
+                }
+            }
+            
+            // 更新tab权重
+            updateTabWeights()
+            
+            Log.d(TAG, "底部导航栏配置已应用，显示${sortedConfigs.size}个tab")
+        } catch (e: Exception) {
+            Log.e(TAG, "应用底部导航栏配置失败", e)
+        }
+    }
+    
     /**
      * 更新语音tab的可见性
      * 注意：现在始终显示语音tab，即使设备不支持系统语音识别
