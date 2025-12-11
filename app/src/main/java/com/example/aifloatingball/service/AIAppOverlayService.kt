@@ -27,8 +27,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.AppInfo
+import com.example.aifloatingball.service.config.AIAppConfigRepository
+import com.example.aifloatingball.service.error.ErrorHandler
+import com.example.aifloatingball.service.error.ErrorReporter
+import com.example.aifloatingball.service.launcher.AIAppLauncher
+import com.example.aifloatingball.service.monitor.AppSwitchMonitor
+import com.example.aifloatingball.service.clipboard.ClipboardManager as ServiceClipboardManager
+import com.example.aifloatingball.service.overlay.OverlayAnimator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
@@ -45,13 +53,14 @@ class AIAppOverlayService : Service() {
         const val EXTRA_APP_NAME = "app_name"
         const val EXTRA_QUERY = "query"
         const val EXTRA_PACKAGE_NAME = "package_name"
-
-        private var overlayView: View? = null
-        private var aiMenuView: View? = null
-        private var windowManager: WindowManager? = null
-        private var isOverlayVisible = false
-        private var isAIMenuVisible = false
     }
+    
+    // 修复内存泄漏：将静态View引用改为实例变量
+    private var overlayView: View? = null
+    private var aiMenuView: View? = null
+    private var windowManager: WindowManager? = null
+    private var isOverlayVisible = false
+    private var isAIMenuVisible = false
 
     private var appName: String = ""
     private var query: String = ""
@@ -62,13 +71,20 @@ class AIAppOverlayService : Service() {
     private var isSoftwareTabMode: Boolean = false // 软件tab专用模式
     private var isAiTabMode: Boolean = false // AI tab专用模式
     
+    // 重构：使用新模块
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val configRepository: AIAppConfigRepository by lazy { AIAppConfigRepository(this) }
+    private val errorReporter: ErrorReporter by lazy { ErrorReporter() }
+    private val errorHandler: ErrorHandler by lazy { ErrorHandler(this, errorReporter) }
+    private val appLauncher: AIAppLauncher by lazy { AIAppLauncher(this, errorHandler) }
+    private val serviceClipboardManager: ServiceClipboardManager by lazy { ServiceClipboardManager(this) }
+    private val overlayAnimator: OverlayAnimator by lazy { OverlayAnimator() }
+    private var appSwitchMonitor: AppSwitchMonitor? = null
+    
     // 剪贴板监听器
     private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     
-    // 应用切换监听相关
-    private var usageStatsManager: android.app.usage.UsageStatsManager? = null
-    private var appSwitchHandler: android.os.Handler? = null
-    private var appSwitchRunnable: Runnable? = null
+    // 应用切换监听相关（已迁移到AppSwitchMonitor）
     private var currentPackageName: String? = null
     private var isAppSwitchMonitoringEnabled = true
     
@@ -220,11 +236,19 @@ class AIAppOverlayService : Service() {
                 y = 200 // 距离顶部200px
             }
             
-            // 添加悬浮窗到窗口管理器
+            // 添加悬浮窗到窗口管理器（先设置为不可见，等待动画）
+            overlayView?.alpha = 0f
             windowManager?.addView(overlayView, layoutParams)
             isOverlayVisible = true
             
             Log.d(TAG, "AI应用悬浮窗显示成功")
+            
+            // 使用iOS风格动画显示悬浮窗
+            overlayView?.let { view ->
+                overlayAnimator.showOverlay(view) {
+                    Log.d(TAG, "悬浮窗显示动画完成")
+                }
+            }
             
             // 注册剪贴板监听器
             registerClipboardListener()
@@ -232,19 +256,9 @@ class AIAppOverlayService : Service() {
             // 启动应用切换监听
             initAppSwitchListener()
             
-            // 立即更新一次剪贴板预览（确保初始状态正确）
-            // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            //     updateClipboardPreview()
-            // }, 100)
-            
-            // 再次延迟更新，确保UI完全加载
-            // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            //     updateClipboardPreview()
-            // }, 500)
-            
         } catch (e: Exception) {
             Log.e(TAG, "显示悬浮窗失败", e)
-            Toast.makeText(this, "悬浮窗显示失败", Toast.LENGTH_SHORT).show()
+            errorHandler.handleError(e, "显示悬浮窗", showToast = true)
         }
     }
 
@@ -444,93 +458,60 @@ class AIAppOverlayService : Service() {
     
     /**
      * 设置灵动岛AI应用点击监听器
+     * 重构：使用配置仓库统一管理配置
      */
     private fun setupIslandAIAppClickListeners(overlayView: View) {
-        // 定义所有AI菜单项的配置（使用island专用的ID）
-        val aiIslandConfigs = listOf(
-            Triple(R.id.ai_island_grok, "ai.x.grok", "Grok"),
-            Triple(R.id.ai_island_perplexity, "ai.perplexity.app.android", "Perplexity"),
-            Triple(R.id.ai_island_poe, "com.poe.android", "Poe"),
-            Triple(R.id.ai_island_manus, "tech.butterfly.app", "Manus"),
-            Triple(R.id.ai_island_ima, "com.qihoo.namiso", "纳米AI"),
-            Triple(R.id.ai_island_deepseek, "com.deepseek.chat", "DeepSeek"),
-            Triple(R.id.ai_island_doubao, "com.larus.nova", "豆包"),
-            Triple(R.id.ai_island_chatgpt, "com.openai.chatgpt", "ChatGPT"),
-            Triple(R.id.ai_island_kimi, "com.moonshot.kimichat", "Kimi"),
-            Triple(R.id.ai_island_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
-            Triple(R.id.ai_island_xinghuo, "com.iflytek.spark", "讯飞星火"),
-            Triple(R.id.ai_island_qingyan, "com.zhipuai.qingyan", "智谱清言"),
-            Triple(R.id.ai_island_tongyi, "com.aliyun.tongyi", "通义千问"),
-            Triple(R.id.ai_island_wenxiaoyan, "com.baidu.newapp", "文小言"),
-            Triple(R.id.ai_island_metaso, "com.metaso", "秘塔AI搜索"),
-            Triple(R.id.ai_island_gemini, "com.google.android.apps.gemini", "Gemini"),
-            Triple(R.id.ai_island_copilot, "com.microsoft.copilot", "Copilot")
-        )
+        // 使用配置仓库获取所有AI应用配置
+        val allConfigs = configRepository.getAllConfigs()
         
         // 为每个菜单项设置点击事件
-        aiIslandConfigs.forEach { (menuId, packageName, appName) ->
-            val menuItem = overlayView.findViewById<View>(menuId)
+        allConfigs.forEach { config ->
+            val menuItem = overlayView.findViewById<View>(config.islandViewId)
+            if (menuItem == null) {
+                Log.w(TAG, "未找到灵动岛菜单项View ID: ${config.islandViewId}")
+                return@forEach
+            }
             
             // 检查应用是否已安装
-            val isInstalled = try {
-                packageManager.getPackageInfo(packageName, 0)
-                true
-            } catch (e: Exception) {
-                false
-            }
+            val isInstalled = configRepository.isAppInstalled(config.packageName)
             
             if (isInstalled) {
                 // 应用已安装，设置点击事件
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "灵动岛: ${appName} 被点击")
-                    launchAIApp(packageName, appName)
+                    Log.d(TAG, "灵动岛: ${config.displayName} 被点击")
+                    launchAIAppWithNewLauncher(config.packageName, config.displayName)
                     hideOverlay()
                 }
                 menuItem.visibility = View.VISIBLE
-                Log.d(TAG, "灵动岛: ${appName} 已安装，设置点击事件")
+                Log.d(TAG, "灵动岛: ${config.displayName} 已安装，设置点击事件")
             } else {
                 // 应用未安装，显示但禁用
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "灵动岛: ${appName} 未安装，显示安装提示")
-                    Toast.makeText(this, "${appName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "灵动岛: ${config.displayName} 未安装，显示安装提示")
+                    Toast.makeText(this, "${config.displayName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
                 }
                 menuItem.visibility = View.VISIBLE
                 // 设置半透明效果表示未安装
                 menuItem.alpha = 0.5f
-                Log.d(TAG, "灵动岛: ${appName} 未安装，设置为半透明")
+                Log.d(TAG, "灵动岛: ${config.displayName} 未安装，设置为半透明")
             }
         }
     }
     
     /**
      * 加载灵动岛AI应用的真实图标
+     * 重构：使用配置仓库统一管理配置
      */
     private fun loadIslandAIAppIcons(overlayView: View) {
-        CoroutineScope(Dispatchers.Main).launch {
-            // AI应用配置（使用island专用的ID）
-            val aiIslandApps = listOf(
-                Triple("ai.x.grok", "Grok", R.id.ai_island_grok_icon),
-                Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_island_perplexity_icon),
-                Triple("com.poe.android", "Poe", R.id.ai_island_poe_icon),
-                Triple("tech.butterfly.app", "Manus", R.id.ai_island_manus_icon),
-                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_island_ima_icon),
-                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_island_deepseek_icon),
-                Triple("com.larus.nova", "豆包", R.id.ai_island_doubao_icon),
-                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_island_chatgpt_icon),
-                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_island_kimi_icon),
-                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_island_yuanbao_icon),
-                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_island_xinghuo_icon),
-                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_island_qingyan_icon),
-                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_island_tongyi_icon),
-                Triple("com.baidu.newapp", "文小言", R.id.ai_island_wenxiaoyan_icon),
-                Triple("com.metaso", "秘塔AI搜索", R.id.ai_island_metaso_icon),
-                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_island_gemini_icon),
-                Triple("com.microsoft.copilot", "Copilot", R.id.ai_island_copilot_icon)
-            )
+        serviceScope.launch {
+            // 使用配置仓库获取所有AI应用配置
+            val allConfigs = configRepository.getAllConfigs()
             
-            aiIslandApps.forEach { (packageName, appName, iconViewId) ->
-                val iconView = overlayView.findViewById<ImageView>(iconViewId)
-                loadAppIcon(packageName, appName, iconView)
+            allConfigs.forEach { config ->
+                val iconView = overlayView.findViewById<ImageView>(config.islandIconViewId)
+                if (iconView != null) {
+                    loadAppIcon(config.packageName, config.displayName, iconView)
+                }
             }
         }
     }
@@ -772,106 +753,66 @@ class AIAppOverlayService : Service() {
      * 设置AI tab AI应用点击监听器
      * 支持intent搜索或粘贴搜索
      */
+    /**
+     * 设置AI Tab AI应用点击监听器
+     * 重构：使用配置仓库统一管理配置
+     */
     private fun setupAiTabAIAppClickListeners(overlayView: View) {
         // 获取当前查询文本（从剪贴板或传入的query）
-        val currentQuery = if (query.isNotEmpty()) {
-            query
-        } else {
-            // 尝试从剪贴板获取
-            try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-            } catch (e: Exception) {
-                ""
-            }
-        }
+        val currentQuery = query.ifEmpty { serviceClipboardManager.getText() ?: "" }
         
-        // 定义所有AI菜单项的配置（使用ai_tab专用的ID）
-        val aiTabConfigs = listOf(
-            Triple(R.id.ai_tab_grok, "ai.x.grok", "Grok"),
-            Triple(R.id.ai_tab_perplexity, "ai.perplexity.app.android", "Perplexity"),
-            Triple(R.id.ai_tab_poe, "com.poe.android", "Poe"),
-            Triple(R.id.ai_tab_manus, "tech.butterfly.app", "Manus"),
-            Triple(R.id.ai_tab_ima, "com.qihoo.namiso", "纳米AI"),
-            Triple(R.id.ai_tab_deepseek, "com.deepseek.chat", "DeepSeek"),
-            Triple(R.id.ai_tab_doubao, "com.larus.nova", "豆包"),
-            Triple(R.id.ai_tab_chatgpt, "com.openai.chatgpt", "ChatGPT"),
-            Triple(R.id.ai_tab_kimi, "com.moonshot.kimichat", "Kimi"),
-            Triple(R.id.ai_tab_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
-            Triple(R.id.ai_tab_xinghuo, "com.iflytek.spark", "讯飞星火"),
-            Triple(R.id.ai_tab_qingyan, "com.zhipuai.qingyan", "智谱清言"),
-            Triple(R.id.ai_tab_tongyi, "com.aliyun.tongyi", "通义千问"),
-            Triple(R.id.ai_tab_wenxiaoyan, "com.baidu.newapp", "文小言"),
-            Triple(R.id.ai_tab_metaso, "com.metaso", "秘塔AI搜索"),
-            Triple(R.id.ai_tab_gemini, "com.google.android.apps.gemini", "Gemini"),
-            Triple(R.id.ai_tab_copilot, "com.microsoft.copilot", "Copilot")
-        )
+        // 使用配置仓库获取所有AI应用配置
+        val allConfigs = configRepository.getAllConfigs()
         
         // 为每个菜单项设置点击事件
-        aiTabConfigs.forEach { (menuId, packageName, appName) ->
-            val menuItem = overlayView.findViewById<View>(menuId)
+        allConfigs.forEach { config ->
+            val menuItem = overlayView.findViewById<View>(config.aiTabViewId)
+            if (menuItem == null) {
+                Log.w(TAG, "未找到AI Tab菜单项View ID: ${config.aiTabViewId}")
+                return@forEach
+            }
             
             // 检查应用是否已安装
-            val isInstalled = try {
-                packageManager.getPackageInfo(packageName, 0)
-                true
-            } catch (e: Exception) {
-                false
-            }
+            val isInstalled = configRepository.isAppInstalled(config.packageName)
             
             if (isInstalled) {
                 // 应用已安装，设置点击事件
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "AI tab: ${appName} 被点击，查询: $currentQuery")
-                    // 使用launchAIApp方法，支持intent搜索或粘贴搜索
-                    launchAIApp(packageName, appName)
+                    Log.d(TAG, "AI tab: ${config.displayName} 被点击，查询: $currentQuery")
+                    // 使用新的启动器方法，支持intent搜索或粘贴搜索
+                    launchAIAppWithNewLauncher(config.packageName, config.displayName)
                     hideOverlay()
                 }
                 menuItem.visibility = View.VISIBLE
-                Log.d(TAG, "AI tab: ${appName} 已安装，设置点击事件")
+                Log.d(TAG, "AI tab: ${config.displayName} 已安装，设置点击事件")
             } else {
                 // 应用未安装，显示但禁用
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "AI tab: ${appName} 未安装，显示安装提示")
-                    Toast.makeText(this, "${appName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "AI tab: ${config.displayName} 未安装，显示安装提示")
+                    Toast.makeText(this, "${config.displayName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
                 }
                 menuItem.visibility = View.VISIBLE
                 // 设置半透明效果表示未安装
                 menuItem.alpha = 0.5f
-                Log.d(TAG, "AI tab: ${appName} 未安装，设置为半透明")
+                Log.d(TAG, "AI tab: ${config.displayName} 未安装，设置为半透明")
             }
         }
     }
     
     /**
-     * 加载AI tab AI应用的真实图标
+     * 加载AI Tab AI应用的真实图标
+     * 重构：使用配置仓库统一管理配置
      */
     private fun loadAiTabAIAppIcons(overlayView: View) {
-        CoroutineScope(Dispatchers.Main).launch {
-            // AI应用配置（使用ai_tab专用的ID）
-            val aiTabApps = listOf(
-                Triple("ai.x.grok", "Grok", R.id.ai_tab_grok_icon),
-                Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_tab_perplexity_icon),
-                Triple("com.poe.android", "Poe", R.id.ai_tab_poe_icon),
-                Triple("tech.butterfly.app", "Manus", R.id.ai_tab_manus_icon),
-                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_tab_ima_icon),
-                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_tab_deepseek_icon),
-                Triple("com.larus.nova", "豆包", R.id.ai_tab_doubao_icon),
-                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_tab_chatgpt_icon),
-                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_tab_kimi_icon),
-                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_tab_yuanbao_icon),
-                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_tab_xinghuo_icon),
-                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_tab_qingyan_icon),
-                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_tab_tongyi_icon),
-                Triple("com.baidu.newapp", "文小言", R.id.ai_tab_wenxiaoyan_icon),
-                Triple("com.metaso", "秘塔AI搜索", R.id.ai_tab_metaso_icon),
-                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_tab_gemini_icon),
-                Triple("com.microsoft.copilot", "Copilot", R.id.ai_tab_copilot_icon)
-            )
+        serviceScope.launch {
+            // 使用配置仓库获取所有AI应用配置
+            val allConfigs = configRepository.getAllConfigs()
             
-            aiTabApps.forEach { (packageName, appName, iconViewId) ->
-                val iconView = overlayView.findViewById<ImageView>(iconViewId)
-                loadAppIcon(packageName, appName, iconView)
+            allConfigs.forEach { config ->
+                val iconView = overlayView.findViewById<ImageView>(config.aiTabIconViewId)
+                if (iconView != null) {
+                    loadAppIcon(config.packageName, config.displayName, iconView)
+                }
             }
         }
     }
@@ -1074,11 +1015,24 @@ class AIAppOverlayService : Service() {
 
         try {
             overlayView?.let { view ->
-                windowManager?.removeView(view)
-                overlayView = null
+                // 使用iOS风格动画隐藏悬浮窗，动画完成后再移除
+                overlayAnimator.hideOverlay(view) {
+                    // 动画完成后移除View
+                    try {
+                        windowManager?.removeView(view)
+                        overlayView = null
+                        Log.d(TAG, "AI应用悬浮窗已隐藏（动画完成）")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "移除悬浮窗失败", e)
+                    }
+                }
+            } ?: run {
+                // 如果view为null，直接清理
+                isOverlayVisible = false
             }
+            
+            // 立即更新状态，避免重复调用
             isOverlayVisible = false
-            Log.d(TAG, "AI应用悬浮窗已隐藏")
 
             // 取消注册剪贴板监听器
             unregisterClipboardListener()
@@ -1091,6 +1045,16 @@ class AIAppOverlayService : Service() {
 
         } catch (e: Exception) {
             Log.e(TAG, "隐藏悬浮窗失败", e)
+            // 降级：直接移除，不执行动画
+            overlayView?.let { view ->
+                try {
+                    windowManager?.removeView(view)
+                } catch (ex: Exception) {
+                    Log.e(TAG, "强制移除悬浮窗失败", ex)
+                }
+            }
+            overlayView = null
+            isOverlayVisible = false
         }
     }
 
@@ -1139,15 +1103,23 @@ class AIAppOverlayService : Service() {
                 params.y = -50 // 稍微向上偏移
             }
 
-            // 添加到窗口管理器
+            // 添加到窗口管理器（先设置为不可见，等待动画）
+            aiMenuView?.alpha = 0f
             wm.addView(aiMenuView, params)
             isAIMenuVisible = true
 
             Log.d(TAG, "AI菜单已显示")
+            
+            // 使用iOS风格动画显示AI菜单
+            aiMenuView?.let { view ->
+                overlayAnimator.showOverlay(view) {
+                    Log.d(TAG, "AI菜单显示动画完成")
+                }
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "显示AI菜单失败", e)
-            Toast.makeText(this, "AI菜单显示失败", Toast.LENGTH_SHORT).show()
+            errorHandler.handleError(e, "显示AI菜单", showToast = true)
         }
     }
 
@@ -1182,204 +1154,87 @@ class AIAppOverlayService : Service() {
 
     /**
      * 设置AI应用点击监听器
+     * 重构：使用配置仓库统一管理配置，消除重复代码
      */
     private fun setupAIAppClickListeners(menuView: View) {
-        // 不再依赖历史选择的应用，直接为所有AI菜单项设置点击事件
-
-        // 定义所有AI菜单项的配置
-        val aiMenuConfigs = listOf(
-            // 主流AI应用
-            Triple(R.id.ai_menu_grok, "ai.x.grok", "Grok"),
-            Triple(R.id.ai_menu_perplexity, "ai.perplexity.app.android", "Perplexity"),
-            Triple(R.id.ai_menu_poe, "com.poe.android", "Poe"),
-            Triple(R.id.ai_menu_manus, "tech.butterfly.app", "Manus"),
-            Triple(R.id.ai_menu_ima, "com.qihoo.namiso", "纳米AI"),
-            
-            // 扩展更多AI应用以支持软件tab中的所有应用
-            Triple(R.id.ai_menu_deepseek, "com.deepseek.chat", "DeepSeek"),
-            Triple(R.id.ai_menu_doubao, "com.larus.nova", "豆包"),
-            Triple(R.id.ai_menu_chatgpt, "com.openai.chatgpt", "ChatGPT"),
-            Triple(R.id.ai_menu_kimi, "com.moonshot.kimichat", "Kimi"),
-            Triple(R.id.ai_menu_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
-            Triple(R.id.ai_menu_xinghuo, "com.iflytek.spark", "讯飞星火"),
-            Triple(R.id.ai_menu_qingyan, "com.zhipuai.qingyan", "智谱清言"),
-            Triple(R.id.ai_menu_tongyi, "com.aliyun.tongyi", "通义千问"),
-            Triple(R.id.ai_menu_wenxiaoyan, "com.baidu.newapp", "文小言"),
-            Triple(R.id.ai_menu_metaso, "com.metaso", "秘塔AI搜索"),
-            Triple(R.id.ai_menu_gemini, "com.google.android.apps.gemini", "Gemini"),
-            Triple(R.id.ai_menu_copilot, "com.microsoft.copilot", "Copilot")
-        )
-
+        // 使用配置仓库获取所有AI应用配置
+        val allConfigs = configRepository.getAllConfigs()
+        
         // 为每个菜单项设置点击事件
-        aiMenuConfigs.forEach { (menuId, packageName, appName) ->
-            val menuItem = menuView.findViewById<View>(menuId)
-            
-            // 检查应用是否已安装
-            val isInstalled = try {
-                packageManager.getPackageInfo(packageName, 0)
-                true
-            } catch (e: Exception) {
-                false
+        allConfigs.forEach { config ->
+            val menuItem = menuView.findViewById<View>(config.menuViewId)
+            if (menuItem == null) {
+                Log.w(TAG, "未找到菜单项View ID: ${config.menuViewId}")
+                return@forEach
             }
+            
+            // 检查应用是否已安装（使用配置仓库的方法）
+            val isInstalled = configRepository.isAppInstalled(config.packageName)
             
             if (isInstalled) {
                 // 应用已安装，设置点击事件
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "${appName} 被点击")
-                    launchAIApp(packageName, appName)
+                    Log.d(TAG, "${config.displayName} 被点击")
+                    launchAIAppWithNewLauncher(config.packageName, config.displayName)
                     hideAIMenu()
                 }
                 menuItem.visibility = View.VISIBLE
-                Log.d(TAG, "${appName} 已安装，设置点击事件")
+                Log.d(TAG, "${config.displayName} 已安装，设置点击事件")
             } else {
                 // 应用未安装，显示但禁用
                 menuItem.setOnClickListener {
-                    Log.d(TAG, "${appName} 未安装，显示安装提示")
-                    Toast.makeText(this, "${appName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "${config.displayName} 未安装，显示安装提示")
+                    Toast.makeText(this, "${config.displayName} 未安装，请先安装应用", Toast.LENGTH_SHORT).show()
                 }
                 menuItem.visibility = View.VISIBLE
                 // 设置半透明效果表示未安装
                 menuItem.alpha = 0.5f
-                Log.d(TAG, "${appName} 未安装，设置为半透明")
+                Log.d(TAG, "${config.displayName} 未安装，设置为半透明")
             }
         }
+    }
+    
+    /**
+     * 使用新的应用启动器启动AI应用
+     * 修复：添加智能弹出时机检测，确保悬浮窗正确显示
+     */
+    private fun launchAIAppWithNewLauncher(packageName: String, appName: String) {
+        val currentQuery = query.ifEmpty { serviceClipboardManager.getText() ?: "" }
+        
+        // 重置无限循环跳转状态
+        resetSwitchState()
+        
+        // 设置目标包名，用于后续检测
+        targetPackageName = packageName
+        
+        appLauncher.launchAIApp(
+            packageName = packageName,
+            appName = appName,
+            query = currentQuery,
+            onLaunchSuccess = {
+                Log.d(TAG, "应用启动成功: $appName")
+                // 隐藏当前悬浮窗和菜单
+                hideOverlay()
+                hideAIMenu()
+                // 启动智能弹出时机检测
+                startSmartOverlayShow(packageName, appName)
+            },
+            onLaunchFailed = { errorMsg ->
+                Log.e(TAG, "应用启动失败: $appName, 错误: $errorMsg")
+                errorHandler.handleError(
+                    Exception(errorMsg),
+                    "启动AI应用: $appName",
+                    showToast = true
+                )
+            }
+        )
     }
 
     /**
-     * 启动AI应用
-     * 使用与PlatformJumpManager相同的跳转逻辑，支持无限循环跳转
-     * 修复：添加额外的应用切换检测保障机制
+     * 注意：旧的 launchAIApp() 方法已删除
+     * 所有应用启动逻辑已迁移到 AIAppLauncher 模块
+     * 请使用 launchAIAppWithNewLauncher() 方法
      */
-    private fun launchAIApp(packageName: String, appName: String) {
-        try {
-            // 获取查询文本：优先使用传入的query，否则从剪贴板获取
-            val searchQuery = if (query.isNotEmpty()) {
-                query
-            } else {
-                try {
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-                } catch (e: Exception) {
-                    ""
-                }
-            }
-            
-            Log.d(TAG, "🚀 启动AI应用: $appName, 包名: $packageName, 查询: $searchQuery")
-            
-            // 重置无限循环跳转状态，开始新的跳转循环
-            resetSwitchState()
-            
-            // 设置目标包名，用于后续检测
-            targetPackageName = packageName
-            
-            // 使用与PlatformJumpManager相同的跳转逻辑
-            
-            // 对于特定AI应用，尝试使用Intent直接发送文本
-            if (shouldTryIntentSend(appName, packageName)) {
-                if (tryIntentSendForAIApp(packageName, searchQuery, appName)) {
-                    return
-                }
-            }
-            
-            // 使用通用的AI应用跳转方法
-            launchAIAppWithAutoPaste(packageName, searchQuery, appName)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 启动${appName} 失败", e)
-            Toast.makeText(this, "启动${appName} 失败", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    /**
-     * 判断是否应该尝试Intent发送
-     */
-    private fun shouldTryIntentSend(appName: String, packageName: String): Boolean {
-        return when {
-            appName.contains("Grok") && packageName == "ai.x.grok" -> true
-            appName.contains("Perplexity") && packageName == "ai.perplexity.app.android" -> true
-            appName.contains("Poe") && packageName == "com.poe.android" -> true
-            appName.contains("Manus") && packageName == "tech.butterfly.app" -> true
-            appName.contains("纳米AI") && packageName == "com.qihoo.namiso" -> true
-            else -> false
-        }
-    }
-    
-    /**
-     * 尝试使用Intent直接发送文本到AI应用
-     */
-    private fun tryIntentSendForAIApp(packageName: String, query: String, appName: String): Boolean {
-        try {
-            Log.d(TAG, "尝试Intent直接发送到${appName}: $query")
-            
-            // 方案1：尝试使用ACTION_SEND直接发送文本
-            val sendIntent = Intent().apply {
-                action = Intent.ACTION_SEND
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage(packageName)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (sendIntent.resolveActivity(packageManager) != null) {
-                startActivity(sendIntent)
-                Toast.makeText(this, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "${appName} Intent发送成功")
-                
-                // 隐藏当前悬浮窗和菜单
-                hideOverlay()
-                hideAIMenu()
-                
-                // 使用智能弹出时机检测
-                startSmartOverlayShow(packageName, appName)
-                
-                return true
-            }
-            
-                Log.d(TAG, "${appName} Intent发送失败，回退到剪贴板方案")
-            return false
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "${appName} Intent发送失败", e)
-            return false
-        }
-    }
-    
-    /**
-     * 启动AI应用并使用自动化粘贴
-     * 完全参考PlatformJumpManager的实现
-     */
-    private fun launchAIAppWithAutoPaste(packageName: String, query: String, appName: String) {
-        try {
-            Log.d(TAG, "启动AI应用并使用自动化粘贴: ${appName}, 问题: $query")
-            
-            // 将问题复制到剪贴板
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("AI问题", query)
-            clipboard.setPrimaryClip(clip)
-            
-            // 启动AI应用
-            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
-                Toast.makeText(this, "正在启动${appName}...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "${appName}启动成功")
-                
-                // 隐藏当前悬浮窗和菜单
-                hideOverlay()
-                hideAIMenu()
-                
-                // 使用智能弹出时机检测
-                startSmartOverlayShow(packageName, appName)
-                
-            } else {
-                Toast.makeText(this, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "启动AI应用并自动粘贴失败: ${appName}", e)
-            Toast.makeText(this, "启动${appName}失败", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     /**
      * 智能弹出时机检测
@@ -1483,14 +1338,19 @@ class AIAppOverlayService : Service() {
      * 检测应用是否在前台
      * 修复：使用实时检测，不依赖currentPackageName
      */
+    /**
+     * 检查应用是否在前台
+     * 完全依赖 AppSwitchMonitor
+     */
     private fun isAppInForeground(packageName: String): Boolean {
         return try {
-            val currentApp = getCurrentAppPackageName()
+            val currentApp = appSwitchMonitor?.getCurrentPackageName()
             val isForeground = currentApp == packageName
             Log.d(TAG, "🔍 前台检测: $packageName, 当前应用: $currentApp, 结果: $isForeground")
             isForeground
         } catch (e: Exception) {
             Log.e(TAG, "❌ 前台检测失败", e)
+            errorHandler.handleError(e, "检查应用前台状态", showToast = false)
             false
         }
     }
@@ -1573,35 +1433,20 @@ class AIAppOverlayService : Service() {
     /**
      * 加载AI应用的真实图标
      */
+    /**
+     * 加载AI应用图标
+     * 重构：使用配置仓库统一管理配置
+     */
     private fun loadAIAppIcons(menuView: View) {
-        CoroutineScope(Dispatchers.Main).launch {
-            // AI应用配置
-            val aiApps = listOf(
-                // 主流AI应用
-                Triple("ai.x.grok", "Grok", R.id.ai_menu_grok_icon),
-                Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_menu_perplexity_icon),
-                Triple("com.poe.android", "Poe", R.id.ai_menu_poe_icon),
-                Triple("tech.butterfly.app", "Manus", R.id.ai_menu_manus_icon),
-                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_menu_ima_icon),
-                
-                // 扩展更多AI应用
-                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_menu_deepseek_icon),
-                Triple("com.larus.nova", "豆包", R.id.ai_menu_doubao_icon),
-                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_menu_chatgpt_icon),
-                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_menu_kimi_icon),
-                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_menu_yuanbao_icon),
-                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_menu_xinghuo_icon),
-                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_menu_qingyan_icon),
-                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_menu_tongyi_icon),
-                Triple("com.baidu.newapp", "文小言", R.id.ai_menu_wenxiaoyan_icon),
-                Triple("com.metaso", "秘塔AI搜索", R.id.ai_menu_metaso_icon),
-                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_menu_gemini_icon),
-                Triple("com.microsoft.copilot", "Copilot", R.id.ai_menu_copilot_icon)
-            )
-
-            aiApps.forEach { (packageName, appName, iconViewId) ->
-                val iconView = menuView.findViewById<ImageView>(iconViewId)
-                loadAppIcon(packageName, appName, iconView)
+        serviceScope.launch {
+            // 使用配置仓库获取所有AI应用配置
+            val allConfigs = configRepository.getAllConfigs()
+            
+            allConfigs.forEach { config ->
+                val iconView = menuView.findViewById<ImageView>(config.menuIconViewId)
+                if (iconView != null) {
+                    loadAppIcon(config.packageName, config.displayName, iconView)
+                }
             }
         }
     }
@@ -1725,31 +1570,91 @@ class AIAppOverlayService : Service() {
 
         try {
             aiMenuView?.let { view ->
-                windowManager?.removeView(view)
-                aiMenuView = null
+                // 使用iOS风格动画隐藏AI菜单，动画完成后再移除
+                overlayAnimator.hideOverlay(view) {
+                    // 动画完成后移除View
+                    try {
+                        windowManager?.removeView(view)
+                        aiMenuView = null
+                        Log.d(TAG, "AI菜单已隐藏（动画完成）")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "移除AI菜单失败", e)
+                    }
+                }
+            } ?: run {
+                // 如果view为null，直接清理
+                isAIMenuVisible = false
             }
+            
+            // 立即更新状态，避免重复调用
             isAIMenuVisible = false
-            Log.d(TAG, "AI菜单已隐藏")
         } catch (e: Exception) {
             Log.e(TAG, "隐藏AI菜单失败", e)
+            // 降级：直接移除，不执行动画
+            aiMenuView?.let { view ->
+                try {
+                    windowManager?.removeView(view)
+                } catch (ex: Exception) {
+                    Log.e(TAG, "强制移除AI菜单失败", ex)
+                }
+            }
+            aiMenuView = null
+            isAIMenuVisible = false
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        hideOverlay()
-        hideAIMenu()
-        unregisterClipboardListener()
-        stopAppSwitchMonitoring()
         
-        // 清理智能弹出时机检测相关资源
-        overlayShowRunnable?.let { runnable ->
-            overlayShowHandler?.removeCallbacks(runnable)
-        }
-        overlayShowHandler = null
-        overlayShowRunnable = null
+        // 清理所有资源，防止内存泄漏
+        cleanupAllResources()
         
         Log.d(TAG, "AI应用悬浮窗服务已销毁")
+    }
+    
+    /**
+     * 清理所有资源
+     * 确保所有View、Handler、监听器等都被正确释放
+     */
+    private fun cleanupAllResources() {
+        try {
+            // 隐藏并清理悬浮窗
+            hideOverlay()
+            
+            // 隐藏并清理AI菜单
+            hideAIMenu()
+            
+            // 取消注册剪贴板监听器
+            unregisterClipboardListener()
+            
+            // 停止应用切换监控（使用新模块）
+            stopAppSwitchMonitoring()
+            
+            // 清理智能弹出时机检测相关资源
+            overlayShowRunnable?.let { runnable ->
+                overlayShowHandler?.removeCallbacks(runnable)
+            }
+            overlayShowHandler = null
+            overlayShowRunnable = null
+            
+            // 停止新的应用切换监控模块
+            appSwitchMonitor?.stopMonitoring()
+            appSwitchMonitor = null
+            
+            // 确保所有View引用都被清空（修复内存泄漏）
+            overlayView = null
+            aiMenuView = null
+            windowManager = null
+            
+            // 重置状态标志
+            isOverlayVisible = false
+            isAIMenuVisible = false
+            
+            Log.d(TAG, "所有资源已清理完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理资源时发生错误", e)
+            errorHandler.handleError(e, "清理资源", showToast = false)
+        }
     }
 
     /**
@@ -1874,51 +1779,13 @@ class AIAppOverlayService : Service() {
     /**
      * 获取默认的AI应用列表
      */
+    /**
+     * 获取默认AI应用列表
+     * 重构：使用配置仓库统一管理配置
+     */
     private fun getDefaultAIApps(): List<AppInfo> {
-        val defaultApps = mutableListOf<AppInfo>()
-        val pm = packageManager
-
-        val aiApps = listOf(
-            // 主流AI应用
-            "ai.x.grok" to "Grok",
-            "ai.perplexity.app.android" to "Perplexity",
-            "com.poe.android" to "Poe",
-            "tech.butterfly.app" to "Manus",
-            "com.qihoo.namiso" to "纳米AI",
-            
-            // 扩展更多AI应用以支持软件tab中的所有应用
-            "com.deepseek.chat" to "DeepSeek",
-            "com.larus.nova" to "豆包",
-            "com.openai.chatgpt" to "ChatGPT",
-            "com.moonshot.kimichat" to "Kimi",
-            "com.tencent.hunyuan.app.chat" to "腾讯元宝",
-            "com.iflytek.spark" to "讯飞星火",
-            "com.zhipuai.qingyan" to "智谱清言",
-            "com.aliyun.tongyi" to "通义千问",
-            "com.baidu.newapp" to "文小言",
-            "com.metaso" to "秘塔AI搜索",
-            "com.google.android.apps.gemini" to "Gemini",
-            "com.microsoft.copilot" to "Copilot"
-        )
-
-        aiApps.forEach { (packageName, appName) ->
-            try {
-                val appInfo = pm.getApplicationInfo(packageName, 0)
-                val icon = pm.getApplicationIcon(packageName)
-                val label = pm.getApplicationLabel(appInfo).toString()
-
-                defaultApps.add(AppInfo(
-                    label = label,
-                    packageName = packageName,
-                    icon = icon,
-                    urlScheme = null
-                ))
-            } catch (e: Exception) {
-                Log.d(TAG, "AI应用 ${appName} 未安装: $packageName")
-            }
-        }
-
-        return defaultApps
+        // 直接使用配置仓库的方法获取已安装的应用
+        return configRepository.getInstalledAppsAsAppInfo()
     }
 
     /**
@@ -2315,21 +2182,13 @@ class AIAppOverlayService : Service() {
             clipboard.addPrimaryClipChangedListener(clipboardListener!!)
             Log.d(TAG, "剪贴板监听器已注册")
             
-            // 立即更新一次剪贴板预览（已注释）
-            // updateClipboardPreview()
-            
-            // 测试剪贴板功能
-            testClipboardFunctionality()
-            
-            // 手动刷新剪贴板内容（已注释）
-            // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            //     Log.d(TAG, "手动刷新剪贴板内容")
-            //     updateClipboardPreview()
-            // }, 1000)
+            // 注意：已移除 testClipboardFunctionality() 调用
+            // 避免测试数据覆盖用户剪贴板内容
+            // 如需测试，请手动调用或使用调试模式
             
         } catch (e: Exception) {
             Log.e(TAG, "注册剪贴板监听器失败", e)
-            Toast.makeText(this, "剪贴板监听器注册失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            errorHandler.handleError(e, "注册剪贴板监听器", showToast = true)
         }
     }
     
@@ -2623,23 +2482,151 @@ class AIAppOverlayService : Service() {
      * 初始化应用切换监听器
      * 包含无限循环跳转状态管理
      */
+    /**
+     * 初始化应用切换监听器
+     * 重构：使用新的AppSwitchMonitor模块（后台线程+事件驱动）
+     * 已移除旧代码，统一使用新模块
+     */
+    /**
+     * 初始化应用切换监听器
+     * 完全依赖 AppSwitchMonitor，确保独当一面
+     * 所有应用切换相关功能都通过 AppSwitchMonitor 提供
+     */
     private fun initAppSwitchListener() {
         try {
-            usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
-            appSwitchHandler = android.os.Handler(android.os.Looper.getMainLooper())
-            
-            // 获取当前应用包名
-            currentPackageName = getCurrentAppPackageName()
+            // 创建并初始化 AppSwitchMonitor（如果尚未创建）
+            if (appSwitchMonitor == null) {
+                appSwitchMonitor = AppSwitchMonitor(this, serviceScope)
+                
+                // 设置应用切换回调（在主线程执行）
+                appSwitchMonitor?.onAppSwitched = { newPackageName ->
+                    handleAppSwitch(newPackageName)
+                }
+                
+                // 启动监控（后台线程+事件驱动）
+                appSwitchMonitor?.startMonitoring()
+                
+                // 异步获取当前应用包名（监控启动后会自动更新）
+                serviceScope.launch {
+                    kotlinx.coroutines.delay(150) // 等待监控启动并完成首次检测
+                    currentPackageName = appSwitchMonitor?.getCurrentPackageName()
+                    Log.d(TAG, "🔄 获取到当前应用包名: $currentPackageName")
+                }
+            } else {
+                // 如果已存在，确保监控正在运行
+                if (appSwitchMonitor?.isMonitoring() != true) {
+                    appSwitchMonitor?.startMonitoring()
+                }
+                // 更新当前包名
+                currentPackageName = appSwitchMonitor?.getCurrentPackageName()
+            }
             
             // 重置无限循环跳转状态
             resetSwitchState()
             
-            // 启动定期检查
-            startAppSwitchMonitoring()
-            
-            Log.d(TAG, "🔄 AIAppOverlayService应用切换监听器已初始化，当前应用: $currentPackageName，无限循环跳转已启用")
+            Log.d(TAG, "🔄 AIAppOverlayService应用切换监听器已初始化，无限循环跳转已启用")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 初始化应用切换监听器失败", e)
+            errorHandler.handleError(e, "初始化应用切换监听器", showToast = false)
+        }
+    }
+    
+    /**
+     * 处理应用切换事件（由AppSwitchMonitor回调）
+     * 修复：允许在overlay不可见时也能处理目标应用的切换（用于软件app跳转后自动激活）
+     */
+    private fun handleAppSwitch(newPackageName: String) {
+        if (!isAppSwitchMonitoringEnabled) return
+        
+        // 检查是否是目标应用（从软件app跳转过来的应用）
+        val isTargetApp = targetPackageName == newPackageName
+        
+        // 如果不是目标应用且overlay不可见，则不处理（避免不必要的处理）
+        // 如果是目标应用，即使overlay不可见也要处理（用于自动激活）
+        if (!isTargetApp && !isOverlayVisible) {
+            Log.d(TAG, "非目标应用且overlay不可见，跳过处理: $newPackageName")
+            return
+        }
+        
+        try {
+            // 如果包名发生变化，说明用户切换了应用
+            if (newPackageName != currentPackageName) {
+                val currentTime = System.currentTimeMillis()
+                
+                // 检查冷却时间，防止频繁切换（目标应用跳过冷却）
+                if (!isTargetApp && currentTime - lastSwitchTime < switchCooldown) {
+                    Log.d(TAG, "⏰ 应用切换冷却中，跳过: $currentPackageName -> $newPackageName")
+                    currentPackageName = newPackageName
+                    return
+                }
+                
+                if (isTargetApp) {
+                    Log.d(TAG, "🎯 目标应用切换，跳过冷却时间")
+                }
+                
+                // 检查最大跳转次数，防止无限循环（目标应用不受限制）
+                if (!isTargetApp && switchCount >= maxSwitchCount) {
+                    Log.d(TAG, "⚠️ 已达到最大跳转次数 ($maxSwitchCount)，停止无限循环跳转")
+                    Toast.makeText(this, "已达到最大跳转次数，请手动重启服务", Toast.LENGTH_LONG).show()
+                    currentPackageName = newPackageName
+                    return
+                }
+                
+                Log.d(TAG, "🔄 AIAppOverlayService检测到应用切换: $currentPackageName -> $newPackageName (第${switchCount + 1}次)")
+                
+                // 处理目标应用切换（从软件app跳转过来的应用）
+                if (isTargetApp) {
+                    // 目标应用：无论是否支持，都要显示悬浮窗（用于软件app跳转后自动激活）
+                    Log.d(TAG, "🎯 检测到目标应用切换: $newPackageName，立即显示悬浮窗")
+                    
+                    // 更新状态管理变量
+                    lastSwitchTime = currentTime
+                    switchCount++
+                    
+                    // 更新当前包名和应用信息
+                    packageName = newPackageName
+                    appName = getAppNameFromPackage(newPackageName)
+                    currentPackageName = newPackageName
+                    
+                    // 立即显示悬浮窗（用于软件app跳转后自动激活）
+                    if (!isOverlayVisible) {
+                        // overlay未显示，直接显示
+                        showOverlay()
+                        Log.d(TAG, "🔄 目标应用悬浮窗已自动激活: $appName")
+                    } else {
+                        // overlay已显示，先隐藏再显示（刷新）
+                        hideOverlay()
+                        showOverlay()
+                        Log.d(TAG, "🔄 目标应用悬浮窗已刷新显示: $appName")
+                    }
+                } else if (appSwitchMonitor?.isSupportedPackage(newPackageName) == true) {
+                    // 非目标应用但支持的应用：重新显示悬浮窗（无限循环跳转）
+                    Log.d(TAG, "✅ 检测到切换到支持的应用: $newPackageName，重新显示悬浮窗（无限循环跳转）")
+                    
+                    // 更新状态管理变量
+                    lastSwitchTime = currentTime
+                    switchCount++
+                    
+                    // 更新当前包名和应用信息
+                    packageName = newPackageName
+                    appName = getAppNameFromPackage(newPackageName)
+                    currentPackageName = newPackageName
+                    
+                    // 重新显示悬浮窗，支持无限循环
+                    hideOverlay()
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        showOverlay()
+                        Log.d(TAG, "🔄 悬浮窗已重新显示，支持无限循环跳转到: $appName (第${switchCount}次跳转)")
+                    }, 100)
+                } else {
+                    // 不支持的应用：只更新包名，不显示悬浮窗
+                    Log.d(TAG, "⚠️ 切换到不支持的应用: $newPackageName，不显示悬浮窗")
+                    currentPackageName = newPackageName
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 处理应用切换失败", e)
+            errorHandler.handleError(e, "处理应用切换", showToast = false)
         }
     }
     
@@ -2652,201 +2639,33 @@ class AIAppOverlayService : Service() {
         Log.d(TAG, "🔄 无限循环跳转状态已重置")
     }
     
-    /**
-     * 启动应用切换监控
-     * 优化版本，提高检测频率和准确性
-     */
-    private fun startAppSwitchMonitoring() {
-        if (!isAppSwitchMonitoringEnabled) return
-        
-        appSwitchRunnable = object : Runnable {
-            override fun run() {
-                checkAppSwitch()
-                // 进一步提高检测频率：每200ms检查一次
-                appSwitchHandler?.postDelayed(this, 200)
-            }
-        }
-        appSwitchHandler?.post(appSwitchRunnable!!)
-    }
     
     /**
      * 停止应用切换监控
+     * 重构：已移除旧代码，统一使用AppSwitchMonitor
      */
     private fun stopAppSwitchMonitoring() {
         try {
-            appSwitchRunnable?.let { runnable ->
-                appSwitchHandler?.removeCallbacks(runnable)
-            }
-            appSwitchRunnable = null
+            // 停止新的应用切换监控模块
+            appSwitchMonitor?.stopMonitoring()
+            
             Log.d(TAG, "AIAppOverlayService应用切换监听已停止")
         } catch (e: Exception) {
             Log.e(TAG, "停止应用切换监听失败", e)
-        }
-    }
-    
-    /**
-     * 检查应用切换
-     * 支持无限循环跳转功能，包含状态管理和防重复显示机制
-     * 修复：及时更新currentPackageName，确保检测准确性
-     */
-    private fun checkAppSwitch() {
-        if (!isAppSwitchMonitoringEnabled || !isOverlayVisible) return
-        
-        try {
-            val newPackageName = getCurrentAppPackageName()
-            
-            // 如果包名发生变化，说明用户切换了应用
-            if (newPackageName != null && newPackageName != currentPackageName) {
-                val currentTime = System.currentTimeMillis()
-                
-                // 检查冷却时间，防止频繁切换（目标应用跳过冷却）
-                val isTargetApp = targetPackageName == newPackageName
-                if (!isTargetApp && currentTime - lastSwitchTime < switchCooldown) {
-                    Log.d(TAG, "⏰ 应用切换冷却中，跳过: $currentPackageName -> $newPackageName")
-                    // 即使跳过，也要更新currentPackageName，确保下次检测准确
-                    currentPackageName = newPackageName
-                    return
-                }
-                
-                if (isTargetApp) {
-                    Log.d(TAG, "🎯 目标应用切换，跳过冷却时间")
-                }
-                
-                // 检查最大跳转次数，防止无限循环
-                if (switchCount >= maxSwitchCount) {
-                    Log.d(TAG, "⚠️ 已达到最大跳转次数 ($maxSwitchCount)，停止无限循环跳转")
-                    Toast.makeText(this, "已达到最大跳转次数，请手动重启服务", Toast.LENGTH_LONG).show()
-                    // 即使停止跳转，也要更新currentPackageName
-                    currentPackageName = newPackageName
-                    return
-                }
-                
-                Log.d(TAG, "🔄 AIAppOverlayService检测到应用切换: $currentPackageName -> $newPackageName (第${switchCount + 1}次)")
-                
-                // 检查是否切换到了支持的应用（所有应用都支持无限循环跳转）
-                if (isSupportedPackage(newPackageName)) {
-                    Log.d(TAG, "✅ 检测到切换到支持的应用: $newPackageName，重新显示悬浮窗（无限循环跳转）")
-                    
-                    // 更新状态管理变量
-                    lastSwitchTime = currentTime
-                    switchCount++
-                    
-                    // 更新当前包名和应用信息
-                    packageName = newPackageName
-                    appName = getAppNameFromPackage(newPackageName)
-                    
-                    // 立即更新currentPackageName，确保后续检测准确
-                    currentPackageName = newPackageName
-                    
-                    // 检查是否是目标应用（从AIAppOverlayService跳转的应用）
-                    val isTargetApp = targetPackageName == newPackageName
-                    if (isTargetApp) {
-                        Log.d(TAG, "🎯 检测到目标应用切换，立即显示悬浮窗")
-                        // 立即显示悬浮窗，不需要延迟
-                        hideOverlay()
-                        showOverlay()
-                        Log.d(TAG, "🔄 目标应用悬浮窗已立即显示: $appName")
-                    } else {
-                        // 重新显示悬浮窗，支持无限循环
-                        hideOverlay()
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            showOverlay()
-                            Log.d(TAG, "🔄 悬浮窗已重新显示，支持无限循环跳转到: $appName (第${switchCount}次跳转)")
-                        }, 100) // 进一步减少延迟时间到100ms
-                    }
-                } else {
-                    Log.d(TAG, "⚠️ 切换到不支持的应用: $newPackageName，保持悬浮窗显示")
-                    // 即使不支持，也要更新currentPackageName
-                    currentPackageName = newPackageName
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 检查应用切换失败", e)
+            errorHandler.handleError(e, "停止应用切换监听", showToast = false)
         }
     }
     
     /**
      * 获取当前前台应用的包名
-     * 增强版本，提高检测准确性和响应速度
+     * 完全依赖 AppSwitchMonitor，不再有独立实现
      */
     private fun getCurrentAppPackageName(): String? {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val time = System.currentTimeMillis()
-                
-                // 使用更短的时间间隔提高响应速度
-                val usageStats = usageStatsManager?.queryUsageStats(
-                    android.app.usage.UsageStatsManager.INTERVAL_DAILY,
-                    time - 300, // 进一步缩短到300ms，提高响应速度
-                    time
-                )
-                
-                // 获取最近使用的应用
-                val currentApp = usageStats?.maxByOrNull { it.lastTimeUsed }
-                
-                if (currentApp != null) {
-                    Log.d(TAG, "🔍 检测到当前应用: ${currentApp.packageName}, 最后使用时间: ${currentApp.lastTimeUsed}")
-                    currentApp.packageName
-                } else {
-                    Log.d(TAG, "⚠️ 未检测到当前应用")
-                    null
-                }
-            } else {
-                Log.d(TAG, "⚠️ Android版本过低，不支持UsageStats")
+        return appSwitchMonitor?.getCurrentPackageName()
+            ?: run {
+                Log.w(TAG, "AppSwitchMonitor未初始化，无法获取当前应用包名")
                 null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 获取当前应用包名失败", e)
-            null
-        }
-    }
-    
-    /**
-     * 检查是否是支持的应用包名（支持所有应用，实现无限循环跳转）
-     * 优化版本，确保无限循环跳转的稳定性
-     */
-    private fun isSupportedPackage(packageName: String): Boolean {
-        // 排除一些系统应用和启动器，避免干扰无限循环跳转
-        val excludedPackages = listOf(
-            "com.android.systemui", // 系统UI
-            "com.android.launcher3", // 启动器
-            "com.android.launcher", // 启动器
-            "com.miui.home", // MIUI启动器
-            "com.huawei.android.launcher", // 华为启动器
-            "com.oppo.launcher", // OPPO启动器
-            "com.vivo.launcher", // VIVO启动器
-            "com.samsung.android.launcher", // 三星启动器
-            "com.android.packageinstaller", // 包安装器
-            "com.android.vending", // Google Play
-            "com.android.providers.downloads", // 下载管理器
-            "com.android.settings", // 设置（可选排除）
-            "com.android.keychain", // 密钥链
-            "com.android.providers.media", // 媒体提供者
-            "com.android.providers.contacts", // 联系人提供者
-            "com.android.providers.calendar", // 日历提供者
-            "com.android.providers.telephony", // 电话提供者
-            "com.android.providers.settings", // 设置提供者
-            "com.android.providers.userdictionary", // 用户字典提供者
-            "com.android.providers.blockednumber", // 阻止号码提供者
-            "com.android.providers.downloads.ui", // 下载UI
-            "com.android.providers.media.module", // 媒体模块
-            "com.android.providers.contacts.module", // 联系人模块
-            "com.android.providers.calendar.module", // 日历模块
-            "com.android.providers.telephony.module", // 电话模块
-            "com.android.providers.settings.module", // 设置模块
-            "com.android.providers.userdictionary.module", // 用户字典模块
-            "com.android.providers.blockednumber.module", // 阻止号码模块
-        )
-        
-        // 如果是不支持的系统应用，返回false
-        if (excludedPackages.contains(packageName)) {
-            Log.d(TAG, "⚠️ 应用 $packageName 被排除，不支持无限循环跳转")
-            return false
-        }
-        
-        // 其他所有应用都支持悬浮窗和无限循环跳转
-        Log.d(TAG, "✅ 应用 $packageName 支持无限循环跳转")
-        return true
     }
     
     /**
@@ -3141,3 +2960,5 @@ class AIAppOverlayService : Service() {
         }
     }
 }
+
+
